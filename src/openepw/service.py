@@ -136,49 +136,83 @@ class WeatherService:
 
     def plan(self, request: WeatherRequest, *, discovery=None):
         discovery = discovery or self.discover(request)
-        tasks = {}
-        outputs = []
-        selected = [c for c in discovery.candidates if c.id in discovery.selected_candidate_ids]
+        if [p.key for p in discovery.locations] != [p.key for p in self.locations(request)]:
+            raise OpenEPWError("PLAN_STALE", "Discovery locations differ from this request")
+        tasks, outputs, selected = {}, [], []
         warnings = [i.message for i in discovery.issues]
         for loc in discovery.locations:
-            candidate = next((c for c in selected if c.location_id == loc.key), None)
-            if candidate is None:
+            candidates = [c for c in discovery.candidates if c.location_id == loc.key]
+            if request.hybrid_policy.enabled:
+                if request.product not in ("historical", "amy"):
+                    raise OpenEPWError("INVALID_ALIGNMENT", "Hybrids require actual dated series")
+                chosen = []
+                for provider in dict.fromkeys(request.hybrid_policy.assignments.values()):
+                    candidate = next((c for c in candidates if c.source.provider == provider), None)
+                    if candidate is None:
+                        raise OpenEPWError(
+                            "PROVIDER_UNAVAILABLE", "Assigned hybrid provider is unavailable"
+                        )
+                    chosen.append(candidate)
+            else:
+                chosen = [c for c in candidates if c.id in discovery.selected_candidate_ids][:1]
+            if not chosen:
                 raise OpenEPWError(
                     "PROVIDER_UNAVAILABLE", "No candidate supports requested product/location"
                 )
-            warnings.extend(candidate.warnings)
+            selected.extend(c for c in chosen if c.id not in [v.id for v in selected])
             periods = [(f"{y}-01-01", f"{y}-12-31") for y in request.years] or [
                 (str(request.start), str(request.end))
             ]
             for start, end in periods:
-                params = {
-                    "location": loc.model_dump(mode="json"),
-                    "start": start,
-                    "end": end,
-                    "product": request.product,
-                    "product_id": candidate.product_id or request.product_id,
-                }
-                key = digest(
-                    {
-                        "source": candidate.source.model_dump(mode="json"),
-                        "parameters": params,
-                        "version": "0.1",
+                ids = []
+                for candidate in chosen:
+                    warnings.extend(candidate.warnings)
+                    if (
+                        candidate.source.resolution_km
+                        and min(request.sampling.dx_km, request.sampling.dy_km)
+                        < candidate.source.resolution_km
+                    ):
+                        warnings.append(
+                            "Requested spacing is below native source resolution; density does not improve weather resolution"
+                        )
+                    query_location = loc.model_dump(mode="json", exclude={"id", "name"})
+                    if (
+                        candidate.source.identity
+                        and not candidate.source.provisional
+                        and candidate.source.location
+                    ):
+                        query_location.update(
+                            lat=candidate.source.location.lat, lon=candidate.source.location.lon
+                        )
+                    params = {
+                        "location": query_location,
+                        "start": start,
+                        "end": end,
+                        "product": request.product,
+                        "product_id": candidate.product_id or request.product_id,
                     }
-                )
-                task_id = key[:20]
-                if key not in tasks:
-                    tasks[key] = FetchTask(
-                        id=task_id,
-                        source=candidate.source,
-                        parameters=params,
-                        cache_key=key,
-                        dependents=[loc.key],
+                    key = digest(
+                        {
+                            "source": candidate.source.model_dump(mode="json"),
+                            "parameters": params,
+                            "version": "0.1",
+                        }
                     )
-                elif loc.key not in tasks[key].dependents:
-                    tasks[key].dependents.append(loc.key)
+                    task_id = key[:20]
+                    if key not in tasks:
+                        tasks[key] = FetchTask(
+                            id=task_id,
+                            source=candidate.source,
+                            parameters=params,
+                            cache_key=key,
+                            dependents=[loc.key],
+                        )
+                    elif loc.key not in tasks[key].dependents:
+                        tasks[key].dependents.append(loc.key)
+                    ids.append(task_id)
                 outputs.append(
                     OutputSpec(
-                        requested_location_id=loc.key, task_ids=[task_id], name=f"{task_id}.epw"
+                        requested_location_id=loc.key, task_ids=ids, name=digest(ids)[:20] + ".epw"
                     )
                 )
         return WeatherPlan(
@@ -195,11 +229,8 @@ class WeatherService:
         if plan.kind == "future":
             return self._execute_future(plan, cancelled=cancelled, progress=progress)
         bundle_id = uuid.uuid4().hex
-        weather = []
-        additional = []
-        issues = []
-        manifest_outputs = []
-        qc_records = []
+        weather, additional, issues, manifest_outputs, qc_records = [], [], [], [], []
+        results = {}
         for task in plan.tasks:
             if cancelled():
                 issues.append(
@@ -210,14 +241,32 @@ class WeatherService:
                 provider = self.providers.get(task.source.provider)
                 if provider is None:
                     raise OpenEPWError("PLAN_STALE", "Planned provider is not registered")
-                # Cache provider result through its raw response at HTTP boundary; credentials excluded.
-                result = self._cached_fetch(provider, task)
-                dataset = result.dataset
+                results[task.id] = self._cached_fetch(provider, task)
+            except OpenEPWError as exc:
+                issues.append(exc.issue.model_copy(update={"task_id": task.id}))
+                progress(task.id, exc.issue)
+        written = set()
+        for output in plan.outputs:
+            if output.name in written:
+                continue
+            written.add(output.name)
+            if not all(t in results for t in output.task_ids):
+                continue
+            try:
+                parts = [results[t] for t in output.task_ids]
+                if plan.request.hybrid_policy.enabled:
+                    from .planning.hybrid import combine
+
+                    dataset = combine(
+                        {p.source.provider: p.dataset for p in parts},
+                        plan.request.hybrid_policy.assignments,
+                    )
+                else:
+                    dataset = parts[0].dataset
                 checks = validate(dataset)
-                if (
-                    isinstance(plan.request, WeatherRequest)
-                    and plan.request.missing_policy == "error"
-                    and any(i.code == "MISSING_CRITICAL_VARIABLE" for i in checks)
+                if plan.request.missing_policy == "error" and any(
+                    v not in dataset.data or dataset.data[v].isna().any()
+                    for v in plan.request.required_variables
                 ):
                     raise OpenEPWError(
                         "MISSING_CRITICAL_VARIABLE", "Required weather values are missing"
@@ -228,44 +277,51 @@ class WeatherService:
                     )
                 ref = self.artifacts.write(
                     bundle_id,
-                    f"{task.id}.epw",
+                    output.name,
                     epw_bytes(dataset),
                     "weather",
                     "application/vnd.energyplus.epw",
                 )
                 weather.append(ref)
-                if result.native_epw:
-                    additional.append(
-                        self.artifacts.write(
-                            bundle_id,
-                            f"{task.id}-native.epw",
-                            result.native_epw,
-                            "native_weather",
-                            "application/vnd.energyplus.epw",
+                for task_id, part in zip(output.task_ids, parts):
+                    if part.native_epw:
+                        additional.append(
+                            self.artifacts.write(
+                                bundle_id,
+                                task_id + "-native.epw",
+                                part.native_epw,
+                                "native_weather",
+                                "application/vnd.energyplus.epw",
+                            )
                         )
-                    )
                 manifest_outputs.append(
                     {
                         "artifact_id": ref.id,
-                        "task_id": task.id,
-                        "requested_locations": task.dependents,
-                        "source": result.source.model_dump(mode="json"),
+                        "task_ids": output.task_ids,
+                        "requested_locations": [
+                            o.requested_location_id for o in plan.outputs if o.name == output.name
+                        ],
+                        "source": parts[0].source.model_dump(mode="json"),
                         "lineage": {
                             k: v.model_dump(mode="json") for k, v in dataset.lineage.items()
                         },
                         "metadata": dataset.metadata,
-                        "raw_sha256": hashlib.sha256(result.raw).hexdigest(),
+                        "raw_sha256": [hashlib.sha256(p.raw).hexdigest() for p in parts],
                     }
                 )
                 qc_records.append(
                     {"artifact_id": ref.id, "issues": [i.model_dump() for i in checks]}
                 )
                 issues.extend(checks)
-                progress(task.id, None)
+                progress(output.name, None)
             except OpenEPWError as exc:
-                issue = exc.issue.model_copy(update={"task_id": task.id})
-                issues.append(issue)
-                progress(task.id, issue)
+                issues.append(exc.issue.model_copy(update={"task_id": output.name}))
+                progress(output.name, exc.issue)
+        return self._bundle(
+            plan, bundle_id, weather, additional, issues, manifest_outputs, qc_records
+        )
+
+    def _bundle(self, plan, bundle_id, weather, additional, issues, manifest_outputs, qc_records):
         request_ref = self.artifacts.json(
             bundle_id, "request.json", plan.request.model_dump(mode="json"), "request"
         )
