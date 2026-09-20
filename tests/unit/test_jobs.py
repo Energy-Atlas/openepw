@@ -100,3 +100,15 @@ def test_future_ensemble_progress_counts_artifacts(tmp_path):
     final = store.get(job.id)
     assert final.state == "completed"
     assert final.completed == final.total == 2
+
+
+def test_job_connections_close_after_transaction(tmp_path):
+    import sqlite3
+
+    import pytest
+
+    store = JobStore(tmp_path)
+    with store.connect() as db:
+        assert db.execute("SELECT 1").fetchone()[0] == 1
+    with pytest.raises(sqlite3.ProgrammingError, match="closed"):
+        db.execute("SELECT 1")

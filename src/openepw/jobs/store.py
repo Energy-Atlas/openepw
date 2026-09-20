@@ -2,6 +2,7 @@ import base64
 import json
 import sqlite3
 import uuid
+from contextlib import contextmanager
 from pathlib import Path
 
 from ..models import ArtifactBundle, OpenEPWError, WeatherJob, WeatherPlan
@@ -20,10 +21,16 @@ class JobStore:
                 "CREATE TABLE IF NOT EXISTS items (job_id TEXT, name TEXT, bundle TEXT, PRIMARY KEY(job_id,name))"
             )
 
+    @contextmanager
     def connect(self):
         db = sqlite3.connect(self.path, timeout=30)
-        db.execute("PRAGMA busy_timeout=30000")
-        return db
+        try:
+            db.execute("PRAGMA busy_timeout=30000")
+            with db:
+                yield db
+        finally:
+            # sqlite's transaction context commits/rolls back but does not close.
+            db.close()
 
     def submit(self, plan, idempotency_key=None):
         job = WeatherJob(
