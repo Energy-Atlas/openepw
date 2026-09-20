@@ -1,0 +1,1 @@
+"""Atomic artifact persistence."""
