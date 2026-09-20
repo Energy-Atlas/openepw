@@ -1,0 +1,25 @@
+# Proposed Stage 2 configuration. Copy to ignored config.local.toml.
+[storage]
+root = ".local/openepw"
+
+[network]
+timeout_seconds = 30
+max_retries = 3
+per_provider_concurrency = 1
+
+[providers.openmeteo]
+base_url = "https://archive-api.open-meteo.com"
+usage = "noncommercial"
+
+[providers.nsrdb]
+base_url = "https://developer.nlr.gov"
+# Supply api_key/email through environment or ignored local config.
+
+[providers.cds]
+url = "https://cds.climate.copernicus.eu/api"
+# Owner must accept dataset terms in their own account first.
+
+[planning]
+max_locations = 1000
+max_artifacts = 1000
+allow_hybrid = false
