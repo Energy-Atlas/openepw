@@ -127,7 +127,8 @@ class WeatherRequest(Model):
     )
     hybrid_policy: HybridPolicy = Field(default_factory=HybridPolicy)
     missing_policy: Literal["warn", "error"] = "warn"
-    leap_policy: Literal["preserve"] = "preserve"
+    leap_policy: Literal["preserve", "skip_feb_29"] = "preserve"
+    skip_feb_29: bool = False
     formats: list[Literal["epw"]] = Field(default_factory=lambda: ["epw"])
 
     @model_validator(mode="after")
@@ -148,6 +149,12 @@ class WeatherRequest(Model):
             raise ValueError("Invalid or duplicate year")
         if self.product in ("historical", "amy") and not (self.years or self.start):
             raise ValueError("Historical requests require years or inclusive dates")
+        if self.leap_policy == "skip_feb_29":
+            object.__setattr__(self, "skip_feb_29", True)
+        if self.skip_feb_29:
+            if self.product not in ("historical", "amy") or not self.years:
+                raise ValueError("skip_feb_29 requires an actual-year historical or AMY request")
+            object.__setattr__(self, "leap_policy", "skip_feb_29")
         return self
 
 

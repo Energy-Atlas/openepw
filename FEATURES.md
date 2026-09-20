@@ -6,7 +6,7 @@ are recorded separately. Installed source package version: 0.1.0.
 | Capability | Status | Important boundary |
 | --- | --- | --- |
 | Python workflow and typed plans | Implemented, tested | Core API is canonical; no hidden provider fallback |
-| EPW read/write/QC | Implemented, tested | 35 columns; partial/annual validation separate; not simulator certification |
+| EPW read/write/QC | Implemented, tested | 35 columns; partial/annual validation separate; optional explicit `skip_feb_29`; not simulator certification |
 | Open-Meteo ERA5 | Live full leap-year accepted | Noncommercial free hosting; ERA5-Land variables may be unavailable |
 | PVGIS native TMY | Live 8,760 rows accepted | Original EPW and selected-month/source metadata retained |
 | OneBuilding published files | Live 8,760 rows accepted | Explicit product ID or country catalog + name; no global nearest-site index |

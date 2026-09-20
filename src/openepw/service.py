@@ -8,6 +8,7 @@ from typing import Any
 
 from .artifacts.store import ArtifactStore, atomic_write
 from .config import RuntimeConfig
+from .dataset import without_feb_29
 from .epw.writer import epw_bytes
 from .models import (
     ArtifactBundle,
@@ -293,6 +294,8 @@ class WeatherService:
                     )
                 else:
                     dataset = parts[0].dataset
+                if plan.request.skip_feb_29:
+                    dataset = without_feb_29(dataset)
                 checks = validate(dataset)
                 if plan.request.missing_policy == "error" and any(
                     v not in dataset.data or dataset.data[v].isna().any()
@@ -368,7 +371,11 @@ class WeatherService:
             "warnings": plan.warnings,
             "issues": [i.model_dump() for i in issues],
             "timezone_policy": "fixed local standard time; default UTC when not supplied",
-            "leap_policy": "preserve",
+            "leap_policy": (
+                plan.request.leap_policy
+                if isinstance(plan.request, WeatherRequest)
+                else "preserve"
+            ),
             "simulation_ready": False,
         }
         manifest_ref = self.artifacts.json(bundle_id, "manifest.json", manifest, "manifest")

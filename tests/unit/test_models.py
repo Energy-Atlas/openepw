@@ -20,6 +20,24 @@ def test_request_date_and_product_conflicts():
             WeatherRequest(locations=[Location(lat=42, lon=-76)], **extra)
 
 
+def test_skip_feb_29_requires_actual_year_request():
+    for extra in [
+        dict(product="tmy", skip_feb_29=True),
+        dict(start="2024-01-01", end="2024-12-31", skip_feb_29=True),
+    ]:
+        with pytest.raises(ValidationError):
+            WeatherRequest(locations=Location(lat=42, lon=-76), **extra)
+
+    request = WeatherRequest(
+        locations=Location(lat=42, lon=-76),
+        product="amy",
+        years=[2024],
+        skip_feb_29=True,
+    )
+    assert request.skip_feb_29 is True
+    assert request.leap_policy == "skip_feb_29"
+
+
 def test_future_scenario_and_period_validation():
     with pytest.raises(ValidationError):
         FutureRequest(baseline="base.epw", target_year=2050, climate_scenario="made-up")

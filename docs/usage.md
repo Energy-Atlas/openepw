@@ -11,6 +11,28 @@ periods. Published TMY products cannot also specify actual years. Provider order
 is explicit (`providers=["nsrdb", "openmeteo"]`); discovery retains alternatives,
 but execution never silently reselects a different provider after failure.
 
+Actual-year requests preserve February 29 by default. Set `skip_feb_29=True` when
+the consuming software requires a 365-day array for every year:
+
+```python
+request = WeatherRequest(
+    locations=Location(
+        lat=42.45,
+        lon=-76.50,
+        standard_offset_minutes=-300,
+    ),
+    product="amy",
+    years=[2024],
+    providers=["nsrdb"],
+    skip_feb_29=True,
+)
+```
+
+The option is limited to actual-year `years` requests. It removes the 24 local
+February 29 intervals, retains the original source-year labels, marks the EPW as
+`OPENEPW_CALENDAR=noleap`, and records the policy and removal count in the manifest.
+It does not permit any other missing day.
+
 A list of Locations makes a batch. BoundingBox(west,south,east,north) and
 PolygonQuery(type="Polygon", coordinates=[exterior, holes...]) use SamplingSpec.
 Spacing/offsets are kilometers, measured from the bounding region's southwest

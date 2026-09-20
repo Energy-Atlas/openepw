@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from openepw.dataset import WeatherDataset, irradiance_to_energy
+from openepw.dataset import WeatherDataset, irradiance_to_energy, without_feb_29
 from openepw.epw import read_epw, write_epw
 from openepw.models import Location
 from openepw.qc import validate
@@ -94,3 +94,13 @@ def test_explicit_native_noleap_calendar_roundtrip(tmp_path):
     result = read_epw(p)
     assert result.calendar == "noleap"
     assert result.source_years == [2048] * 8760
+
+
+def test_explicit_noleap_allows_only_the_feb_29_gap():
+    data = without_feb_29(synthetic(2024, 8784))
+    assert len(data.data) == 8760
+    assert not any(i.severity == "error" for i in validate(data, "annual"))
+
+    data.data = data.data.drop(data.data.index[100])
+    codes = {i.code for i in validate(data, "annual")}
+    assert {"MISSING_INTERVAL", "INCOMPLETE_YEAR"} <= codes

@@ -50,3 +50,41 @@ def local_interval_starts(dataset: WeatherDataset) -> pd.DatetimeIndex:
     return pd.DatetimeIndex(dataset.data.index).tz_localize(None) + pd.Timedelta(
         minutes=dataset.location.standard_offset_minutes - dataset.interval_minutes
     )
+
+
+def without_feb_29(dataset: WeatherDataset) -> WeatherDataset:
+    """Return an explicitly no-leap copy, preserving source-year labels and provenance."""
+    local = local_interval_starts(dataset)
+    keep = ~((local.month == 2) & (local.day == 29))
+    transform = "removed local February 29 intervals"
+    source_years = (
+        [year for year, retained in zip(dataset.source_years, keep) if retained]
+        if dataset.source_years
+        else []
+    )
+    lineage = {
+        name: item.model_copy(
+            update={
+                "transforms": list(
+                    dict.fromkeys([*item.transforms, transform])
+                )
+            }
+        )
+        for name, item in dataset.lineage.items()
+    }
+    return WeatherDataset(
+        data=dataset.data.loc[keep].copy(),
+        location=dataset.location,
+        interval_minutes=dataset.interval_minutes,
+        calendar="noleap",
+        units=dict(dataset.units),
+        lineage=lineage,
+        headers=[list(row) for row in dataset.headers],
+        source_years=source_years,
+        metadata={
+            **dataset.metadata,
+            "leap_policy": "skip_feb_29",
+            "removed_feb_29_intervals": int((~keep).sum()),
+        },
+        issues=list(dataset.issues),
+    )

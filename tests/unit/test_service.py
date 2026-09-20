@@ -8,6 +8,7 @@ from openepw.config import RuntimeConfig
 from openepw.epw import read_epw
 from openepw.models import Location, OpenEPWError, WeatherRequest
 from openepw.providers.http import HttpClient
+from openepw.qc import validate
 from openepw.service import WeatherService
 
 
@@ -69,6 +70,43 @@ def test_leap_local_year_bundle_and_exact_replay(tmp_path):
     assert manifest["outputs"][0]["lineage"]["dry_bulb"]["source"]["location"]["lat"] == 42.5
     service.execute(plan)
     assert len(calls) == 1
+
+
+def test_skip_feb_29_emits_explicit_noleap_year(tmp_path):
+    config = RuntimeConfig(data_root=tmp_path)
+    service = WeatherService(
+        config, http=HttpClient(config, transport=httpx.MockTransport(transport))
+    )
+    request = WeatherRequest(
+        locations=Location(lat=42.45, lon=-76.5, standard_offset_minutes=-300),
+        product="amy",
+        years=[2024],
+        providers=["openmeteo"],
+        skip_feb_29=True,
+    )
+
+    bundle = service.fetch(request)
+
+    assert len(bundle.weather) == 1
+    path = tmp_path / bundle.weather[0].path
+    rows = [line.split(",") for line in path.read_text().splitlines()[8:]]
+    assert len(rows) == 8760
+    assert not any(row[1:3] == ["2", "29"] for row in rows)
+    assert sum(row[1:3] == ["12", "31"] for row in rows) == 24
+    assert {row[0] for row in rows} == {"2024"}
+
+    data = read_epw(path)
+    assert data.calendar == "noleap"
+    assert not any(i.severity == "error" for i in validate(data, "annual"))
+
+    manifest = json.loads((tmp_path / bundle.manifest.path).read_text())
+    assert manifest["leap_policy"] == "skip_feb_29"
+    assert manifest["outputs"][0]["metadata"]["leap_policy"] == "skip_feb_29"
+    assert manifest["outputs"][0]["metadata"]["removed_feb_29_intervals"] == 24
+    assert all(
+        "removed local February 29 intervals" in item["transforms"]
+        for item in manifest["outputs"][0]["lineage"].values()
+    )
 
 
 def test_retry_bounds_and_error_does_not_leak_key(tmp_path):

@@ -11,6 +11,9 @@ EPWs use fixed standard time; callers must supply the offset they intend (UTC is
 the default). Historical retrieval currently requires output offsets aligned to
 whole provider hours; use UTC for fractional-hour zones pending explicit temporal
 interpolation support. No DST shifts, gap interpolation or implicit hybrid fill.
+Actual-year requests preserve leap days unless `skip_feb_29=True` is explicitly
+set. That compatibility option is available only with `years`, removes February 29
+in local standard time, and does not make other 8,760-row truncations valid.
 
 Monthly CMIP6 morphing preserves the baseline's sequence and most untransformed
 fields. It does not predict new hourly extremes. RH clipping is reported, dew point
