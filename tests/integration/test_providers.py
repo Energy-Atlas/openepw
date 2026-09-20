@@ -36,3 +36,23 @@ def test_live_provider(provider, location, options, rows):
     frame = read_epw(config.data_root / bundle.weather[0].path).data
     assert len(frame) == rows
     assert frame.dry_bulb.notna().all()
+
+
+@pytest.mark.live
+@pytest.mark.parametrize(
+    "provider,options,rows",
+    [
+        ("nsrdb", {"years": [2024]}, 8784),
+        ("noaa", {"start": "2024-01-01", "end": "2024-01-02", "product_id": "72515004725"}, 48),
+    ],
+)
+def test_live_observations(provider, options, rows):
+    config = RuntimeConfig.load(env_file=".env", data_root=".local/live-acceptance")
+    service = WeatherService(config)
+    bundle = service.fetch(
+        WeatherRequest(locations=Location(lat=42.44, lon=-76.5), providers=[provider], **options)
+    )
+    assert bundle.weather, [(i.code, i.message) for i in bundle.issues if i.severity == "error"]
+    frame = read_epw(config.data_root / bundle.weather[0].path).data
+    assert len(frame) == rows
+    assert frame.dry_bulb.notna().sum() > rows * 0.9

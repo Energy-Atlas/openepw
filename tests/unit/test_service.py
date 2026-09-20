@@ -99,3 +99,30 @@ def test_empty_weather_does_not_succeed(tmp_path):
     b = s.fetch(r)
     assert not b.weather
     assert any(i.severity == "error" for i in b.issues)
+
+
+def test_nsrdb_approved_redirect_does_not_forward_credentials(tmp_path):
+    seen = []
+
+    def handler(request):
+        seen.append(request)
+        if len(seen) == 1:
+            return httpx.Response(
+                302,
+                headers={
+                    "Location": "https://s3.us-west-2.amazonaws.com/nsrdb-data.stratus.nlr.gov/data.csv?signature=safe"
+                },
+            )
+        assert "PRIVATE-TOKEN" not in request.headers
+        assert "api_key" not in request.url.params
+        return httpx.Response(200, content=b"weather")
+
+    http = HttpClient(RuntimeConfig(data_root=tmp_path), transport=httpx.MockTransport(handler))
+    assert (
+        http.get(
+            "https://developer.nlr.gov/api/data",
+            params={"api_key": "secret"},
+            headers={"PRIVATE-TOKEN": "secret"},
+        )
+        == b"weather"
+    )

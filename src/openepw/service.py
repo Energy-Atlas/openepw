@@ -23,7 +23,10 @@ from .models import (
     digest,
     utcnow,
 )
+from .providers.era5 import CDSProvider
 from .providers.http import HttpClient
+from .providers.noaa_isd import NOAAProvider
+from .providers.nsrdb import NSRDBProvider
 from .providers.onebuilding import OneBuildingProvider
 from .providers.openmeteo import OpenMeteoProvider
 from .providers.pvgis import PVGISProvider
@@ -39,7 +42,14 @@ class WeatherService:
             for p in (
                 providers
                 if providers is not None
-                else [OpenMeteoProvider(), PVGISProvider(), OneBuildingProvider()]
+                else [
+                    OpenMeteoProvider(),
+                    PVGISProvider(),
+                    OneBuildingProvider(),
+                    NOAAProvider(),
+                    NSRDBProvider(),
+                    CDSProvider(),
+                ]
             )
         }
         self.artifacts = ArtifactStore(self.config.data_root)

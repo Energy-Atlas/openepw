@@ -37,3 +37,20 @@ Plan: `docs/plans/2026-09-20-stage-2.md`. Owner approval: 2026-09-20.
 ## Deferred issues and reminders
 
 None recorded yet. Publication and shared-branch integration are outside this run.
+
+## Empirical findings during implementation
+
+- CMIP6 catalog: 170 complete seven-variable historical/SSP245 model/member pairs.
+  ACCESS-CM2 r1i1p1f1 gn numeric access passed for tas/tasmin/tasmax/hurs/ps/
+  sfcWind/rsds, 360 monthly values each for 1985–2014 and 2036–2065 at the
+  nearest cell to Ithaca. Source calendars retained. Local extracted NetCDFs
+  remain ignored. Monthly chunks are large; enforce a byte estimate in planning.
+- NSRDB uses an HTTPS redirect to its NLR S3 object-store path; only that exact
+  redirect host/path is accepted and authentication headers are not forwarded.
+- NOAA global-hourly returned empty across a year boundary; splitting by calendar
+  year recovered 99 reports and the requested 48 hourly targets.
+- CDS returns a ZIP of separate instantaneous/accumulated NetCDFs even with
+  `download_format=unarchived`. Merge matching coordinates before normalization;
+  never treat instantaneous fields as accumulated fields.
+- Ruling: source modules share wire contracts in `models/__init__.py` for v0.1;
+  do not add re-export-only files solely to match the proposed diagram.

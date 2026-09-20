@@ -14,9 +14,9 @@ def read_epw(path: str | Path | bytes) -> WeatherDataset:
     try:
         body = path if isinstance(path, bytes) else Path(path).read_bytes()
         rows = list(csv.reader(io.StringIO(body.decode("utf-8-sig", errors="replace"))))
-        names = [r[0].upper() if r else '' for r in rows[:8]]
-        if len(names) > 4 and names[4] == 'HOLIDAYS/DAYLIGHT SAVING':
-            names[4] = 'HOLIDAYS/DAYLIGHT SAVINGS'
+        names = [r[0].upper() if r else "" for r in rows[:8]]
+        if len(names) > 4 and names[4] == "HOLIDAYS/DAYLIGHT SAVING":
+            names[4] = "HOLIDAYS/DAYLIGHT SAVINGS"
         if len(rows) <= 8 or names != HEADER_NAMES:
             raise ValueError("Expected eight EPW headers and weather rows")
         if any(len(r) != 35 for r in rows[8:]):

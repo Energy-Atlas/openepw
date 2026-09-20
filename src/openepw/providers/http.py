@@ -1,6 +1,7 @@
 import json
 import ssl
 import time
+from urllib.parse import urljoin, urlparse
 
 import httpx
 import truststore
@@ -28,6 +29,19 @@ class HttpClient:
                     method, url, params=params, headers=headers, json=json_body
                 ) as response:
                     status = response.status_code
+                    if status in (301, 302, 303, 307, 308) and method == "GET":
+                        target = urljoin(url, response.headers.get("location", ""))
+                        old, new = urlparse(url), urlparse(target)
+                        allowed = (
+                            old.hostname == "developer.nlr.gov"
+                            and new.hostname == "s3.us-west-2.amazonaws.com"
+                            and new.path.startswith("/nsrdb-data.stratus.nlr.gov/")
+                        )
+                        if not allowed or new.scheme != "https":
+                            raise OpenEPWError(
+                                "PROVIDER_UNAVAILABLE", "Unapproved provider redirect"
+                            )
+                        return self.request("GET", target, limit=limit)
                     if status in (429, 500, 502, 503, 504) and attempt < self.config.retries:
                         retry = response.headers.get("Retry-After", "")
                         self.sleep(min(float(retry) if retry.isdigit() else 2**attempt, 30))
