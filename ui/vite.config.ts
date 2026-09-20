@@ -42,7 +42,7 @@ export default defineConfig({
     proxy: Object.fromEntries(
       ['/v1', '/health', '/openapi.json', '/docs', '/redoc'].map((p) => [
         p,
-        'http://127.0.0.1:8000',
+        process.env.OPENEPW_API_URL || 'http://127.0.0.1:8000',
       ]),
     ),
   },

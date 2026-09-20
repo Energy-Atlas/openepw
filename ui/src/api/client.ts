@@ -23,7 +23,11 @@ export async function request<T>(path: string, init: RequestInit = {}): Promise<
         ? data.message
         : typeof data.detail === 'string'
           ? data.detail
-          : 'Request rejected') + (data.code ? ' [' + data.code + ']' : ''),
+          : 'Request rejected') +
+        (data.code ? ' [' + data.code + ']' : '') +
+        (Array.isArray(data.fields)
+          ? ' � ' + data.fields.map((p: unknown[]) => p.join('.')).join(', ')
+          : ''),
     )
   return data as T
 }
@@ -35,25 +39,30 @@ export const api = {
     post<Schemas['DiscoveryResult']>('/v1/weather/discover', body, signal),
   plan: (body: WeatherRequest | FutureRequest, kind: 'weather' | 'future', signal?: AbortSignal) =>
     post<Plan>(`/v1/${kind}/plan`, body, signal),
-  submit: (plan: Plan, key: string) =>
-    post<Job>(`/v1/${plan.kind}/jobs`, { plan, idempotency_key: key }),
+  submit: (plan: Plan, key: string, signal?: AbortSignal) =>
+    post<Job>(`/v1/${plan.kind}/jobs`, { plan, idempotency_key: key }, signal),
   jobs: (cursor?: string) =>
     request<Schemas['JobListResponse']>(
       '/v1/jobs?limit=20' + (cursor ? '&cursor=' + encodeURIComponent(cursor) : ''),
     ),
-  job: (id: string) => request<Job>('/v1/jobs/' + encodeURIComponent(id)),
-  cancel: (id: string) => post<Job>(`/v1/jobs/${encodeURIComponent(id)}/cancel`, {}),
-  upload: (file: File) => {
+  job: (id: string, signal?: AbortSignal) =>
+    request<Job>('/v1/jobs/' + encodeURIComponent(id), { signal }),
+  cancel: (id: string, signal?: AbortSignal) =>
+    post<Job>(`/v1/jobs/${encodeURIComponent(id)}/cancel`, {}, signal),
+  upload: (file: File, signal?: AbortSignal) => {
     const form = new FormData()
     form.append('file', file)
-    return request<Artifact>('/v1/artifacts', { method: 'POST', body: form })
+    return request<Artifact>('/v1/artifacts', { method: 'POST', body: form, signal })
   },
-  signals: (records: unknown) => post<Artifact>('/v1/artifacts/signals', records),
-  preview: (id: string, start = 0) =>
+  signals: (records: unknown, signal?: AbortSignal) =>
+    post<Artifact>('/v1/artifacts/signals', records, signal),
+  preview: (id: string, start = 0, signal?: AbortSignal) =>
     request<Schemas['WeatherPreview']>(
       `/v1/artifacts/${encodeURIComponent(id)}/preview?start=${start}&limit=168`,
+      { signal },
     ),
-  jsonArtifact: (id: string) => request<unknown>('/v1/artifacts/' + encodeURIComponent(id)),
+  jsonArtifact: (id: string, signal?: AbortSignal) =>
+    request<unknown>('/v1/artifacts/' + encodeURIComponent(id), { signal }),
   async download(artifact: Artifact) {
     const r = await fetch('/v1/artifacts/' + encodeURIComponent(artifact.id), {
       headers: token ? { Authorization: 'Bearer ' + token } : {},

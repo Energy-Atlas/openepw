@@ -586,6 +586,8 @@ export interface components {
       expected: number
       /** Month */
       month: number
+      /** Source Years */
+      source_years?: number[]
       /** Values */
       values: {
         [key: string]: components['schemas']['SummaryValue']
@@ -615,6 +617,8 @@ export interface components {
     }
     /** PreviewRow */
     PreviewRow: {
+      /** Source Year */
+      source_year?: number | null
       /** Timestamp */
       timestamp: string
       /** Values */
@@ -811,6 +815,11 @@ export interface components {
       source_years: number[]
       /** Start */
       start: number
+      /**
+       * Synthetic Chronology
+       * @default false
+       */
+      synthetic_chronology: boolean
       /** Total Rows */
       total_rows: number
       /** Units */

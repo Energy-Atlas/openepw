@@ -27,6 +27,20 @@ from ..preview import WeatherPreview
 from ..service import WeatherService
 
 
+class HealthResponse(BaseModel):
+    status: str
+    version: str
+
+
+class ErrorResponse(BaseModel):
+    code: str | None = None
+    message: str | None = None
+    severity: str | None = None
+    retryable: bool | None = None
+    fields: list[list[str | int]] | None = None
+    detail: str | None = None
+
+
 class JobSubmission(BaseModel):
     plan: WeatherPlan
     idempotency_key: str | None = None
@@ -37,7 +51,7 @@ class GeocodeQuery(BaseModel):
     mode: str = "point"
 
 
-def create_app(service=None, *, remote=False):
+def create_app(service=None, *, remote=False, ui_dir=None):
     service = service or WeatherService()
     if remote and not service.config.bearer_token:
         raise ValueError("Remote mode requires OPENEPW_BEARER_TOKEN")
@@ -57,7 +71,11 @@ def create_app(service=None, *, remote=False):
             raise HTTPException(401, "Authentication required")
 
     app = FastAPI(
-        title="OpenEPW", version="0.1.0", lifespan=lifespan, dependencies=[Depends(authenticate)]
+        title="OpenEPW",
+        version="0.1.0",
+        lifespan=lifespan,
+        dependencies=[Depends(authenticate)],
+        responses={code: {"model": ErrorResponse} for code in (400, 401, 404, 413, 422)},
     )
     app.state.service = service
     app.state.runner = runner
@@ -94,7 +112,7 @@ def create_app(service=None, *, remote=False):
             status_code=422,
         )
 
-    @app.get("/health")
+    @app.get("/health", response_model=HealthResponse)
     def health():
         return {"status": "ok", "version": "0.1.0"}
 
@@ -185,4 +203,8 @@ def create_app(service=None, *, remote=False):
         ref, path = service.artifacts.resolve(artifact_id)
         return FileResponse(path, media_type=ref.media_type, filename=path.name)
 
+    if ui_dir is not None:
+        from .static import mount_ui
+
+        mount_ui(app, ui_dir)
     return app

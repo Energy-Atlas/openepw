@@ -1,3 +1,4 @@
+import { ListInput } from './ListInput'
 import { useApp } from '../../app/store'
 import { run } from '../../app/actions'
 export function FutureForm() {
@@ -73,9 +74,11 @@ export function FutureForm() {
         Climate window:{' '}
         {morph
           ? `${(f.target_year || 2050) - 14}–${(f.target_year || 2050) + 15}`
-          : (f.target_year || 2050) === 2090
+          : (f.target_year || 2050) >= 2085 && (f.target_year || 2050) <= 2094
             ? '2085–2094'
-            : '2045–2054 (target 2050)'}
+            : (f.target_year || 2050) >= 2045 && (f.target_year || 2050) <= 2054
+              ? '2045–2054'
+              : 'Unsupported target — use 2050 or 2090'}
         . This is not a forecast.
       </p>
       {morph && (
@@ -147,12 +150,12 @@ export function FutureForm() {
           <summary>Models and local signals</summary>
           <label>
             Models (comma separated)
-            <input
+            <ListInput
               value={f.models?.join(',') || ''}
               placeholder="ACCESS-CM2"
-              onChange={(e) =>
+              onCommit={(value) =>
                 s.editFuture({
-                  models: e.target.value
+                  models: value
                     .split(',')
                     .map((v) => v.trim())
                     .filter(Boolean),
@@ -162,12 +165,12 @@ export function FutureForm() {
           </label>
           <label>
             Members
-            <input
+            <ListInput
               value={f.members?.join(',') || ''}
               placeholder="r1i1p1f1"
-              onChange={(e) =>
+              onCommit={(value) =>
                 s.editFuture({
-                  members: e.target.value
+                  members: value
                     .split(',')
                     .map((v) => v.trim())
                     .filter(Boolean),

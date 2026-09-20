@@ -126,8 +126,40 @@ function WeatherMap({ appearance }: { appearance: Appearance }) {
     ? s.draft.locations
     : 'lat' in s.draft.locations
       ? [s.draft.locations]
-      : []
-  const sources = (s.discovery?.candidates || []).map((c) => c.source.location).filter((p) => !!p)
+      : s.discovery?.locations || []
+  const sources = (s.discovery?.candidates || [])
+    .filter((c) => !c.source.provisional)
+    .map((c) => c.source.location)
+    .filter((p) => !!p)
+  const links = {
+    type: 'FeatureCollection' as const,
+    features:
+      locations.length === 1
+        ? sources.map((p) => ({
+            type: 'Feature' as const,
+            geometry: {
+              type: 'LineString' as const,
+              coordinates: [
+                [locations[0].lon, locations[0].lat],
+                [p!.lon, p!.lat],
+              ],
+            },
+            properties: {},
+          }))
+        : [],
+  }
+  function fitSelection() {
+    if (locations.length === 1)
+      ref.current?.flyTo({ center: [locations[0].lon, locations[0].lat], zoom: 8 })
+    else if (locations.length > 1)
+      ref.current?.fitBounds(
+        [
+          [Math.min(...locations.map((p) => p.lon)), Math.min(...locations.map((p) => p.lat))],
+          [Math.max(...locations.map((p) => p.lon)), Math.max(...locations.map((p) => p.lat))],
+        ],
+        { padding: 50 },
+      )
+  }
   const points = {
     type: 'FeatureCollection' as const,
     features: [
@@ -201,6 +233,9 @@ function WeatherMap({ appearance }: { appearance: Appearance }) {
             <button onClick={() => apply(vertices)}>Finish ({vertices.length})</button>
           </>
         )}
+        <button onClick={fitSelection} disabled={!locations.length}>
+          Fit points
+        </button>
         <span className="spacer" />
         <button onClick={() => setCamera((c) => ({ ...c, pitch: c.pitch ? 0 : 55 }))}>
           2D / 3D
@@ -240,6 +275,53 @@ function WeatherMap({ appearance }: { appearance: Appearance }) {
         }}
       >
         <NavigationControl />
+        <Source
+          id="hillshade-dem"
+          type="raster-dem"
+          tiles={['https://tiles.mapterhorn.com/{z}/{x}/{y}.webp']}
+          encoding="terrarium"
+          tileSize={512}
+          maxzoom={16}
+          attribution="© Mapterhorn"
+        >
+          <Layer
+            id="hillshade"
+            type="hillshade"
+            layout={{ visibility: terrain ? 'visible' : 'none' }}
+            paint={{
+              'hillshade-shadow-color': appearance.chrome.textMuted,
+              'hillshade-highlight-color': appearance.chrome.surface,
+              'hillshade-exaggeration': 0.3,
+            }}
+          />
+        </Source>
+        {style?.sources.openmaptiles && camera.pitch > 0 && (
+          <Layer
+            id="context-buildings"
+            source="openmaptiles"
+            source-layer="building"
+            type="fill-extrusion"
+            minzoom={13}
+            filter={['all', ['has', 'render_height'], ['>', ['get', 'render_height'], 0]]}
+            paint={{
+              'fill-extrusion-height': ['get', 'render_height'],
+              'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], 0],
+              'fill-extrusion-color': appearance.chrome.border,
+              'fill-extrusion-opacity': 0.65,
+            }}
+          />
+        )}
+        <Source id="source-displacements" type="geojson" data={links}>
+          <Layer
+            id="displacements"
+            type="line"
+            paint={{
+              'line-color': appearance.chrome.textMuted,
+              'line-dasharray': [2, 2],
+              'line-width': 1,
+            }}
+          />
+        </Source>
         <Source
           id="dem"
           type="raster-dem"

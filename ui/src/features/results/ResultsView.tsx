@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { api, type Artifact } from '../../api/client'
 import { useApp } from '../../app/store'
 import { run } from '../../app/actions'
@@ -8,6 +8,28 @@ const terminal = new Set(['completed', 'partially_completed', 'failed', 'cancell
 export function ResultsView({ appearance }: { appearance: Appearance }) {
   const s = useApp()
   const [connection, setConnection] = useState('')
+  const historyBusy = useRef(false)
+  const [loadingHistory, setLoadingHistory] = useState(false)
+  async function loadHistory(older = false) {
+    if (historyBusy.current) return
+    historyBusy.current = true
+    setLoadingHistory(true)
+    try {
+      const r = await api.jobs(older ? useApp.getState().cursor || undefined : undefined)
+      useApp.setState((state) => ({
+        jobs: older
+          ? [...new Map([...state.jobs, ...r.items].map((j) => [j.id, j])).values()]
+          : r.items,
+        cursor: r.next_cursor || null,
+      }))
+      setConnection('')
+    } catch (e) {
+      setConnection(String(e))
+    } finally {
+      historyBusy.current = false
+      setLoadingHistory(false)
+    }
+  }
   useEffect(() => {
     let alive = true
     api
@@ -71,17 +93,7 @@ export function ResultsView({ appearance }: { appearance: Appearance }) {
           <div className="eyebrow">JOBS & ARTIFACTS</div>
           <h1>Results with context</h1>
         </div>
-        <button
-          onClick={() =>
-            api
-              .jobs()
-              .then((r) => {
-                useApp.setState({ jobs: r.items, cursor: r.next_cursor || null })
-                setConnection('')
-              })
-              .catch((e) => setConnection(String(e)))
-          }
-        >
+        <button disabled={loadingHistory} onClick={() => void loadHistory()}>
           Refresh
         </button>
       </div>
@@ -115,16 +127,7 @@ export function ResultsView({ appearance }: { appearance: Appearance }) {
         ))}
       </div>
       {s.cursor && (
-        <button
-          onClick={() =>
-            api
-              .jobs(s.cursor!)
-              .then((r) =>
-                useApp.setState({ jobs: [...s.jobs, ...r.items], cursor: r.next_cursor || null }),
-              )
-              .catch((e) => setConnection(String(e)))
-          }
-        >
+        <button disabled={loadingHistory} onClick={() => void loadHistory(true)}>
           Load older jobs
         </button>
       )}
@@ -192,15 +195,18 @@ export function ResultsView({ appearance }: { appearance: Appearance }) {
           <p className="warning">
             Not certified simulation-ready. Review QC and source limitations.
           </p>
+          {s.preview.synthetic_chronology && (
+            <p className="notice">
+              Synthetic chronology preserves month/day ordering. Source years are shown in chart
+              tooltips and the monthly table.
+            </p>
+          )}
           <WeatherCharts preview={s.preview} appearance={appearance} />
           <div className="actions">
             <button
               disabled={s.preview.start === 0 || s.busy}
               onClick={() =>
-                api
-                  .preview(s.artifact!.id, Math.max(0, s.preview!.start - 168))
-                  .then((preview) => useApp.setState({ preview }))
-                  .catch((e) => setConnection(String(e)))
+                run({ type: 'previewPage', start: Math.max(0, s.preview!.start - 168) })
               }
             >
               Previous week
@@ -211,12 +217,7 @@ export function ResultsView({ appearance }: { appearance: Appearance }) {
             </span>
             <button
               disabled={s.preview.start + 168 >= s.preview.total_rows || s.busy}
-              onClick={() =>
-                api
-                  .preview(s.artifact!.id, s.preview!.start + 168)
-                  .then((preview) => useApp.setState({ preview }))
-                  .catch((e) => setConnection(String(e)))
-              }
+              onClick={() => run({ type: 'previewPage', start: s.preview!.start + 168 })}
             >
               Next week
             </button>
@@ -227,6 +228,7 @@ export function ResultsView({ appearance }: { appearance: Appearance }) {
               <thead>
                 <tr>
                   <th>Month</th>
+                  <th>Source years</th>
                   <th>Mean °C</th>
                   <th>GHI Wh/m²</th>
                   <th>Valid solar / expected</th>
@@ -238,6 +240,7 @@ export function ResultsView({ appearance }: { appearance: Appearance }) {
                     <td>
                       {m.year}-{String(m.month).padStart(2, '0')}
                     </td>
+                    <td>{m.source_years?.join(', ') || 'Not recorded'}</td>
                     <td>{m.values.dry_bulb?.mean?.toFixed(1) ?? 'Missing'}</td>
                     <td>{m.values.ghi?.sum?.toFixed(0) ?? 'Missing'}</td>
                     <td>

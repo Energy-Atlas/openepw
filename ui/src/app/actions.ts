@@ -1,3 +1,4 @@
+import { rememberedIntent, rememberIntent } from './intent'
 import { api, type Artifact } from '../api/client'
 import { useApp } from './store'
 export type Action =
@@ -6,12 +7,15 @@ export type Action =
   | { type: 'cancelJob'; id: string }
   | { type: 'selectArtifact'; artifact: Artifact }
   | { type: 'uploadBaseline' | 'uploadSignals'; file: File }
+  | { type: 'previewPage'; start: number }
 let active: AbortController | null = null
 export async function dispatch(action: Action): Promise<unknown> {
   const state = useApp.getState()
   if (action.type === 'cancelActive') {
     active?.abort()
-    state.log('Stopped client operation; already submitted server jobs continue.')
+    state.log(
+      'Client cancellation requested; server jobs continue. Refresh Results to reconcile submissions.',
+    )
     return
   }
   if (state.busy) throw new Error('Wait for the current action, or stop it first.')
@@ -24,6 +28,7 @@ export async function dispatch(action: Action): Promise<unknown> {
     let result: unknown
     if (action.type === 'discover') {
       result = await api.discover(state.draft, controller.signal)
+      controller.signal.throwIfAborted()
       if (useApp.getState().version === version)
         useApp.setState({ discovery: result as Awaited<ReturnType<typeof api.discover>> })
     }
@@ -34,30 +39,42 @@ export async function dispatch(action: Action): Promise<unknown> {
         kind,
         controller.signal,
       )
+      controller.signal.throwIfAborted()
       result = plan
       if (useApp.getState().version === version)
-        useApp.setState({ plan, submitKey: crypto.randomUUID(), submitted: false })
+        useApp.setState({
+          plan,
+          submitKey: rememberedIntent(plan.plan_hash) || crypto.randomUUID(),
+          submitted: false,
+        })
     }
     if (action.type === 'submitPlan') {
       if (!state.plan || state.submitted)
         throw new Error('Review a current plan before submitting.')
       const key = state.submitKey || crypto.randomUUID()
       useApp.setState({ submitKey: key })
-      const job = await api.submit(state.plan, key)
+      rememberIntent(state.plan.plan_hash, key)
+      const job = await api.submit(state.plan, key, controller.signal)
+      controller.signal.throwIfAborted()
       result = job
       useApp.setState({
         job,
+        artifact: null,
+        preview: null,
+        detail: null,
         jobs: [job, ...state.jobs.filter((j) => j.id !== job.id)],
-        submitted: true,
+        submitted: useApp.getState().version === version,
       })
     }
     if (action.type === 'selectJob') {
-      const job = await api.job(action.id)
+      const job = await api.job(action.id, controller.signal)
+      controller.signal.throwIfAborted()
       result = job
-      useApp.setState({ job })
+      useApp.setState({ job, artifact: null, preview: null, detail: null })
     }
     if (action.type === 'cancelJob') {
-      const job = await api.cancel(action.id)
+      const job = await api.cancel(action.id, controller.signal)
+      controller.signal.throwIfAborted()
       result = job
       useApp.setState({ job })
     }
@@ -65,19 +82,28 @@ export async function dispatch(action: Action): Promise<unknown> {
       if (action.file.size > 5_000_000) throw new Error('Upload exceeds 5 MB')
       const ref =
         action.type === 'uploadBaseline'
-          ? await api.upload(action.file)
-          : await api.signals(JSON.parse(await action.file.text()))
+          ? await api.upload(action.file, controller.signal)
+          : await api.signals(JSON.parse(await action.file.text()), controller.signal)
+      controller.signal.throwIfAborted()
       result = ref
       useApp
         .getState()
         .editFuture(action.type === 'uploadBaseline' ? { baseline: ref.id } : { signals: ref.id })
     }
+    if (action.type === 'previewPage') {
+      if (!state.artifact) throw Error('Select a weather artifact first.')
+      const preview = await api.preview(state.artifact.id, action.start, controller.signal)
+      controller.signal.throwIfAborted()
+      result = preview
+      if (useApp.getState().artifact?.id === state.artifact.id) useApp.setState({ preview })
+    }
     if (action.type === 'selectArtifact') {
       useApp.setState({ artifact: action.artifact, preview: null, detail: null })
       result =
         action.artifact.media_type === 'application/vnd.energyplus.epw'
-          ? await api.preview(action.artifact.id)
-          : await api.jsonArtifact(action.artifact.id)
+          ? await api.preview(action.artifact.id, 0, controller.signal)
+          : await api.jsonArtifact(action.artifact.id, controller.signal)
+      controller.signal.throwIfAborted()
       useApp.setState(
         action.artifact.media_type === 'application/vnd.energyplus.epw'
           ? { preview: result as Awaited<ReturnType<typeof api.preview>> }

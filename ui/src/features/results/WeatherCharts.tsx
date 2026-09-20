@@ -20,7 +20,9 @@ export function WeatherCharts({
       grid: { left: 50, right: 55, top: 45, bottom: 65 },
       xAxis: {
         type: 'category',
-        data: preview.rows.map((r) => r.timestamp),
+        data: preview.rows.map(
+          (r) => r.timestamp + (r.source_year == null ? '' : ` (source ${r.source_year})`),
+        ),
         axisLabel: { formatter: (v: string) => v.slice(5, 16).replace('T', ' ') },
         axisLine: { lineStyle: { color: appearance.chrome.border } },
       },

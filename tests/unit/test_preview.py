@@ -19,3 +19,14 @@ def test_preview_retains_missing_energy_and_calendar():
     assert january.values["dry_bulb"].mean == 20
     data.calendar = "noleap"
     assert preview(data).calendar == "noleap"
+
+
+def test_preview_preserves_source_year_mapping():
+    data = synthetic(2001, 8760)
+    data.calendar = "noleap"
+    data.source_years = [1998] * 744 + [2004] * (8760 - 744)
+    result = preview(data, start=743, limit=2)
+    assert [row.source_year for row in result.rows] == [1998, 2004]
+    assert result.monthly[0].source_years == [1998]
+    assert result.monthly[1].source_years == [2004]
+    assert result.synthetic_chronology is True

@@ -940,6 +940,13 @@
             "title": "Month",
             "type": "integer"
           },
+          "source_years": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Source Years",
+            "type": "array"
+          },
           "values": {
             "additionalProperties": {
               "$ref": "#/components/schemas/SummaryValue"
@@ -1017,6 +1024,17 @@
       "PreviewRow": {
         "additionalProperties": false,
         "properties": {
+          "source_year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Year"
+          },
           "timestamp": {
             "title": "Timestamp",
             "type": "string"
@@ -1479,6 +1497,11 @@
           "start": {
             "title": "Start",
             "type": "integer"
+          },
+          "synthetic_chronology": {
+            "default": false,
+            "title": "Synthetic Chronology",
+            "type": "boolean"
           },
           "total_rows": {
             "title": "Total Rows",

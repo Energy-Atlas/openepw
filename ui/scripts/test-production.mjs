@@ -1,0 +1,1 @@
+import {spawnSync} from 'node:child_process';const r=spawnSync(process.platform==='win32'?'npm.cmd':'npm',['run','test:e2e'],{stdio:'inherit',shell:process.platform==='win32',env:{...process.env,UI_PRODUCTION:'1'}});process.exit(r.status??1);

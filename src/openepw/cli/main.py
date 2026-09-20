@@ -26,6 +26,7 @@ def main(argv=None):
         )
         cmd.add_argument("--output", help="Write compact JSON result to this path")
     serve = sub.add_parser("serve")
+    serve.add_argument("--ui-dir", help="Optional built UI directory, served at /ui/")
     serve.add_argument("--host", default="127.0.0.1")
     serve.add_argument("--port", type=int, default=8000)
     mcp = sub.add_parser("mcp")
@@ -42,7 +43,11 @@ def main(argv=None):
             from ..api.app import create_app
 
             uvicorn.run(
-                create_app(service, remote=args.host not in ("127.0.0.1", "localhost", "::1")),
+                create_app(
+                    service,
+                    remote=args.host not in ("127.0.0.1", "localhost", "::1"),
+                    ui_dir=args.ui_dir,
+                ),
                 host=args.host,
                 port=args.port,
             )

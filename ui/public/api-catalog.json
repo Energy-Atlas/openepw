@@ -53,9 +53,7 @@
             "type": "string"
           }
         },
-        "required": [
-          "query"
-        ],
+        "required": ["query"],
         "title": "weather_geocodeArguments",
         "type": "object"
       },
@@ -77,9 +75,7 @@
             "type": "object"
           }
         },
-        "required": [
-          "request"
-        ],
+        "required": ["request"],
         "title": "weather_discoverArguments",
         "type": "object"
       },
@@ -106,9 +102,7 @@
             "type": "string"
           }
         },
-        "required": [
-          "request"
-        ],
+        "required": ["request"],
         "title": "weather_planArguments",
         "type": "object"
       },
@@ -142,9 +136,7 @@
             "title": "Idempotency Key"
           }
         },
-        "required": [
-          "plan"
-        ],
+        "required": ["plan"],
         "title": "weather_fetchArguments",
         "type": "object"
       },

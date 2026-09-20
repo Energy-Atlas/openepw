@@ -490,19 +490,22 @@ footer {
   display: none;
 }
 .flexlayout__layout {
-  --color-background: var(--color-bg);
-  --color-text: inherit;
-  --color-base: var(--color-surface);
-  --color-1: var(--color-surface);
-  --color-2: var(--color-bg);
-  --color-3: var(--color-border-subtle);
-  --color-4: var(--color-border);
-  --color-5: var(--color-text-muted);
-  --color-6: var(--color-text);
-  --color-tabset-background: var(--color-surface);
-  --color-tabset-background-selected: var(--color-surface);
-  --color-tab-selected: var(--color-text);
-  --color-tab-unselected: var(--color-text-muted);
+  --flexlayout-color-background: var(--color-bg);
+  --flexlayout-color-text: var(--color-text);
+  --flexlayout-color-base: var(--color-surface);
+  --flexlayout-color-1: var(--color-surface);
+  --flexlayout-color-2: var(--color-bg);
+  --flexlayout-color-3: var(--color-border-subtle);
+  --flexlayout-color-4: var(--color-border);
+  --flexlayout-color-5: var(--color-text-muted);
+  --flexlayout-color-6: var(--color-text);
+  --flexlayout-color-tabset-background: var(--color-surface);
+  --flexlayout-color-tabset-background-selected: var(--color-surface);
+  --flexlayout-color-tab-selected: var(--color-text);
+  --flexlayout-color-tab-unselected: var(--color-text-muted);
+  --flexlayout-font-family: 'Geist Variable', system-ui, sans-serif;
+  --flexlayout-font-size: 13px;
+  --flexlayout-splitter-size: 5px;
   font: inherit;
 }
 .flexlayout__tab {

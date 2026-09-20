@@ -13,6 +13,7 @@ from .models import Location, Model, OpenEPWError
 
 class PreviewRow(Model):
     timestamp: str
+    source_year: int | None = None
     values: dict[str, float | None]
 
 
@@ -25,6 +26,7 @@ class SummaryValue(Model):
 
 
 class MonthlySummary(Model):
+    source_years: list[int] = Field(default_factory=list)
     year: int
     month: int
     expected: int
@@ -40,6 +42,7 @@ class WeatherPreview(Model):
     units: dict[str, str]
     rows: list[PreviewRow]
     monthly: list[MonthlySummary]
+    synthetic_chronology: bool = False
     simulation_ready: bool = False
     warnings: list[str] = Field(default_factory=list)
 
@@ -51,9 +54,16 @@ def preview(dataset, start=0, limit=168, variables=None):
     if not variables or any(v not in UNITS or v not in dataset.data for v in variables):
         raise OpenEPWError("INVALID_REQUEST", "Unknown preview variable")
     frame = dataset.data[variables].replace([np.inf, -np.inf], np.nan)
+    local = local_interval_starts(dataset)
+    source = pd.Series(
+        dataset.source_years if len(dataset.source_years) == len(frame) else [None] * len(frame),
+        index=frame.index,
+    )
+    synthetic = any(pd.notna(y) and int(y) != t.year for y, t in zip(source, local))
     rows = [
         PreviewRow(
             timestamp=t.isoformat(),
+            source_year=int(source.loc[t]) if pd.notna(source.loc[t]) else None,
             values={k: float(v) if pd.notna(v) else None for k, v in row.items()},
         )
         for t, row in frame.iloc[start : start + limit].iterrows()
@@ -79,10 +89,14 @@ def preview(dataset, start=0, limit=168, variables=None):
                     )
             values[name] = SummaryValue(**kwargs)
         monthly.append(
-            MonthlySummary(year=int(year), month=int(month), expected=days * 24, values=values)
+            MonthlySummary(
+                year=int(year), month=int(month), expected=days * 24, values=values,
+                source_years=sorted({int(y) for y in source.loc[group.index].dropna()}),
+            )
         )
     return WeatherPreview(
         total_rows=len(frame),
+        synthetic_chronology=synthetic,
         start=start,
         location=dataset.location,
         calendar=dataset.calendar,

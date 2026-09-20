@@ -1,3 +1,5 @@
+import { ListInput } from './ListInput'
+import { validateDraft } from '../../api/input'
 import { useState } from 'react'
 import { api, type Schemas, type WeatherRequest } from '../../api/client'
 import { useApp } from '../../app/store'
@@ -171,11 +173,14 @@ export function RequestPanel() {
           {s.draft.product === 'amy' ? (
             <label>
               Years (comma separated)
-              <input
+              <ListInput
                 value={s.draft.years?.join(',') || ''}
-                onChange={(e) =>
+                onCommit={(value) =>
                   s.edit({
-                    years: e.target.value.split(',').filter(Boolean).map(Number),
+                    years: value
+                      .split(',')
+                      .filter((v) => v.trim())
+                      .map(Number),
                     start: null,
                     end: null,
                   })
@@ -214,6 +219,68 @@ export function RequestPanel() {
           <details>
             <summary>Advanced request</summary>
             <label>
+              Import GeoJSON Polygon
+              <input
+                type="file"
+                accept=".json,.geojson"
+                onChange={async (e) => {
+                  try {
+                    const file = e.target.files?.[0]
+                    if (!file) return
+                    if (file.size > 1_000_000) throw Error('GeoJSON exceeds 1 MB')
+                    const raw = JSON.parse(await file.text())
+                    const geometry = raw.type === 'Feature' ? raw.geometry : raw
+                    const next = { ...s.draft, locations: geometry }
+                    validateDraft(next)
+                    s.edit({ locations: geometry })
+                    setError('')
+                  } catch (error) {
+                    setError(String(error))
+                  }
+                }}
+              />
+            </label>
+            <div className="two-col">
+              <label>
+                Grid spacing X (km)
+                <input
+                  type="number"
+                  min="1"
+                  value={s.draft.sampling?.dx_km ?? 25}
+                  onChange={(e) =>
+                    s.edit({
+                      sampling: {
+                        dx_km: Number(e.target.value),
+                        dy_km: s.draft.sampling?.dy_km ?? 25,
+                        offset_x_km: s.draft.sampling?.offset_x_km ?? 0,
+                        offset_y_km: s.draft.sampling?.offset_y_km ?? 0,
+                        max_locations: s.draft.sampling?.max_locations ?? 1000,
+                      },
+                    })
+                  }
+                />
+              </label>
+              <label>
+                Grid spacing Y (km)
+                <input
+                  type="number"
+                  min="1"
+                  value={s.draft.sampling?.dy_km ?? 25}
+                  onChange={(e) =>
+                    s.edit({
+                      sampling: {
+                        dx_km: s.draft.sampling?.dx_km ?? 25,
+                        dy_km: Number(e.target.value),
+                        offset_x_km: s.draft.sampling?.offset_x_km ?? 0,
+                        offset_y_km: s.draft.sampling?.offset_y_km ?? 0,
+                        max_locations: s.draft.sampling?.max_locations ?? 1000,
+                      },
+                    })
+                  }
+                />
+              </label>
+            </div>
+            <label>
               Dataset
               <input
                 value={s.draft.dataset || ''}
@@ -248,7 +315,7 @@ export function RequestPanel() {
               onClick={() => {
                 try {
                   const next = JSON.parse(raw)
-                  if (!next.locations) throw Error('locations is required')
+                  validateDraft(next)
                   s.edit(next)
                   setError('')
                 } catch (e) {
