@@ -105,3 +105,19 @@ scenario/model combination. Actual keys never entered browser fixtures or report
 Start/build instructions: [webui.md](../webui.md). Decisions:
 [ADR 0003](../decisions/0003-local-webui.md). Execution record:
 [webui-ledger.md](webui-ledger.md).
+
+## Post-delivery correction: Windows map worker
+
+The initial production map acceptance was too weak: blank-style/click tests did not
+verify worker execution. The owner's production server returned `.mjs` as
+`text/plain` (Windows MIME registry), preventing module worker imports despite 200
+responses. Fixed by explicit JavaScript content type in the optional static mount.
+A new backend regression forces the erroneous MIME mapping; a browser regression
+checks the shared worker runtime actually loads. An additional live production
+smoke loaded real basemap tiles with no page errors; its rendered map screenshot
+was visually verified. Production browser suite now has 11 passing scenarios and
+UI unit suite 15. Root/favicon handling and missing-baseline guidance also improved.
+The specific owner's future-plan 400 remains unclassified without its response;
+empty-baseline INVALID_ARTIFACT was independently reproduced and now prevented.
+
+Post-fix verification: 79 Python passed / 15 live skipped; 15 UI unit and 11 production browser tests passed; TypeScript, ESLint, Prettier, Ruff and mypy passed. Production assets rebuilt. Restart the running server and hard-refresh to load these changes.

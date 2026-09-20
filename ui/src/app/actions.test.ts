@@ -100,3 +100,10 @@ it('replanning after reload reuses persisted submission intent', async () => {
   expect(useApp.getState().submitKey).toBe('before-reload')
   expect(useApp.getState().submitted).toBe(false)
 })
+
+it('explains a missing future baseline before making an invalid request', async () => {
+  useApp.getState().editFuture({ baseline: '' })
+  const plan = vi.spyOn(api, 'plan')
+  await expect(dispatch({ type: 'planFuture' })).rejects.toThrow('Upload a baseline EPW')
+  expect(plan).not.toHaveBeenCalled()
+})

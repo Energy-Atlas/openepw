@@ -22,6 +22,11 @@ export function FutureForm() {
         Or baseline artifact ID
         <input value={f.baseline} onChange={(e) => s.editFuture({ baseline: e.target.value })} />
       </label>
+      {!f.baseline.trim() && (
+        <p className="notice">
+          A baseline EPW is required. Upload one above or select Use as baseline in Results.
+        </p>
+      )}
       <label>
         Method
         <select

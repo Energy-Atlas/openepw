@@ -245,3 +245,14 @@ test('partial results and explicit server cancellation remain distinct', async (
   await expect(page.getByRole('button', { name: 'Cancel job', exact: true })).toHaveCount(0)
   expect(cancelCalls).toBe(1)
 })
+
+test('MapLibre module worker imports its shared runtime successfully', async ({ page }) => {
+  const runtime = page.waitForResponse((r) =>
+    new URL(r.url()).pathname.endsWith('/maplibre-gl-shared.mjs'),
+  )
+  await page.reload()
+  const response = await runtime
+  expect(response.status()).toBe(200)
+  expect(response.headers()['content-type']).toMatch(/(?:text|application)\/javascript/)
+  await expect(page.locator('.maplibregl-canvas')).toBeVisible()
+})

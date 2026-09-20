@@ -8,7 +8,7 @@ service. Install the desired Python extras, run `npm ci --prefix ui` and
 openepw --env-file .env serve --ui-dir ui/dist
 ```
 
-Open http://127.0.0.1:8000/ui/. Default binding is loopback, one process and one
+Open http://127.0.0.1:8000/ (redirects to `/ui/` when UI hosting is enabled). Default binding is loopback, one process and one
 user. Existing CLI, Python and MCP workflows continue to work without a UI build.
 The UI assets are not bundled into the Python wheel. Vite development uses
 `npm --prefix ui run dev`, proxying API routes to port 8000. Override with
@@ -79,3 +79,11 @@ API reference: [Python](api/python.md), [MCP](api/mcp.md), live OpenAPI and inte
 Swagger through the UI. [Provenance](../ui/THIRD_PARTY_NOTICES.md) records adapted
 reference definitions and third-party attribution. The source-code link points to
 https://github.com/Energy-Atlas/openepw.
+
+## Windows production map fix
+
+The static server explicitly serves `.mjs` as JavaScript; Windows registry MIME
+mappings otherwise can make MapLibre module workers fail despite HTTP 200. After
+updating this backend, restart `openepw serve` and hard-refresh the browser. A
+loaded map canvas alone does not prove worker/tile rendering; production tests now
+verify the worker's shared-runtime import as well.

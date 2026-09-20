@@ -34,6 +34,10 @@ export async function dispatch(action: Action): Promise<unknown> {
     }
     if (action.type === 'planWeather' || action.type === 'planFuture') {
       const kind = action.type === 'planFuture' ? 'future' : 'weather'
+      if (kind === 'future' && !state.future.baseline.trim())
+        throw new Error(
+          'Upload a baseline EPW or select Use as baseline on a weather result before planning future weather.',
+        )
       const plan = await api.plan(
         kind === 'future' ? state.future : state.draft,
         kind,
