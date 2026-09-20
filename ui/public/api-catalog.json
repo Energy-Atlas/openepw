@@ -1,0 +1,258 @@
+{
+  "python": [
+    {
+      "name": "discover",
+      "signature": "(request, *, config=None)",
+      "description": "Find compatible source alternatives and report missing data or credentials."
+    },
+    {
+      "name": "execute",
+      "signature": "(plan, *, config=None)",
+      "description": "Execute a typed plan and return artifacts, provenance and QC; inspect partial failures."
+    },
+    {
+      "name": "fetch",
+      "signature": "(request, *, config=None)",
+      "description": "Convenience planning and execution for an existing-weather request."
+    },
+    {
+      "name": "generate_future",
+      "signature": "(baseline, *, target_year=None, climate_period=None, reference_period=None, climate_scenario, method='morph', profile='typical', models=None, members=None, extreme=None, signals=None, config=None)",
+      "description": "Generate future EPWs; target year represents a climate window, not a forecast."
+    },
+    {
+      "name": "geocode",
+      "signature": "(query, *, mode='point', config=None)",
+      "description": "Resolve a place name into explicitly selectable candidates."
+    },
+    {
+      "name": "plan",
+      "signature": "(request, *, discovery=None, config=None)",
+      "description": "Create an inspectable weather plan without retrieving complete weather files."
+    },
+    {
+      "name": "plan_future",
+      "signature": "(request, *, config=None)",
+      "description": "Plan future generation with explicit method, climate period and baseline provenance."
+    }
+  ],
+  "mcp": [
+    {
+      "name": "weather_geocode",
+      "title": null,
+      "description": "Resolve a name; multiple candidates require an explicit selection.",
+      "inputSchema": {
+        "properties": {
+          "query": {
+            "title": "Query",
+            "type": "string"
+          },
+          "mode": {
+            "default": "point",
+            "title": "Mode",
+            "type": "string"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "title": "weather_geocodeArguments",
+        "type": "object"
+      },
+      "outputSchema": null,
+      "icons": null,
+      "annotations": null,
+      "meta": null,
+      "execution": null
+    },
+    {
+      "name": "weather_discover",
+      "title": null,
+      "description": "Find source alternatives with actual capabilities and limitations.",
+      "inputSchema": {
+        "properties": {
+          "request": {
+            "additionalProperties": true,
+            "title": "Request",
+            "type": "object"
+          }
+        },
+        "required": [
+          "request"
+        ],
+        "title": "weather_discoverArguments",
+        "type": "object"
+      },
+      "outputSchema": null,
+      "icons": null,
+      "annotations": null,
+      "meta": null,
+      "execution": null
+    },
+    {
+      "name": "weather_plan",
+      "title": null,
+      "description": "Build an inspectable plan. Future baseline/signals must be artifact IDs.",
+      "inputSchema": {
+        "properties": {
+          "request": {
+            "additionalProperties": true,
+            "title": "Request",
+            "type": "object"
+          },
+          "kind": {
+            "default": "weather",
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "request"
+        ],
+        "title": "weather_planArguments",
+        "type": "object"
+      },
+      "outputSchema": null,
+      "icons": null,
+      "annotations": null,
+      "meta": null,
+      "execution": null
+    },
+    {
+      "name": "weather_fetch",
+      "title": null,
+      "description": "Submit a weather plan as a durable job; inspect its status afterwards.",
+      "inputSchema": {
+        "properties": {
+          "plan": {
+            "additionalProperties": true,
+            "title": "Plan",
+            "type": "object"
+          },
+          "idempotency_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Idempotency Key"
+          }
+        },
+        "required": [
+          "plan"
+        ],
+        "title": "weather_fetchArguments",
+        "type": "object"
+      },
+      "outputSchema": null,
+      "icons": null,
+      "annotations": null,
+      "meta": null,
+      "execution": null
+    },
+    {
+      "name": "weather_inspect",
+      "title": null,
+      "description": "Return compact job state or artifact metadata and a resource URI.",
+      "inputSchema": {
+        "properties": {
+          "job_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Job Id"
+          },
+          "artifact_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Artifact Id"
+          }
+        },
+        "title": "weather_inspectArguments",
+        "type": "object"
+      },
+      "outputSchema": null,
+      "icons": null,
+      "annotations": null,
+      "meta": null,
+      "execution": null
+    },
+    {
+      "name": "weather_generate_future",
+      "title": null,
+      "description": "Submit future generation using a baseline artifact and explicit climate semantics.",
+      "inputSchema": {
+        "properties": {
+          "request": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Request"
+          },
+          "plan": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Plan"
+          },
+          "idempotency_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Idempotency Key"
+          }
+        },
+        "title": "weather_generate_futureArguments",
+        "type": "object"
+      },
+      "outputSchema": null,
+      "icons": null,
+      "annotations": null,
+      "meta": null,
+      "execution": null
+    }
+  ],
+  "resources": [
+    {
+      "uri": "weather://artifacts/{artifact_id}",
+      "description": "Read a checksummed weather, manifest or QC artifact."
+    }
+  ]
+}

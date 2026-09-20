@@ -187,3 +187,10 @@ cython_debug/
 config.local.toml
 .cdsapirc
 .ecmwfdatastoresrc
+
+# Optional frontend tooling and generated browser reports
+ui/node_modules/
+ui/dist/
+ui/test-results/
+ui/playwright-report/
+ui/*.tsbuildinfo
