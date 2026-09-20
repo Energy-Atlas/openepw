@@ -9,7 +9,11 @@ Record approval in the plan when received; never infer approval from elapsed tim
 ## Scope and implementation
 
 - Python package is canonical. REST, MCP and CLI call the same service layer.
-- No historical TMY/XMY generator, frontend, or mandatory distributed services.
+- No historical TMY/XMY generator or mandatory distributed services.
+- The owner has approved keeping a future web UI in `ui/` in this repository,
+  superseding the original no-frontend constraint. The current request authorizes
+  a draft design/plan only; UI implementation awaits explicit approval. See
+  [UI draft](docs/superpowers/plans/2026-09-20-webui.md).
 - Implement two genuinely distinct future methods; retain actual scenario/window
   semantics and per-variable provenance. No fabricated availability or metadata.
 - Keep scientific/data core independent of server/MCP/xarray imports.

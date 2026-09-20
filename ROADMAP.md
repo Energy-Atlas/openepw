@@ -16,6 +16,15 @@ plan were completed. Owner approved Stage 2 on 2026-09-20.
 - [x] MCP, CLI and examples over the canonical service.
 - [x] Final acceptance record, documentation and regression checks.
 
+## Web UI — planning only
+
+A same-repository frontend under `ui/` is the accepted direction. The
+[draft design](docs/superpowers/specs/2026-09-20-webui-design.md) and
+[implementation plan](docs/superpowers/plans/2026-09-20-webui.md) cover a compact
+dockable UI, MapLibre/3D, real scripted workflows and API documentation.
+Implementation is not yet approved. Local-first deployment is a proposed default.
+No repository extraction or PyPI publication is part of this milestone.
+
 ## Follow-ups after v0.1
 
 - Run configured Linux/macOS CI and an EnergyPlus consumption smoke check.
