@@ -4,7 +4,7 @@ import pytest
 
 from openepw.dataset import WeatherDataset, irradiance_to_energy, without_feb_29
 from openepw.epw import read_epw, write_epw
-from openepw.models import Location
+from openepw.models import Location, OpenEPWError
 from openepw.qc import validate
 
 
@@ -104,3 +104,20 @@ def test_explicit_noleap_allows_only_the_feb_29_gap():
     data.data = data.data.drop(data.data.index[100])
     codes = {i.code for i in validate(data, "annual")}
     assert {"MISSING_INTERVAL", "INCOMPLETE_YEAR"} <= codes
+
+
+@pytest.mark.parametrize("feb_29_rows", [23, 25])
+def test_skip_feb_29_rejects_malformed_source_day(feb_29_rows):
+    data = synthetic(2024, 8784)
+    local = data.data.index.tz_localize(None) - pd.Timedelta(hours=1)
+    feb_29 = (local.month == 2) & (local.day == 29)
+    positions = np.flatnonzero(feb_29)
+    if feb_29_rows == 23:
+        data.data = data.data.drop(data.data.index[positions[0]])
+    else:
+        data.data = pd.concat([data.data, data.data.iloc[[positions[0]]]]).sort_index()
+
+    with pytest.raises(OpenEPWError) as exc:
+        without_feb_29(data)
+
+    assert exc.value.issue.code == "INVALID_LEAP_DAY"

@@ -1,11 +1,12 @@
 """Scientific tables use UTC interval ends and fixed local standard-time output."""
 
+import calendar
 from dataclasses import dataclass, field
 from typing import Any
 
 import pandas as pd
 
-from .models import Issue, Location, VariableLineage
+from .models import Issue, Location, OpenEPWError, VariableLineage
 
 UNITS = {
     "dry_bulb": "degC",
@@ -55,7 +56,14 @@ def local_interval_starts(dataset: WeatherDataset) -> pd.DatetimeIndex:
 def without_feb_29(dataset: WeatherDataset) -> WeatherDataset:
     """Return an explicitly no-leap copy, preserving source-year labels and provenance."""
     local = local_interval_starts(dataset)
-    keep = ~((local.month == 2) & (local.day == 29))
+    feb_29 = (local.month == 2) & (local.day == 29)
+    expected = sum(24 for year in set(local.year) if calendar.isleap(year))
+    if int(feb_29.sum()) != expected or not local[feb_29].is_unique:
+        raise OpenEPWError(
+            "INVALID_LEAP_DAY",
+            "skip_feb_29 requires exactly 24 unique local February 29 intervals per leap year",
+        )
+    keep = ~feb_29
     transform = "removed local February 29 intervals"
     source_years = (
         [year for year, retained in zip(dataset.source_years, keep) if retained]

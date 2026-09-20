@@ -295,8 +295,14 @@ class WeatherService:
                 else:
                     dataset = parts[0].dataset
                 if plan.request.skip_feb_29:
+                    source_checks = validate(dataset, "annual")
+                    if any(i.severity == "error" for i in source_checks):
+                        raise OpenEPWError(
+                            "EPW_CONVERSION_FAILED",
+                            "Source structural annual QC failed before leap-day omission",
+                        )
                     dataset = without_feb_29(dataset)
-                checks = validate(dataset)
+                checks = validate(dataset, "annual" if plan.request.skip_feb_29 else "standard")
                 if plan.request.missing_policy == "error" and any(
                     v not in dataset.data or dataset.data[v].isna().any()
                     for v in plan.request.required_variables

@@ -73,9 +73,15 @@ def test_leap_local_year_bundle_and_exact_replay(tmp_path):
 
 
 def test_skip_feb_29_emits_explicit_noleap_year(tmp_path):
+    requests = []
+
+    def handler(request):
+        requests.append(request)
+        return transport(request)
+
     config = RuntimeConfig(data_root=tmp_path)
     service = WeatherService(
-        config, http=HttpClient(config, transport=httpx.MockTransport(transport))
+        config, http=HttpClient(config, transport=httpx.MockTransport(handler))
     )
     request = WeatherRequest(
         locations=Location(lat=42.45, lon=-76.5, standard_offset_minutes=-300),
@@ -88,6 +94,8 @@ def test_skip_feb_29_emits_explicit_noleap_year(tmp_path):
     bundle = service.fetch(request)
 
     assert len(bundle.weather) == 1
+    assert requests[0].url.params["latitude"] == "42.45"
+    assert requests[0].url.params["longitude"] == "-76.5"
     path = tmp_path / bundle.weather[0].path
     rows = [line.split(",") for line in path.read_text().splitlines()[8:]]
     assert len(rows) == 8760
@@ -103,6 +111,8 @@ def test_skip_feb_29_emits_explicit_noleap_year(tmp_path):
     assert manifest["leap_policy"] == "skip_feb_29"
     assert manifest["outputs"][0]["metadata"]["leap_policy"] == "skip_feb_29"
     assert manifest["outputs"][0]["metadata"]["removed_feb_29_intervals"] == 24
+    assert manifest["outputs"][0]["metadata"]["requested_location"]["lat"] == 42.45
+    assert manifest["outputs"][0]["source"]["location"]["lat"] == 42.5
     assert all(
         "removed local February 29 intervals" in item["transforms"]
         for item in manifest["outputs"][0]["lineage"].values()
