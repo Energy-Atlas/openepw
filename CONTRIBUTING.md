@@ -7,7 +7,9 @@ No dependency environment or product API is shipped yet.
 1. Read the [brief](docs/20260920-openepw-brief.md), [architecture](ARCHITECTURE.md)
    and [plan](docs/plans/2026-09-20-stage-2.md). Coordinate changes through git docs.
 2. Inspect `git status`, branches and recent commits before editing. Preserve
-   collaborator changes; use a feature branch and ordinary commits.
+   collaborator changes; use purpose-based branches (`feature/...`, `fix/...`,
+   `refactor/...`, `docs/...`) and ordinary commits. Never use an agent/model/name
+   or `codex/` prefix. Leave existing branches unchanged unless asked.
 3. Keep changes focused and messages `fix(topic): description`. Use your normal
    authorship. Never rewrite published history to resolve a collaboration issue.
 4. Record provider/method assumptions, source versions, licenses and limitations.
@@ -15,6 +17,7 @@ No dependency environment or product API is shipped yet.
 5. Keep credentials in environment variables or ignored local configuration.
    `.env.example` and `config.example.toml` describe proposed names, not a working
    loader. Do not send keys in issues, artifacts or test snapshots.
+   See [local credential setup](docs/providers/credentials.md) for live tests.
 
 During Stage 1, verify with:
 

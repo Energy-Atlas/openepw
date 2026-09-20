@@ -1190,6 +1190,11 @@ The agent has broad authority inside the repository, subject to these rules.
 
 ## 26.2 Git safety
 
+Branch naming (explicit owner clarification, 2026-09-20):
+- Use purpose-based prefixes such as `feature/`, `fix/`, `refactor/`, or `docs/`.
+- Do not prefix branches with an agent, model, personal name, or `codex/`.
+- Preserve the owner's existing renamed branches; do not rename or recreate them.
+
 Allowed:
 - normal commits;
 - branches;

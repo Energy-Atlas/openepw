@@ -22,7 +22,10 @@ Record approval in the plan when received; never infer approval from elapsed tim
 - Use normal configured human authorship; no agent/model coauthors or trailers.
 - Commit moderately often at feature/provider/docs/test boundaries using
   `fix(topic): concise description`, as required by the handoff.
-- Prefer `codex/` branches. No force push, destructive rebase/reset, published
+- Use purpose-based branch names such as `feature/...`, `fix/...`, `refactor/...`
+  or `docs/...`. Never prefix branches with an agent, model, personal name or
+  `codex/`. Preserve existing branches unless the owner requests a change.
+- No force push, destructive rebase/reset, published
   history rewrite, deletion of collaborators' work, or branch deletion without
   explicit human authorization.
 - Only secret templates belong in git. Keep local credentials ignored; never
