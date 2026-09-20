@@ -1,35 +1,32 @@
 # Roadmap
 
-## Stage 1 — complete, awaiting plan approval
+## Stage 1 — complete
 
-- [x] Inspect clean repository, branches, brief and MIT license.
-- [x] Probe all six provider targets, auth gates, native EPWs and geocoding.
-- [x] Inspect EPW conventions and candidate code/data licenses.
-- [x] Validate a distinct hourly future-weather source by partial archive access.
-- [x] Establish contributor rules, architecture, schemas and implementation plan.
-- [ ] Owner approves [Stage 2 plan](docs/plans/2026-09-20-stage-2.md).
+Provider/API probes, license/reuse review, architecture and the implementation
+plan were completed. Owner approved Stage 2 on 2026-09-20.
 
-## Stage 2 — not started
+## Stage 2 — v0.1 implementation
 
-1. Core schemas, configuration, EPW/QC and packaging/CI.
-2. Open-Meteo historical and PVGIS native TMY retrieval with manifests (MVP A).
-3. OneBuilding, NOAA, NSRDB and optional direct CDS; realistic provider statuses.
-4. Explicit hybrids, spatial sampling, deduplication and artifact bundles (MVP B).
-5. Durable local jobs and REST.
-6. CMIP6 morphing and hourly WRF profile selection, profile/ensemble semantics
-   and scientific acceptance tests (MVP C after first method).
-7. MCP and lightweight CLI/examples.
-8. Cross-platform packaging, reproducibility, documentation and whole-scope review.
+- [x] Typed package contracts, configuration, EPW/QC and packaging.
+- [x] Historical and native-product retrieval with manifests and raw checksums.
+- [x] Six provider adapters, with source-dependent limits and live evidence.
+- [x] Spatial batches, verified-source reuse and explicit hybrids.
+- [x] Durable local jobs, cancellation, REST and artifact storage.
+- [x] CMIP6 morphing and distinct hourly WRF profiles; typical/extreme/ensemble.
+- [x] MCP, CLI and examples over the canonical service.
+- [x] Final acceptance record, documentation and regression checks.
 
-MVPs are feedback opportunities, not additional required approvals. After Stage 2
-approval continue autonomously under [AGENTS.md](AGENTS.md). Publication remains
-a separate explicit human action.
+## Follow-ups after v0.1
 
-## Provider/method follow-ups
+- Run configured Linux/macOS CI and an EnergyPlus consumption smoke check.
+- GHCNh successor adapter; ISD's current-year service is being retired by NOAA.
+- Generalize native OneBuilding geographic indexing, after verifying catalog and
+  redistribution permissions. Do not mirror downloaded weather without permission.
+- Additional NSRDB products/intervals, CDS DNI/DHI derivation, more climate models
+  and datasets with small point-access chunks.
+- Authenticated remote Streamable MCP, more detailed job retention/cleanup policy,
+  and provider rate-limit scheduling for large deployments.
+- Sampled future generators only with defensible temporal/covariance validation.
 
-- Credentials: NLR API key/email; CDS token and manually accepted terms.
-- OneBuilding: establish redistribution rights before bundling/rehosting data.
-- NOAA: probe GHCNh current availability before promising years after ISD's end.
-- CMIP6: validate multivariable numeric access and license-aware model selection.
-- Future: more hourly sources/geographies/scenarios, sampled methods only after
-  two defensible core methods work.
+Publication, ownership changes and paid services remain separate owner actions.
+The current feature branch is preserved; no force push or history rewrite.

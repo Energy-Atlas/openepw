@@ -1,5 +1,11 @@
 # NOAA station observations
 
+## v0.1 implementation result — 2026-09-20
+
+The ISD adapter passed a 48-hour request. The endpoint returned no rows for an initial cross-year request; calendar-year splitting recovered the reports. QC flags 0/1/4/5 are accepted and the nearest report within 30 minutes supplies each hourly target. Missing solar and station pressure remain missing; sea-level pressure is not substituted. NOAA announced the ISD service transition to GHCNh: https://www.nesdis.noaa.gov/news/service-location-change-integrated-surface-data-global-hourly . This adapter targets available historical ISD access, not the new GHCNh schema.
+
+## Earlier source/access review
+
 Use public Access Data Service and HTTPS archives for `global-hourly`, not the
 separate token-requiring CDO API. The initial USAF/WBAN combination was wrong:
 HTTP 200 with `[]` was not success. The station inventory identified Binghamton

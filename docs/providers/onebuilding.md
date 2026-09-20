@@ -1,5 +1,11 @@
 # Climate.OneBuilding
 
+## v0.1 implementation result — 2026-09-20
+
+The adapter retrieved and parsed the published Ithaca TMYx into 8,760 rows. Selection uses an explicit relative ZIP product path, or a country catalog with a location name; no global nearest-station index is claimed. ZIP path, member count and uncompressed size checks apply. Native data stays in ignored local artifacts and is not committed or mirrored.
+
+## Earlier source/access review
+
 No public JSON API was established. Use the site's linked HTML/KML catalogs,
 cache them, and follow published ZIP links. Do not synthesize filenames from city
 strings. Initial guessed state/about paths returned 404; following the root's

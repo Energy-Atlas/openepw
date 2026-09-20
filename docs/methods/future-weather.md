@@ -1,13 +1,13 @@
-# Proposed future methods
+# Implemented future methods — v0.1
 
-These are Stage 2 designs, not implemented features. `generate_future` accepts a
+Both methods passed end-to-end live checks on 2026-09-20. `generate_future` accepts a
 baseline EPW/artifact and reports what role that baseline plays. A requested target
 year represents a climate period, never a literal forecast. Unsupported scenario,
 period, profile or variable combinations fail explicitly.
 
 ## A — CMIP6 monthly morphing
 
-Implement Belcher-style shift/stretch from published equations in OpenEPW, using
+OpenEPW implements Belcher-style shift/stretch from published equations in OpenEPW, using
 permissive psychrometrics. Do not wrap pyepwmorph while its internal license issue
 remains. References: [Belcher et al. (2005)](https://doi.org/10.1191/0143624405bt112oa),
 [Jentsch et al. (2013)](https://doi.org/10.1016/j.renene.2012.12.049).
@@ -16,15 +16,17 @@ For month m, temperature uses `T' = T + delta_m + alpha_m*(T - mean_baseline_m)`
 delta is model future-minus-reference mean; alpha is the change in modeled diurnal
 range divided by baseline mean diurnal range. A zero denominator falls back to
 shift-only with a warning. Pressure uses a difference; wind/solar use nonnegative
-ratios with explicit zero-reference handling. Humidity transformations must
-recompute dew point consistently and record any clipping. Never silently retain
-stale humidity after changing temperature. Validate energy closure for radiation.
+ratios with explicit zero-reference handling. Humidity transformations recompute dew point and record clipping. Common scaling
+preserves baseline solar component proportions; this is not a new cloud/sky model.
 
 Climate source: versioned Pangeo CMIP6 Zarr catalog, optional xarray/fsspec/zarr
 stack. Probe verified a matched GFDL-CM4 r1i1p1f1 historical/ssp245 `tas` pair and
 its calendar, units, dimensions and license. Large 600-month global chunks remain
-a performance risk; planning must estimate them before data access. Full required
-variable intersection and numeric decoding are early Stage 2 acceptance tests.
+a performance risk; planning must estimate them before data access. The shipped default ACCESS-CM2 r1i1p1f1 passed all seven monthly variables,
+reference 1985–2014 and target 2036–2065, and full EPW output. Planning enforces
+a conservative decoded-byte budget (default 3 GB). The WCRP license registry
+is cached with checksum/retrieval date; effective grants and original Zarr
+license attributes both accompany signals. Unknown/noncommercial grants fail.
 Accept a documented local monthly-signal table too, with units, model, member,
 reference/target periods, license, source URI and checksum; it cannot be unlabeled
 hardcoded warming. Expose only models/scenarios with the required variable set.
@@ -53,7 +55,7 @@ Only RCP4.5/RCP8.5 and 2045–2054 / 2085–2094 are available in this source. N
 translate SSP245 to RCP4.5 or promise model ensembles this archive does not have.
 
 Real range/ZIP64 extraction validated a full 2045 EPW from RCP8.5 v1.1 with 35
-fields. Implement a cached archive index keyed by ETag, conditional range reads,
+fields. The implementation uses a cached archive index keyed by ETag, conditional range reads,
 CRC validation and bounded decompression. Refuse an ignored Range response rather
 than downloading 9 GB unexpectedly. Resolve available member names against the
 updated location table; the advertised number of PUMAs is not proof every member
@@ -82,8 +84,8 @@ Construct profiles across the ten candidate years at the resolved site:
 
 For B, 2050 resolves to the explicit 2045–2054 archive window and 2090 to 2085–2094;
 other years must lie inside a supported window or provide that exact period.
-The caller can instead supply licensed hourly climate data with equivalent
-metadata. Baseline years are used only to calibrate future profiles, never to
+The generator protocol leaves room for additional licensed hourly backends;
+user-supplied hourly climate ensembles are not exposed in v0.1. Baseline years are used only to calibrate future profiles, never to
 generate retrospective TMY/XMY.
 
 Known issue: authors flag anomalous Great Plains warming in late-century RCP4.5.
@@ -103,3 +105,12 @@ end date: discover availability rather than hardcoding a claimed exact final day
 
 Two wrappers around monthly morphing were rejected as insufficiently distinct.
 The chosen A changes a baseline sequence; B selects new hourly model trajectories.
+
+## Acceptance and calendar notes
+
+Typical and warming-extreme morph outputs passed live checks. Hourly typical,
+ten-year ensemble, hot shock and hot persistence passed live checks. Cold ranking
+is covered by analytical tests. OEDI trajectories are noleap even when source
+year labels say 2048/2052; EPWs explicitly mark OPENEPW_CALENDAR=noleap, retain
+source years and set the leap flag to No. No synthetic February 29 is inserted.
+See [acceptance](../validation/v0.1-acceptance.md) and [signal schema](signals.md).

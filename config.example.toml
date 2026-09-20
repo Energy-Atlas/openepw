@@ -1,25 +1,16 @@
-# Proposed Stage 2 configuration. Copy to ignored config.local.toml.
-[storage]
-root = ".local/openepw"
+# Copy to ignored config.local.toml. Programmatic > environment > local TOML.
+[runtime]
+data_root = ".local/openepw"
+timeout = 60
+retries = 2
+max_response_bytes = 50000000
+max_climate_bytes = 3000000000
+workers = 2
 
-[network]
-timeout_seconds = 30
-max_retries = 3
-per_provider_concurrency = 1
-
-[providers.openmeteo]
-base_url = "https://archive-api.open-meteo.com"
-usage = "noncommercial"
-
-[providers.nsrdb]
-base_url = "https://developer.nlr.gov"
-# Supply api_key/email through environment or ignored local config.
-
-[providers.cds]
-url = "https://cds.climate.copernicus.eu/api"
-# Owner must accept dataset terms in their own account first.
-
-[planning]
-max_locations = 1000
-max_artifacts = 1000
-allow_hybrid = false
+[credentials]
+# Prefer environment or explicit RuntimeConfig.load(env_file=".env").
+# nlr_api_key = ""
+# nlr_email = ""
+# cds_key = ""
+# openmeteo_api_key = ""
+# bearer_token = ""

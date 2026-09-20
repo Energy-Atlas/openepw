@@ -1,211 +1,151 @@
-# OpenEPW architecture proposal
+# OpenEPW architecture
 
-Stage 1 design, 2026-09-20. Approval pending. The [human brief](docs/20260920-openepw-brief.md)
-defines intent; [Stage 2 tasks](docs/plans/2026-09-20-stage-2.md) define delivery.
+Implemented v0.1 architecture, 2026-09-20. Stage 2 was approved by the owner;
+[execution decisions](docs/validation/stage-2-ledger.md) and
+[acceptance](docs/validation/v0.1-acceptance.md) record evidence and limits.
 
-## Boundaries and package layout
+## Boundaries
 
-Python 3.11+, `src` layout, Hatchling build. pandas/numpy for ordinary weather,
-Pydantic v2 for serializable schemas, httpx for provider HTTP. Own EPW codec.
-Optional extras: `api` (FastAPI/uvicorn), `mcp` (official Python MCP SDK),
-`climate` (xarray, zarr, fsspec/gcsfs, cftime, PsychroLib and solar support),
-`cds` (cdsapi/NetCDF support), `all` (union). Development dependencies are separate.
-Pin tested development versions; keep justified compatible ranges in package metadata.
+Python 3.11+, Hatchling/src layout. pandas/numpy tables, Pydantic wire contracts,
+httpx transport with system certificate trust. Domain modules do not import
+FastAPI, MCP or xarray. Heavy climate readers and service adapters import their
+optional dependencies only when used.
 
 ```text
 src/openepw/
-  __init__.py             public convenience functions and model exports
-  models/
-    geography.py         Location, BoundingBox, PolygonQuery, SamplingSpec
-    requests.py          WeatherRequest, FutureRequest, policy objects
-    discovery.py         Candidate, DiscoveryResult, availability and capabilities
-    plans.py             SourceRef, FetchTask, TransformStep, OutputSpec, WeatherPlan
-    artifacts.py          ArtifactRef, ArtifactBundle, Manifest, VariableLineage
-    jobs.py              WeatherJob, states and progress
-    errors.py            OpenEPWError, Issue, stable error codes
-  dataset.py             WeatherDataset (DataFrame + typed metadata)
-  config.py              secret-bearing runtime configuration, never plan content
-  service.py             geocode/discover/plan/execute/fetch/future orchestration
-  providers/
-    base.py              provider protocol and registry
-    http.py              timeouts, bounded retries, redaction, response limits
-    openmeteo.py, pvgis.py, onebuilding.py, noaa_isd.py, nsrdb.py, era5.py
-  geocoding/openmeteo.py  independent named-point resolver
-  discovery/selection.py capability filtering and transparent ranking
-  planning/
-    weather.py, future.py plan construction
-    spatial.py           shared regular grid sampling and query-to-source map
-    hybrid.py            explicit variable assignments and alignment rules
-  epw/
-    schema.py            field definitions and sentinels
-    reader.py, writer.py  artifact codec; preserve source headers
-  qc/checks.py            structural/physical checks, no hidden repairs
-  generation/
-    base.py              generator capabilities/protocol
-    cmip6.py             catalog selection, licensed climate signal extraction
-    morph.py             independent published-equation implementation
-    hourly_archive.py    OEDI locations, ZIP64/range access, ETag cache
-    climate_profile.py   medoid/extreme/coherent-year selection
-  artifacts/store.py     atomic bundle writes, checksum and URI lookup
-  cache/store.py         raw/normalized caches and provenance keys
-  jobs/store.py          SQLite durable state, item progress/idempotency
-  jobs/worker.py         bounded local worker, cooperative cancellation
-  api/app.py             FastAPI routes, dependency injection only
-  mcp/server.py          tool/resource adapters, no weather logic
-  cli/main.py            argparse thin entry points
-tests/{unit,integration,fixtures,golden}/
-examples/{point.py,batch.py,future.py,rest.py}
+  __init__.py             public Python convenience API
+  models/__init__.py      versioned geography/request/plan/artifact/job contracts
+  config.py              runtime secrets and configuration precedence
+  dataset.py             scientific table and interval conventions
+  epw/{schema,reader,writer}.py
+  qc/checks.py
+  providers/{base,http,openmeteo,pvgis,onebuilding,noaa_isd,nsrdb,era5}.py
+  planning/{spatial,hybrid,future}.py
+  service.py             discovery, planning, execution and bundles
+  generation/{cmip6,morph,hourly_archive,climate_profile}.py
+  artifacts/store.py     atomic files, checksums, opaque identifiers
+  jobs/{store,worker}.py  SQLite item records and bounded worker threads
+  api/app.py             REST adapter
+  mcp/server.py          MCP adapter
+  cli/main.py            argparse adapter
 ```
 
-Dependency direction: models/EPW/QC → providers/generators → service/planning/jobs
-→ adapters (arrow means “used by”). Adapters call Python services directly; MCP
-does not call REST. Domain modules never import adapters. `WeatherDataset` is not
-a JSON DataFrame dump and EPW text is not the internal scientific representation.
+The proposed fine-grained models/geocoding/cache modules were consolidated where
+small functions/classes suffice. There are no separate REST/MCP weather algorithms.
 
 ## Public operations
 
-```python
-geocode(query: str, *, mode: str = "point") -> GeocodeResult
-discover(request: WeatherRequest) -> DiscoveryResult
-plan(request: WeatherRequest, *, discovery: DiscoveryResult | None = None) -> WeatherPlan
-execute(plan: WeatherPlan, *, config: RuntimeConfig | None = None) -> ArtifactBundle
-fetch(request: WeatherRequest, *, config: RuntimeConfig | None = None) -> ArtifactBundle
-plan_future(request: FutureRequest) -> WeatherPlan
-generate_future(baseline, *, target_year=None, climate_period=None,
-                reference_period=None, climate_scenario, method="morph",
-                profile="typical", models=None, members=None, extreme=None,
-                config=None) -> ArtifactBundle
-```
+`geocode`, `discover`, `plan`, `execute`, `fetch`, `plan_future`, and
+`generate_future` are exported from `openepw`. `WeatherService` supports injected
+providers and HTTP transport for testing/embedding. Python accepts local baseline
+paths, registered `ArtifactRef`s or `WeatherDataset`s. REST/MCP future requests
+accept registered artifact IDs only. Planning snapshots baseline and signal files
+as immutable, checksummed artifacts.
 
-`generate_future` validates a `FutureRequest`, plans and executes. Baseline may be
-a local path, ArtifactRef or WeatherDataset in Python. HTTP/MCP use uploaded
-artifact IDs, never arbitrary server filesystem paths. Blocking core methods
-also work without a job server. Async jobs wrap those operations with progress
-and cancellation hooks. `RuntimeConfig` is process-local, not a wire schema.
+`WeatherRequest` accepts a Location, point list, BoundingBox, or GeoJSON-style
+PolygonQuery; actual years or inclusive dates; a published product ID; provider
+ordering; dataset; required variables; explicit hybrid assignments and missing
+policy. `FutureRequest` separates SSP/RCP scenarios, reference and target periods,
+method, profile and model/member selectors. Unknown fields/schema versions fail.
 
-## Core schemas (Pydantic, version `0.1`)
+`WeatherPlan` contains the typed request, source candidates, fetch tasks, output
+mapping, warnings, cost estimates and stable canonical hash. Timestamps in candidate
+observations do not affect its identity. Task cache identifiers are SHA-256 values;
+weather execution verifies them against source/request inputs. Plan graph references
+and artifact names are validated. A hash is an integrity check, not authorization;
+execution also restricts provider endpoints, climate stores and resource budgets.
 
-| Schema | Required fields and invariants |
-| --- | --- |
-| Location | `lat[-90,90]`, `lon[-180,180]`; optional id/name/elevation/standard_offset_minutes. Reject nonfinite values; preserve original query |
-| BoundingBox | west/south/east/north; south<north; explicit antimeridian split if west>east |
-| PolygonQuery | GeoJSON Polygon coordinates in lon/lat; closed valid rings including holes; reject self-intersections rather than silently fixing |
-| SamplingSpec | positive `dx_km`, `dy_km` (default 25 each), optional WGS84 origin and offsets; max_locations guard; boundary-inclusive grid excluding holes |
-| GeocodeResult | query, mode, candidates (canonical Location, provider result id, display name, country/admin labels), attribution, ambiguity issues; no silent choice among homonyms |
-| WeatherRequest | schema_version, locations (Location/list/bbox/polygon), sampling, product, years or explicit dates or published product_id, provider/dataset preferences, required_variables, hybrid_policy, missing_policy, leap_policy, output formats. Product/year combinations validated |
-| Candidate | stable id, provider, dataset/version/product_id, weather_types, coverage/available periods with evidence timestamp, native resolution per variable group, interval, variables/derivations, access_path, provenance_type, source location, credential/terms requirements, missing fields, warnings, default-selection reasons; unknown values nullable |
-| DiscoveryResult | normalized request locations, all candidates, selected_candidate_ids, issues, observed_at; no silent fallback |
-| SourceRef | provider, access_path, dataset/version, station/grid identity if known, actual lat/lon/elevation, requested-to-source distance, resolution, license/citation, availability; unresolved source marked provisional |
-| FetchTask | id, SourceRef, native request parameters without secrets, expected interval/variables/bytes/calls (nullable estimates), cache_key, dependents |
-| TransformStep | id, method/version, input task/variable refs, parameters, output variables/units, alignment and missing policy; acyclic dependencies |
-| OutputSpec | requested_location_id, source refs, product/year/period, formats, deterministic relative name |
-| WeatherPlan | schema_version, kind=weather/future, request, selected candidates, source mapping, tasks, transforms, outputs, estimated calls/bytes/artifacts, warnings, capability versions, plan_hash. Stable canonical JSON hash excludes timestamps/secrets |
-| WeatherDataset | DataFrame with UTC interval ends for actual series (or explicit synthetic calendar), source row year/month/day labels for TMY, units, interval semantics, fixed output offset, location metadata, variable lineage and headers. No mixed units or implicit DST |
-| VariableLineage | variable, provider/dataset/version/access_path, source coordinates, raw checksum, transforms/dependencies, derived/filled/unchanged flags, affected row ranges and license |
-| FutureRequest | baseline ref, method, target_year and/or actual window, reference_period, scenario namespace+id, profile, model/member selectors, extreme options; validate supported capability combinations |
-| ArtifactRef | opaque id, relative path/URI, media type, bytes, sha256, role, location/output id; path confined to job root |
-| ArtifactBundle | bundle_id, weather (list of EPW ArtifactRef), request/plan/manifest/qc ArtifactRef, additional artifacts and issues; convenience results reference files rather than embedding tables |
-| Manifest | package/schema versions, request/plan hashes, timestamps, input/output refs, source periods/locations, variables/lineage, transformations, timezone/leap policies, licenses/citations, future-method parameters and limitations |
-| Issue / OpenEPWError | stable code, severity, message, field/location/task context, retryable flag and redacted provider status; raw exceptions stay out of wire output |
-| WeatherJob | id, plan hash, state, total/completed/failed items, submitted/started/finished times, cancellation request, item errors, artifact refs, idempotency key |
+## Weather semantics
 
-Error codes include `UNSUPPORTED_GEOGRAPHY`, `UNAVAILABLE_PERIOD`,
-`PROVIDER_UNAVAILABLE`, `AUTH_REQUIRED`, `TERMS_REQUIRED`, `RATE_LIMITED`,
-`MALFORMED_RESPONSE`, `MISSING_CRITICAL_VARIABLE`, `EPW_CONVERSION_FAILED`,
-`UNSUPPORTED_FUTURE_METHOD`, `INVALID_GEOMETRY`, `INVALID_SCENARIO_PERIOD`,
-`PLAN_STALE`, `RESOURCE_LIMIT`, `JOB_PARTIAL_FAILURE` and `CANCELLED`.
+WeatherDataset stores a pandas frame indexed by timezone-aware UTC **interval ends**,
+with interval length, units, location/fixed offset, calendar, original row years,
+headers, per-variable lineage, metadata and issues. Solar columns are interval
+Wh/m². State samples may be instantaneous at the interval end and are identified
+as such in lineage. No daily-to-hourly fabrication, hidden DST conversion or gaps
+filled as zero. Fractional-hour historical conversion currently fails explicitly;
+request UTC or an integer-hour fixed offset.
 
-## Provider contract and planning
+The EPW codec owns eight headers and 35 fields, field-specific missing sentinels,
+hour 24, native minute-zero compatibility and independent partial/annual QC. Native
+TMY row years remain separate from the synthetic timeline. Explicit noleap sources
+use a synthetic 365-day timeline and an exported calendar marker, retaining source
+year labels. `read_epw` assigns honest input-file provenance when original provider
+identity is unknown. Original downloaded EPWs accompany normalized native products.
 
-```python
-class WeatherProvider(Protocol):
-    def discover(self, request: WeatherRequest, context: ProviderContext) -> list[Candidate]: ...
-    def plan(self, candidate: Candidate, request: WeatherRequest,
-             context: ProviderContext) -> list[FetchTask]: ...
-    def fetch(self, task: FetchTask, context: ProviderContext) -> ProviderResult: ...
-```
+## Providers, discovery and cache
 
-`ProviderContext` supplies HTTP/cache/runtime credentials and cancellation.
-`ProviderResult` carries normalized WeatherDataset, optional native EPW, resolved
-SourceRef, raw checksum and issues. Provider-specific options are namespaced and
-validated; no primary `download_nsrdb()` API. Metadata lookups may perform small
-calls while planning; expensive data retrieval waits for execution.
+Providers implement `discover(request, location, http)` and
+`fetch(task, http) -> ProviderResult(dataset, source, raw, native_epw)`.
+The service owns generic planning, cache and output orchestration. Discovery returns
+alternatives and explains selection by missing fields, caller provider order and
+credential requirements. A successful HTTP status is not proof of usable weather.
 
-Deduplicate only verified identical source requests, including provider/dataset
-version, station/cell, date range, interval, variables, elevation/horizon options
-and transformation version. If the API resolves its cell only at fetch time,
-label the estimate provisional, then deduplicate only once confirmed; never
-promise exact call collapse based on rounding. Keep a requested-location → source
-mapping. Native files keep original location metadata; a point list may reference
-one artifact multiple times without inventing relocated observations.
+Only fully resolved source requests with identical scientific options deduplicate.
+Unknown cells remain provisional. Batches maintain requested-location → output
+mapping without moving native station metadata. Grid sampling is distance-based
+using latitude-adjusted longitude spacing; dateline boxes split naturally, polygon
+holes are excluded, point counts are capped before allocation.
 
-Spatial sampling uses a local distance-based regular grid with explicit origin
-and latitude-dependent longitude spacing; record coordinates, units and method.
-Split dateline boxes, include polygon boundaries, exclude hole interiors, reject
-unsupported polar/singular grids with structured errors. Cap points before allocation.
-Warn when requested spacing is below known native scale; unknown resolution stays
-unknown. No claim of finer weather resolution from denser sampling.
+Hybrid plans explicitly assign each variable to a provider. Timelines/calendars/units
+must match. Subhourly states aggregate only with all required observations; interval
+solar sums preserve energy and missingness; wind direction uses a circular mean.
+There is no implicit secondary-source fill.
 
-Hybrid policy defaults off. When enabled, a plan names source per variable,
-alignment/resampling/derivation and source mismatch warnings. Do not silently
-substitute station sea-level pressure, modeled solar or a different time basis.
-Replaying a plan never reselects providers silently; changed metadata yields
-`PLAN_STALE` and a new plan. Exact replay requires cached checksummed raw inputs;
-without them record new fetch checksums and possible upstream changes.
+HTTP has bounded retries/timeouts/response sizes, certificate verification, redacted
+errors/logs and a narrow NSRDB object-store redirect allowlist. Raw response caches
+commit only after successful parsing. Credential-bearing/short-lived CDS polling
+metadata and signed download URLs are not persisted. Cache identity includes source,
+request and transform version; bytes are verified by SHA-256 before replay.
 
-## REST and MCP
+## Future methods
 
-| REST route | Contract |
-| --- | --- |
-| POST `/v1/geocode` | query/mode → GeocodeResult |
-| POST `/v1/weather/discover` | WeatherRequest → DiscoveryResult |
-| POST `/v1/weather/plan` | WeatherRequest + optional discovery → WeatherPlan |
-| POST `/v1/weather/jobs` | WeatherPlan + optional idempotency key → 202 WeatherJob |
-| POST `/v1/future/plan` | FutureRequest → WeatherPlan |
-| POST `/v1/future/jobs` | future WeatherPlan → 202 WeatherJob |
-| GET `/v1/jobs/{id}` | WeatherJob with per-item failures |
-| POST `/v1/jobs/{id}/cancel` | cooperative cancellation request |
-| GET `/v1/jobs/{id}/artifacts` | manifest + compact ArtifactRef list |
-| POST `/v1/artifacts` | bounded baseline EPW upload → ArtifactRef |
-| GET `/v1/artifacts/{id}` | validated artifact bytes/download |
-| GET `/health` | local readiness; no provider requests |
+CMIP6 catalog selection requires the complete tas/tasmin/tasmax/hurs/ps/sfcWind/rsds
+intersection for coherent models/members. Only approved Pangeo CMIP6 stores are read.
+Calendar-aware monthly aggregation requires complete requested windows. Model signals,
+source locations, units, licenses and extracted-input checksums accompany outputs.
+Monthly morphing is an independent shift/stretch implementation. Hourly archive
+selection uses bounded ZIP64 ranges, ETags, CRC and decompression limits to read
+whole WRF trajectories. See [method contract](docs/methods/future-weather.md).
 
-MCP tools: `weather_geocode`, `weather_discover`, `weather_plan`, `weather_fetch`,
-`weather_inspect`, `weather_generate_future`. `weather_plan(kind=...)` routes both
-request families; `weather_fetch(plan=...)` executes/submits a reviewed weather
-plan. `weather_generate_future` accepts request or future plan. `weather_inspect`
-returns job status, QC and artifact refs. EPWs are resources, not 8,760 inline rows.
-Stdio first, Streamable HTTP next; same core schemas, no MCP-native job dependency.
-
-## Storage, jobs, configuration and deployment
-
-SQLite plus filesystem; one bounded worker process/thread pool, no Redis/Celery.
-States: queued, running, completed, partially_completed, failed, cancelled. Persist
-per-item completion and errors; resume safe unfinished tasks after restart, verify
-completed checksums, avoid duplicate outputs via plan/idempotency keys. Cancellation
-stops scheduling, preserves completed artifacts, records in-flight outcome. Never
-report completed if some required artifacts failed.
+## Artifacts and jobs
 
 ```text
 data-root/
   jobs.sqlite3
-  cache/{raw,normalized}/<content-or-request-hash>/
-  jobs/<job-id>/{request.json,plan.json,manifest.json,qc.json}
-  jobs/<job-id>/weather/<location-product-period-provider-hash>.epw
+  artifacts/<opaque-id>.json
+  cache/{raw-v2,cmip6,ranges}/...
+  jobs/<bundle-id>/{request.json,plan.json,manifest.json,qc.json,*.epw}
 ```
 
-Atomic temporary-file rename, output checksums and safe artifact identifiers.
-Raw cache key includes provider/dataset/version/query; normalized cache additionally
-includes code/transform version. Jobs retain immutable input references. Credentials
-resolve programmatic override → environment → ignored local TOML. Secrets and
-signed download URLs are redacted before persistence; plans carry credential
-requirement names only. One process owns SQLite writes with WAL/busy timeout.
+Atomic writes use same-directory temporary files and replacement. Artifact reads
+verify checksum and root confinement. Baseline provenance is retained even where
+original provider metadata is unknown. Manifests include plan/request identity,
+source and output mappings, per-variable lineage, transformations, warnings, and
+`simulation_ready=false`.
 
-Service binds localhost by default. Remote deployments require configured bearer
-authentication, upload/request limits and owner-controlled provider endpoints;
-do not expose arbitrary URL fetching or server path reads. REST/MCP credentials
-are runtime context, never accepted into persisted weather request bodies.
+SQLite uses WAL/busy timeout. Each unique output item is recorded independently;
+a restarted worker verifies and reuses completed bundles, then executes remaining
+items. Jobs support idempotency keys, queued/running/completed/partially_completed/
+failed/cancelled states, counts and cooperative cancellation. Use one server process
+per data root; worker threads are bounded. Failed items do not cause successful
+items to disappear. No Redis/Celery/database server is required.
 
-See [EPW conventions](docs/methods/epw-conventions.md),
-[method definitions](docs/methods/future-weather.md), and
-[decisions](docs/decisions/0001-stage-1-design.md).
+## Interfaces and deployment
+
+REST: POST `/v1/geocode`, `/v1/weather/discover`, `/v1/weather/plan`,
+`/v1/weather/jobs`, `/v1/future/plan`, `/v1/future/jobs`, `/v1/artifacts`,
+`/v1/jobs/{id}/cancel`; GET `/v1/jobs/{id}`, `/v1/jobs/{id}/artifacts`,
+`/v1/artifacts/{id}`, `/health`. Jobs accept a plan plus optional idempotency key.
+Uploads accept bounded EPW files, never arbitrary server paths. Remote REST requires
+a runtime bearer token; default binding is loopback. Request validation does not
+echo potentially secret inputs.
+
+MCP exposes `weather_geocode`, `weather_discover`, `weather_plan`, `weather_fetch`,
+`weather_inspect`, `weather_generate_future` and artifact resources. It calls the
+Python service directly. Stdio and loopback Streamable HTTP are supported; remote
+MCP authentication is deferred rather than exposed without protection.
+
+Configuration precedence: programmatic overrides → environment → explicitly loaded
+local dotenv → ignored local TOML. Credentials are SecretStr runtime fields and
+never request/plan fields. [Configuration template](config.example.toml),
+[usage](docs/usage.md), [limitations](docs/limitations.md).

@@ -1,5 +1,11 @@
 # ERA5 and ERA5-Land via CDS
 
+## v0.1 implementation result — 2026-09-20
+
+After owner-provided token and term acceptance, the implemented ERA5 and ERA5-Land adapters each returned a full 24-hour day. CDS returned separate instantaneous/accumulated NetCDF files inside a ZIP despite the unarchived selector. These are merged by coordinates; monthly pieces are concatenated before Land deaccumulation to retain first-midnight energy. Wind/RH are derived; GHI is converted from joules, while DNI/DHI remain missing. Polling is bounded; signed result URLs are memory-only and not persisted. The Stage 1 unauthenticated findings below remain historical evidence.
+
+## Earlier source/access review
+
 The current CDS API root is `https://cds.climate.copernicus.eu/api`, with personal
 access tokens rather than legacy UID:key assumptions. Dataset terms must be
 accepted manually in the account. [Official setup](https://cds.climate.copernicus.eu/how-to-api).

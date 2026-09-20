@@ -1,5 +1,11 @@
 # NSRDB / NLR
 
+## v0.1 implementation result — 2026-09-20
+
+Production credentials passed both aggregate v4 actual-year retrieval (2024, 8,784 hours) and native published TMY retrieval (8,760 hours). Published TMY/TDY/TGY IDs are selected from the live catalog. Hour-center actual-year timestamps become interval ends; native TMY fixed timezone and mixed original source years are retained. Only the specific NLR S3 redirect is followed without forwarding credentials. Other spatial footprints/subhourly products remain deferred.
+
+## Earlier source/access review
+
 Use `developer.nlr.gov`, not a hardcoded legacy NREL hostname. The legacy hostname
 failed DNS on this machine. `nsrdb_data_query.json` with the public `DEMO_KEY`
 returned four products for Ithaca, including exact years, intervals and download

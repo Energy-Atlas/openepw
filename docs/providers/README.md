@@ -1,3 +1,21 @@
+# Provider implementation status — v0.1
+
+All six access providers returned data through the implemented service on
+2026-09-20. Credentials stayed local. This demonstrates the tested requests,
+not universal geographic/year coverage or simulation fitness.
+
+| Provider | Adapter acceptance | Principal boundary |
+| --- | --- | --- |
+| [Open-Meteo](openmeteo.md) | ERA5 full 2024 local-standard year, 8,784 hours | Explicit model; no inferred grid deduplication |
+| [PVGIS](pvgis.md) | Native TMY, 8,760 hours | Native file plus selected-month metadata |
+| [OneBuilding](onebuilding.md) | Native Ithaca TMYx, 8,760 hours | Explicit product or country/name catalog; redistribution unverified |
+| [NOAA](noaa.md) | 48 requested station hours | Missing fields retained; no radiation; ISD successor deferred |
+| [NSRDB](nsrdb.md) | Actual 2024: 8,784 hours; native TMY: 8,760 hours | Key/email; aggregate v4 actual and published v4 TMY/TDY/TGY |
+| [CDS](era5.md) | ERA5 and Land, 24 hours each | Token/accepted terms; GHI only, no DNI/DHI |
+
+See [acceptance](../validation/v0.1-acceptance.md) for commands and limits.
+The original pre-implementation access evidence is retained below as history.
+
 # Provider feasibility — 2026-09-20
 
 Stage 1 probes validate access, not completed integrations or simulation fitness.

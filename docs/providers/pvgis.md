@@ -1,5 +1,11 @@
 # PVGIS
 
+## v0.1 implementation result — 2026-09-20
+
+The v5_3 native TMY adapter passed 8,760-hour acceptance. It retains the original EPW plus JSON inputs and selected source-month years. Published TMY requests do not accept actual-year selectors. The singular PVGIS HOLIDAYS/DAYLIGHT SAVING header is accepted explicitly.
+
+## Earlier source/access review
+
 Pin the validated `/api/v5_3/tmy` route. At 45°N, 8°E it returned 8,760 native EPW
 rows and JSON records with T2m, RH, GHI, DNI, DHI, infrared, wind and pressure.
 JSON identifies SARAH3 radiation, ERA5 meteorology, selected months and a

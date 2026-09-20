@@ -1,32 +1,29 @@
 # Features and implementation status
 
-Updated 2026-09-20. No product feature is implemented yet. “Validated” below means
-a bounded live probe succeeded; it does not mean production support.
+Updated 2026-09-20. Stage 2 approved and implemented; acceptance and limitations
+are recorded separately. Installed source package version: 0.1.0.
 
-| Capability | v0.1 intent | Current status |
+| Capability | Status | Important boundary |
 | --- | --- | --- |
-| Python package / CLI | `openepw`; small scripting CLI | Designed |
-| Geocode / discover / plan / execute / fetch | Typed, serializable workflow; alternatives visible | Point geocoding/API access probed; design only |
-| EPW I/O and QC | Own parser/writer; sentinels, leap/time handling | Dictionary inspected; three native sample formats inspected |
-| Open-Meteo ERA5 | Global historical conversion | 48-hour sample validated |
-| PVGIS | Published native TMY + metadata | Full TMY access validated |
-| OneBuilding | Published TMYx/TMY catalog and retrieval | Catalog + EPW validated; redistribution terms unresolved |
-| NOAA/ISD | Station observations and explicit hybrids | One-day observations validated; successor noted |
-| NSRDB/NLR | U.S. solar-rich historical/TMY access | Discovery validated; download needs email/key |
-| Direct CDS ERA5/Land | Optional direct access | Catalog/auth gate validated; token/terms needed |
-| Spatial/batch | Points, bbox, GeoJSON Polygon; source dedup | Designed |
-| Hybrids / provenance | Explicit source assignments and warnings | Designed |
-| Future method A | CMIP6 monthly morphing; model/member outputs | Metadata access + reuse review complete; numeric/runtime check pending |
-| Future method B | Representative/extreme hourly WRF profiles | One full future EPW range-read validated |
-| Future profiles | Typical, method-specific extreme, coherent ensemble | Designed; sampled reserved/experimental |
-| REST / local jobs / artifacts | FastAPI, SQLite, filesystem | Designed |
-| MCP | Thin stdio/Streamable HTTP adapter | Designed |
+| Python workflow and typed plans | Implemented, tested | Core API is canonical; no hidden provider fallback |
+| EPW read/write/QC | Implemented, tested | 35 columns; partial/annual validation separate; not simulator certification |
+| Open-Meteo ERA5 | Live full leap-year accepted | Noncommercial free hosting; ERA5-Land variables may be unavailable |
+| PVGIS native TMY | Live 8,760 rows accepted | Original EPW and selected-month/source metadata retained |
+| OneBuilding published files | Live 8,760 rows accepted | Explicit product ID or country catalog + name; no global nearest-site index |
+| NOAA ISD | Live 48-hour station result accepted | QC flags, nearest report within 30 minutes; gaps, no solar or station pressure |
+| NSRDB/NLR | Live actual 8,784 and native TMY 8,760 rows accepted | Aggregate v4 actual years; native TMY/TDY/TGY IDs from catalog; key/email required |
+| Direct CDS ERA5/Land | Both products live one-day outputs accepted | GHI only; bounded polling; terms/token and optional dependencies |
+| Spatial/batch | Tested | Point lists, bbox/dateline, polygons/holes, grid offsets, preallocation cap |
+| Source reuse | Tested 73 requests → 11 verified sources | Unresolved grids never deduplicated by guessed rounding |
+| Explicit hybrids | Tested | Named source per variable; exact matching timelines; no missing-data fill |
+| CMIP6 monthly morph | Live full output accepted | Seven-variable coherent signals; default ACCESS-CM2 SSP245 verified |
+| Hourly climate profiles | Live typical, shock, persistence and ten-year ensemble accepted | U.S. PUMA sites, CCSM4/WRF, RCP4.5/8.5 and two exact windows |
+| Future ensembles | Implemented | Model/member outputs for morph; temporal years for hourly archive |
+| REST/jobs/artifacts | Implemented, offline tested | SQLite + filesystem; single server process; bearer auth for remote REST |
+| MCP and CLI | Implemented, offline tested | Stdio and loopback Streamable HTTP; compact artifact references |
+| Packaging/CI | Wheel/sdist built; local installation verified | Cross-OS runners configured; see actual run evidence |
 
-See [provider matrix](docs/providers/README.md), [future definitions](docs/methods/future-weather.md)
-and [implementation plan](docs/plans/2026-09-20-stage-2.md) for exact capabilities.
-
-Boundaries: no historical TMY/XMY synthesis; no frontend; no fabricated fine-grid
-weather; no implicit source blending; no SSP/RCP relabeling. NOAA alone generally
-lacks solar. Open-Meteo free service is noncommercial. Method B is initially
-limited to published U.S. locations, RCP4.5/8.5 and two periods; it is not a global
-SSP method or a multimodel ensemble. Unknown geocoding modes fail explicitly.
+Reserved: sampled/stochastic weather, additional hourly scenarios/geographies,
+GHCNh successor adapter, automatic global OneBuilding proximity catalog, simulator
+certification. No historical TMY/XMY generator, frontend or distributed service.
+See [limitations](docs/limitations.md) for exact reduced capabilities and follow-ups.

@@ -1,3 +1,7 @@
+# Validation records
+
+Latest: [v0.1 acceptance](v0.1-acceptance.md) and [execution ledger](stage-2-ledger.md).
+
 # Stage 1 evidence
 
 Observed 2026-09-20 from Windows, Python 3.14 standard library. These are small

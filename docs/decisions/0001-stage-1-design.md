@@ -1,6 +1,6 @@
 # ADR 0001 — Stage 1 design recommendations
 
-Date: 2026-09-20. Status: proposed, awaiting the single Stage 1 owner gate.
+Date: 2026-09-20. Status: accepted by the owner on 2026-09-20; implementation refinements in ADR 0002.
 
 The brief requires a Python-first research utility, practical providers, two
 distinct future methods and transparent provenance. Live probes justify:

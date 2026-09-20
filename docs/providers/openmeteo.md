@@ -1,5 +1,11 @@
 # Open-Meteo
 
+## v0.1 implementation result — 2026-09-20
+
+The ERA5 adapter passed a full 2024 local-standard-year check (8,784 hours). UTC padding, returned units, pressure conversion, hourly solar energy and coverage are checked. ERA5-Land is an explicit selectable model but is not included in the final live acceptance matrix; missing provider variables remain explicit. Native response location is recorded; unknown planning cells are not rounded into artificial reuse.
+
+## Earlier source/access review
+
 Use `/v1/archive` with `models=era5`, UTC and `wind_speed_unit=ms`.
 The Ithaca probe resolved to 42.5, -76.5 and returned temperature, dew point, RH,
 surface pressure, GHI, DNI, DHI and wind speed/direction without nulls. Pressure is

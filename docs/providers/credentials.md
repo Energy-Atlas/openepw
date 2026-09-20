@@ -1,5 +1,11 @@
 # Credentials for implementation testing
 
+## v0.1 implementation result — 2026-09-20
+
+The owner supplied the three required local values and accepted CDS terms. Final adapter checks passed NSRDB actual/native TMY and CDS ERA5/Land. Use RuntimeConfig.load(env_file=".env") or CLI --env-file .env explicitly; environment variables also work. No further credential or account action is required for the tested v0.1 scope.
+
+## Earlier source/access review
+
 Owner setup before Stage 2, updated 2026-09-20. Credentials do not constitute
 Stage 2 approval; the plan review gate remains separate.
 

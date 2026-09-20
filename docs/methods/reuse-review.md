@@ -44,3 +44,19 @@ and allow compatible model selection. OneBuilding redistribution is unverified.
 No license conflict forces a project-wide stop: exclude restricted code, implement
 published formulas independently, and keep restricted/unclear data out of bundled
 fixtures. Escalate only if an essential future change actually requires that reuse.
+
+
+## Implemented reuse and license policy
+
+No pyepwmorph, epwshiftr, FWG, PsychroLib or pvlib source code was copied.
+OpenEPW implements the documented equations independently; optional scientific
+libraries perform array/NetCDF access. Software remains MIT and source data keeps
+its separate terms. No downloaded weather fixtures are bundled.
+
+The actual default ACCESS-CM2 stores still declare CC BY-SA 4.0. WCRP's registry
+records relaxation to CC BY 4.0 on 2022-06-10. The backend fetches the authoritative
+CMIP6_source_id.json, caches its body, and records checksum, retrieval time,
+original attributes and effective grant in the signal/manifest. Its default
+allowlist is CC BY 4.0, CC BY-SA 4.0 or CC0 1.0; unknown and NC grants fail before
+numeric retrieval. The cached registry is an auditable snapshot; remove that
+cache file deliberately to refresh it. No update is inferred across models.
