@@ -73,3 +73,10 @@ def test_half_hour_solar_energy_and_qc():
     assert {"DEW_ABOVE_DRY", "RH_SUPERSATURATED", "NEGATIVE_SOLAR"} <= codes
     d.data = pd.concat([d.data, d.data.iloc[:1]])
     assert "DUPLICATE_TIME" in {i.code for i in validate(d)}
+
+
+def test_pvgis_singular_daylight_header(tmp_path):
+    p = tmp_path / "native.epw"
+    write_epw(synthetic(), p)
+    p.write_text(p.read_text().replace("HOLIDAYS/DAYLIGHT SAVINGS", "HOLIDAYS/DAYLIGHT SAVING"))
+    assert len(read_epw(p).data) == 24

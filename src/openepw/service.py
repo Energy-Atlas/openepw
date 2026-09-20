@@ -24,7 +24,9 @@ from .models import (
     utcnow,
 )
 from .providers.http import HttpClient
+from .providers.onebuilding import OneBuildingProvider
 from .providers.openmeteo import OpenMeteoProvider
+from .providers.pvgis import PVGISProvider
 from .qc import validate
 
 
@@ -33,7 +35,12 @@ class WeatherService:
         self.config = config or RuntimeConfig.load()
         self.http = http or HttpClient(self.config)
         self.providers = {
-            p.name: p for p in (providers if providers is not None else [OpenMeteoProvider()])
+            p.name: p
+            for p in (
+                providers
+                if providers is not None
+                else [OpenMeteoProvider(), PVGISProvider(), OneBuildingProvider()]
+            )
         }
         self.artifacts = ArtifactStore(self.config.data_root)
 
