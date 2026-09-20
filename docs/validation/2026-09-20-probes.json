@@ -1,0 +1,685 @@
+[
+  {
+    "id": "openmeteo_era5",
+    "url": "https://archive-api.open-meteo.com/v1/archive?latitude=42.44&longitude=-76.5&start_date=2024-01-01&end_date=2024-01-02&models=era5&timezone=GMT&wind_speed_unit=ms&hourly=temperature_2m%2Crelative_humidity_2m%2Cdew_point_2m%2Csurface_pressure%2Cshortwave_radiation%2Cdirect_normal_irradiance%2Cdiffuse_radiation%2Cwind_speed_10m%2Cwind_direction_10m",
+    "observed_at_utc": "2026-09-20T08:44:29.409178+00:00",
+    "method": "GET",
+    "status": 200,
+    "final_url": "https://archive-api.open-meteo.com/v1/archive?latitude=42.44&longitude=-76.5&start_date=2024-01-01&end_date=2024-01-02&models=era5&timezone=GMT&wind_speed_unit=ms&hourly=temperature_2m%2Crelative_humidity_2m%2Cdew_point_2m%2Csurface_pressure%2Cshortwave_radiation%2Cdirect_normal_irradiance%2Cdiffuse_radiation%2Cwind_speed_10m%2Cwind_direction_10m",
+    "content_type": "application/json; charset=utf-8",
+    "bytes_read": 3576,
+    "truncated": false,
+    "sha256": "73ff9f166484795cf32b82573d6e7fbfdbaa069adacd6b0404616ff185b9d5d7",
+    "observations": {
+      "json_type": "dict",
+      "keys": [
+        "latitude",
+        "longitude",
+        "generationtime_ms",
+        "utc_offset_seconds",
+        "timezone",
+        "timezone_abbreviation",
+        "elevation",
+        "hourly_units",
+        "hourly"
+      ],
+      "latitude": 42.5,
+      "longitude": -76.5,
+      "elevation": 125.0,
+      "utc_offset_seconds": 0,
+      "timezone": "GMT",
+      "hourly_units": {
+        "time": "iso8601",
+        "temperature_2m": "\u00b0C",
+        "relative_humidity_2m": "%",
+        "dew_point_2m": "\u00b0C",
+        "surface_pressure": "hPa",
+        "shortwave_radiation": "W/m\u00b2",
+        "direct_normal_irradiance": "W/m\u00b2",
+        "diffuse_radiation": "W/m\u00b2",
+        "wind_speed_10m": "m/s",
+        "wind_direction_10m": "\u00b0"
+      },
+      "hourly": {
+        "rows": 48,
+        "fields": [
+          "time",
+          "temperature_2m",
+          "relative_humidity_2m",
+          "dew_point_2m",
+          "surface_pressure",
+          "shortwave_radiation",
+          "direct_normal_irradiance",
+          "diffuse_radiation",
+          "wind_speed_10m",
+          "wind_direction_10m"
+        ],
+        "nulls": {
+          "time": 0,
+          "temperature_2m": 0,
+          "relative_humidity_2m": 0,
+          "dew_point_2m": 0,
+          "surface_pressure": 0,
+          "shortwave_radiation": 0,
+          "direct_normal_irradiance": 0,
+          "diffuse_radiation": 0,
+          "wind_speed_10m": 0,
+          "wind_direction_10m": 0
+        },
+        "first": {
+          "time": "2024-01-01T00:00",
+          "temperature_2m": 1.8,
+          "relative_humidity_2m": 87,
+          "dew_point_2m": -0.1,
+          "surface_pressure": 1000.4,
+          "shortwave_radiation": 0.0,
+          "direct_normal_irradiance": 0.0,
+          "diffuse_radiation": 0.0,
+          "wind_speed_10m": 1.0,
+          "wind_direction_10m": 37
+        }
+      }
+    },
+    "elapsed_seconds": 0.53
+  },
+  {
+    "id": "openmeteo_era5land",
+    "url": "https://archive-api.open-meteo.com/v1/archive?latitude=42.44&longitude=-76.5&start_date=2024-01-01&end_date=2024-01-01&models=era5_land&timezone=GMT&hourly=temperature_2m%2Crelative_humidity_2m%2Cshortwave_radiation%2Cdirect_normal_irradiance%2Cwind_speed_10m",
+    "observed_at_utc": "2026-09-20T08:44:29.409612+00:00",
+    "method": "GET",
+    "status": 200,
+    "final_url": "https://archive-api.open-meteo.com/v1/archive?latitude=42.44&longitude=-76.5&start_date=2024-01-01&end_date=2024-01-01&models=era5_land&timezone=GMT&hourly=temperature_2m%2Crelative_humidity_2m%2Cshortwave_radiation%2Cdirect_normal_irradiance%2Cwind_speed_10m",
+    "content_type": "application/json; charset=utf-8",
+    "bytes_read": 1465,
+    "truncated": false,
+    "sha256": "1a9f528b52255713ee5cef8f19843a1d3b2e733d8a701fd6501d4ebde297cdf7",
+    "observations": {
+      "json_type": "dict",
+      "keys": [
+        "latitude",
+        "longitude",
+        "generationtime_ms",
+        "utc_offset_seconds",
+        "timezone",
+        "timezone_abbreviation",
+        "elevation",
+        "hourly_units",
+        "hourly"
+      ],
+      "latitude": 42.40001,
+      "longitude": -76.5,
+      "elevation": 125.0,
+      "utc_offset_seconds": 0,
+      "timezone": "GMT",
+      "hourly_units": {
+        "time": "iso8601",
+        "temperature_2m": "\u00b0C",
+        "relative_humidity_2m": "%",
+        "shortwave_radiation": "W/m\u00b2",
+        "direct_normal_irradiance": "W/m\u00b2",
+        "wind_speed_10m": "km/h"
+      },
+      "hourly": {
+        "rows": 24,
+        "fields": [
+          "time",
+          "temperature_2m",
+          "relative_humidity_2m",
+          "shortwave_radiation",
+          "direct_normal_irradiance",
+          "wind_speed_10m"
+        ],
+        "nulls": {
+          "time": 0,
+          "temperature_2m": 0,
+          "relative_humidity_2m": 0,
+          "shortwave_radiation": 24,
+          "direct_normal_irradiance": 24,
+          "wind_speed_10m": 24
+        },
+        "first": {
+          "time": "2024-01-01T00:00",
+          "temperature_2m": 1.9,
+          "relative_humidity_2m": 87,
+          "shortwave_radiation": null,
+          "direct_normal_irradiance": null,
+          "wind_speed_10m": null
+        }
+      }
+    },
+    "elapsed_seconds": 0.5
+  },
+  {
+    "id": "geocoding",
+    "url": "https://geocoding-api.open-meteo.com/v1/search?name=Ithaca&count=2&language=en&format=json",
+    "observed_at_utc": "2026-09-20T08:44:29.410120+00:00",
+    "method": "GET",
+    "status": 200,
+    "final_url": "https://geocoding-api.open-meteo.com/v1/search?name=Ithaca&count=2&language=en&format=json",
+    "content_type": "application/json; charset=utf-8",
+    "bytes_read": 819,
+    "truncated": false,
+    "sha256": "b66a1d3b17bc9a461e594df2d3bc766f01b1768175df418a6b78c713b6caa7b3",
+    "observations": {
+      "json_type": "dict",
+      "keys": [
+        "results",
+        "generationtime_ms"
+      ]
+    },
+    "elapsed_seconds": 0.49
+  },
+  {
+    "id": "nsrdb_query",
+    "url": "https://developer.nlr.gov/api/solar/nsrdb_data_query.json?api_key=DEMO_KEY&wkt=POINT%28-76.50+42.44%29",
+    "observed_at_utc": "2026-09-20T08:44:29.410420+00:00",
+    "method": "GET",
+    "status": 200,
+    "final_url": "https://developer.nlr.gov/api/solar/nsrdb_data_query.json?api_key=DEMO_KEY&wkt=POINT%28-76.50+42.44%29",
+    "content_type": "application/json; charset=utf-8",
+    "bytes_read": 28415,
+    "truncated": false,
+    "sha256": "660647e509005e3ae75634b6bada2173b66f09bec700eac9185c4991efb73c20",
+    "observations": {
+      "json_type": "dict",
+      "keys": [
+        "inputs",
+        "metadata",
+        "status",
+        "outputs",
+        "errors"
+      ],
+      "errors": [],
+      "inputs": {
+        "params": {},
+        "query": {
+          "wkt": "POINT(-76.50 42.44)"
+        }
+      },
+      "output_count": 4,
+      "datasets": [
+        {
+          "displayName": "NSRDB GOES Aggregated V4.0.0",
+          "metadataLink": "https://nsrdb.nlr.gov",
+          "name": "nsrdb-GOES-aggregated-v4-0-0",
+          "availableYears": [
+            1998,
+            1999,
+            2000,
+            2001,
+            2002,
+            2003,
+            2004,
+            2005,
+            2006,
+            2007,
+            2008,
+            2009,
+            2010,
+            2011,
+            2012,
+            2013,
+            2014,
+            2015,
+            2016,
+            2017,
+            2018,
+            2019,
+            2020,
+            2021,
+            2022,
+            2023,
+            2024,
+            2025
+          ]
+        },
+        {
+          "displayName": "NSRDB GOES Conus V4.0.0",
+          "metadataLink": "https://nsrdb.nlr.gov",
+          "name": "nsrdb-GOES-conus-v4-0-0",
+          "availableYears": [
+            2018,
+            2019,
+            2020,
+            2021,
+            2022,
+            2023,
+            2024,
+            2025
+          ]
+        },
+        {
+          "displayName": "NSRDB GOES Full Disc V4.0.0",
+          "metadataLink": "https://nsrdb.nlr.gov",
+          "name": "nsrdb-GOES-full-disc-v4-0-0",
+          "availableYears": [
+            2018,
+            2019,
+            2020,
+            2021,
+            2022,
+            2023,
+            2024,
+            2025
+          ]
+        },
+        {
+          "displayName": "NSRDB GOES Tmy V4.0.0",
+          "metadataLink": "https://nsrdb.nlr.gov",
+          "name": "nsrdb-GOES-tmy-v4-0-0",
+          "availableYears": [
+            "tmy",
+            "tdy",
+            "tgy",
+            "tmy-2025",
+            "tdy-2025",
+            "tgy-2025",
+            "tmy-2024",
+            "tdy-2024",
+            "tgy-2024",
+            "tmy-2023",
+            "tdy-2023",
+            "tgy-2023",
+            "tmy-2022",
+            "tdy-2022",
+            "tgy-2022"
+          ]
+        }
+      ]
+    },
+    "elapsed_seconds": 0.88
+  },
+  {
+    "id": "nsrdb_no_key",
+    "url": "https://developer.nlr.gov/api/solar/nsrdb_data_query.json?wkt=POINT%28-76.50+42.44%29",
+    "observed_at_utc": "2026-09-20T08:44:29.896192+00:00",
+    "method": "GET",
+    "status": 403,
+    "final_url": "https://developer.nlr.gov/api/solar/nsrdb_data_query.json?wkt=POINT%28-76.50+42.44%29",
+    "content_type": "application/json",
+    "bytes_read": 139,
+    "truncated": false,
+    "sha256": "87539e88d1a16e8f7498692c1b60bb301d2b72e26f6ab6d74b1eb4b30158f76e",
+    "observations": {
+      "json_type": "dict",
+      "keys": [
+        "error"
+      ],
+      "error": {
+        "code": "API_KEY_MISSING",
+        "message": "No api_key was supplied. Get one at https://developer.nrel.gov/signup/"
+      }
+    },
+    "elapsed_seconds": 0.36
+  },
+  {
+    "id": "pvgis_tmy",
+    "url": "https://re.jrc.ec.europa.eu/api/v5_3/tmy?lat=45&lon=8&outputformat=json",
+    "observed_at_utc": "2026-09-20T08:44:29.909137+00:00",
+    "method": "GET",
+    "status": 200,
+    "final_url": "https://re.jrc.ec.europa.eu/api/v5_3/tmy?lat=45&lon=8&outputformat=json",
+    "content_type": "application/json",
+    "bytes_read": 1265427,
+    "truncated": false,
+    "sha256": "77ebf05181535d61d9042fd98e8ee7cc6e519ca720853b05ad38d2c40deffcf3",
+    "observations": {
+      "json_type": "dict",
+      "keys": [
+        "inputs",
+        "outputs",
+        "meta"
+      ],
+      "inputs": {
+        "location": {
+          "latitude": 45.0,
+          "longitude": 8.0,
+          "elevation": 250.0,
+          "irradiance_time_offset": 0.1761
+        },
+        "meteo_data": {
+          "radiation_db": "PVGIS-SARAH3",
+          "meteo_db": "ERA5",
+          "year_min": 2005,
+          "year_max": 2023,
+          "use_horizon": true,
+          "horizon_db": "DEM-calculated"
+        }
+      },
+      "output_keys": [
+        "months_selected",
+        "tmy_hourly"
+      ],
+      "tmy_rows": 8760,
+      "tmy_fields": [
+        "time(UTC)",
+        "T2m",
+        "RH",
+        "G(h)",
+        "Gb(n)",
+        "Gd(h)",
+        "IR(h)",
+        "WS10m",
+        "WD10m",
+        "SP"
+      ],
+      "months_selected": [
+        {
+          "month": 1,
+          "year": 2018
+        },
+        {
+          "month": 2,
+          "year": 2007
+        },
+        {
+          "month": 3,
+          "year": 2009
+        },
+        {
+          "month": 4,
+          "year": 2013
+        },
+        {
+          "month": 5,
+          "year": 2008
+        },
+        {
+          "month": 6,
+          "year": 2006
+        },
+        {
+          "month": 7,
+          "year": 2011
+        },
+        {
+          "month": 8,
+          "year": 2010
+        },
+        {
+          "month": 9,
+          "year": 2020
+        },
+        {
+          "month": 10,
+          "year": 2006
+        },
+        {
+          "month": 11,
+          "year": 2007
+        },
+        {
+          "month": 12,
+          "year": 2016
+        }
+      ]
+    },
+    "elapsed_seconds": 2.71
+  },
+  {
+    "id": "pvgis_epw",
+    "url": "https://re.jrc.ec.europa.eu/api/v5_3/tmy?lat=45&lon=8&outputformat=epw",
+    "observed_at_utc": "2026-09-20T08:44:29.934315+00:00",
+    "method": "GET",
+    "status": 200,
+    "final_url": "https://re.jrc.ec.europa.eu/api/v5_3/tmy?lat=45&lon=8&outputformat=epw",
+    "content_type": "text/html; charset=utf-8",
+    "bytes_read": 1862987,
+    "truncated": false,
+    "sha256": "9d68873dd0de13b1d6c12b6b002e147cf6c406e061c260c610175b4d30534455",
+    "observations": {
+      "epw": {
+        "headers": [
+          "LOCATION",
+          "DESIGN CONDITIONS",
+          "TYPICAL/EXTREME PERIODS",
+          "GROUND TEMPERATURES",
+          "HOLIDAYS/DAYLIGHT SAVING",
+          "COMMENTS 1",
+          "COMMENTS 2",
+          "DATA PERIODS"
+        ],
+        "rows": 8760,
+        "field_counts": [
+          35
+        ],
+        "location": [
+          "LOCATION",
+          "unknown",
+          "-",
+          "unknown",
+          "ECMWF/ERA",
+          "unknown",
+          "45.000000",
+          "8.000000",
+          "1",
+          "250"
+        ],
+        "first_timestamp": [
+          "2018",
+          "1",
+          "1",
+          "1",
+          "0"
+        ],
+        "last_timestamp": [
+          "2016",
+          "12",
+          "31",
+          "24",
+          "0"
+        ]
+      }
+    },
+    "elapsed_seconds": 3.19
+  },
+  {
+    "id": "onebuilding_catalog",
+    "url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/USA_NY_New_York.html",
+    "observed_at_utc": "2026-09-20T08:44:30.259614+00:00",
+    "method": "GET",
+    "status": 404,
+    "final_url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/USA_NY_New_York.html",
+    "content_type": "text/html; charset=iso-8859-1",
+    "bytes_read": 315,
+    "truncated": false,
+    "sha256": "d5a89e26beae0bc03ad18a0b0d1d3d75f87c32047879d25da11970cb5c4662a3",
+    "observations": {},
+    "elapsed_seconds": 0.12
+  },
+  {
+    "id": "onebuilding_about",
+    "url": "https://climate.onebuilding.org/about.html",
+    "observed_at_utc": "2026-09-20T08:44:30.293065+00:00",
+    "method": "GET",
+    "status": 404,
+    "final_url": "https://climate.onebuilding.org/about.html",
+    "content_type": "text/html; charset=iso-8859-1",
+    "bytes_read": 315,
+    "truncated": false,
+    "sha256": "d5a89e26beae0bc03ad18a0b0d1d3d75f87c32047879d25da11970cb5c4662a3",
+    "observations": {},
+    "elapsed_seconds": 0.06
+  },
+  {
+    "id": "noaa_isd",
+    "url": "https://www.ncei.noaa.gov/access/services/data/v1?dataset=global-hourly&stations=72515094761&startDate=2024-01-01&endDate=2024-01-01&format=json&dataTypes=TMP%2CDEW%2CSLP%2CWND&units=metric",
+    "observed_at_utc": "2026-09-20T08:44:30.354056+00:00",
+    "method": "GET",
+    "status": 200,
+    "final_url": "https://www.ncei.noaa.gov/access/services/data/v1?dataset=global-hourly&stations=72515094761&startDate=2024-01-01&endDate=2024-01-01&format=json&dataTypes=TMP%2CDEW%2CSLP%2CWND&units=metric",
+    "content_type": "application/json;charset=utf-8",
+    "bytes_read": 4,
+    "truncated": false,
+    "sha256": "3fbbd4c6d76130399b0c79cdf41758669224a91e05b7b216953f0c9728750865",
+    "observations": {
+      "json_type": "list",
+      "records": 0,
+      "fields": []
+    },
+    "elapsed_seconds": 0.2
+  },
+  {
+    "id": "noaa_station_history",
+    "url": "https://www.ncei.noaa.gov/pub/data/noaa/isd-history.csv",
+    "observed_at_utc": "2026-09-20T08:44:30.377555+00:00",
+    "method": "GET",
+    "status": 200,
+    "final_url": "https://www.ncei.noaa.gov/pub/data/noaa/isd-history.csv",
+    "content_type": "text/csv",
+    "bytes_read": 2914601,
+    "truncated": false,
+    "sha256": "1994747ab4af1b97e63adb434b4d0d022f2daee76f0c144ea9ab46be2d906604",
+    "observations": {},
+    "elapsed_seconds": 0.38
+  },
+  {
+    "id": "cds_catalog",
+    "url": "https://cds.climate.copernicus.eu/api/catalogue/v1/collections/reanalysis-era5-single-levels",
+    "observed_at_utc": "2026-09-20T08:44:30.553678+00:00",
+    "method": "GET",
+    "status": 200,
+    "final_url": "https://cds.climate.copernicus.eu/api/catalogue/v1/collections/reanalysis-era5-single-levels",
+    "content_type": "application/json",
+    "bytes_read": 7666,
+    "truncated": false,
+    "sha256": "9811056e228b1e1f77aade74a50a50a3c338882b021c79a89df7e27358b7f854",
+    "observations": {
+      "json_type": "dict",
+      "keys": [
+        "type",
+        "id",
+        "stac_version",
+        "title",
+        "description",
+        "summaries",
+        "providers",
+        "keywords",
+        "license",
+        "extent",
+        "links",
+        "assets",
+        "published",
+        "updated",
+        "sci:doi",
+        "cads:disabled_reason",
+        "cads:sanity_check",
+        "cads:update_frequency",
+        "cads:fair"
+      ]
+    },
+    "elapsed_seconds": 0.5
+  },
+  {
+    "id": "cds_process",
+    "url": "https://cds.climate.copernicus.eu/api/retrieve/v1/processes/reanalysis-era5-single-levels",
+    "observed_at_utc": "2026-09-20T08:44:30.752857+00:00",
+    "method": "GET",
+    "status": 200,
+    "final_url": "https://cds.climate.copernicus.eu/api/retrieve/v1/processes/reanalysis-era5-single-levels",
+    "content_type": "application/json",
+    "bytes_read": 15195,
+    "truncated": false,
+    "sha256": "0e81203e5cd1d9b7b805bd22a668e3d72ad618656cc4daafdf16158f02a63d24",
+    "observations": {
+      "json_type": "dict",
+      "keys": [
+        "title",
+        "description",
+        "id",
+        "version",
+        "jobControlOptions",
+        "outputTransmission",
+        "links",
+        "inputs",
+        "outputs"
+      ],
+      "output_keys": [
+        "asset"
+      ],
+      "input_names": [
+        "product_type",
+        "variable",
+        "year",
+        "month",
+        "day",
+        "time",
+        "area",
+        "data_format",
+        "download_format"
+      ]
+    },
+    "elapsed_seconds": 0.46
+  },
+  {
+    "id": "openmeteo_climate",
+    "url": "https://climate-api.open-meteo.com/v1/climate?latitude=42.44&longitude=-76.5&start_date=2050-07-01&end_date=2050-07-03&models=MRI_AGCM3_2_S&daily=temperature_2m_max%2Ctemperature_2m_min%2Ctemperature_2m_mean%2Crelative_humidity_2m_mean%2Cshortwave_radiation_sum%2Cwind_speed_10m_mean",
+    "observed_at_utc": "2026-09-20T08:44:31.057557+00:00",
+    "method": "GET",
+    "status": 200,
+    "final_url": "https://climate-api.open-meteo.com/v1/climate?latitude=42.44&longitude=-76.5&start_date=2050-07-01&end_date=2050-07-03&models=MRI_AGCM3_2_S&daily=temperature_2m_max%2Ctemperature_2m_min%2Ctemperature_2m_mean%2Crelative_humidity_2m_mean%2Cshortwave_radiation_sum%2Cwind_speed_10m_mean",
+    "content_type": "application/json; charset=utf-8",
+    "bytes_read": 672,
+    "truncated": false,
+    "sha256": "09a135ef82d3dc8100d2d189a64086aa8761381ade5d12948cf35d2ef15d9728",
+    "observations": {
+      "json_type": "dict",
+      "keys": [
+        "latitude",
+        "longitude",
+        "generationtime_ms",
+        "utc_offset_seconds",
+        "timezone",
+        "timezone_abbreviation",
+        "elevation",
+        "daily_units",
+        "daily"
+      ],
+      "latitude": 42.40001,
+      "longitude": -76.5,
+      "elevation": 125.0,
+      "utc_offset_seconds": 0,
+      "timezone": "GMT",
+      "daily_units": {
+        "time": "iso8601",
+        "temperature_2m_max": "\u00b0C",
+        "temperature_2m_min": "\u00b0C",
+        "temperature_2m_mean": "\u00b0C",
+        "relative_humidity_2m_mean": "%",
+        "shortwave_radiation_sum": "MJ/m\u00b2",
+        "wind_speed_10m_mean": "km/h"
+      },
+      "daily": {
+        "rows": 3,
+        "fields": [
+          "time",
+          "temperature_2m_max",
+          "temperature_2m_min",
+          "temperature_2m_mean",
+          "relative_humidity_2m_mean",
+          "shortwave_radiation_sum",
+          "wind_speed_10m_mean"
+        ],
+        "nulls": {
+          "time": 0,
+          "temperature_2m_max": 0,
+          "temperature_2m_min": 0,
+          "temperature_2m_mean": 0,
+          "relative_humidity_2m_mean": 0,
+          "shortwave_radiation_sum": 0,
+          "wind_speed_10m_mean": 0
+        },
+        "first": {
+          "time": "2050-07-01",
+          "temperature_2m_max": 32.3,
+          "temperature_2m_min": 21.1,
+          "temperature_2m_mean": 25.7,
+          "relative_humidity_2m_mean": 72,
+          "shortwave_radiation_sum": 23.23,
+          "wind_speed_10m_mean": 18.5
+        }
+      }
+    },
+    "elapsed_seconds": 0.55
+  }
+]

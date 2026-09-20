@@ -1,0 +1,98 @@
+{
+  "observed_at_utc": "2026-09-20T08:58:58.164762+00:00",
+  "url": "https://data.openei.org/files/5974/RCP8.5_v1.1.zip",
+  "etag": "\"21d8daa27-63016697ed730\"",
+  "archive_bytes": 9085757991,
+  "range_requests": [
+    {
+      "range": "bytes=-65536",
+      "status": 206,
+      "bytes": 65536
+    },
+    {
+      "range": "bytes=9085757969-9085757990",
+      "status": 206,
+      "bytes": 22
+    },
+    {
+      "range": "bytes=9085757949-9085757968",
+      "status": 206,
+      "bytes": 20
+    },
+    {
+      "range": "bytes=9085757893-9085757948",
+      "status": 206,
+      "bytes": 56
+    },
+    {
+      "range": "bytes=9079016884-9085757892",
+      "status": 206,
+      "bytes": 6741009
+    },
+    {
+      "range": "bytes=37-66",
+      "status": 206,
+      "bytes": 30
+    },
+    {
+      "range": "bytes=67-119",
+      "status": 206,
+      "bytes": 53
+    },
+    {
+      "range": "bytes=120-192626",
+      "status": 206,
+      "bytes": 192507
+    }
+  ],
+  "bytes_transferred": 6999233,
+  "member_count": 47361,
+  "epw_count": 47360,
+  "sample_member": "RCP8.5/G01000100_RCP8.5_2045_lat34.65_long-87.765.epw",
+  "sample_compressed_bytes": 192507,
+  "sample_sha256": "9aa10ab594e8a23c3347d327329bbedc30bf2378b02385bd072e6a9b0e277d3d",
+  "observations": {
+    "epw": {
+      "headers": [
+        "LOCATION",
+        "DESIGN CONDITIONS",
+        "TYPICAL/EXTREME PERIODS",
+        "GROUND TEMPERATURES",
+        "HOLIDAYS/DAYLIGHT SAVINGS",
+        "COMMENTS 1",
+        "COMMENTS 2",
+        "DATA PERIODS"
+      ],
+      "rows": 8760,
+      "field_counts": [
+        35
+      ],
+      "location": [
+        "LOCATION",
+        "G01000100",
+        "XX",
+        "USA",
+        "ANL",
+        "XXX",
+        "34.65",
+        "-87.765",
+        "-6",
+        "221.0"
+      ],
+      "first_timestamp": [
+        "2045",
+        "1",
+        "1",
+        "1",
+        "0"
+      ],
+      "last_timestamp": [
+        "2045",
+        "12",
+        "31",
+        "24",
+        "0"
+      ]
+    }
+  }
+}

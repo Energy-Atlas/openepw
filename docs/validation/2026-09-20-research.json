@@ -1,0 +1,308 @@
+[
+  {
+    "id": "pyepwmorph_license",
+    "url": "https://raw.githubusercontent.com/justinfmccarty/pyepwmorph/374d5eec414181dd5a9c184043c574db2d95c3aa/LICENSE",
+    "observed_at_utc": "2026-09-20T08:50:08.341499+00:00",
+    "status": 200,
+    "bytes_read": 1076,
+    "sha256": "5248f58ea4a6f431b8f8648f159b00ce40c4719d991b62dacfecf35ff0a28dfb"
+  },
+  {
+    "id": "pyepwmorph_psychrometrics",
+    "url": "https://raw.githubusercontent.com/justinfmccarty/pyepwmorph/374d5eec414181dd5a9c184043c574db2d95c3aa/pyepwmorph/tools/ladybug_psychrometrics.py",
+    "observed_at_utc": "2026-09-20T08:50:08.341795+00:00",
+    "status": 200,
+    "bytes_read": 19565,
+    "sha256": "ee143593c8ec91cd0c1467b695ec42a6ba5d2b2266ad951ba4b1318ee3a32ddf"
+  },
+  {
+    "id": "epwshiftr_revision",
+    "url": "https://api.github.com/repos/ideas-lab-nus/epwshiftr/commits/master",
+    "observed_at_utc": "2026-09-20T08:50:08.342037+00:00",
+    "status": 200,
+    "bytes_read": 719148,
+    "sha256": "3f4b0684040d28a56ba17286b335772f2f50ba8bf3d6e4263eb69527490ef93d",
+    "revision": "90ad1f4f0338d8077027dff34f74ebf2d3168d34"
+  },
+  {
+    "id": "epwshiftr_license",
+    "url": "https://raw.githubusercontent.com/ideas-lab-nus/epwshiftr/master/LICENSE",
+    "observed_at_utc": "2026-09-20T08:50:08.342259+00:00",
+    "status": 200,
+    "bytes_read": 64,
+    "sha256": "47bd15202eb1b1ce0fe7355307419a3981b32fcfc9baaad7af164b85d539377e"
+  },
+  {
+    "id": "epwshiftr_description",
+    "url": "https://raw.githubusercontent.com/ideas-lab-nus/epwshiftr/master/DESCRIPTION",
+    "observed_at_utc": "2026-09-20T08:50:08.418347+00:00",
+    "status": 200,
+    "bytes_read": 4019,
+    "sha256": "e19df07ebea20be8c7947db077532f94f0095e79ac0718aa2d8acf345fb86bc5"
+  },
+  {
+    "id": "psychrolib_license",
+    "url": "https://raw.githubusercontent.com/psychrometrics/psychrolib/master/LICENSE.txt",
+    "observed_at_utc": "2026-09-20T08:50:08.420027+00:00",
+    "status": 200,
+    "bytes_read": 1099,
+    "sha256": "3372ab6db04ab898605cd8a4c47eee35e668d14ca05481f00107239be0e3b46e"
+  },
+  {
+    "id": "pvlib_license",
+    "url": "https://raw.githubusercontent.com/pvlib/pvlib-python/main/LICENSE",
+    "observed_at_utc": "2026-09-20T08:50:08.440635+00:00",
+    "status": 200,
+    "bytes_read": 1622,
+    "sha256": "a02e12ddaada3cf0d5dbdd8affdd577c2eec640758a95842a304f7513b8c0be4"
+  },
+  {
+    "id": "cdsapi_license",
+    "url": "https://raw.githubusercontent.com/ecmwf/cdsapi/master/LICENSE.txt",
+    "observed_at_utc": "2026-09-20T08:50:08.456286+00:00",
+    "status": 200,
+    "bytes_read": 10174,
+    "sha256": "0d542e0c8804e39aa7f37eb00da5a762149dc682d7829451287e11b938e94594"
+  },
+  {
+    "id": "energyplus_schema",
+    "url": "https://energyplus.readthedocs.io/en/v26.1.0/auxiliary-programs/auxiliary-programs.html",
+    "observed_at_utc": "2026-09-20T08:50:08.457774+00:00",
+    "status": 403,
+    "bytes_read": 17,
+    "sha256": "2938e9f1284180959e33ab1718d0793a72ff6e4cdb8108c34dcd14e69446de5c"
+  },
+  {
+    "id": "pangeo_catalog",
+    "url": "https://storage.googleapis.com/cmip6/pangeo-cmip6.json",
+    "observed_at_utc": "2026-09-20T08:50:08.479276+00:00",
+    "status": 200,
+    "bytes_read": 2390,
+    "sha256": "0b8bb4ad864c4f492b8e0fc96eae6ee65230ef5a89fb21bbcd8e6200ac3ef0f8"
+  },
+  {
+    "id": "onebuilding_sources",
+    "url": "https://climate.onebuilding.org/sources/default.html",
+    "observed_at_utc": "2026-09-20T08:50:08.494406+00:00",
+    "status": 200,
+    "bytes_read": 37125,
+    "sha256": "db80ffe6a7bcb4b41894f5d4c0f9442e5dd1b94701a634947e3758d3a3de9fc2"
+  },
+  {
+    "id": "nsrdb_terms",
+    "url": "https://developer.nlr.gov/terms/",
+    "observed_at_utc": "2026-09-20T08:50:08.510564+00:00",
+    "status": 200,
+    "bytes_read": 14609,
+    "sha256": "9b4a9eca3ce21676d64db1e75a82562985fb7fc0f78daedc307ae52d23ac3e0c"
+  },
+  {
+    "id": "cds_unauthenticated_retrieval",
+    "url": "https://cds.climate.copernicus.eu/api/retrieve/v1/processes/reanalysis-era5-single-levels/execution",
+    "method": "POST",
+    "request": {
+      "inputs": {
+        "product_type": [
+          "reanalysis"
+        ],
+        "variable": [
+          "2m_temperature"
+        ],
+        "year": [
+          "2024"
+        ],
+        "month": [
+          "01"
+        ],
+        "day": [
+          "01"
+        ],
+        "time": [
+          "00:00"
+        ],
+        "area": [
+          42.5,
+          -76.5,
+          42.25,
+          -76.25
+        ],
+        "data_format": "netcdf",
+        "download_format": "unarchived"
+      }
+    },
+    "status": 401,
+    "observed_at_utc": "2026-09-20T08:50:10.752055+00:00",
+    "response": "{\"type\":\"permission denied\",\"title\":\"permission denied\",\"status\":401,\"detail\":\"authentication required\",\"instance\":\"https://cds.climate.copernicus.eu/api/retrieve/v1/processes/reanalysis-era5-single-levels/execution\",\"trace_id\":\"f235408c-10e6-47ef-8c75-fb0059ca9567\"}"
+  },
+  {
+    "id": "cmip6_ssp245",
+    "url": "https://storage.googleapis.com/cmip6/CMIP6/ScenarioMIP/NOAA-GFDL/GFDL-CM4/ssp245/r1i1p1f1/Amon/tas/gr1/v20180701/.zmetadata",
+    "observed_at_utc": "2026-09-20T08:50:10.933370+00:00",
+    "status": 200,
+    "bytes_read": 11644,
+    "sha256": "026230bde22b21fdcd6ec32d383822485ad99f13010f3c7c5cfe372d17e66f18",
+    "catalog_row": {
+      "activity_id": "ScenarioMIP",
+      "institution_id": "NOAA-GFDL",
+      "source_id": "GFDL-CM4",
+      "experiment_id": "ssp245",
+      "member_id": "r1i1p1f1",
+      "table_id": "Amon",
+      "variable_id": "tas",
+      "grid_label": "gr1",
+      "zstore": "gs://cmip6/CMIP6/ScenarioMIP/NOAA-GFDL/GFDL-CM4/ssp245/r1i1p1f1/Amon/tas/gr1/v20180701/",
+      "dcpp_init_year": "",
+      "version": "20180701"
+    },
+    "array": {
+      "chunks": [
+        600,
+        180,
+        288
+      ],
+      "compressor": {
+        "blocksize": 0,
+        "clevel": 5,
+        "cname": "lz4",
+        "id": "blosc",
+        "shuffle": 1
+      },
+      "dtype": "<f4",
+      "fill_value": 1.0000000200408773e+20,
+      "filters": null,
+      "order": "C",
+      "shape": [
+        1032,
+        180,
+        288
+      ],
+      "zarr_format": 2
+    },
+    "variable": {
+      "_ARRAY_DIMENSIONS": [
+        "time",
+        "lat",
+        "lon"
+      ],
+      "cell_measures": "area: areacella",
+      "cell_methods": "area: time: mean",
+      "coordinates": "height",
+      "interp_method": "conserve_order2",
+      "long_name": "Near-Surface Air Temperature",
+      "original_name": "tas",
+      "standard_name": "air_temperature",
+      "units": "K"
+    },
+    "dataset_attributes": {
+      "experiment_id": "ssp245",
+      "grid_label": "gr1",
+      "license": "CMIP6 model data produced by NOAA-GFDL is licensed under a Creative Commons Attribution-ShareAlike 4.0 International License (https://creativecommons.org/licenses/). Consult https://pcmdi.llnl.gov/CMIP6/TermsOfUse for terms of use governing CMIP6 output, including citation requirements and proper acknowledgment. Further information about this data, including some limitations, can be found via the further_info_url (recorded as a global attribute in this file). The data producers and data providers make no warranty, either express or implied, including, but not limited to, warranties of merchantability and fitness for a particular purpose. All liabilities arising from the supply of the information (including any liability arising in negligence) are excluded to the fullest extent permitted by law.",
+      "source_id": "GFDL-CM4",
+      "tracking_id": "hdl:21.14100/7d418ccf-e785-44a1-9dfe-391a2d73a0cb",
+      "variant_label": "r1i1p1f1"
+    },
+    "time": {
+      "_ARRAY_DIMENSIONS": [
+        "time"
+      ],
+      "axis": "T",
+      "bounds": "time_bnds",
+      "calendar": "noleap",
+      "calendar_type": "noleap",
+      "description": "Temporal mean",
+      "long_name": "time",
+      "standard_name": "time",
+      "units": "days since 1850-01-01"
+    }
+  },
+  {
+    "id": "cmip6_historical",
+    "url": "https://storage.googleapis.com/cmip6/CMIP6/CMIP/NOAA-GFDL/GFDL-CM4/historical/r1i1p1f1/Amon/tas/gr1/v20180701/.zmetadata",
+    "observed_at_utc": "2026-09-20T08:50:11.108194+00:00",
+    "status": 200,
+    "bytes_read": 11848,
+    "sha256": "d717b23e2d082973d890fa9d33ba9791881fc8029f3494112a0626b5a5485be1",
+    "catalog_row": {
+      "activity_id": "CMIP",
+      "institution_id": "NOAA-GFDL",
+      "source_id": "GFDL-CM4",
+      "experiment_id": "historical",
+      "member_id": "r1i1p1f1",
+      "table_id": "Amon",
+      "variable_id": "tas",
+      "grid_label": "gr1",
+      "zstore": "gs://cmip6/CMIP6/CMIP/NOAA-GFDL/GFDL-CM4/historical/r1i1p1f1/Amon/tas/gr1/v20180701/",
+      "dcpp_init_year": "",
+      "version": "20180701"
+    },
+    "array": {
+      "chunks": [
+        600,
+        180,
+        288
+      ],
+      "compressor": {
+        "blocksize": 0,
+        "clevel": 5,
+        "cname": "lz4",
+        "id": "blosc",
+        "shuffle": 1
+      },
+      "dtype": "<f4",
+      "fill_value": 1.0000000200408773e+20,
+      "filters": null,
+      "order": "C",
+      "shape": [
+        1980,
+        180,
+        288
+      ],
+      "zarr_format": 2
+    },
+    "variable": {
+      "_ARRAY_DIMENSIONS": [
+        "time",
+        "lat",
+        "lon"
+      ],
+      "cell_measures": "area: areacella",
+      "cell_methods": "area: time: mean",
+      "coordinates": "height",
+      "interp_method": "conserve_order2",
+      "long_name": "Near-Surface Air Temperature",
+      "original_name": "tas",
+      "standard_name": "air_temperature",
+      "units": "K"
+    },
+    "dataset_attributes": {
+      "experiment_id": "historical",
+      "grid_label": "gr1",
+      "license": "CMIP6 model data produced by NOAA-GFDL is licensed under a Creative Commons Attribution-ShareAlike 4.0 International License (https://creativecommons.org/licenses/). Consult https://pcmdi.llnl.gov/CMIP6/TermsOfUse for terms of use governing CMIP6 output, including citation requirements and proper acknowledgment. Further information about this data, including some limitations, can be found via the further_info_url (recorded as a global attribute in this file). The data producers and data providers make no warranty, either express or implied, including, but not limited to, warranties of merchantability and fitness for a particular purpose. All liabilities arising from the supply of the information (including any liability arising in negligence) are excluded to the fullest extent permitted by law.",
+      "source_id": "GFDL-CM4",
+      "tracking_id": "hdl:21.14100/e4193a02-6405-49b6-8ad3-65def741a4dd\nhdl:21.14100/a423afb2-f51a-4489-9f48-738415a2039e",
+      "variant_label": "r1i1p1f1"
+    },
+    "time": {
+      "_ARRAY_DIMENSIONS": [
+        "time"
+      ],
+      "axis": "T",
+      "bounds": "time_bnds",
+      "calendar": "noleap",
+      "calendar_type": "noleap",
+      "description": "Temporal mean",
+      "long_name": "time",
+      "standard_name": "time",
+      "units": "hours since 1850-01-16 12:00:00.000000"
+    }
+  },
+  {
+    "id": "cmip6_catalog_scan",
+    "url": "https://storage.googleapis.com/cmip6/pangeo-cmip6.csv",
+    "rows_scanned": 8069,
+    "experiments_found": [
+      "ssp245",
+      "historical"
+    ]
+  }
+]

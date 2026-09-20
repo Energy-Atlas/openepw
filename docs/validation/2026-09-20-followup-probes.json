@@ -1,0 +1,101 @@
+[
+  {
+    "id": "onebuilding_catalog_corrected",
+    "url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/index.html",
+    "observed_at_utc": "2026-09-20T08:46:02.866734+00:00",
+    "method": "GET",
+    "status": 200,
+    "final_url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/index.html",
+    "content_type": "text/html",
+    "bytes_read": 4015433,
+    "truncated": false,
+    "sha256": "7f2c7216959440084726a4b72c67b7a046426acfcc599b12d8e7b107e7a97e20",
+    "observations": {},
+    "elapsed_seconds": 0.32
+  },
+  {
+    "id": "onebuilding_about_corrected",
+    "url": "https://climate.onebuilding.org/about/default.html",
+    "observed_at_utc": "2026-09-20T08:46:02.867162+00:00",
+    "method": "GET",
+    "status": 200,
+    "final_url": "https://climate.onebuilding.org/about/default.html",
+    "content_type": "text/html",
+    "bytes_read": 7456,
+    "truncated": false,
+    "sha256": "0ba2543b3cf0b2558c0653f80a2a551bff63453fb033dffee9b85092a0c2a265",
+    "observations": {},
+    "elapsed_seconds": 0.13
+  },
+  {
+    "id": "noaa_isd_corrected",
+    "url": "https://www.ncei.noaa.gov/access/services/data/v1?dataset=global-hourly&stations=72515004725&startDate=2024-01-01&endDate=2024-01-01&format=json&dataTypes=TMP%2CDEW%2CSLP%2CWND&units=metric",
+    "observed_at_utc": "2026-09-20T08:46:02.867428+00:00",
+    "method": "GET",
+    "status": 200,
+    "final_url": "https://www.ncei.noaa.gov/access/services/data/v1?dataset=global-hourly&stations=72515004725&startDate=2024-01-01&endDate=2024-01-01&format=json&dataTypes=TMP%2CDEW%2CSLP%2CWND&units=metric",
+    "content_type": "application/json;charset=utf-8",
+    "bytes_read": 13251,
+    "truncated": false,
+    "sha256": "ae0be7e097ade6acd00c56bf92ecf2dbb61623b4e253b0f84ac117ea6919c476",
+    "observations": {
+      "json_type": "list",
+      "records": 64,
+      "fields": [
+        "DATE",
+        "REPORT_TYPE",
+        "QUALITY_CONTROL",
+        "STATION",
+        "SLP",
+        "TMP",
+        "DEW",
+        "SOURCE",
+        "WND",
+        "CALL_SIGN"
+      ]
+    },
+    "elapsed_seconds": 0.16
+  },
+  {
+    "id": "noaa_csv",
+    "url": "https://www.ncei.noaa.gov/data/global-hourly/access/2024/72515004725.csv",
+    "observed_at_utc": "2026-09-20T08:46:02.867669+00:00",
+    "method": "GET",
+    "status": 200,
+    "final_url": "https://www.ncei.noaa.gov/data/global-hourly/access/2024/72515004725.csv",
+    "content_type": "text/csv",
+    "bytes_read": 5000001,
+    "truncated": true,
+    "sha256": "3cc3fbc4aaf5517b8be4da39520d793a957bbefefc04e8825ddc191fc641c72e",
+    "observations": {},
+    "elapsed_seconds": 0.43
+  },
+  {
+    "id": "oedi_locations",
+    "url": "https://data.openei.org/files/5974/PUMA%20information%20%281%29.csv",
+    "observed_at_utc": "2026-09-20T08:46:02.993795+00:00",
+    "method": "GET",
+    "status": 200,
+    "final_url": "https://data.openei.org/files/5974/PUMA%20information%20%281%29.csv",
+    "content_type": "application/octet-stream",
+    "bytes_read": 223677,
+    "truncated": false,
+    "sha256": "276e7122e7c2df1526c3014a35bbaa64f247df0b1d142d3fdfac34896dfe3622",
+    "observations": {},
+    "elapsed_seconds": 1.56
+  },
+  {
+    "id": "fwg_download",
+    "url": "https://future-weather-generator.adai.pt/download/",
+    "observed_at_utc": "2026-09-20T08:46:03.022884+00:00",
+    "method": "GET",
+    "status": 200,
+    "final_url": "https://future-weather-generator.adai.pt/download/",
+    "content_type": "text/html; charset=UTF-8",
+    "bytes_read": 57946,
+    "truncated": false,
+    "sha256": "84ce0add516ef48435a252303ba6ba55d52762d84cfed219a39b9ce50451d8cd",
+    "observations": {},
+    "elapsed_seconds": 1.0
+  }
+]

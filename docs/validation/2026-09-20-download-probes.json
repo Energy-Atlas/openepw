@@ -1,0 +1,112 @@
+[
+  {
+    "id": "onebuilding_epw",
+    "url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/NY_New_York/USA_NY_Ithaca.Tompkins.Rgnl.AP.725155_TMYx.2011-2025.zip",
+    "observed_at_utc": "2026-09-20T08:48:11.519534+00:00",
+    "method": "GET",
+    "status": 200,
+    "final_url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/NY_New_York/USA_NY_Ithaca.Tompkins.Rgnl.AP.725155_TMYx.2011-2025.zip",
+    "content_type": "application/zip",
+    "bytes_read": 429341,
+    "truncated": false,
+    "sha256": "ac61ec7b45a081c6294de0bc8c39286bf7464cee41730e92ae7d88d598617eb2",
+    "observations": {
+      "zip_members": [
+        "USA_NY_Ithaca.Tompkins.Rgnl.AP.725155_TMYx.2011-2025.clm",
+        "USA_NY_Ithaca.Tompkins.Rgnl.AP.725155_TMYx.2011-2025.ddy",
+        "USA_NY_Ithaca.Tompkins.Rgnl.AP.725155_TMYx.2011-2025.epw",
+        "USA_NY_Ithaca.Tompkins.Rgnl.AP.725155_TMYx.2011-2025.pvsyst",
+        "USA_NY_Ithaca.Tompkins.Rgnl.AP.725155_TMYx.2011-2025.rain",
+        "USA_NY_Ithaca.Tompkins.Rgnl.AP.725155_TMYx.2011-2025.stat",
+        "USA_NY_Ithaca.Tompkins.Rgnl.AP.725155_TMYx.2011-2025.wea"
+      ],
+      "epw": {
+        "headers": [
+          "LOCATION",
+          "DESIGN CONDITIONS",
+          "TYPICAL/EXTREME PERIODS",
+          "GROUND TEMPERATURES",
+          "HOLIDAYS/DAYLIGHT SAVINGS",
+          "COMMENTS 1",
+          "COMMENTS 2",
+          "DATA PERIODS"
+        ],
+        "rows": 8760,
+        "field_counts": [
+          35
+        ],
+        "location": [
+          "LOCATION",
+          "Ithaca.Tompkins.Rgnl.AP",
+          "NY",
+          "USA",
+          "SRC-TMYx",
+          "725155",
+          "42.48300",
+          "-76.46700",
+          "-5.0",
+          "335.0"
+        ],
+        "first_timestamp": [
+          "2012",
+          "1",
+          "1",
+          "1",
+          "0"
+        ],
+        "last_timestamp": [
+          "2018",
+          "12",
+          "31",
+          "24",
+          "0"
+        ]
+      }
+    },
+    "elapsed_seconds": 0.24
+  },
+  {
+    "id": "nsrdb_csv_no_email",
+    "url": "https://developer.nlr.gov/api/nsrdb/v2/solar/nsrdb-GOES-aggregated-v4-0-0-download.csv?api_key=DEMO_KEY&names=2024&wkt=POINT%28-76.50+42.44%29&interval=60&attributes=air_temperature%2Cghi%2Cdni%2Cdhi&utc=true&leap_day=true",
+    "observed_at_utc": "2026-09-20T08:48:11.519939+00:00",
+    "method": "GET",
+    "status": 400,
+    "final_url": "https://developer.nlr.gov/api/nsrdb/v2/solar/nsrdb-GOES-aggregated-v4-0-0-download.csv?api_key=DEMO_KEY&names=2024&wkt=POINT%28-76.50+42.44%29&interval=60&attributes=air_temperature%2Cghi%2Cdni%2Cdhi&utc=true&leap_day=true",
+    "content_type": "application/json; charset=utf-8",
+    "bytes_read": 285,
+    "truncated": false,
+    "sha256": "7e0a07730e6afc10c4b19408d80903ae9a5c2a90efda6a08fa352873aa0c1974",
+    "observations": {
+      "json_type": "dict",
+      "keys": [
+        "inputs",
+        "metadata",
+        "status",
+        "errors"
+      ],
+      "errors": [
+        "The required 'email' parameter must be a valid email address"
+      ],
+      "inputs": {
+        "params": {},
+        "query": {
+          "names": "2024",
+          "wkt": "POINT(-76.50 42.44)",
+          "interval": "60",
+          "attributes": "air_temperature,ghi,dni,dhi",
+          "utc": "true",
+          "leap_day": "true"
+        }
+      }
+    },
+    "elapsed_seconds": 0.56
+  },
+  {
+    "id": "nsrdb_legacy_query",
+    "url": "https://developer.nrel.gov/api/solar/nsrdb_data_query.json?api_key=DEMO_KEY&wkt=POINT%28-76.50+42.44%29",
+    "observed_at_utc": "2026-09-20T08:48:11.520220+00:00",
+    "method": "GET",
+    "transport_error": "URLError: <urlopen error [Errno 11001] getaddrinfo failed>",
+    "elapsed_seconds": 0.09
+  }
+]
