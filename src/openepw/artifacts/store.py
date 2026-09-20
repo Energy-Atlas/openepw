@@ -1,6 +1,7 @@
 import hashlib
 import json
 import os
+import re
 import uuid
 from pathlib import Path
 
@@ -25,10 +26,22 @@ class ArtifactStore:
         self.root = Path(root).resolve()
 
     def write(self, bundle_id, name, body, role, media_type="application/json"):
+        stem = name.split(".")[0].upper()
+        if not re.fullmatch(r"[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*", name) or stem in {
+            "CON",
+            "PRN",
+            "AUX",
+            "NUL",
+            *[f"COM{i}" for i in range(1, 10)],
+            *[f"LPT{i}" for i in range(1, 10)],
+        }:
+            raise OpenEPWError("INVALID_ARTIFACT", "Unsafe artifact filename")
         if not bundle_id.isalnum() or "/" in name or "\\" in name or name in (".", ".."):
             raise OpenEPWError("INVALID_ARTIFACT", "Unsafe artifact name")
         relative = Path("jobs") / bundle_id / name
         path = self.root / relative
+        if not path.resolve().is_relative_to(self.root):
+            raise OpenEPWError("INVALID_ARTIFACT", "Artifact write escapes data root")
         atomic_write(path, body)
         ref = ArtifactRef(
             id=uuid.uuid4().hex,

@@ -47,3 +47,26 @@ def test_cds_step_types_are_merged_before_normalization():
             z.writestr(var + ".nc", ds.to_netcdf(engine="h5netcdf"))
     result = decode_cds(stream.getvalue(), 42.44, -76.5)
     assert set(result.data_vars) == {"t2m", "ssrd"}
+
+
+def test_land_accumulation_across_month_boundary():
+    xr = pytest.importorskip("xarray")
+    times = pd.to_datetime(["2024-01-31T23:00", "2024-02-01T00:00", "2024-02-01T01:00"])
+    ds = xr.Dataset(
+        {
+            k: ("valid_time", v)
+            for k, v in {
+                "t2m": [293.15] * 3,
+                "d2m": [283.15] * 3,
+                "sp": [100000] * 3,
+                "u10": [0] * 3,
+                "v10": [-2] * 3,
+                "ssrd": [720000, 1080000, 360000],
+            }.items()
+        },
+        coords={"valid_time": times},
+    )
+    result = normalize_era5(
+        [ds.isel(valid_time=slice(0, 1)), ds.isel(valid_time=slice(1, None))], land=True
+    )
+    assert result.ghi.iloc[1:].tolist() == [100, 100]

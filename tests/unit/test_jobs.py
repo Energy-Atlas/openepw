@@ -35,3 +35,68 @@ def test_cancel_before_execution(tmp_path):
     JobRunner(service, store).run(job.id)
     assert store.get(job.id).state == "cancelled"
     assert service.providers["station"].calls == 0
+
+
+def test_restart_resumes_after_verified_completed_item(tmp_path):
+    from openepw.models import WeatherPlan
+
+    provider = StationProvider()
+    service = WeatherService(RuntimeConfig(data_root=tmp_path), providers=[provider])
+    plan = service.plan(
+        WeatherRequest(
+            locations=[Location(lat=1, lon=0), Location(lat=2, lon=0)],
+            start="2024-01-01",
+            end="2024-01-01",
+        )
+    )
+    store = JobStore(tmp_path)
+    job = store.submit(plan)
+    first = plan.outputs[0]
+    raw = plan.model_dump(mode="json", exclude={"plan_hash"})
+    raw["outputs"] = [first.model_dump()]
+    raw["tasks"] = [t.model_dump() for t in plan.tasks if t.id in first.task_ids]
+    prior = service.execute(WeatherPlan.model_validate(raw))
+    store.complete_item(job.id, first.name, prior)
+    job.state = "running"
+    store.save(job)
+    JobRunner(service, JobStore(tmp_path)).run(job.id)
+    final = store.get(job.id)
+    assert final.state == "completed"
+    assert provider.calls == 2
+    assert prior.weather[0].id in {a.id for a in final.bundle.weather}
+
+
+def test_future_ensemble_progress_counts_artifacts(tmp_path):
+    import json
+
+    from test_epw import synthetic
+    from test_future import signal
+
+    from openepw.epw import write_epw
+    from openepw.models import FutureRequest
+
+    base = tmp_path / "baseline.epw"
+    write_epw(synthetic(2023, 8760), base)
+    sig = tmp_path / "signals.json"
+    signals = [
+        signal().model_dump(mode="json"),
+        signal().model_copy(update={"member": "r2"}).model_dump(mode="json"),
+    ]
+    sig.write_text(json.dumps(signals))
+    service = WeatherService(RuntimeConfig(data_root=tmp_path / "data"))
+    plan = service.plan_future(
+        FutureRequest(
+            baseline=str(base),
+            signals=str(sig),
+            reference_period=(1985, 2014),
+            target_year=2050,
+            climate_scenario="ssp245",
+            profile="ensemble",
+        )
+    )
+    store = JobStore(service.config.data_root)
+    job = store.submit(plan)
+    JobRunner(service, store).run(job.id)
+    final = store.get(job.id)
+    assert final.state == "completed"
+    assert final.completed == final.total == 2

@@ -98,10 +98,7 @@ class JobRunner:
                     )
                 )
                 job.errors.append(issue)
-            job.completed = sum(
-                bool(b.weather) and not any(i.severity == "error" for i in b.issues)
-                for b in completed.values()
-            )
+            job.completed = sum(len(b.weather) for b in completed.values())
             self.store.save(job)
         weather = []
         extra = []
@@ -120,15 +117,10 @@ class JobRunner:
             plan, uuid.uuid4().hex, weather, extra, errors, manifests, qc
         )
         job.errors = [i for i in errors if i.severity == "error"]
-        job.completed = sum(
-            bool(b.weather) and not any(i.severity == "error" for i in b.issues)
-            for b in completed.values()
-        )
-        job.failed = sum(
-            not b.weather or any(i.severity == "error" for i in b.issues)
-            for b in completed.values()
-        ) + max(0, len(outputs) - len(completed))
+        job.completed = len(weather)
+        job.failed = max(0, job.total - job.completed)
         if self.store.get(job_id).cancellation_requested:
+            job.failed = sum(not b.weather for b in completed.values())
             job.state = "cancelled"
         elif job.errors or job.failed:
             job.state = "partially_completed" if weather else "failed"

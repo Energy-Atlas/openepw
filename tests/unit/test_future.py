@@ -81,3 +81,102 @@ def test_local_signal_service_bundle_and_scenario_mismatch(tmp_path):
     bad = r.model_copy(update={"climate_scenario": "ssp585"})
     with pytest.raises(OpenEPWError):
         s.plan_future(bad)
+
+
+def test_morph_retains_provenance_for_unchanged_native_fields(tmp_path):
+    from openepw.epw import read_epw, write_epw
+
+    p = tmp_path / "baseline.epw"
+    write_epw(synthetic(2023, 8760), p)
+    baseline = read_epw(p)
+    result = morph(baseline, signal())
+    assert result.lineage["wind_direction"].unchanged
+    assert (
+        result.lineage["wind_direction"].raw_sha256
+        == __import__("hashlib").sha256(p.read_bytes()).hexdigest()
+    )
+    assert result.metadata["baseline_lineage"]["dry_bulb"]["raw_sha256"]
+
+
+def test_future_cancellation_preserves_completed_outputs(tmp_path):
+    import json
+
+    from openepw.config import RuntimeConfig
+    from openepw.epw import write_epw
+    from openepw.models import FutureRequest
+    from openepw.service import WeatherService
+
+    p = tmp_path / "base.epw"
+    write_epw(synthetic(2023, 8760), p)
+    signals = tmp_path / "signals.json"
+    signals.write_text(
+        json.dumps(
+            [
+                signal().model_dump(mode="json"),
+                signal().model_copy(update={"member": "r2"}).model_dump(mode="json"),
+            ]
+        )
+    )
+    s = WeatherService(RuntimeConfig(data_root=tmp_path / "store"))
+    plan = s.plan_future(
+        FutureRequest(
+            baseline=str(p),
+            signals=str(signals),
+            target_year=2050,
+            reference_period=(1985, 2014),
+            climate_scenario="ssp245",
+            profile="ensemble",
+        )
+    )
+    stopped = [False]
+
+    def progress(*args):
+        stopped[0] = True
+
+    b = s.execute(plan, cancelled=lambda: stopped[0], progress=progress)
+    assert len(b.weather) == 1
+    assert any(i.code == "CANCELLED" for i in b.issues)
+
+
+def test_known_baseline_artifact_keeps_original_variable_sources(tmp_path):
+    import json
+
+    from openepw.config import RuntimeConfig
+    from openepw.epw.writer import epw_bytes
+    from openepw.models import FutureRequest, SourceRef, VariableLineage
+    from openepw.service import WeatherService
+
+    s = WeatherService(RuntimeConfig(data_root=tmp_path))
+    ref = s.artifacts.write("a" * 32, "source.epw", epw_bytes(synthetic(2023, 8760)), "weather")
+    lineage = VariableLineage(
+        variable="wind_direction",
+        source=SourceRef(provider="station", dataset="known observation"),
+        raw_sha256="1" * 64,
+    )
+    s.artifacts.json(
+        "a" * 32,
+        "manifest.json",
+        {
+            "outputs": [
+                {
+                    "artifact_id": ref.id,
+                    "lineage": {"wind_direction": lineage.model_dump(mode="json")},
+                }
+            ]
+        },
+        "manifest",
+    )
+    signals = tmp_path / "signals.json"
+    signals.write_text(json.dumps([signal().model_dump(mode="json")]))
+    p = s.plan_future(
+        FutureRequest(
+            baseline=ref.id,
+            signals=str(signals),
+            target_year=2050,
+            reference_period=(1985, 2014),
+            climate_scenario="ssp245",
+        )
+    )
+    b = s.execute(p)
+    output = json.loads((tmp_path / b.manifest.path).read_text())["outputs"][0]
+    assert output["lineage"]["wind_direction"]["source"]["provider"] == "station"

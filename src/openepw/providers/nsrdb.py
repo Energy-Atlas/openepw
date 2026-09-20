@@ -2,6 +2,7 @@ import csv
 import hashlib
 import io
 import re
+from typing import Any
 
 import pandas as pd
 
@@ -23,16 +24,20 @@ NAMES = {
 }
 
 
-def parse_nsrdb(raw):
+def parse_nsrdb(raw, *, synthetic=False):
     try:
         lines = raw.decode("utf-8-sig").splitlines()
-        meta = dict(zip(next(csv.reader([lines[0]])), next(csv.reader([lines[1]]))))
+        meta: dict[str, Any] = dict(zip(next(csv.reader([lines[0]])), next(csv.reader([lines[1]]))))
         table = pd.read_csv(io.StringIO("\n".join(lines[2:])))
         if table.empty:
             raise ValueError("empty")
+        meta["source_years"] = table.Year.astype(int).tolist() if synthetic else []
+        dates = table[["Year", "Month", "Day", "Hour", "Minute"]].copy()
+        if synthetic:
+            dates["Year"] = 2001
         stamps = pd.DatetimeIndex(
             pd.to_datetime(
-                table[["Year", "Month", "Day", "Hour", "Minute"]].rename(columns=str.lower),
+                dates.rename(columns=str.lower),
                 utc=True,
             )
         )
@@ -40,13 +45,14 @@ def parse_nsrdb(raw):
         if not (stamps.minute == 30).all():
             raise ValueError("unsupported timestamp convention")
         frame = table[list(NAMES)].rename(columns=NAMES).astype(float)
-        frame.index = stamps + pd.Timedelta(minutes=30)
+        offset = round(float(meta.get("Time Zone", 0)) * 60)
+        frame.index = stamps + pd.Timedelta(minutes=30 - offset)
         frame["pressure"] *= 100
         loc = Location(
             lat=float(meta["Latitude"]),
             lon=float(meta["Longitude"]),
             elevation=float(meta.get("Elevation", 0)),
-            standard_offset_minutes=0,
+            standard_offset_minutes=offset,
         )
         return frame, loc, meta
     except (ValueError, KeyError, IndexError, TypeError):
@@ -72,19 +78,25 @@ class NSRDBProvider:
         candidates = []
         for row in data.get("outputs", []):
             name = row["name"]
-            # Current v0.1 supports observed interval-center convention for aggregate v4 only.
-            if name != "nsrdb-GOES-aggregated-v4-0-0" or request.product not in (
-                "historical",
-                "amy",
-            ):
+            if request.dataset and request.dataset != name:
+                continue
+            published = request.product in ("tmy", "published")
+            if name != ("nsrdb-GOES-tmy-v4-0-0" if published else "nsrdb-GOES-aggregated-v4-0-0"):
                 continue
             years = [int(y) for y in row.get("availableYears", []) if str(y).isdigit()]
-            requested = request.years or [request.start.year]
-            if not set(requested) <= set(years):
+            product_id = None
+            if published:
+                available = [str(y) for y in row.get("availableYears", [])]
+                choices = [y for y in available if y.startswith("tmy-")]
+                product_id = request.product_id or (max(choices) if choices else None)
+                if product_id not in available:
+                    continue
+            elif not set(request.years or [request.start.year]) <= set(years):
                 continue
             candidates.append(
                 Candidate(
-                    id=f"nsrdb:{name}:{location.key}",
+                    id=f"nsrdb:{name}:{product_id or 'actual'}:{location.key}",
+                    product_id=product_id,
                     location_id=location.key,
                     source=SourceRef(
                         provider=self.name,
@@ -93,7 +105,7 @@ class NSRDBProvider:
                         license="NLR NSRDB data terms; attribute NSRDB",
                         citation="https://nsrdb.nlr.gov",
                     ),
-                    weather_types=["historical", "amy"],
+                    weather_types=["tmy", "published"] if published else ["historical", "amy"],
                     variables=list(VARIABLES.values()),
                     available_years=years,
                     interval_minutes=60,
@@ -109,22 +121,32 @@ class NSRDBProvider:
     def fetch(self, task, http):
         if not http.config.nlr_api_key or not http.config.nlr_email:
             raise OpenEPWError("AUTH_REQUIRED", "NSRDB requires runtime API key and email")
-        if not re.fullmatch("nsrdb-GOES-aggregated-v4-0-0", task.source.dataset):
+        if task.source.dataset not in ("nsrdb-GOES-aggregated-v4-0-0", "nsrdb-GOES-tmy-v4-0-0"):
             raise OpenEPWError("PLAN_STALE", "Unsupported NSRDB product")
         loc = Location.model_validate(task.parameters["location"])
-        start, end = interval_bounds(task.parameters)
+        published = task.source.dataset == "nsrdb-GOES-tmy-v4-0-0"
+        start, end = interval_bounds(task.parameters) if not published else (None, None)
+        if published and not re.fullmatch(
+            r"(?:tmy|tdy|tgy)-[0-9]{4}", task.parameters.get("product_id") or ""
+        ):
+            raise OpenEPWError("INVALID_REQUEST", "Invalid published NSRDB product")
         frames = []
         raws = []
         # Annual endpoints only; retrieve edge year when it contains an interval needed locally.
-        for year in range(start.year, (end - pd.Timedelta(seconds=1)).year + 1):
+        if published:
+            names = [task.parameters["product_id"]]
+        else:
+            assert start is not None and end is not None
+            names = list(range(start.year, (end - pd.Timedelta(seconds=1)).year + 1))
+        for year in names:
             params = {
                 "api_key": http.config.nlr_api_key.get_secret_value(),
                 "email": http.config.nlr_email.get_secret_value(),
                 "wkt": f"POINT({loc.lon} {loc.lat})",
                 "names": str(year),
                 "interval": 60,
-                "utc": "true",
-                "leap_day": "true",
+                "utc": "false" if published else "true",
+                "leap_day": "false" if published else "true",
                 "mailing_list": "false",
                 "attributes": "air_temperature,dew_point,relative_humidity,surface_pressure,ghi,dni,dhi,wind_speed,wind_direction",
             }
@@ -134,16 +156,22 @@ class NSRDBProvider:
                 + "-download.csv",
                 params=params,
             )
-            frame, resolved, meta = parse_nsrdb(raw)
+            frame, resolved, meta = parse_nsrdb(raw, synthetic=published)
             frames.append(frame)
             raws.append(raw)
         frame = pd.concat(frames)
-        frame = frame.loc[(frame.index > start) & (frame.index <= end)]
-        if not frame.index.equals(pd.date_range(start + pd.Timedelta(hours=1), end, freq="h")):
+        if not published:
+            assert start is not None and end is not None
+            frame = frame.loc[(frame.index > start) & (frame.index <= end)]
+            if not frame.index.equals(pd.date_range(start + pd.Timedelta(hours=1), end, freq="h")):
+                raise OpenEPWError(
+                    "UNAVAILABLE_PERIOD", "NSRDB does not cover all requested local intervals"
+                )
+            resolved.standard_offset_minutes = loc.standard_offset_minutes
+        elif len(frame) != 8760 or not frame.index.is_unique:
             raise OpenEPWError(
-                "UNAVAILABLE_PERIOD", "NSRDB does not cover all requested local intervals"
+                "MALFORMED_RESPONSE", "Published NSRDB product lacks 8760 unique intervals"
             )
-        resolved.standard_offset_minutes = loc.standard_offset_minutes
         source = task.source.model_copy(
             update={
                 "location": resolved,
@@ -177,7 +205,12 @@ class NSRDBProvider:
         }
         return ProviderResult(
             WeatherDataset(
-                data=frame, location=resolved, lineage=lineage, metadata={"source_metadata": safe}
+                data=frame,
+                location=resolved,
+                lineage=lineage,
+                metadata={"source_metadata": safe, "product_id": task.parameters.get("product_id")},
+                calendar="synthetic" if published else "gregorian",
+                source_years=meta["source_years"],
             ),
             source,
             raw,

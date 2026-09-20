@@ -237,10 +237,10 @@ class GeocodeResult(Model):
 
 
 class FetchTask(Model):
-    id: str
+    id: str = Field(pattern=r"^[A-Za-z0-9_-]{1,80}$")
     source: SourceRef
     parameters: dict[str, Any]
-    cache_key: str
+    cache_key: str = Field(pattern=r"^[a-f0-9]{64}$")
     dependents: list[str] = Field(default_factory=list)
 
 
@@ -255,7 +255,7 @@ class TransformStep(Model):
 class OutputSpec(Model):
     requested_location_id: str
     task_ids: list[str]
-    name: str
+    name: str = Field(pattern=r"^[A-Za-z0-9_-]{1,100}\.epw$")
 
 
 class WeatherPlan(Model):
@@ -275,6 +275,15 @@ class WeatherPlan(Model):
     @model_validator(mode="after")
     def valid(self):
         raw = self.model_dump(mode="json", exclude={"plan_hash"})
+        ids = [t.id for t in self.tasks]
+        if len(ids) != len(set(ids)) or any(
+            not o.task_ids or not set(o.task_ids) <= set(ids) for o in self.outputs
+        ):
+            raise ValueError("Plan contains duplicate tasks or unresolved output references")
+        if (self.kind == "future") != isinstance(self.request, FutureRequest):
+            raise ValueError("Plan kind and request schema disagree")
+        if len(self.outputs) > 1000 or len(self.tasks) > 2000:
+            raise ValueError("Plan exceeds execution item limits")
         for candidate in raw["selected_candidates"]:
             candidate.pop("observed_at", None)
         hashed = digest(raw)

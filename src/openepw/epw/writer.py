@@ -53,6 +53,12 @@ def epw_bytes(dataset: WeatherDataset) -> bytes:
             ],
         ]
     )
+    if dataset.calendar == "noleap":
+        if not any("OPENEPW_CALENDAR=noleap" in cell for cell in headers[6]):
+            headers[6].append(
+                "OPENEPW_CALENDAR=noleap; native 365-day calendar; source year labels retained"
+            )
+        headers[4][1] = "No"
     output = io.StringIO(newline="")
     writer = csv.writer(output, lineterminator="\n")
     writer.writerows(headers)

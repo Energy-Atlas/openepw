@@ -1,4 +1,6 @@
 import json
+import logging
+import re
 import ssl
 import time
 from urllib.parse import urljoin, urlparse
@@ -10,10 +12,37 @@ from ..config import RuntimeConfig
 from ..models import OpenEPWError
 
 
+class Redactor(logging.Filter):
+    def __init__(self, config):
+        super().__init__()
+        self.values = [
+            s.get_secret_value()
+            for s in (
+                config.nlr_api_key,
+                config.nlr_email,
+                config.cds_key,
+                config.openmeteo_api_key,
+                config.bearer_token,
+            )
+            if s
+        ]
+
+    def filter(self, record):
+        message = record.getMessage()
+        for value in self.values:
+            message = message.replace(value, "[redacted]")
+        record.msg = re.sub(r"(https?://[^\s?]+)\?[^\s]+", r"\1?[redacted]", message)
+        record.args = ()
+        return True
+
+
 class HttpClient:
     def __init__(self, config: RuntimeConfig, *, transport=None, sleep=time.sleep):
         self.config = config
         self.sleep = sleep
+        redactor = Redactor(config)
+        for name in ("httpx", "httpcore", "httpcore.connection", "httpcore.http11"):
+            logging.getLogger(name).addFilter(redactor)
         self.client = httpx.Client(
             timeout=config.timeout,
             transport=transport,

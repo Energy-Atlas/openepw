@@ -31,7 +31,17 @@ class RemoteZip(io.RawIOBase):
             raise OpenEPWError(
                 "PROVIDER_UNAVAILABLE", "Archive server ignored Range or lacks stable ETag"
             )
-        self.size = int(headers["content-range"].split("/")[-1])
+        span = re.fullmatch(r"bytes (\d+)-(\d+)/(\d+)", headers["content-range"])
+        if not span:
+            raise OpenEPWError("MALFORMED_RESPONSE", "Invalid archive suffix Content-Range")
+        start, end, self.size = map(int, span.groups())
+        if (
+            start != max(0, self.size - 65536)
+            or end != self.size - 1
+            or len(raw) != end - start + 1
+            or not raw
+        ):
+            raise OpenEPWError("MALFORMED_RESPONSE", "Truncated or inconsistent archive suffix")
         self.etag = headers["etag"]
         if expected_etag and self.etag != expected_etag:
             raise OpenEPWError("PLAN_STALE", "Hourly archive ETag changed since planning")
@@ -107,6 +117,11 @@ class HourlyArchive:
         self.http = http
 
     def plan(self, request, location):
+        if request.models not in ([], ["CCSM4"]) or request.members:
+            raise OpenEPWError(
+                "UNSUPPORTED_FUTURE_METHOD",
+                "Hourly archive has one CCSM4 driver; model/member ensemble selectors are unsupported",
+            )
         if request.climate_scenario not in ("rcp45", "rcp85") or request.climate_period not in (
             (2045, 2054),
             (2085, 2094),
@@ -209,7 +224,7 @@ class HourlyArchive:
                     raise OpenEPWError(
                         "MALFORMED_RESPONSE", "Hourly archive member failed CRC or decompression"
                     ) from None
-                data = read_epw(raw)
+                data = read_epw(raw, calendar="noleap")
                 source = SourceRef(
                     provider="oedi",
                     dataset="Argonne WRF/CCSM4",
@@ -231,6 +246,35 @@ class HourlyArchive:
         return result
 
     def generate(self, request, params, baseline):
+        scenario = {"rcp45": "RCP4.5", "rcp85": "RCP8.5"}.get(request.climate_scenario)
+        expected_years = {
+            str(y) for y in range(request.climate_period[0], request.climate_period[1] + 1)
+        }
+        members = params.get("members", {})
+        if (
+            not scenario
+            or request.climate_period not in ((2045, 2054), (2085, 2094))
+            or request.models not in ([], ["CCSM4"])
+            or request.members
+            or params.get("archive_url") != ROOT + str(scenario) + "_v1.1.zip"
+            or set(members) != expected_years
+            or any(
+                not re.search(
+                    r"/"
+                    + re.escape(str(params.get("site")))
+                    + "_"
+                    + re.escape(str(scenario))
+                    + "_"
+                    + year
+                    + r"_lat.*\.epw$",
+                    name,
+                )
+                for year, name in members.items()
+            )
+        ):
+            raise OpenEPWError(
+                "INVALID_REQUEST", "Hourly plan archive/members disagree with scenario/window"
+            )
         years = self.read_years(
             params["archive_url"], params["site"], params["members"], params["archive_etag"]
         )

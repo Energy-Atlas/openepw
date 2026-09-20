@@ -19,6 +19,7 @@ def hourly(dataset):
             "INVALID_ALIGNMENT", "Incomplete subhourly intervals cannot be silently aggregated"
         )
     result.data = grouped.mean(numeric_only=True)
+    counts_per_variable = grouped.count()
     for name in ("ghi", "dni", "dhi"):
         if name in dataset.data:
             result.data[name] = grouped[name].sum(min_count=60 // dataset.interval_minutes)
@@ -34,6 +35,10 @@ def hourly(dataset):
             + 360
         ) % 360
     result.interval_minutes = 60
+    for variable in result.data:
+        result.data.loc[
+            counts_per_variable[variable] != 60 // dataset.interval_minutes, variable
+        ] = np.nan
     for lineage in result.lineage.values():
         lineage.transforms.append(
             "hourly mean states; sum interval solar energy; circular wind direction"

@@ -38,6 +38,11 @@ def decode_cds(raw, lat, lon):
 
 
 def normalize_era5(ds, land=False):
+    if isinstance(ds, list):
+        import xarray as xr
+
+        time_name = "valid_time" if "valid_time" in ds[0].coords else "time"
+        ds = xr.concat(ds, dim=time_name).sortby(time_name)
     time_name = "valid_time" if "valid_time" in ds.coords else "time"
     times = pd.DatetimeIndex(pd.to_datetime(ds[time_name].values, utc=True))
     frame = pd.DataFrame(index=times)
@@ -208,12 +213,12 @@ class CDSProvider:
                         lon=float(point.longitude),
                         standard_offset_minutes=loc.standard_offset_minutes,
                     )
-                    frames.append(normalize_era5(point, land=land))
+                    frames.append(point)
                 except (ValueError, KeyError, OSError):
                     raise OpenEPWError(
                         "MALFORMED_RESPONSE", "CDS NetCDF variables or dimensions are unsupported"
                     ) from None
-        frame = pd.concat(frames).sort_index()
+        frame = normalize_era5(frames, land=land)
         frame = frame.loc[(frame.index > start) & (frame.index <= end)]
         if not frame.index.equals(pd.date_range(start + pd.Timedelta(hours=1), end, freq="h")):
             raise OpenEPWError("UNAVAILABLE_PERIOD", "CDS intervals do not cover requested period")

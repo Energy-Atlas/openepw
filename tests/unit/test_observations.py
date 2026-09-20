@@ -42,3 +42,11 @@ def test_nsrdb_interval_centers_and_hpa_to_pa():
 def test_nsrdb_empty_or_error_payload_rejected():
     with pytest.raises(OpenEPWError):
         parse_nsrdb(b'{"errors":["secret response"]}')
+
+
+def test_nsrdb_native_tmy_preserves_source_years_and_standard_timezone():
+    raw = b"Source,Location ID,Latitude,Longitude,Time Zone,Elevation\nNSRDB,1,42,-76,-5,200\nYear,Month,Day,Hour,Minute,Temperature,Dew Point,Relative Humidity,Pressure,GHI,DNI,DHI,Wind Speed,Wind Direction\n1999,1,1,0,30,20,10,50,1000,200,100,100,2,180\n2022,1,1,1,30,21,11,50,1000,400,200,200,2,180\n"
+    frame, loc, meta = parse_nsrdb(raw, synthetic=True)
+    assert frame.index[0] == pd.Timestamp("2001-01-01T06:00Z")
+    assert loc.standard_offset_minutes == -300
+    assert meta["source_years"] == [1999, 2022]

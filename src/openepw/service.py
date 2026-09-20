@@ -138,6 +138,16 @@ class WeatherService:
         )
 
     def plan(self, request: WeatherRequest, *, discovery=None):
+        locations = self.locations(request)
+        if request.product in ("historical", "amy") and any(
+            loc.standard_offset_minutes % 60 for loc in locations
+        ):
+            raise OpenEPWError(
+                "UNSUPPORTED_TIMEZONE",
+                "Fractional-hour output requires explicit temporal interpolation; request UTC or a whole-hour fixed offset in v0.1",
+            )
+        if len(locations) * max(1, len(request.years)) > 1000:
+            raise OpenEPWError("RESOURCE_LIMIT", "Request exceeds 1000 output locations/periods")
         discovery = discovery or self.discover(request)
         if [p.key for p in discovery.locations] != [p.key for p in self.locations(request)]:
             raise OpenEPWError("PLAN_STALE", "Discovery locations differ from this request")
@@ -231,8 +241,23 @@ class WeatherService:
 
     def execute(self, plan: WeatherPlan, *, cancelled=lambda: False, progress=lambda *_: None):
         plan = WeatherPlan.model_validate_json(plan.model_dump_json())
+        if not plan.tasks or not plan.outputs:
+            raise OpenEPWError("INVALID_REQUEST", "Cannot execute an empty plan")
         if plan.kind == "future":
             return self._execute_future(plan, cancelled=cancelled, progress=progress)
+        for task in plan.tasks:
+            expected = digest(
+                {
+                    "source": task.source.model_dump(mode="json"),
+                    "parameters": task.parameters,
+                    "version": "0.1",
+                }
+            )
+            if task.cache_key != expected or task.id != expected[:20]:
+                raise OpenEPWError(
+                    "PLAN_STALE", "Task identifiers do not match its scientific request"
+                )
+            Location.model_validate(task.parameters.get("location"))
         bundle_id = uuid.uuid4().hex
         weather, additional, issues, manifest_outputs, qc_records = [], [], [], [], []
         results = {}
@@ -360,8 +385,9 @@ class WeatherService:
 
     def _cached_fetch(self, provider, task):
         # Replay exact HTTP bytes using a private cache recording, never request URLs/keys.
-        root = Path(self.config.data_root) / "cache" / "raw" / task.cache_key
+        root = Path(self.config.data_root) / "cache" / "raw-v2" / task.cache_key
         records: list[int] = []
+        pending = []
         http = self.http
 
         class Replay:
@@ -379,18 +405,35 @@ class WeatherService:
                     body = path.read_bytes()
                 else:
                     body = http.get(url, **kwargs)
-                    atomic_write(path, body)
-                    atomic_write(checksum, hashlib.sha256(body).hexdigest().encode())
+                    secrets = [
+                        v.get_secret_value().encode()
+                        for v in (
+                            http.config.nlr_api_key,
+                            http.config.nlr_email,
+                            http.config.cds_key,
+                            http.config.openmeteo_api_key,
+                            http.config.bearer_token,
+                        )
+                        if v
+                    ]
+                    if not any(secret in body for secret in secrets):
+                        pending.append((path, body, checksum))
                 records.append(n)
                 return body
 
             def get_json(inner, url, **kwargs):
+                if task.source.provider == "cds":
+                    return http.get_json(url, **kwargs)
                 return json.loads(inner.get(url, **kwargs))
 
             def request(inner, *args, **kwargs):
                 return http.request(*args, **kwargs)
 
-        return provider.fetch(task, Replay())
+        result = provider.fetch(task, Replay())
+        for path, body, checksum in pending:
+            atomic_write(path, body)
+            atomic_write(checksum, hashlib.sha256(body).hexdigest().encode())
+        return result
 
     def fetch(self, request):
         return self.execute(self.plan(request))

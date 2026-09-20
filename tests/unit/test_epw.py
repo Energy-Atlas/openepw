@@ -80,3 +80,17 @@ def test_pvgis_singular_daylight_header(tmp_path):
     write_epw(synthetic(), p)
     p.write_text(p.read_text().replace("HOLIDAYS/DAYLIGHT SAVINGS", "HOLIDAYS/DAYLIGHT SAVING"))
     assert len(read_epw(p).data) == 24
+
+
+def test_explicit_native_noleap_calendar_roundtrip(tmp_path):
+    p = tmp_path / "noleap.epw"
+    d = synthetic(2001, 8760)
+    d.source_years = [2048] * 8760
+    write_epw(d, p)
+    explicit = read_epw(p, calendar="noleap")
+    assert explicit.calendar == "noleap"
+    assert not any(i.severity == "error" for i in validate(explicit, "annual"))
+    write_epw(explicit, p)
+    result = read_epw(p)
+    assert result.calendar == "noleap"
+    assert result.source_years == [2048] * 8760

@@ -6,9 +6,11 @@ from ..epw import read_epw
 from ..models import (
     FetchTask,
     FutureRequest,
+    Issue,
     OpenEPWError,
     OutputSpec,
     SourceRef,
+    VariableLineage,
     WeatherPlan,
     digest,
 )
@@ -45,6 +47,18 @@ def plan_future(service, request: FutureRequest):
     raw_request = request.model_dump(mode="json")
     raw_request["baseline"] = baseline_ref.id
     params = {"baseline_sha256": baseline_ref.sha256}
+    prior_manifest = path.parent / "manifest.json"
+    if baseline_ref.role == "weather" and prior_manifest.is_file():
+        manifest_body = prior_manifest.read_bytes()
+        # Snapshot the linked provenance alongside the input EPW; never infer provider identity.
+        prior = json.loads(manifest_body)
+        linked = [o for o in prior.get("outputs", []) if o.get("artifact_id") == baseline_ref.id]
+        if linked:
+            manifest_ref = service.artifacts.write(
+                uuid.uuid4().hex, "input-manifest.json", manifest_body, "baseline_manifest"
+            )
+            params["baseline_manifest_id"] = manifest_ref.id
+            params["baseline_manifest_sha256"] = manifest_ref.sha256
     warnings = [
         "Future outputs represent climate windows, not forecasts",
         "Review QC before simulation; unchanged variables remain explicit",
@@ -86,6 +100,13 @@ def plan_future(service, request: FutureRequest):
                 raise OpenEPWError(
                     "INVALID_CLIMATE_SIGNAL",
                     "Extreme local signals must identify the ranked model year",
+                )
+            if (request.models and set(request.models) != {s.model for s in signals}) or (
+                request.members and set(request.members) != {s.member for s in signals}
+            ):
+                raise OpenEPWError(
+                    "INVALID_CLIMATE_SIGNAL",
+                    "Local signal model/member selectors do not match records",
                 )
             if request.profile == "typical" and len(signals) != 1:
                 raise OpenEPWError(
@@ -151,11 +172,27 @@ def execute_future(service, plan, *, cancelled, progress):
     from ..qc import validate
 
     request = plan.request
+    if len(plan.tasks) != 1:
+        raise OpenEPWError("INVALID_REQUEST", "Future plans require one coherent source task")
     params = plan.tasks[0].parameters
+    expected = digest({"request": request.model_dump(mode="json"), "parameters": params})
+    if plan.tasks[0].cache_key != expected or plan.tasks[0].id != expected[:20]:
+        raise OpenEPWError("PLAN_STALE", "Future task identity does not match its request")
     ref, path = service.artifacts.resolve(request.baseline)
     if ref.sha256 != params["baseline_sha256"]:
         raise OpenEPWError("PLAN_STALE", "Baseline changed since planning")
     baseline = read_epw(path)
+    if params.get("baseline_manifest_id"):
+        manifest_ref, manifest_path = service.artifacts.resolve(params["baseline_manifest_id"])
+        if manifest_ref.sha256 != params["baseline_manifest_sha256"]:
+            raise OpenEPWError("PLAN_STALE", "Baseline provenance changed")
+        prior = json.loads(manifest_path.read_bytes())
+        linked = next((o for o in prior.get("outputs", []) if o.get("artifact_id") == ref.id), None)
+        if linked is None:
+            raise OpenEPWError("INVALID_BASELINE", "Input manifest does not describe this baseline")
+        baseline.lineage.update(
+            {k: VariableLineage.model_validate(v) for k, v in linked.get("lineage", {}).items()}
+        )
     if cancelled():
         raise OpenEPWError("CANCELLED", "Future execution cancelled")
     if request.method == "morph":
@@ -164,6 +201,20 @@ def execute_future(service, plan, *, cancelled, progress):
             if sig_ref.sha256 != params["signals_sha256"]:
                 raise OpenEPWError("PLAN_STALE", "Signals changed since planning")
             signals = [MonthlySignal.model_validate(s) for s in json.loads(sig_path.read_bytes())]
+            if (
+                not signals
+                or any(
+                    s.scenario != request.climate_scenario
+                    or s.reference_period != request.reference_period
+                    or s.climate_period != request.climate_period
+                    or (request.models and s.model not in request.models)
+                    or (request.members and s.member not in request.members)
+                    or (request.profile == "extreme" and s.profile_year is None)
+                    for s in signals
+                )
+                or (request.profile == "typical" and len(signals) != 1)
+            ):
+                raise OpenEPWError("INVALID_CLIMATE_SIGNAL", "Signals disagree with future request")
         else:
             signals = CMIP6Backend(service.http).signals(
                 params["cmip6_pairs"], request, baseline.location
@@ -173,6 +224,10 @@ def execute_future(service, plan, *, cancelled, progress):
         from ..generation.hourly_archive import HourlyArchive
 
         datasets = HourlyArchive(service.http).generate(request, params, baseline)
+    if len(datasets) != len(plan.outputs):
+        raise OpenEPWError(
+            "INVALID_REQUEST", "Future output count does not match coherent source profiles"
+        )
     bundle_id = uuid.uuid4().hex
     weather = []
     manifests = []
@@ -180,7 +235,14 @@ def execute_future(service, plan, *, cancelled, progress):
     qc = []
     for i, data in enumerate(datasets):
         if cancelled():
-            raise OpenEPWError("CANCELLED", "Future execution cancelled")
+            issues.append(
+                Issue(
+                    code="CANCELLED",
+                    message="Future execution cancelled; completed outputs retained",
+                    severity="error",
+                )
+            )
+            break
         checks = validate(data, "annual")
         if any(x.severity == "error" for x in checks):
             raise OpenEPWError("EPW_CONVERSION_FAILED", "Future output failed structural annual QC")

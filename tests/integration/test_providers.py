@@ -56,3 +56,22 @@ def test_live_observations(provider, options, rows):
     frame = read_epw(config.data_root / bundle.weather[0].path).data
     assert len(frame) == rows
     assert frame.dry_bulb.notna().sum() > rows * 0.9
+
+
+@pytest.mark.live
+def test_nsrdb_published_tmy():
+    config = RuntimeConfig.load(env_file=".env", data_root=".local/live-acceptance")
+    service = WeatherService(config)
+    bundle = service.fetch(
+        WeatherRequest(
+            locations=Location(lat=42.44, lon=-76.5),
+            providers=["nsrdb"],
+            product="tmy",
+            product_id="tmy-2024",
+        )
+    )
+    assert len(bundle.weather) == 1, [(i.code, i.message) for i in bundle.issues]
+    data = read_epw(config.data_root / bundle.weather[0].path)
+    assert len(data.data) == 8760
+    assert len(set(data.source_years)) > 1
+    assert data.location.standard_offset_minutes == -300

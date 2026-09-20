@@ -8,6 +8,10 @@ from ..models import OpenEPWError
 
 
 def daily(dataset, statistic="mean"):
+    if "dry_bulb" not in dataset.data or not np.isfinite(dataset.data.dry_bulb).all():
+        raise OpenEPWError(
+            "MISSING_CRITICAL_VARIABLE", "Extreme ranking requires complete finite temperature"
+        )
     series = pd.Series(dataset.data.dry_bulb.to_numpy(), index=local_interval_starts(dataset))
     return getattr(series.resample("D"), statistic)()
 

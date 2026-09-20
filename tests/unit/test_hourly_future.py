@@ -50,3 +50,55 @@ def test_typical_medoid_and_coherent_hot_shock():
     assert select_profile(years, {}, "extreme", {"type": "hot", "mode": "shock"}) == [2047]
     assert select_profile(years, {}, "extreme", {"type": "cold", "mode": "shock"}) == [2045]
     assert select_profile(years, {}, "ensemble", {}) == [2045, 2046, 2047]
+
+
+@pytest.mark.parametrize("failure", ["truncated_tail", "changed_etag", "truncated_range"])
+def test_remote_archive_rejects_changed_or_truncated_response(tmp_path, failure):
+    raw = b"x" * 100_000
+
+    def handler(request):
+        if request.headers["Range"].startswith("bytes=-"):
+            body = raw[-65536:]
+            if failure == "truncated_tail":
+                body = body[:-1]
+            return httpx.Response(
+                206,
+                content=body,
+                headers={
+                    "ETag": "fixed",
+                    "Content-Range": "bytes 34464-99999/100000",
+                },
+            )
+        return httpx.Response(
+            206,
+            content=raw[: 9 if failure == "truncated_range" else 10],
+            headers={
+                "ETag": "changed" if failure == "changed_etag" else "fixed",
+                "Content-Range": "bytes 0-9/100000",
+            },
+        )
+
+    http = HttpClient(RuntimeConfig(data_root=tmp_path), transport=httpx.MockTransport(handler))
+    with pytest.raises(OpenEPWError):
+        stream = RemoteZip("https://data.openei.org/test.zip", http)
+        stream.read(10)
+
+
+def test_future_archive_cannot_be_replaced_with_historical_data(tmp_path):
+    from openepw.generation.hourly_archive import ROOT, HourlyArchive
+    from openepw.models import FutureRequest
+
+    request = FutureRequest(
+        baseline="fake", method="climate_profile", target_year=2050, climate_scenario="rcp85"
+    )
+    params = {"archive_url": ROOT + "Baseline_v1.1.zip", "site": "1", "members": {}}
+    with pytest.raises(OpenEPWError) as exc:
+        HourlyArchive(None).generate(request, params, synthetic())
+    assert exc.value.issue.code == "INVALID_REQUEST"
+
+
+def test_extreme_rejects_missing_temperature():
+    data = synthetic(2045, 8760)
+    data.data.loc[data.data.index[0], "dry_bulb"] = float("nan")
+    with pytest.raises(OpenEPWError):
+        select_profile({2045: data}, {}, "extreme", {"type": "hot", "mode": "shock"})

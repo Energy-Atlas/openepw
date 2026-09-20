@@ -4,6 +4,8 @@ import csv
 import hashlib
 import json
 import math
+import re
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +17,28 @@ from .morph import MonthlySignal
 
 VARIABLES = ("tas", "tasmin", "tasmax", "hurs", "ps", "sfcWind", "rsds")
 CATALOG = "https://storage.googleapis.com/cmip6/pangeo-cmip6.csv"
+LICENSE_REGISTRY = "https://raw.githubusercontent.com/WCRP-CMIP/CMIP6_CVs/main/CMIP6_source_id.json"
+
+
+def effective_license(registry, model):
+    info = registry.get("source_id", {}).get(model, {}).get("license_info", {})
+    if info.get("id") not in ("CC BY 4.0", "CC BY-SA 4.0", "CC0 1.0"):
+        raise OpenEPWError(
+            "RESTRICTED_LICENSE", "CMIP6 model has an unknown or restricted effective data license"
+        )
+    return {key: str(info.get(key, "")) for key in ("id", "url", "history")}
+
+
+def approved_store(store):
+    if (
+        not isinstance(store, str)
+        or not re.fullmatch(r"gs://cmip6/CMIP6/[A-Za-z0-9_./-]+", store)
+        or ".." in store.split("/")
+    ):
+        raise OpenEPWError(
+            "INVALID_REQUEST", "CMIP6 source must be a published gs://cmip6/CMIP6 catalog store"
+        )
+    return store.replace("gs://", "https://storage.googleapis.com/").rstrip("/")
 
 
 def monthly_means(point, period):
@@ -64,6 +88,18 @@ class CMIP6Backend:
         self.http = http
         self.root = Path(http.config.data_root) / "cache" / "cmip6"
 
+    def license_info(self, model):
+        path = self.root / "license-registry.json"
+        if not path.exists():
+            atomic_write(path, self.http.get(LICENSE_REGISTRY, limit=10_000_000))
+        raw = path.read_bytes()
+        return {
+            **effective_license(json.loads(raw), model),
+            "registry_url": LICENSE_REGISTRY,
+            "registry_sha256": hashlib.sha256(raw).hexdigest(),
+            "retrieved_at": datetime.fromtimestamp(path.stat().st_mtime, UTC).isoformat(),
+        }
+
     def select(self, request):
         if not request.climate_scenario.startswith("ssp"):
             raise OpenEPWError("INVALID_SCENARIO_PERIOD", "CMIP6 morphing requires an SSP scenario")
@@ -102,6 +138,7 @@ class CMIP6Backend:
                 complete.append(
                     {
                         "model": key[0],
+                        "effective_license": self.license_info(key[0]),
                         "member": key[1],
                         "grid": key[2],
                         "rows": list(group.values()),
@@ -109,7 +146,11 @@ class CMIP6Backend:
                     }
                 )
                 seen.add(key[:2])
-        if not complete or any(not any(p["model"] == m for p in complete) for m in models):
+        if not complete or any(
+            not any(p["model"] == model and p["member"] == member for p in complete)
+            for model in models
+            for member in members
+        ):
             raise OpenEPWError(
                 "UNAVAILABLE_PERIOD",
                 "No complete coherent CMIP6 variable/member intersection for selectors",
@@ -120,7 +161,7 @@ class CMIP6Backend:
         total = 0
         for pair in pairs:
             for row in pair["rows"]:
-                url = row["zstore"].replace("gs://", "https://storage.googleapis.com/").rstrip("/")
+                url = approved_store(row["zstore"])
                 path = self.root / (digest(url) + ".json")
                 if not path.exists():
                     atomic_write(path, self.http.get(url + "/.zmetadata"))
@@ -135,6 +176,42 @@ class CMIP6Backend:
         return total
 
     def signals(self, pairs, request, location):
+        if not pairs or len(pairs) > 10:
+            raise OpenEPWError(
+                "RESOURCE_LIMIT", "CMIP6 execution supports one to ten coherent members per plan"
+            )
+        for pair in pairs:
+            for row in pair.get("rows", []):
+                approved_store(row.get("zstore"))
+            expected_pairs = {
+                (e, v) for e in ("historical", request.climate_scenario) for v in VARIABLES
+            }
+            rows = pair.get("rows", [])
+            if (
+                len(rows) != len(expected_pairs)
+                or {(r.get("experiment_id"), r.get("variable_id")) for r in rows} != expected_pairs
+                or any(
+                    r.get("source_id") != pair.get("model")
+                    or r.get("member_id") != pair.get("member")
+                    for r in rows
+                )
+            ):
+                raise OpenEPWError(
+                    "INVALID_REQUEST",
+                    "CMIP6 plan requires a complete coherent catalog intersection",
+                )
+            if pair["model"] not in (request.models or ["ACCESS-CM2"]) or pair["member"] not in (
+                request.members or ["r1i1p1f1"]
+            ):
+                raise OpenEPWError(
+                    "INVALID_REQUEST", "CMIP6 plan disagrees with requested model/member"
+                )
+        for pair in pairs:
+            pair["effective_license"] = self.license_info(pair["model"])
+        if self.estimate(pairs, request) > self.http.config.max_climate_bytes:
+            raise OpenEPWError(
+                "RESOURCE_LIMIT", "CMIP6 execution exceeds configured decoded-byte budget"
+            )
         try:
             import xarray as xr
         except ImportError:
@@ -150,7 +227,7 @@ class CMIP6Backend:
             licenses = []
             for row in pair["rows"]:
                 variable = row["variable_id"]
-                url = row["zstore"].replace("gs://", "https://storage.googleapis.com/").rstrip("/")
+                url = approved_store(row["zstore"])
                 key = digest(
                     {
                         "url": url,
@@ -264,7 +341,9 @@ class CMIP6Backend:
                 "source_checksums": checksums,
                 "calendar": calendar,
                 "source_location": actual_location,
-                "license": " | ".join(sorted(set(licenses))),
+                "license": pair["effective_license"]["id"],
+                "original_licenses": sorted(set(licenses)),
+                "license_registry": pair["effective_license"],
                 "profile_year": chosen,
                 "warnings": [
                     "Global-model nearest cell; baseline sequence and unresolved variables retained",

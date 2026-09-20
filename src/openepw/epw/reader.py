@@ -1,4 +1,5 @@
 import csv
+import hashlib
 import io
 from pathlib import Path
 
@@ -6,11 +7,11 @@ import numpy as np
 import pandas as pd
 
 from ..dataset import WeatherDataset
-from ..models import Issue, Location, OpenEPWError
+from ..models import Issue, Location, OpenEPWError, SourceRef, VariableLineage
 from .schema import FIELDS, HEADER_NAMES
 
 
-def read_epw(path: str | Path | bytes) -> WeatherDataset:
+def read_epw(path: str | Path | bytes, *, calendar: str | None = None) -> WeatherDataset:
     try:
         body = path if isinstance(path, bytes) else Path(path).read_bytes()
         rows = list(csv.reader(io.StringIO(body.decode("utf-8-sig", errors="replace"))))
@@ -36,6 +37,13 @@ def read_epw(path: str | Path | bytes) -> WeatherDataset:
         ):
             raise ValueError("Only hourly EPW labels 1..24, minute 0/60 are supported")
         source_years = labels[:, 0].tolist()
+        noleap = calendar == "noleap" or any(
+            "OPENEPW_CALENDAR=noleap" in cell for row in rows[:8] for cell in row
+        )
+        if calendar not in (None, "gregorian", "noleap") or (
+            noleap and ((labels[:, 1] == 2) & (labels[:, 2] == 29)).any()
+        ):
+            raise ValueError("Incompatible calendar declaration")
         synthetic = len(set(source_years)) > 1
         # Preserve a real continuous multi-year file; mixed TMY months use a synthetic calendar.
         actual = pd.to_datetime(
@@ -54,6 +62,8 @@ def read_epw(path: str | Path | bytes) -> WeatherDataset:
             if synthetic
             else labels[:, 0]
         )
+        if noleap:
+            years = np.full(len(labels), 2001)
         ends = pd.DatetimeIndex(
             pd.to_datetime(dict(year=years, month=labels[:, 1], day=labels[:, 2]))
             + pd.to_timedelta(labels[:, 3], unit="h")
@@ -77,9 +87,24 @@ def read_epw(path: str | Path | bytes) -> WeatherDataset:
         return WeatherDataset(
             data=data,
             location=location,
-            calendar="synthetic" if synthetic else "gregorian",
+            calendar="noleap" if noleap else "synthetic" if synthetic else "gregorian",
             headers=rows[:8],
             source_years=source_years,
+            lineage={
+                name: VariableLineage(
+                    variable=name,
+                    source=SourceRef(
+                        provider="input_epw",
+                        dataset="User/native EPW; original provider identity unverified",
+                        location=location,
+                        provisional=False,
+                        license="Input data license not inferred from EPW",
+                        citation="Input EPW header and checksum",
+                    ),
+                    raw_sha256=hashlib.sha256(body).hexdigest(),
+                )
+                for name, _ in FIELDS
+            },
             issues=issues,
         )
     except (ValueError, IndexError, OverflowError) as exc:

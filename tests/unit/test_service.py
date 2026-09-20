@@ -126,3 +126,21 @@ def test_nsrdb_approved_redirect_does_not_forward_credentials(tmp_path):
         )
         == b"weather"
     )
+
+
+def test_fractional_hour_request_fails_before_network(tmp_path):
+    def handler(request):
+        raise AssertionError("Should reject before network")
+
+    config = RuntimeConfig(data_root=tmp_path)
+    service = WeatherService(
+        config, http=HttpClient(config, transport=httpx.MockTransport(handler))
+    )
+    r = WeatherRequest(
+        locations=Location(lat=20, lon=75, standard_offset_minutes=330),
+        years=[2024],
+        providers=["openmeteo"],
+    )
+    with pytest.raises(OpenEPWError) as exc:
+        service.plan(r)
+    assert exc.value.issue.code == "UNSUPPORTED_TIMEZONE"

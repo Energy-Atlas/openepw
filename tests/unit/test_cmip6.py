@@ -5,6 +5,28 @@ from openepw.generation.cmip6 import make_signal, monthly_means
 from openepw.models import OpenEPWError
 
 
+def test_authoritative_license_policy_rejects_unknown_and_noncommercial():
+    from openepw.generation.cmip6 import effective_license
+
+    registry = {
+        "source_id": {
+            "model": {
+                "license_info": {
+                    "id": "CC BY 4.0",
+                    "url": "https://creativecommons.org/licenses/by/4.0/",
+                    "history": "relaxed from CC BY-SA 4.0",
+                }
+            }
+        }
+    }
+    assert effective_license(registry, "model")["id"] == "CC BY 4.0"
+    with pytest.raises(OpenEPWError):
+        effective_license(registry, "unknown")
+    registry["source_id"]["model"]["license_info"]["id"] = "CC BY-NC-SA 4.0"
+    with pytest.raises(OpenEPWError):
+        effective_license(registry, "model")
+
+
 def test_360_day_climatology_and_missing_month_rejected():
     xr = pytest.importorskip("xarray")
     pytest.importorskip("cftime")

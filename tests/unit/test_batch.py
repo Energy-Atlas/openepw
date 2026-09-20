@@ -103,3 +103,20 @@ def test_explicit_hybrid_uses_assigned_source(tmp_path):
     z.data.index = z.data.index + pd.Timedelta(hours=1)
     with pytest.raises(OpenEPWError):
         combine({"station": a, "solar": z}, request.hybrid_policy.assignments)
+
+
+def test_subhourly_missing_state_is_not_silently_filled():
+    import numpy as np
+
+    from openepw.planning.hybrid import hourly
+
+    frame = pd.DataFrame(
+        {"dry_bulb": [20, np.nan], "wind_direction": [180, np.nan], "ghi": [100, 100]},
+        index=pd.date_range("2024-01-01T00:30Z", periods=2, freq="30min"),
+    )
+    result = hourly(
+        WeatherDataset(data=frame, location=Location(lat=0, lon=0), interval_minutes=30)
+    )
+    assert np.isnan(result.data.dry_bulb.iloc[0])
+    assert np.isnan(result.data.wind_direction.iloc[0])
+    assert result.data.ghi.iloc[0] == 200

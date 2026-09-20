@@ -17,6 +17,8 @@ class MonthlySignal(Model):
     reference_period: tuple[int, int]
     climate_period: tuple[int, int]
     license: str
+    original_licenses: list[str] = Field(default_factory=list)
+    license_registry: dict[str, str] = Field(default_factory=dict)
     source_uri: str
     source_checksums: list[str]
     calendar: str = "gregorian"
