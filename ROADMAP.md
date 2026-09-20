@@ -16,14 +16,15 @@ plan were completed. Owner approved Stage 2 on 2026-09-20.
 - [x] MCP, CLI and examples over the canonical service.
 - [x] Final acceptance record, documentation and regression checks.
 
-## Web UI — planning only
+## Web UI — substantially complete
 
-A same-repository frontend under `ui/` is the accepted direction. The
-[draft design](docs/superpowers/specs/2026-09-20-webui-design.md) and
-[implementation plan](docs/superpowers/plans/2026-09-20-webui.md) cover a compact
-dockable UI, MapLibre/3D, real scripted workflows and API documentation.
-Implementation is not yet approved. Local-first deployment is a proposed default.
-No repository extraction or PyPI publication is part of this milestone.
+Approved local-first single-user implementation is delivered in `ui/` on
+`feature/webui`: dockable themes, MapLibre/3D interaction, existing/future weather,
+real scripted workflows, bounded result/QC/provenance inspection, API references
+and optional FastAPI static hosting. See [acceptance and remaining limits](docs/validation/webui-acceptance.md).
+No repository extraction or PyPI publication occurred. Follow-ups are browser/device
+coverage, bundle loading optimization and explicit reference-theme redistribution
+permission before public distribution, not blockers for this local milestone.
 
 ## Follow-ups after v0.1
 

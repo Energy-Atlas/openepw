@@ -1111,13 +1111,13 @@ export interface operations {
     }
     requestBody?: never
     responses: {
-      /** @description Successful Response */
+      /** @description Original artifact bytes; media type comes from ArtifactRef */
       200: {
         headers: {
           [name: string]: unknown
         }
         content: {
-          'application/json': unknown
+          'application/octet-stream': string
         }
       }
       /** @description Bad Request */

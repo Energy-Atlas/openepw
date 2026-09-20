@@ -1,0 +1,40 @@
+name: web-ui
+on: [push, pull_request]
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - run: python -m venv .venv
+      - run: .venv/bin/python -m pip install -e ".[dev,api,mcp]"
+      - run: npm ci --prefix ui
+      - run: .venv/bin/python scripts/export_openapi.py ui/openapi.json
+      - run: .venv/bin/python scripts/export_api_catalog.py
+      - run: npm --prefix ui run generate
+      - run: git diff --exit-code -- ui/openapi.json ui/src/api/schema.d.ts ui/public/api-catalog.json
+      - run: npm --prefix ui run typecheck
+      - run: npm --prefix ui run format:check
+      - run: npm --prefix ui run lint
+      - run: npm --prefix ui test
+      - run: npm --prefix ui run build
+      - run: npx playwright install --with-deps chromium
+        working-directory: ui
+      - run: npm --prefix ui run test:e2e
+        env:
+          PLAYWRIGHT_CHANNEL: chromium
+      - run: npm --prefix ui run test:e2e:production
+        env:
+          PLAYWRIGHT_CHANNEL: chromium
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: browser-evidence
+          path: ui/test-results/

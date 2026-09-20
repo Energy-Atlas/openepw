@@ -189,3 +189,59 @@ test('comma lists and drafts survive reload without running jobs', async ({ page
   await expect(page.getByRole('button', { name: 'Run reviewed plan', exact: true })).toHaveCount(0)
   expect(submissions).toBe(0)
 })
+
+test('WebGL initialization failure leaves request planning usable', async ({ page }) => {
+  await page.addInitScript(() => {
+    const original = HTMLCanvasElement.prototype.getContext
+    HTMLCanvasElement.prototype.getContext = function (type: string, ...args: unknown[]) {
+      if (type.startsWith('webgl') || type === 'experimental-webgl') return null
+      return original.apply(this, [type, ...args] as never)
+    } as typeof original
+  })
+  await page.reload()
+  await page.getByLabel('Latitude', { exact: true }).fill('41.5')
+  await page.getByRole('button', { name: 'Review plan', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Run reviewed plan', exact: true })).toBeEnabled()
+})
+test('partial results and explicit server cancellation remain distinct', async ({ page }) => {
+  const partial = {
+    id: 'partial-job',
+    state: 'partially_completed',
+    completed: 1,
+    failed: 1,
+    total: 2,
+    errors: [{ code: 'SOURCE_UNAVAILABLE', message: 'Test source unavailable' }],
+  }
+  const running = {
+    id: 'running-job',
+    state: 'running',
+    completed: 0,
+    failed: 0,
+    total: 2,
+    errors: [],
+  }
+  await page.route('**/v1/jobs?limit=20', (r) =>
+    r.fulfill({ json: { items: [partial, running], next_cursor: null } }),
+  )
+  await page.route('**/v1/jobs/partial-job', (r) => r.fulfill({ json: partial }))
+  await page.route('**/v1/jobs/running-job', (r) => r.fulfill({ json: running }))
+  let cancelCalls = 0
+  await page.route('**/v1/jobs/running-job/cancel', (r) => {
+    cancelCalls++
+    return r.fulfill({ json: { ...running, state: 'cancelled', cancellation_requested: true } })
+  })
+  await page.reload()
+  await page.locator('header').getByRole('button', { name: 'Results', exact: true }).click()
+  await page
+    .locator('.job-list')
+    .getByRole('button', { name: /partial-job|partial-/ })
+    .click()
+  await expect(page.getByRole('alert').filter({ hasText: 'SOURCE_UNAVAILABLE' })).toBeVisible()
+  await page
+    .locator('.job-list')
+    .getByRole('button', { name: /running-/ })
+    .click()
+  await page.getByRole('button', { name: 'Cancel job', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Cancel job', exact: true })).toHaveCount(0)
+  expect(cancelCalls).toBe(1)
+})

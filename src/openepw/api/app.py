@@ -198,7 +198,12 @@ def create_app(service=None, *, remote=False, ui_dir=None):
             uuid.uuid4().hex, "baseline.epw", body, "baseline", "application/vnd.energyplus.epw"
         )
 
-    @app.get("/v1/artifacts/{artifact_id}")
+    @app.get(
+        "/v1/artifacts/{artifact_id}",
+        response_class=FileResponse,
+        responses={200: {"description": "Original artifact bytes; media type comes from ArtifactRef",
+                         "content": {"application/octet-stream": {"schema": {"type": "string", "format": "binary"}}}}},
+    )
     def artifact(artifact_id: str):
         ref, path = service.artifacts.resolve(artifact_id)
         return FileResponse(path, media_type=ref.media_type, filename=path.name)

@@ -18,6 +18,29 @@ python -m pip install ".[api,mcp,climate,cds]"   # optional interfaces and clima
 Python 3.11+. Core imports do not require FastAPI, MCP or xarray. Development:
 `python -m pip install -e ".[dev,api,mcp,climate,cds]"`.
 
+## Local web UI
+
+The optional React frontend lives in `ui/` in this repository. Build it with Node 24,
+then run the single-user loopback server from the repository root:
+
+```bash
+python -m pip install ".[api,mcp,climate,cds]"
+npm ci --prefix ui
+npm --prefix ui run build
+openepw --env-file .env serve --ui-dir ui/dist
+```
+
+Open **http://127.0.0.1:8000/ui/**. Request, Map, Results and the collapsed scripted
+Agent panel share real API operations. API Docs includes REST, Python and MCP
+references; Source Code opens this repository. Choose a fixed standard-time offset
+explicitly. Terrain and buildings provide geographic context, not weather resolution.
+
+For development, run `openepw --env-file .env serve` in one terminal and
+`npm --prefix ui run dev` in another; open the Vite `/ui/` URL. The development proxy
+uses port 8000 by default; set `OPENEPW_API_URL` before starting Vite to change it.
+Node is needed only to build/develop the UI, never to install or run the Python core.
+See [UI usage and limits](docs/webui.md) and [acceptance](docs/validation/webui-acceptance.md).
+
 ## Retrieve weather
 
 ```python

@@ -64,3 +64,18 @@ Raw data and downloaded climate subsets are local caches, not licensed public
 redistribution. Cache reuse is checksummed; provider versioned URLs can still change
 upstream before first retrieval. Plans are reproducible instructions, not a promise
 that an uncached external source can never change.
+
+
+## Optional local web UI
+
+The same-repo UI is a local single-user frontend. Advanced batch/hybrid/grid options
+use validated request JSON; they do not all have separate form controls. Artifact
+QC/provenance detail is presented as structured JSON plus summary/chart views.
+Desktop Edge is locally verified; Chromium Linux CI is configured, not claimed run.
+No Safari/Firefox/mobile-device or exhaustive docking/accessibility certification.
+Public basemap/terrain services require connectivity and have independent terms;
+weather requests remain usable when map rendering fails. Long archive retrievals
+may outlive browser requests; inspect server history before requesting a new run.
+Reference appearance definitions require explicit redistribution permission before
+public UI distribution. Initial JS bundles are large; loading optimization remains
+a follow-up. See [UI acceptance](validation/webui-acceptance.md).

@@ -13,7 +13,7 @@ Record approval in the plan when received; never infer approval from elapsed tim
 - The owner has approved keeping a future web UI in `ui/` in this repository,
   superseding the original no-frontend constraint. The owner approved autonomous
   local-first, single-user UI implementation on 2026-09-20. See
-  [UI draft](docs/superpowers/plans/2026-09-20-webui.md).
+  [UI plan](docs/superpowers/plans/2026-09-20-webui.md).
 - Implement two genuinely distinct future methods; retain actual scenario/window
   semantics and per-variable provenance. No fabricated availability or metadata.
 - Keep scientific/data core independent of server/MCP/xarray imports.

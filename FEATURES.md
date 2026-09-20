@@ -21,9 +21,12 @@ are recorded separately. Installed source package version: 0.1.0.
 | Future ensembles | Implemented | Model/member outputs for morph; temporal years for hourly archive |
 | REST/jobs/artifacts | Implemented, offline tested | SQLite + filesystem; single server process; bearer auth for remote REST |
 | MCP and CLI | Implemented, offline tested | Stdio and loopback Streamable HTTP; compact artifact references |
+| Local web UI | Implemented, browser tested | Optional same-repo build; single-user loopback, no LLM |
+| Map and previews | Implemented | MapLibre globe/terrain/context, source markers; missing/calendar/source-year semantics retained |
+| Scripted workflows/API docs | Implemented | Shared actions; REST/Python/MCP references and source link |
 | Packaging/CI | Wheel/sdist built; local installation verified | Cross-OS runners configured; see actual run evidence |
 
 Reserved: sampled/stochastic weather, additional hourly scenarios/geographies,
 GHCNh successor adapter, automatic global OneBuilding proximity catalog, simulator
-certification. No historical TMY/XMY generator, frontend or distributed service.
+certification. No historical TMY/XMY generator or mandatory distributed service.
 See [limitations](docs/limitations.md) for exact reduced capabilities and follow-ups.

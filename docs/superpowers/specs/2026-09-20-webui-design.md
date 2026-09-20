@@ -1,4 +1,4 @@
-# OpenEPW web UI — draft design
+# OpenEPW web UI — approved design
 
 Status: approved on 2026-09-20 for autonomous implementation. Local-first, single-user confirmed.
 Branch: preserve `feature/webui`. Baseline backend: `b1f8d4a`.
@@ -14,11 +14,11 @@ and a source-code link. Scripted agents execute real OpenEPW operations; no LLM.
 Do not extract repositories or publish a UI-free PyPI release in this milestone.
 The original brief's no-frontend constraint is superseded by this explicit request.
 
-## Proposed defaults requiring review
+## Approved defaults
 
 - Local-first, single-user deployment, using the existing single-process backend.
   Remote shared-server/multi-user behavior is not part of this milestone. This is
-  an assumption, not an answer to the earlier deployment question.
+  the owner-confirmed deployment scope.
 - Include both existing-weather retrieval and future generation. Manual operation
   comes first; scripted workflows invoke the same actions.
 - Browser traffic uses REST. Keep the existing MCP service and document it; do not
