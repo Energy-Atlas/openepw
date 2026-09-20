@@ -1,0 +1,75 @@
+import numpy as np
+import pandas as pd
+import pytest
+
+from openepw.dataset import WeatherDataset, irradiance_to_energy
+from openepw.epw import read_epw, write_epw
+from openepw.models import Location
+from openepw.qc import validate
+
+
+def synthetic(year=2023, periods=24):
+    index = pd.date_range(f"{year}-01-01 01:00", periods=periods, freq="h", tz="UTC")
+    data = pd.DataFrame(
+        {
+            "dry_bulb": 20.0,
+            "dew_point": 10.0,
+            "relative_humidity": 50.0,
+            "pressure": 101325.0,
+            "ghi": 0.0,
+            "dni": 0.0,
+            "dhi": 0.0,
+            "wind_speed": 2.0,
+            "wind_direction": 180.0,
+        },
+        index=index,
+    )
+    return WeatherDataset(data=data, location=Location(lat=42, lon=-76))
+
+
+@pytest.mark.parametrize("year,rows", [(2023, 24), (2023, 8760), (2024, 8784)])
+def test_roundtrip_preserves_hour_24_leap_and_missing(tmp_path, year, rows):
+    dataset = synthetic(year, rows)
+    dataset.data.iloc[0, 0] = np.nan
+    path = tmp_path / "weather.epw"
+    write_epw(dataset, path)
+    lines = path.read_text().splitlines()
+    assert len(lines) == rows + 8
+    assert all(len(line.split(",")) == 35 for line in lines[8:])
+    assert lines[31].split(",")[3:5] == ["24", "60"]
+    assert lines[8].split(",")[6] == "99.9"
+    result = read_epw(path)
+    assert len(result.data) == rows
+    assert result.data.index.equals(dataset.data.index)
+    assert np.isnan(result.data.dry_bulb.iloc[0])
+    assert result.data.pressure.iloc[-1] == 101325
+    annual = validate(result, profile="annual")
+    assert ("INCOMPLETE_YEAR" in [x.code for x in annual]) == (rows == 24)
+
+
+def test_native_minute_zero_and_tmy_years(tmp_path):
+    d = synthetic(2001, 8760)
+    p = tmp_path / "tmy.epw"
+    write_epw(d, p)
+    lines = p.read_text().splitlines()
+    for i in range(8, len(lines)):
+        fields = lines[i].split(",")
+        fields[0] = str(1990 + int(fields[1]))
+        fields[4] = "0"
+        lines[i] = ",".join(fields)
+    p.write_text("\n".join(lines))
+    r = read_epw(p)
+    assert r.calendar == "synthetic"
+    assert r.data.index.is_unique
+    assert r.source_years[0] == 1991
+    assert "NATIVE_MINUTE_ZERO" in [i.code for i in r.issues]
+
+
+def test_half_hour_solar_energy_and_qc():
+    assert irradiance_to_energy(200, 30) == 100
+    d = synthetic()
+    d.data.loc[d.data.index[0], ["dew_point", "relative_humidity", "ghi"]] = [25, 105, -1]
+    codes = {i.code for i in validate(d)}
+    assert {"DEW_ABOVE_DRY", "RH_SUPERSATURATED", "NEGATIVE_SOLAR"} <= codes
+    d.data = pd.concat([d.data, d.data.iloc[:1]])
+    assert "DUPLICATE_TIME" in {i.code for i in validate(d)}
