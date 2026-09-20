@@ -50,7 +50,7 @@ class PVGISProvider:
         }
         sha = hashlib.sha256(raw).hexdigest()
         data.lineage = {
-            name: VariableLineage(
+            str(name): VariableLineage(
                 variable=name,
                 source=source,
                 raw_sha256=sha,

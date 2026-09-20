@@ -21,7 +21,7 @@ class RuntimeConfig(Model):
     timeout: float = Field(default=60, gt=0, le=300)
     retries: int = Field(default=2, ge=0, le=5)
     max_response_bytes: int = Field(default=50_000_000, gt=0)
-    max_climate_bytes: int = Field(default=500_000_000, gt=0)
+    max_climate_bytes: int = Field(default=3_000_000_000, gt=0)
     workers: int = Field(default=2, ge=1, le=8)
 
     @classmethod

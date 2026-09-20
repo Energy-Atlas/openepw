@@ -170,12 +170,19 @@ class FutureRequest(Model):
         if self.climate_period is None:
             if self.target_year is None:
                 raise ValueError("Provide target year or climate period")
-            object.__setattr__(
-                self, "climate_period", (self.target_year - 14, self.target_year + 15)
-            )
+            period: tuple[int, int] | None = (self.target_year - 14, self.target_year + 15)
+            if self.method == "climate_profile":
+                period = next(
+                    (p for p in ((2045, 2054), (2085, 2094)) if p[0] <= self.target_year <= p[1]),
+                    None,
+                )
+                if period is None:
+                    raise ValueError("Hourly archive target must lie in a published window")
+            object.__setattr__(self, "climate_period", period)
         for period in (self.climate_period, self.reference_period):
             if period and (period[0] > period[1] or period[0] < 1850 or period[1] > 2300):
                 raise ValueError("Invalid climate period")
+        assert self.climate_period is not None
         if (
             self.target_year
             and not self.climate_period[0] <= self.target_year <= self.climate_period[1]

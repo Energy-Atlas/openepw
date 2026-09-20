@@ -118,7 +118,7 @@ class CDSProvider:
 
     def fetch(self, task, http):
         try:
-            import xarray as xr
+            import xarray  # noqa: F401 -- check optional backend before issuing a CDS job
         except ImportError:
             raise OpenEPWError(
                 "OPTIONAL_DEPENDENCY", "Install openepw[cds] for direct CDS"

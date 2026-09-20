@@ -47,6 +47,6 @@ def irradiance_to_energy(value, interval_minutes: float):
 
 
 def local_interval_starts(dataset: WeatherDataset) -> pd.DatetimeIndex:
-    return dataset.data.index.tz_localize(None) + pd.Timedelta(
+    return pd.DatetimeIndex(dataset.data.index).tz_localize(None) + pd.Timedelta(
         minutes=dataset.location.standard_offset_minutes - dataset.interval_minutes
     )

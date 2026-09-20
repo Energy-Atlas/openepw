@@ -79,7 +79,7 @@ def validate(dataset: WeatherDataset, profile: str = "standard") -> list[Issue]:
         if name in data and (data[name] < 0).any():
             add("NEGATIVE_SOLAR", "Negative interval solar energy", name)
     # Approximate solar altitude at interval midpoint; flag only well below horizon.
-    middle = data.index - pd.Timedelta(minutes=dataset.interval_minutes / 2)
+    middle = pd.DatetimeIndex(data.index) - pd.Timedelta(minutes=dataset.interval_minutes / 2)
     day = middle.dayofyear.to_numpy()
     b = 2 * np.pi * (day - 81) / 364
     eot = 9.87 * np.sin(2 * b) - 7.53 * np.cos(b) - 1.5 * np.sin(b)

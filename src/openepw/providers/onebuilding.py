@@ -122,7 +122,7 @@ class OneBuildingProvider:
         source = task.source.model_copy(update={"location": data.location, "provisional": False})
         sha = hashlib.sha256(raw).hexdigest()
         data.lineage = {
-            name: VariableLineage(
+            str(name): VariableLineage(
                 variable=name, source=source, raw_sha256=sha, transforms=["published native EPW"]
             )
             for name in data.data

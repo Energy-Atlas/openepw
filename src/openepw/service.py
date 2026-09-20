@@ -4,6 +4,7 @@ import hashlib
 import json
 import uuid
 from pathlib import Path
+from typing import Any
 
 from .artifacts.store import ArtifactStore, atomic_write
 from .config import RuntimeConfig
@@ -37,19 +38,21 @@ class WeatherService:
     def __init__(self, config: RuntimeConfig | None = None, *, http=None, providers=None):
         self.config = config or RuntimeConfig.load()
         self.http = http or HttpClient(self.config)
-        self.providers = {
+        self.providers: dict[str, Any] = {
             p.name: p
             for p in (
                 providers
                 if providers is not None
-                else [
-                    OpenMeteoProvider(),
-                    PVGISProvider(),
-                    OneBuildingProvider(),
-                    NOAAProvider(),
-                    NSRDBProvider(),
-                    CDSProvider(),
-                ]
+                else list[Any](
+                    [
+                        OpenMeteoProvider(),
+                        PVGISProvider(),
+                        OneBuildingProvider(),
+                        NOAAProvider(),
+                        NSRDBProvider(),
+                        CDSProvider(),
+                    ]
+                )
             )
         }
         self.artifacts = ArtifactStore(self.config.data_root)
@@ -138,7 +141,9 @@ class WeatherService:
         discovery = discovery or self.discover(request)
         if [p.key for p in discovery.locations] != [p.key for p in self.locations(request)]:
             raise OpenEPWError("PLAN_STALE", "Discovery locations differ from this request")
-        tasks, outputs, selected = {}, [], []
+        tasks = {}
+        outputs = []
+        selected: list[Candidate] = []
         warnings = [i.message for i in discovery.issues]
         for loc in discovery.locations:
             candidates = [c for c in discovery.candidates if c.location_id == loc.key]
@@ -356,7 +361,7 @@ class WeatherService:
     def _cached_fetch(self, provider, task):
         # Replay exact HTTP bytes using a private cache recording, never request URLs/keys.
         root = Path(self.config.data_root) / "cache" / "raw" / task.cache_key
-        records = []
+        records: list[int] = []
         http = self.http
 
         class Replay:
@@ -389,3 +394,13 @@ class WeatherService:
 
     def fetch(self, request):
         return self.execute(self.plan(request))
+
+    def plan_future(self, request):
+        from .planning.future import plan_future
+
+        return plan_future(self, request)
+
+    def _execute_future(self, plan, **kwargs):
+        from .planning.future import execute_future
+
+        return execute_future(self, plan, **kwargs)
