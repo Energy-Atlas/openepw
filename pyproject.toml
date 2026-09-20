@@ -40,4 +40,4 @@ python_version = "3.11"
 files = ["src/openepw"]
 ignore_missing_imports = true
 check_untyped_defs = true
-
+follow_imports = "skip"

@@ -2,10 +2,11 @@ import pytest
 
 pytest.importorskip("fastapi")
 from fastapi.testclient import TestClient
+from test_batch import StationProvider
+
 from openepw.api.app import create_app
 from openepw.config import RuntimeConfig
 from openepw.service import WeatherService
-from test_batch import StationProvider
 
 
 def test_api_plan_parity_and_auth(tmp_path):

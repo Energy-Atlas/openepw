@@ -1,0 +1,111 @@
+import argparse
+import json
+from pathlib import Path
+
+from pydantic import ValidationError
+
+from ..config import RuntimeConfig
+from ..epw import read_epw
+from ..models import FutureRequest, OpenEPWError, WeatherPlan, WeatherRequest
+from ..qc import validate
+from ..service import WeatherService
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(
+        prog="openepw", description="Transparent weather retrieval and future climate EPWs"
+    )
+    parser.add_argument("--version", action="version", version="openepw 0.1.0")
+    parser.add_argument("--env-file", help="Explicit ignored dotenv file (never persisted)")
+    parser.add_argument("--data-root")
+    sub = parser.add_subparsers(dest="command", required=True)
+    for command in ("geocode", "discover", "plan", "fetch", "execute", "future", "inspect"):
+        cmd = sub.add_parser(command)
+        cmd.add_argument(
+            "input", help="Location text, request/plan JSON path, or EPW/job ID for inspect"
+        )
+        cmd.add_argument("--output", help="Write compact JSON result to this path")
+    serve = sub.add_parser("serve")
+    serve.add_argument("--host", default="127.0.0.1")
+    serve.add_argument("--port", type=int, default=8000)
+    mcp = sub.add_parser("mcp")
+    mcp.add_argument("--transport", choices=["stdio", "streamable-http"], default="stdio")
+    args = parser.parse_args(argv)
+    try:
+        config = RuntimeConfig.load(
+            env_file=args.env_file, **({"data_root": args.data_root} if args.data_root else {})
+        )
+        service = WeatherService(config)
+        if args.command == "serve":
+            import uvicorn
+
+            from ..api.app import create_app
+
+            uvicorn.run(
+                create_app(service, remote=args.host not in ("127.0.0.1", "localhost", "::1")),
+                host=args.host,
+                port=args.port,
+            )
+            return 0
+        if args.command == "mcp":
+            from ..mcp.server import create_server
+
+            create_server(service).run(transport=args.transport)
+            return 0
+        if args.command == "geocode":
+            result = service.geocode(args.input)
+        elif args.command == "inspect":
+            path = Path(args.input)
+            if path.is_file():
+                if path.suffix.lower() == ".epw":
+                    data = read_epw(path)
+                    result = {
+                        "rows": len(data.data),
+                        "location": data.location.model_dump(),
+                        "calendar": data.calendar,
+                        "qc": [i.model_dump() for i in validate(data)],
+                    }
+                else:
+                    result = json.loads(path.read_text())
+            else:
+                from ..jobs.store import JobStore
+
+                result = JobStore(config.data_root).get(args.input)
+        else:
+            raw = Path(args.input).read_text(encoding="utf-8")
+            if args.command == "execute":
+                result = service.execute(WeatherPlan.model_validate_json(raw))
+            elif args.command == "future":
+                result = service.execute(
+                    service.plan_future(FutureRequest.model_validate_json(raw))
+                )
+            else:
+                request = WeatherRequest.model_validate_json(raw)
+                result = getattr(service, args.command)(request)
+        value = result.model_dump(mode="json") if hasattr(result, "model_dump") else result
+        rendered = json.dumps(value, indent=2, allow_nan=False)
+        if args.output:
+            Path(args.output).write_text(rendered + "\n", encoding="utf-8")
+        else:
+            print(rendered)
+        return (
+            1
+            if isinstance(value, dict)
+            and any(i.get("severity") == "error" for i in value.get("issues", []))
+            else 0
+        )
+    except (OpenEPWError, ValidationError, OSError, ValueError) as exc:
+        error = (
+            exc.issue.model_dump()
+            if isinstance(exc, OpenEPWError)
+            else {
+                "code": "INVALID_REQUEST",
+                "message": "Invalid request, configuration or local input file",
+            }
+        )
+        print(json.dumps(error))
+        return 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

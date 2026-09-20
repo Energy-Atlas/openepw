@@ -1,14 +1,16 @@
 import hashlib
+
 import pandas as pd
+
 from openepw.config import RuntimeConfig
 from openepw.dataset import WeatherDataset
 from openepw.models import (
     Candidate,
+    HybridPolicy,
     Location,
     SourceRef,
     VariableLineage,
     WeatherRequest,
-    HybridPolicy,
 )
 from openepw.providers.base import ProviderResult
 from openepw.service import WeatherService
@@ -71,9 +73,10 @@ def test_73_requests_reuse_11_verified_sources(tmp_path):
 
 
 def test_explicit_hybrid_uses_assigned_source(tmp_path):
-    from openepw.planning.hybrid import combine
-    from openepw.models import OpenEPWError
     import pytest
+
+    from openepw.models import OpenEPWError
+    from openepw.planning.hybrid import combine
 
     first = StationProvider()
     second = StationProvider()
