@@ -1,15 +1,29 @@
 import hmac
+import json
 import uuid
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI, File, Header, HTTPException, UploadFile
+from fastapi import Body, Depends, FastAPI, File, Header, HTTPException, Query, UploadFile
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
 from ..epw import read_epw
+from ..generation.morph import MonthlySignal
 from ..jobs.worker import JobRunner
-from ..models import FutureRequest, OpenEPWError, WeatherPlan, WeatherRequest
+from ..models import (
+    ArtifactBundle,
+    ArtifactRef,
+    DiscoveryResult,
+    FutureRequest,
+    GeocodeResult,
+    JobListResponse,
+    OpenEPWError,
+    WeatherJob,
+    WeatherPlan,
+    WeatherRequest,
+)
+from ..preview import WeatherPreview
 from ..service import WeatherService
 
 
@@ -84,15 +98,15 @@ def create_app(service=None, *, remote=False):
     def health():
         return {"status": "ok", "version": "0.1.0"}
 
-    @app.post("/v1/geocode")
+    @app.post("/v1/geocode", response_model=GeocodeResult)
     def geocode(query: GeocodeQuery):
         return service.geocode(query.query, mode=query.mode)
 
-    @app.post("/v1/weather/discover")
+    @app.post("/v1/weather/discover", response_model=DiscoveryResult)
     def discover(request: WeatherRequest):
         return service.discover(request)
 
-    @app.post("/v1/weather/plan")
+    @app.post("/v1/weather/plan", response_model=WeatherPlan)
     def plan(request: WeatherRequest):
         return service.plan(request)
 
@@ -102,7 +116,7 @@ def create_app(service=None, *, remote=False):
         if request.signals:
             service.artifacts.resolve(request.signals)
 
-    @app.post("/v1/future/plan")
+    @app.post("/v1/future/plan", response_model=WeatherPlan)
     def future_plan(request: FutureRequest):
         safe_future(request)
         return service.plan_future(request)
@@ -114,27 +128,49 @@ def create_app(service=None, *, remote=False):
             safe_future(payload.plan.request)
         return runner.submit(payload.plan, payload.idempotency_key)
 
-    @app.post("/v1/weather/jobs", status_code=202)
+    @app.post("/v1/weather/jobs", status_code=202, response_model=WeatherJob)
     def weather_job(payload: JobSubmission):
         return submit(payload, "weather")
 
-    @app.post("/v1/future/jobs", status_code=202)
+    @app.post("/v1/future/jobs", status_code=202, response_model=WeatherJob)
     def future_job(payload: JobSubmission):
         return submit(payload, "future")
 
-    @app.get("/v1/jobs/{job_id}")
+    @app.get("/v1/jobs", response_model=JobListResponse)
+    def list_jobs(limit: int = Query(20, ge=1, le=100), cursor: str | None = None):
+        return runner.store.list_jobs(limit, cursor)
+
+    @app.post("/v1/artifacts/signals", status_code=201, response_model=ArtifactRef)
+    def upload_signals(records: list[MonthlySignal] = Body(min_length=1, max_length=10)):
+        return service.artifacts.write(
+            uuid.uuid4().hex,
+            "signals.json",
+            json.dumps([r.model_dump(mode="json") for r in records], allow_nan=False).encode(),
+            "signals",
+        )
+
+    @app.get("/v1/artifacts/{artifact_id}/preview", response_model=WeatherPreview)
+    def preview(
+        artifact_id: str,
+        start: int = Query(0, ge=0),
+        limit: int = Query(168, ge=1, le=168),
+        variables: list[str] | None = Query(None),
+    ):
+        return service.preview_artifact(artifact_id, start, limit, variables)
+
+    @app.get("/v1/jobs/{job_id}", response_model=WeatherJob)
     def job(job_id: str):
         return runner.store.get(job_id)
 
-    @app.post("/v1/jobs/{job_id}/cancel")
+    @app.post("/v1/jobs/{job_id}/cancel", response_model=WeatherJob)
     def cancel(job_id: str):
         return runner.store.cancel(job_id)
 
-    @app.get("/v1/jobs/{job_id}/artifacts")
+    @app.get("/v1/jobs/{job_id}/artifacts", response_model=ArtifactBundle | None)
     def artifacts(job_id: str):
         return runner.store.get(job_id).bundle
 
-    @app.post("/v1/artifacts", status_code=201)
+    @app.post("/v1/artifacts", status_code=201, response_model=ArtifactRef)
     async def upload(file: UploadFile = File(...)):
         body = await file.read(5_000_001)
         if len(body) > 5_000_000:

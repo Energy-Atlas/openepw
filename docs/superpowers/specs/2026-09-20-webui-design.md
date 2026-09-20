@@ -1,6 +1,6 @@
 # OpenEPW web UI — draft design
 
-Status: draft for owner review, not implementation approval.
+Status: approved on 2026-09-20 for autonomous implementation. Local-first, single-user confirmed.
 Branch: preserve `feature/webui`. Baseline backend: `b1f8d4a`.
 Reference: `../energyatlas-ui`, `feature/agentic`, inspected commit `e52d513`.
 

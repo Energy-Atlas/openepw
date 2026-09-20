@@ -1,3 +1,5 @@
+import base64
+import json
 import sqlite3
 import uuid
 from pathlib import Path
@@ -90,6 +92,45 @@ class JobStore:
                 "INSERT OR REPLACE INTO items VALUES (?,?,?)",
                 (job_id, name, bundle.model_dump_json()),
             )
+
+    def list_jobs(self, limit=20, cursor=None):
+        from ..models import JobListResponse
+
+        if not 1 <= limit <= 100:
+            raise OpenEPWError("INVALID_REQUEST", "Job limit must be 1..100")
+        after = None
+        if cursor:
+            try:
+                if len(cursor) > 512:
+                    raise ValueError()
+                after = json.loads(base64.b64decode(cursor, altchars=b"-_", validate=True))
+                if (
+                    not isinstance(after, list)
+                    or len(after) != 2
+                    or not all(isinstance(x, str) for x in after)
+                ):
+                    raise ValueError()
+            except (ValueError, TypeError):
+                raise OpenEPWError("INVALID_REQUEST", "Invalid job cursor") from None
+        with self.connect() as db:
+            clause = "WHERE (json_extract(job, '$.submitted_at'), id) < (?, ?)" if after else ""
+            rows = db.execute(
+                "SELECT job FROM jobs "
+                + clause
+                + " ORDER BY json_extract(job, '$.submitted_at') DESC, id DESC LIMIT ?",
+                (*after, limit + 1) if after else (limit + 1,),
+            ).fetchall()
+        jobs = [WeatherJob.model_validate_json(row[0]) for row in rows]
+        more = len(jobs) > limit
+        jobs = jobs[:limit]
+        token = (
+            base64.urlsafe_b64encode(
+                json.dumps([jobs[-1].submitted_at, jobs[-1].id]).encode()
+            ).decode()
+            if more
+            else None
+        )
+        return JobListResponse(items=jobs, next_cursor=token)
 
     def unfinished(self):
         with self.connect() as db:

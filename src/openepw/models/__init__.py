@@ -339,3 +339,8 @@ class WeatherJob(Model):
     errors: list[Issue] = Field(default_factory=list)
     bundle: ArtifactBundle | None = None
     idempotency_key: str | None = None
+
+
+class JobListResponse(Model):
+    items: list[WeatherJob]
+    next_cursor: str | None = None
