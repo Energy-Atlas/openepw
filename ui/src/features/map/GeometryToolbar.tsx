@@ -4,6 +4,7 @@ import {
   MapPin,
   MousePointer2,
   Pentagon,
+  PenLine,
   RedoDot,
   Trash2,
   Undo2,
@@ -28,6 +29,10 @@ export function GeometryToolbar({
   onVertices,
   onFinish,
   onClear,
+  editable = false,
+  editing = false,
+  onEdit = () => {},
+  onCancel,
 }: {
   mode: DrawMode
   drawing: boolean
@@ -37,7 +42,19 @@ export function GeometryToolbar({
   onVertices: (vertices: Position[]) => void
   onFinish: () => void
   onClear: () => void
+  /** The applied geometry can be reopened for vertex editing. */
+  editable?: boolean
+  editing?: boolean
+  onEdit?: () => void
+  onCancel?: () => void
 }) {
+  const active = drawing || editing
+  const cancel =
+    onCancel ??
+    (() => {
+      onVertices([])
+      onDrawing(false)
+    })
   function nudge(event: React.KeyboardEvent) {
     if (!drawing || !vertices.length || !event.key.startsWith('Arrow')) return
     event.preventDefault()
@@ -56,8 +73,8 @@ export function GeometryToolbar({
         type="button"
         title="Pan map"
         aria-label="Pan map"
-        aria-pressed={!drawing}
-        onClick={() => onDrawing(false)}
+        aria-pressed={!active}
+        onClick={cancel}
       >
         <MousePointer2 aria-hidden="true" />
       </button>
@@ -80,12 +97,22 @@ export function GeometryToolbar({
           </button>
         )
       })}
+      <button
+        type="button"
+        title="Edit shape vertices"
+        aria-label="Edit shape vertices"
+        aria-pressed={editing}
+        disabled={!editable || drawing}
+        onClick={onEdit}
+      >
+        <PenLine aria-hidden="true" />
+      </button>
       <span className="geometry-divider" aria-hidden="true" />
       <button
         type="button"
         title="Undo last vertex"
         aria-label="Undo last vertex"
-        disabled={!vertices.length}
+        disabled={!drawing || !vertices.length}
         onClick={() => onVertices(undoVertex(vertices))}
       >
         <Undo2 aria-hidden="true" />
@@ -98,13 +125,13 @@ export function GeometryToolbar({
       >
         <Trash2 aria-hidden="true" />
       </button>
-      {drawing && (
+      {active && (
         <>
           <button
             type="button"
             className="geometry-finish"
-            title="Finish selection"
-            aria-label="Finish selection"
+            title={editing ? 'Apply edited shape' : 'Finish selection'}
+            aria-label={editing ? 'Apply edited shape' : 'Finish selection'}
             disabled={!canFinish(mode, vertices)}
             onClick={onFinish}
           >
@@ -112,19 +139,16 @@ export function GeometryToolbar({
           </button>
           <button
             type="button"
-            title="Cancel drawing"
-            aria-label="Cancel drawing"
-            onClick={() => {
-              onVertices([])
-              onDrawing(false)
-            }}
+            title={editing ? 'Discard edits' : 'Cancel drawing'}
+            aria-label={editing ? 'Discard edits' : 'Cancel drawing'}
+            onClick={cancel}
           >
             <X aria-hidden="true" />
           </button>
         </>
       )}
       {/* Measurements describe the shape being drawn; nothing is pending once it is applied. */}
-      <output aria-live="polite">{drawing ? measureSelection(mode, vertices) : ''}</output>
+      <output aria-live="polite">{active ? measureSelection(mode, vertices) : ''}</output>
     </div>
   )
 }

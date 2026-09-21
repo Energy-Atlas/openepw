@@ -83,3 +83,62 @@ export function geometry(mode: DrawMode, vertices: Position[]) {
   if (vertices.length < 3) throw Error('A polygon needs at least three vertices')
   return { type: 'Polygon' as const, coordinates: [[...vertices, vertices[0]]] }
 }
+
+type PointLocation = { lat: number; lon: number; [key: string]: unknown }
+
+/**
+ * Vertices of an applied Explore geometry, so it can be edited in place. Polygons with holes
+ * or several parts are not editable here; their exterior would lose information.
+ */
+export function editableShape(locations: unknown): { mode: DrawMode; vertices: Position[] } | null {
+  if (Array.isArray(locations)) {
+    if (!locations.length) return null
+    return {
+      mode: 'points',
+      vertices: (locations as PointLocation[]).map((point) => [point.lon, point.lat]),
+    }
+  }
+  if (!locations || typeof locations !== 'object') return null
+  if ('lat' in locations && 'lon' in locations) {
+    const point = locations as PointLocation
+    return { mode: 'point', vertices: [[point.lon, point.lat]] }
+  }
+  if ('west' in locations) {
+    const box = locations as { west: number; south: number; east: number; north: number }
+    return {
+      mode: 'bbox',
+      vertices: [
+        [box.west, box.south],
+        [box.east, box.north],
+      ],
+    }
+  }
+  if ('type' in locations && locations.type === 'Polygon' && 'coordinates' in locations) {
+    const rings = locations.coordinates as Position[][]
+    if (rings.length !== 1) return null
+    const ring = rings[0].map(([lon, lat]) => [lon, lat] as Position)
+    const [first, last] = [ring[0], ring.at(-1)]
+    const open =
+      first && last && first[0] === last[0] && first[1] === last[1] ? ring.slice(0, -1) : ring
+    return open.length >= 3 ? { mode: 'polygon', vertices: open } : null
+  }
+  return null
+}
+
+/**
+ * The geometry for edited vertices. Point edits keep each original point's other fields
+ * (name, id, standard-time offset) by position; shapes are rebuilt with `geometry`.
+ */
+export function applyShape(original: unknown, mode: DrawMode, vertices: Position[]) {
+  const built = geometry(mode, vertices)
+  const keep = (source: unknown, point: PointLocation) => ({
+    ...(source && typeof source === 'object' ? (source as PointLocation) : {}),
+    ...point,
+    standard_offset_minutes: (source as PointLocation | undefined)?.standard_offset_minutes ?? 0,
+  })
+  if (mode === 'point' && original && typeof original === 'object' && 'lat' in original)
+    return keep(original, built as PointLocation)
+  if (mode === 'points' && Array.isArray(original))
+    return (built as PointLocation[]).map((point, index) => keep(original[index], point))
+  return built
+}

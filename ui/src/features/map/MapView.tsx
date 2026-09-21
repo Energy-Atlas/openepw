@@ -17,7 +17,15 @@ import { CoverageControl, type CoverageSetting } from './CoverageControl'
 import { coverageBeforeIds, datasetColor } from './datasetColor'
 import { GeometryToolbar } from './GeometryToolbar'
 import { PointGlyph, type DatasetPointStatus } from './PointGlyph'
-import { geometry, type DrawMode, type Position } from './selection'
+import { VertexHandles } from './VertexHandles'
+import {
+  applyShape,
+  canFinish,
+  editableShape,
+  geometry,
+  type DrawMode,
+  type Position,
+} from './selection'
 
 class MapBoundary extends Component<{ children: ReactNode }, { error: boolean }> {
   state = { error: false }
@@ -53,6 +61,8 @@ function WeatherMap({ appearance }: { appearance: Appearance }) {
   const [mode, setMode] = useState<DrawMode>('point')
   const [drawing, setDrawing] = useState(false)
   const [vertices, setVertices] = useState<Position[]>([])
+  // Editing reopens the applied geometry's vertices; drawing builds a new shape.
+  const [editing, setEditing] = useState(false)
   const [loaded, setLoaded] = useState(false)
   // The store owns which overlays are on (so discovery can enable them); opacity is local.
   const [opacities, setOpacities] = useState<Record<string, number>>({})
@@ -170,19 +180,44 @@ function WeatherMap({ appearance }: { appearance: Appearance }) {
           }))
         : [],
   }
-  const outline = draftOutline(state.draft.locations)
+  const shape = state.stage === 'explore' ? editableShape(state.draft.locations) : null
+  // While drawing or editing a complete shape, the outline follows the working vertices.
+  const workingOutline =
+    (drawing || editing) && (mode === 'bbox' || mode === 'polygon') && canFinish(mode, vertices)
+      ? draftOutline(geometry(mode, vertices))
+      : null
+  const outline = workingOutline ?? draftOutline(state.draft.locations)
   const activeCoverage = coverage.flatMap((setting) => {
     const layer = state.coverageLayers.find((item) => item.id === setting.id)
     return layer ? [{ layer, ...setting }] : []
   })
   const beforeIds = coverageBeforeIds(activeCoverage.map(({ layer }) => layer))
 
+  function startEditing() {
+    if (!shape) return
+    setMode(shape.mode)
+    setVertices(shape.vertices)
+    setDrawing(false)
+    setEditing(true)
+    setError('')
+  }
+
+  function stopWorking() {
+    setVertices([])
+    setDrawing(false)
+    setEditing(false)
+  }
+
   function apply(points: Position[]) {
     try {
-      run({ type: 'editQuery', patch: { locations: geometry(mode, points) } })
-      setDrawing(false)
-      setVertices([])
+      const locations = editing
+        ? applyShape(state.draft.locations, mode, points)
+        : geometry(mode, points)
+      const unchanged = JSON.stringify(locations) === JSON.stringify(state.draft.locations)
+      stopWorking()
       setError('')
+      if (unchanged) return
+      run({ type: 'editQuery', patch: { locations: locations as never } })
       queueMicrotask(() => run({ type: 'previewSpatial' }))
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason))
@@ -191,7 +226,7 @@ function WeatherMap({ appearance }: { appearance: Appearance }) {
   // Keyboard alternatives while drawing: Enter finishes, Escape cancels. Capture phase with
   // preventDefault keeps the workspace Escape handler from also closing a drawer.
   useEffect(() => {
-    if (!drawing) return
+    if (!drawing && !editing) return
     const keydown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null
       if (target?.closest('input, textarea, select, [contenteditable="true"]')) return
@@ -200,8 +235,7 @@ function WeatherMap({ appearance }: { appearance: Appearance }) {
         apply(vertices)
       } else if (event.key === 'Escape') {
         event.preventDefault()
-        setVertices([])
-        setDrawing(false)
+        stopWorking()
       }
     }
     document.addEventListener('keydown', keydown, true)
@@ -252,6 +286,10 @@ function WeatherMap({ appearance }: { appearance: Appearance }) {
           onDrawing={setDrawing}
           onVertices={setVertices}
           onFinish={() => apply(vertices)}
+          editable={Boolean(shape)}
+          editing={editing}
+          onEdit={startEditing}
+          onCancel={stopWorking}
           onClear={() => {
             setVertices([])
             run({
@@ -275,6 +313,12 @@ function WeatherMap({ appearance }: { appearance: Appearance }) {
       >
         Fit selection
       </button>
+      {editing && (
+        <div className="map-instruction">
+          Drag a vertex handle, or focus one and use arrow keys (Shift moves farther) and Delete.
+          Enter applies; Escape discards.
+        </div>
+      )}
       {drawing && (
         <div className="map-instruction">
           Click the globe to add{' '}
@@ -292,7 +336,9 @@ function WeatherMap({ appearance }: { appearance: Appearance }) {
           setError('Some map tiles could not load. Weather requests are independent of map tiles.')
         }
         onClick={(event) => {
-          if (!drawing) return
+          // Marker clicks (vertex handles, point glyphs) reach the map too; they never add vertices.
+          const target = event.originalEvent.target as Element | null
+          if (!drawing || target?.closest('.maplibregl-marker')) return
           const next = [...vertices, [event.lngLat.lng, event.lngLat.lat] as Position]
           setVertices(next)
           if (mode === 'point' || (mode === 'bbox' && next.length === 2)) apply(next)
@@ -394,24 +440,13 @@ function WeatherMap({ appearance }: { appearance: Appearance }) {
             />
           </Source>
         )}
-        <Source
-          id="vertices"
-          type="geojson"
-          data={{
-            type: 'FeatureCollection',
-            features: vertices.map((point) => ({
-              type: 'Feature',
-              geometry: { type: 'Point', coordinates: point },
-              properties: {},
-            })),
-          }}
-        >
-          <Layer
-            id="vertex-points"
-            type="circle"
-            paint={{ 'circle-radius': 5, 'circle-color': appearance.chrome.accent }}
+        {(drawing || editing) && (
+          <VertexHandles
+            vertices={vertices}
+            minimum={mode === 'polygon' ? 3 : mode === 'bbox' ? 2 : 1}
+            onChange={setVertices}
           />
-        </Source>
+        )}
         {locations.map((location, index) => (
           <Marker
             key={location.id ?? `${location.lon}-${location.lat}`}
