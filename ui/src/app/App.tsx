@@ -1,142 +1,241 @@
-import { useState, useEffect, useMemo } from 'react'
-import { Layout, Actions, Model, type TabNode } from 'flexlayout-react'
-import 'flexlayout-react/style/light.css'
-import { Button, Dialog, DialogTrigger, Popover } from 'react-aria-components'
-import { Settings2, CloudSun, RotateCcw, ExternalLink } from 'lucide-react'
-import { loadLayout, defaultLayout, layoutKey } from '../shell/layout'
-import { useTheme } from '../shell/theme'
-import { APPEARANCE_LIST, type AppearancePreference } from '../shell/appearances'
-import { RequestPanel } from '../features/request/RequestPanel'
-import { MapView } from '../features/map/MapView'
-import { ResultsView } from '../features/results/ResultsView'
-import { AgentPanel } from '../features/agent/AgentPanel'
-import { ApiDocs } from '../features/docs/ApiDocs'
+import { Bot, CloudSun, ExternalLink, History, PanelLeft, Settings2 } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
 import { setToken } from '../api/client'
+import { run } from './actions'
 import { useApp } from './store'
+import { canNavigate, deriveWorkflow, type Stage } from './workflow'
+import { AgentPanel } from '../features/agent/AgentPanel'
+import { MapView } from '../features/map/MapView'
+import { HistoryDrawer, useJobMonitor } from '../features/results/HistoryDrawer'
+import { RunSplitButton } from '../features/workflow/RunSplitButton'
+import { StagePanel } from '../features/workflow/StagePanel'
+import { APPEARANCE_LIST, type AppearancePreference } from '../shell/appearances'
+import { isNarrow, resizeFromPointer } from '../shell/layout'
+import { clampPanelSize, nextDrawer, type Drawer } from '../shell/panels'
+import { useTheme } from '../shell/theme'
+
+const stages: Stage[] = ['explore', 'download', 'project']
+
 export function App() {
-  const [model, setModel] = useState(loadLayout)
+  const state = useApp()
+  const workflow = deriveWorkflow(state)
   const { preference, setPreference, appearance } = useTheme()
-  const [compact, setCompact] = useState(innerWidth < 950)
-  const [tab, setTab] = useState('request')
-  const s = useApp()
+  const [narrow, setNarrow] = useState(isNarrow)
+  const [drawer, setDrawer] = useState<Drawer>(null)
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const controlsTrigger = useRef<HTMLButtonElement>(null)
+  const agentTrigger = useRef<HTMLButtonElement>(null)
+  useJobMonitor()
+
   useEffect(() => {
-    const fn = () => setCompact(innerWidth < 950)
-    addEventListener('resize', fn)
-    return () => removeEventListener('resize', fn)
+    const resize = () => setNarrow(isNarrow())
+    addEventListener('resize', resize)
+    return () => removeEventListener('resize', resize)
   }, [])
-  const pages: Record<string, React.ReactNode> = useMemo(
-    () => ({
-      request: <RequestPanel />,
-      map: <MapView appearance={appearance} />,
-      results: <ResultsView appearance={appearance} />,
-      agent: <AgentPanel />,
-      docs: <ApiDocs />,
-    }),
-    [appearance],
-  )
-  function show(id: string) {
-    if (compact) setTab(id)
-    else model.doAction(Actions.selectTab(id))
+
+  useEffect(() => {
+    const escape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      if (historyOpen) {
+        setHistoryOpen(false)
+        return
+      }
+      if (settingsOpen) {
+        setSettingsOpen(false)
+        return
+      }
+      if (drawer) closeDrawer(drawer)
+    }
+    document.addEventListener('keydown', escape)
+    return () => document.removeEventListener('keydown', escape)
+  })
+
+  function closeDrawer(closing: Exclude<Drawer, null>) {
+    setDrawer(null)
+    ;(closing === 'controls' ? controlsTrigger : agentTrigger).current?.focus()
   }
+
+  function toggle(requested: Exclude<Drawer, null>) {
+    const next = nextDrawer(drawer, requested)
+    if (next === null && drawer) closeDrawer(drawer)
+    else setDrawer(next)
+  }
+
+  function startResize(
+    panel: 'controls' | 'agent',
+    side: 'left' | 'right',
+    event: React.PointerEvent,
+  ) {
+    const origin = event.clientX
+    const initial = state.panelSizes[panel]
+    const move = (pointer: PointerEvent) => {
+      const size = clampPanelSize(panel, resizeFromPointer(side, origin, initial, pointer.clientX))
+      useApp.setState((current) => ({ panelSizes: { ...current.panelSizes, [panel]: size } }))
+    }
+    const stop = () => {
+      removeEventListener('pointermove', move)
+      removeEventListener('pointerup', stop)
+    }
+    addEventListener('pointermove', move)
+    addEventListener('pointerup', stop)
+  }
+
   return (
-    <div className="app">
-      <header className="app-header">
+    <div className="app cockpit-app">
+      <header className="app-header cockpit-header">
         <div className="brand">
-          <CloudSun size={24} />
+          <CloudSun size={21} aria-hidden="true" />
           <strong>openepw</strong>
-          <span>Weather workspace</span>
         </div>
-        <nav>
-          <button onClick={() => show('results')}>
-            Results{s.job ? ' · ' + s.job.completed : ''}
+        <nav className="stage-stepper" aria-label="Workflow stages">
+          {stages.map((stage, index) => {
+            const available = canNavigate(workflow, stage)
+            return (
+              <button
+                type="button"
+                key={stage}
+                aria-label={stage[0].toUpperCase() + stage.slice(1)}
+                aria-current={state.stage === stage ? 'step' : undefined}
+                aria-disabled={!available || undefined}
+                onClick={() => available && run({ type: 'navigate', stage })}
+              >
+                <span>{index + 1}</span>
+                <strong>{stage[0].toUpperCase() + stage.slice(1)}</strong>
+                {workflow.stages[stage].complete && <i aria-label="complete">✓</i>}
+              </button>
+            )
+          })}
+        </nav>
+        <div className="header-actions">
+          <button type="button" onClick={() => setHistoryOpen(true)}>
+            <History size={15} aria-hidden="true" />
+            <span>History</span>
           </button>
-          <button onClick={() => show('agent')}>Agent</button>
-          <button onClick={() => show('docs')}>API Docs</button>
-          <a href="https://github.com/Energy-Atlas/openepw" target="_blank" rel="noreferrer">
-            Source Code <ExternalLink size={12} />
-          </a>
-          <DialogTrigger>
-            <Button aria-label="Settings">
-              <Settings2 size={16} />
-            </Button>
-            <Popover className="settings-popover">
-              <Dialog aria-label="Workspace settings">
-                <h2>Appearance</h2>
-                <select
-                  aria-label="Appearance"
-                  value={preference}
-                  onChange={(e) => setPreference(e.target.value as AppearancePreference)}
-                >
-                  <option value="system">System</option>
-                  {APPEARANCE_LIST.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.label}
-                    </option>
-                  ))}
-                </select>
+          <RunSplitButton />
+          <div className="settings-anchor">
+            <button
+              type="button"
+              aria-label="Settings"
+              aria-expanded={settingsOpen}
+              onClick={() => setSettingsOpen((value) => !value)}
+            >
+              <Settings2 size={16} aria-hidden="true" />
+            </button>
+            {settingsOpen && (
+              <div className="settings-popover" role="dialog" aria-label="Workspace settings">
                 <label>
-                  Session bearer token
+                  Appearance
+                  <select
+                    value={preference}
+                    onChange={(event) => setPreference(event.target.value as AppearancePreference)}
+                  >
+                    <option value="system">System</option>
+                    {APPEARANCE_LIST.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Session token
                   <input
                     type="password"
                     autoComplete="off"
-                    placeholder="Only if backend auth is enabled"
-                    onChange={(e) => setToken(e.target.value)}
+                    onChange={(event) => setToken(event.target.value)}
                   />
-                  <small>Memory only; cleared on reload.</small>
                 </label>
-                <button
-                  onClick={() => {
-                    localStorage.removeItem(layoutKey)
-                    setModel(Model.fromJson(defaultLayout()))
-                  }}
-                >
-                  <RotateCcw size={13} /> Reset layout
-                </button>
-              </Dialog>
-            </Popover>
-          </DialogTrigger>
-        </nav>
-      </header>
-      {compact ? (
-        <>
-          <div className="compact-tabs">
-            {Object.keys(pages).map((id) => (
-              <button aria-pressed={id === tab} key={id} onClick={() => setTab(id)}>
-                {id === 'docs' ? 'API Docs' : id[0].toUpperCase() + id.slice(1)}
-              </button>
-            ))}
-          </div>
-          <main className="compact-main">
-            {Object.entries(pages).map(([id, page]) => (
-              <div key={id} className="compact-page" hidden={id !== tab}>
-                {page}
+                <a href="/docs" target="_blank" rel="noreferrer">
+                  API documentation <ExternalLink size={12} aria-hidden="true" />
+                </a>
+                <a href="https://github.com/Energy-Atlas/openepw" target="_blank" rel="noreferrer">
+                  Source code <ExternalLink size={12} aria-hidden="true" />
+                </a>
               </div>
-            ))}
-          </main>
-        </>
-      ) : (
-        <main className="workspace">
-          <Layout
-            model={model}
-            factory={(node: TabNode) =>
-              pages[node.getComponent() || ''] || <p>Unknown view. Reset layout in Settings.</p>
-            }
-            onModelChange={(m) => localStorage.setItem(layoutKey, JSON.stringify(m.toJson()))}
-          />
-        </main>
-      )}
-      <footer>
-        <span className="status-dot" /> Local workspace{' '}
-        <span className="muted">Single user · scientific provenance retained</span>
+            )}
+          </div>
+        </div>
+      </header>
+
+      <main className={`cockpit ${narrow ? 'cockpit-narrow' : ''}`}>
+        {narrow && (
+          <div className="drawer-triggers" aria-label="Workspace panels">
+            <button
+              type="button"
+              ref={controlsTrigger}
+              aria-expanded={drawer === 'controls'}
+              onClick={() => toggle('controls')}
+            >
+              <PanelLeft size={15} aria-hidden="true" /> Controls
+            </button>
+            <button
+              type="button"
+              ref={agentTrigger}
+              aria-label="Agent panel"
+              aria-expanded={drawer === 'agent'}
+              onClick={() => toggle('agent')}
+            >
+              <Bot size={15} aria-hidden="true" /> Agent
+            </button>
+          </div>
+        )}
+        <div className="map-workspace" aria-label="Weather map workspace">
+          <MapView appearance={appearance} />
+          {state.inspector.open && state.visualization && (
+            <section className="inspector-slot" aria-label="Weather inspector">
+              Weather inspector · {state.visualization.total_rows.toLocaleString()} rows
+            </section>
+          )}
+        </div>
+        <aside
+          className="cockpit-panel cockpit-surface controls-panel"
+          role="complementary"
+          aria-label="Stage controls"
+          data-open={!narrow || drawer === 'controls'}
+          style={{ width: narrow ? undefined : state.panelSizes.controls }}
+        >
+          <StagePanel />
+          {!narrow && (
+            <div
+              className="panel-resizer panel-resizer-right"
+              role="separator"
+              aria-label="Resize stage controls"
+              onPointerDown={(event) => startResize('controls', 'left', event)}
+            />
+          )}
+        </aside>
+        <aside
+          className="cockpit-panel cockpit-surface agent-sidecar"
+          role="complementary"
+          aria-label="Agent"
+          data-open={!narrow || drawer === 'agent'}
+          style={{ width: narrow ? undefined : state.panelSizes.agent }}
+        >
+          <AgentPanel />
+          {!narrow && (
+            <div
+              className="panel-resizer panel-resizer-left"
+              role="separator"
+              aria-label="Resize Agent"
+              onPointerDown={(event) => startResize('agent', 'right', event)}
+            />
+          )}
+        </aside>
+      </main>
+
+      <HistoryDrawer open={historyOpen} onClose={() => setHistoryOpen(false)} />
+      <footer className="status-bar">
+        <span className="status-dot" /> Local workspace
+        <span className="status-detail">Single user · scientific provenance retained</span>
         <span className="spacer" />
         <span>
-          {s.busy
+          {state.busy
             ? 'Backend request in progress'
-            : s.job
-              ? `Job ${s.job.state.replaceAll('_', ' ')}`
-              : 'Ready to plan'}
+            : state.job
+              ? `Job ${state.job.state.replaceAll('_', ' ')}`
+              : workflow.run.reason || 'Ready'}
         </span>
-        <span>v0.1</span>
       </footer>
     </div>
   )
