@@ -68,6 +68,8 @@ class JobRunner:
         outputs = list({o.name: o for o in plan.outputs}.values())
         if plan.kind == "future":
             outputs = [None]
+        # Counted per attempt so a resumed job does not double-count retried failures.
+        failures = 0
         for output in outputs:
             if self.store.get(job_id).cancellation_requested:
                 break
@@ -87,6 +89,8 @@ class JobRunner:
                 )
                 self.store.complete_item(job_id, name, bundle)
                 completed[name] = bundle
+                if not bundle.weather:
+                    failures += 1
             except Exception as exc:
                 # Do not serialize raw provider/dependency exceptions or secret-bearing URLs.
                 issue = (
@@ -99,7 +103,10 @@ class JobRunner:
                     )
                 )
                 job.errors.append(issue)
+                failures += 1
+            # Persist progress after every output so clients can show it while running.
             job.completed = sum(len(b.weather) for b in completed.values())
+            job.failed = failures
             self.store.save(job)
         weather = []
         extra = []

@@ -72,6 +72,46 @@ def test_selected_dataset_failure_keeps_successful_artifact_and_counts_partial_j
     assert any(issue.code == "SOURCE_FAILED" for issue in result.errors)
 
 
+def test_running_job_persists_completed_and_failed_progress(tmp_path):
+    class FailingProvider(StationProvider):
+        name = "broken"
+
+        def fetch(self, task, http):
+            raise OpenEPWError("SOURCE_FAILED", "Synthetic source failure")
+
+    service = WeatherService(
+        RuntimeConfig(data_root=tmp_path), providers=[StationProvider(), FailingProvider()]
+    )
+    plan = service.plan(
+        WeatherRequest(
+            locations=Location(lat=1, lon=0),
+            start="2024-01-01",
+            end="2024-01-01",
+            dataset_selections=[
+                {"provider": "station", "dataset": "synthetic"},
+                {"provider": "broken", "dataset": "synthetic"},
+            ],
+        )
+    )
+    store = JobStore(tmp_path)
+    job = store.submit(plan)
+    snapshots = []
+    save = store.save
+
+    def record(saved):
+        snapshots.append((saved.state, saved.completed, saved.failed))
+        save(saved)
+
+    store.save = record
+    JobRunner(service, store).run(job.id)
+
+    # Progress is saved after each output, before the job reaches a terminal state.
+    assert snapshots[0] == ("running", 0, 0)
+    assert snapshots[1] in {("running", 1, 0), ("running", 0, 1)}
+    assert snapshots[2] == ("running", 1, 1)
+    assert snapshots[-1] == ("partially_completed", 1, 1)
+
+
 def test_restart_resumes_after_verified_completed_item(tmp_path):
     from openepw.models import WeatherPlan
 
