@@ -8,7 +8,9 @@ simulation suitability. EnergyPlus execution is not part of ordinary tests.
 
 Meteorology may be instantaneous at interval ends while solar is interval energy.
 EPWs use fixed standard time; callers must supply the offset they intend (UTC is
-the default). Historical retrieval currently requires output offsets aligned to
+the default for the Python/REST API; the web UI proposes a longitude-based nominal
+offset, which can differ from legal standard time, for example in China or Spain, and
+is not resolved from a time-zone database). Historical retrieval currently requires output offsets aligned to
 whole provider hours; use UTC for fractional-hour zones pending explicit temporal
 interpolation support. No DST shifts, gap interpolation or implicit hybrid fill.
 Actual-year requests preserve leap days unless `skip_feb_29=True` is explicitly

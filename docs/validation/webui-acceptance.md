@@ -71,11 +71,11 @@ Latest run, 2026-09-21, Windows, Python 3.14.7 and Node 24.21.0 with installed E
 
 | Check | Result |
 | --- | --- |
-| Full Python offline suite | 103 passed, 15 opt-in live checks skipped |
+| Full Python offline suite | 105 passed, 15 opt-in live checks skipped |
 | Ruff and mypy | Passed; mypy 43 source files |
 | UI TypeScript and ESLint | Passed |
 | UI Prettier | Passed with `--end-of-line auto`; the repo-wide check flags only CRLF line endings on this Windows checkout |
-| Vitest | 111 passed across 22 files |
+| Vitest | 125 passed across 24 files |
 | Vite production build | Passed |
 | Playwright development hosting | 3 passed |
 | Playwright FastAPI production hosting | 1 passed (`@production` worker smoke) |
@@ -114,10 +114,9 @@ production) with 98 Python and 50 Vitest tests; see the ledger.
 
 The 2026-09-21 conformance review against the
 [redesign spec](../superpowers/specs/2026-09-20-webui-workflow-redesign.md) listed
-gaps; all but one were implemented the same day (see the ledger). Still open:
-
-- Project: when a job produces several EPWs, the first bundle EPW is opened
-  automatically rather than a backend-ranked EPW for a selected map point.
+gaps; all were implemented on 2026-09-21 (see the ledger). No listed redesign-spec
+item remains open. Known modelling limit: the UI's longitude-based standard time can
+differ from a site's legal zone; it is shown and editable, not looked up.
 
 Operating guidance: [webui.md](../webui.md). Design contract:
 [map-first staged UI](../superpowers/specs/2026-09-20-webui-workflow-redesign.md).

@@ -230,3 +230,36 @@ request per settled drag; authoritative count and Run state unchanged until fini
 Verification: Python 103 passed / 15 skipped; Ruff and mypy passed; Vitest 111 across
 22 files; TypeScript, ESLint and Prettier passed; build passed; Playwright 3
 development and 1 production passed. The native key-stop test fails without its fix.
+
+## Ranked EPW selection and hour-of-day shift — 2026-09-21
+
+Item 1: discovery now exposes `ranked_candidate_ids` (per location, best first, same
+rule as `selected_candidate_ids`). A finished Download opens the best-ranked EPW at the
+point whose details were last opened on the map (or the first planned point), falling
+back down the ranking when the best dataset failed there; popovers list EPWs in that
+order. Jobs from other plans and projections keep bundle order.
+
+Owner-reported hour shift in the hourly matrix, investigated: the chart was correct;
+the EPWs were not. Stored data are UTC interval ends and local time is UTC plus the
+location's fixed offset. The UI sent offset 0 for every point by default and sampled
+area points were always UTC, so providers that honor the requested offset (Open-Meteo,
+ERA5, ISD) wrote UTC-labelled EPWs, while published NSRDB and OneBuilding TMYx files
+keep their own zone. Reproduced live: Ithaca 2024-06-21 from Open-Meteo peaks in GHI at
+local 18:00 with offset 0 and 13:00 with UTC−5.
+
+Ruling: adopt a longitude-based nominal standard time, `floor(lon/15 + 0.5)` hours, as
+the UI default for new points, geocoded places and sampled areas
+(`SamplingSpec.standard_offset="longitude"`, additive; API default stays UTC and the
+default is excluded from plan hashes so stored plans validate). A legal time-zone
+lookup would need a new dependency with share-alike boundary data and is not adopted
+without owner approval. Offsets remain editable; the Explore panel warns when an offset
+is an hour or more from the longitude's with a one-click fix, saved drafts migrate to
+longitude-based sampling, and the inspector and baseline card state each file's zone
+and flag a mismatch. The browser fixture now follows local solar time and the Open-Meteo
+UTC window, so a correct offset puts its daily peak near noon.
+
+Verification: Python 105 passed / 15 skipped; Ruff, format and mypy passed; Vitest 125
+across 24 files; TypeScript, ESLint, Prettier and build passed; Playwright 3 development
+and 1 production passed. Browser check: default offset UTC−5, DNI peak at local hour 12,
+area points sampled at −300, and the complete dataset's EPW opened first. The ranking
+monitor test fails when bundle order is restored.

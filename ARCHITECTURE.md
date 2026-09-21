@@ -65,6 +65,14 @@ as such in lineage. No daily-to-hourly fabrication, hidden DST conversion or gap
 filled as zero. Fractional-hour historical conversion currently fails explicitly;
 request UTC or an integer-hour fixed offset.
 
+Fixed offsets come from the request. Single and listed points carry their own
+`standard_offset_minutes`; sampled area points are UTC unless
+`sampling.standard_offset="longitude"`, which assigns each point the nominal offset
+`floor(lon/15 + 0.5)` hours. Published products (NSRDB TMY, OneBuilding TMYx) keep
+their file's zone. The web UI defaults to the longitude-based offset for new points and
+areas so hours of day agree across providers; that nominal zone can differ from a
+site's legal standard time, which remains user-editable.
+
 The EPW codec owns eight headers and 35 fields, field-specific missing sentinels,
 hour 24, native minute-zero compatibility and independent partial/annual QC. Native
 TMY row years remain separate from the synthetic timeline. Explicit noleap sources
