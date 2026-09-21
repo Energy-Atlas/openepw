@@ -9,21 +9,6 @@ export default defineConfig({
   plugins: [
     react(),
     {
-      name: 'flexlayout-css-map',
-      enforce: 'pre',
-      async load(id) {
-        const file = id.split('?')[0].replaceAll('\\', '/')
-        if (!/flexlayout-react\/style\/[^/]+\.css$/.test(file)) return null
-        return {
-          code: (await readFile(file, 'utf8')).replace(
-            /\/\*#\s*sourceMappingURL=[^*]*\*\/\s*$/,
-            '',
-          ),
-          map: null,
-        }
-      },
-    },
-    {
       name: 'maplibre-workers',
       apply: 'build',
       async generateBundle() {

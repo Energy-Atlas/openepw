@@ -699,57 +699,6 @@ footer {
 .maplibregl-ctrl-attrib {
   font-size: 9px !important;
 }
-.compact-tabs {
-  display: flex;
-  gap: 4px;
-  padding: 6px;
-  background: var(--color-surface);
-}
-.compact-main {
-  flex: 1;
-  min-height: 0;
-  position: relative;
-}
-.compact-page {
-  height: 100%;
-}
-.compact-page[hidden] {
-  display: none;
-}
-.flexlayout__layout {
-  --flexlayout-color-background: var(--color-bg);
-  --flexlayout-color-text: var(--color-text);
-  --flexlayout-color-base: var(--color-surface);
-  --flexlayout-color-1: var(--color-surface);
-  --flexlayout-color-2: var(--color-bg);
-  --flexlayout-color-3: var(--color-border-subtle);
-  --flexlayout-color-4: var(--color-border);
-  --flexlayout-color-5: var(--color-text-muted);
-  --flexlayout-color-6: var(--color-text);
-  --flexlayout-color-tabset-background: var(--color-surface);
-  --flexlayout-color-tabset-background-selected: var(--color-surface);
-  --flexlayout-color-tab-selected: var(--color-text);
-  --flexlayout-color-tab-unselected: var(--color-text-muted);
-  --flexlayout-font-family: 'Geist Variable', system-ui, sans-serif;
-  --flexlayout-font-size: 13px;
-  --flexlayout-splitter-size: 5px;
-  font: inherit;
-}
-.flexlayout__tab {
-  background: var(--color-surface);
-  overflow: hidden;
-}
-.flexlayout__tab_button {
-  padding: 8px 14px;
-  font-size: 12px;
-}
-.flexlayout__tab_button--selected {
-  background: var(--color-selected-bg);
-  box-shadow: inset 0 -2px var(--color-accent);
-}
-.flexlayout__border_button {
-  font-size: 12px;
-}
 @media (max-width: 950px) {
   .brand span {
     display: none;
