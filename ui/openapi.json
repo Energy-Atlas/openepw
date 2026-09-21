@@ -407,6 +407,16 @@
             "title": "Observed At",
             "type": "string"
           },
+          "ranked_candidate_ids": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "title": "Ranked Candidate Ids",
+            "type": "object"
+          },
           "selected_candidate_ids": {
             "items": {
               "type": "string"

@@ -304,6 +304,8 @@ class DiscoveryResult(Model):
     locations: list[Location]
     candidates: list[Candidate]
     selected_candidate_ids: list[str] = Field(default_factory=list)
+    # Location key -> candidate ids, best first, by the same rule as selected_candidate_ids.
+    ranked_candidate_ids: dict[str, list[str]] = Field(default_factory=dict)
     issues: list[Issue] = Field(default_factory=list)
     observed_at: str = Field(default_factory=utcnow)
 

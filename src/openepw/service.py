@@ -181,6 +181,7 @@ class WeatherService:
                 except OpenEPWError as exc:
                     issues.append(exc.issue)
         selected = []
+        ranked: dict[str, list[str]] = {}
         for loc in locations:
             choices = [c for c in candidates if c.location_id == loc.key]
             choices.sort(
@@ -192,6 +193,7 @@ class WeatherService:
                     bool(c.requires_credentials),
                 )
             )
+            ranked[loc.key] = [c.id for c in choices]
             if choices:
                 choices[0].selection_reasons = [
                     "Fewest missing requested fields; explicit provider order; ungated access as tie-break"
@@ -201,6 +203,7 @@ class WeatherService:
             locations=locations,
             candidates=candidates,
             selected_candidate_ids=selected,
+            ranked_candidate_ids=ranked,
             issues=issues,
         )
 

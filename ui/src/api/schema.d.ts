@@ -471,6 +471,10 @@ export interface components {
       locations: components['schemas']['Location'][]
       /** Observed At */
       observed_at?: string
+      /** Ranked Candidate Ids */
+      ranked_candidate_ids?: {
+        [key: string]: string[]
+      }
       /** Selected Candidate Ids */
       selected_candidate_ids?: string[]
     }

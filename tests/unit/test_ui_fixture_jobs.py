@@ -45,6 +45,13 @@ def test_sampled_partial_source_failure_keeps_successful_epws(tmp_path, monkeypa
             (c["source"]["provider"], c["source"]["dataset"]) for c in discovery["candidates"]
         }
         assert ("cds", "reanalysis-era5-single-levels") in datasets
+        # Every sampled point ranks its candidates; the complete dataset outranks the sparse one.
+        by_id = {c["id"]: c for c in discovery["candidates"]}
+        ranked = discovery["ranked_candidate_ids"]
+        assert len(ranked) == len(discovery["locations"]) == points
+        for ids in ranked.values():
+            assert [by_id[i]["source"]["provider"] for i in ids] == ["openmeteo", "cds"]
+            assert ids[0] in discovery["selected_candidate_ids"]
         request["dataset_selections"] = [
             {"provider": provider, "dataset": dataset} for provider, dataset in sorted(datasets)
         ]
