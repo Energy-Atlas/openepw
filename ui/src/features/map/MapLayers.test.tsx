@@ -143,3 +143,12 @@ it('marks stale discovery as unknown and unplanned points as incompatible', asyn
   expect(status.state).toBe('incompatible')
   expect(status.color).toBe(datasetColor('p', 'd', APPEARANCES.light))
 })
+
+it('selects a point when its details open, not when they close', () => {
+  const onOpen = vi.fn()
+  render(<PointGlyph label="Sample 2" statuses={[]} artifacts={[]} onOpen={onOpen} />)
+  const glyph = screen.getByRole('button', { name: /Sample 2/ })
+  fireEvent.click(glyph)
+  fireEvent.click(glyph)
+  expect(onOpen).toHaveBeenCalledTimes(1)
+})

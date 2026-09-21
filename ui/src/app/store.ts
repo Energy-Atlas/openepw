@@ -56,6 +56,8 @@ export type State = {
   pendingConfirmation: PendingConfirmation | null
   panelSizes: PanelSizes
   appearance: AppearancePreference
+  /** Sample point whose details were opened on the map; ranks which EPW opens first. */
+  selectedLocationId: string | null
   busy: boolean
   error: string
   logs: LogEntry[]
@@ -159,6 +161,7 @@ export const useApp = create<State>()(
       pendingConfirmation: null,
       panelSizes: { controls: 340, agent: 340, inspector: 300 },
       appearance: legacyAppearance(),
+      selectedLocationId: null,
       busy: false,
       error: '',
       logs: [],
@@ -171,6 +174,7 @@ export const useApp = create<State>()(
             draft: { ...state.draft, ...patch },
             version: state.version + 1,
             requestVersion: state.requestVersion + 1,
+            selectedLocationId: null,
             ...resetSubmission(state, clearBaseline ? ['weather', 'future'] : ['weather']),
             activeWeatherArtifact: clearBaseline ? null : state.activeWeatherArtifact,
             baselineOrigin: clearBaseline ? null : state.baselineOrigin,

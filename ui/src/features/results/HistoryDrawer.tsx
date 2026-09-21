@@ -3,6 +3,7 @@ import { api, type Artifact } from '../../api/client'
 import { run } from '../../app/actions'
 import { useApp } from '../../app/store'
 import { canNavigate, deriveWorkflow } from '../../app/workflow'
+import { preferredWeatherArtifact } from '../../app/artifacts'
 import { ModalDialog } from '../../shell/ModalDialog'
 
 const terminal = new Set(['completed', 'partially_completed', 'failed', 'cancelled'])
@@ -90,10 +91,12 @@ export function useJobMonitor() {
         attempts = 0
         if (terminal.has(next.state) && firstWeather) {
           const selected = useApp.getState().artifact?.id
+          // Open the backend-ranked EPW for the selected (or first) point, not bundle order.
+          const preferred = preferredWeatherArtifact(useApp.getState(), next) ?? firstWeather
           whenIdle(() => {
             // Respect a selection the user made while the completion was deferred.
             if (useApp.getState().artifact?.id === selected)
-              run({ type: 'selectArtifact', artifact: firstWeather })
+              run({ type: 'selectArtifact', artifact: preferred })
           })
         } else timer = setTimeout(poll, 1500)
       } catch {

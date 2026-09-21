@@ -20,10 +20,13 @@ export function PointGlyph({
   label,
   statuses,
   artifacts,
+  onOpen,
 }: {
   label: string
   statuses: DatasetPointStatus[]
   artifacts: Artifact[]
+  /** Called when the details open, so this point becomes the selected location. */
+  onOpen?: () => void
 }) {
   const [open, setOpen] = useState(false)
   const segments = statuses.length || 1
@@ -43,7 +46,10 @@ export function PointGlyph({
         style={{ background: gradient }}
         aria-label={`${label}. ${description}`}
         aria-expanded={open}
-        onClick={() => setOpen((value) => !value)}
+        onClick={() => {
+          if (!open) onOpen?.()
+          setOpen((value) => !value)
+        }}
       >
         <span />
       </button>

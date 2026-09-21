@@ -11,6 +11,7 @@ import { Component, useEffect, useMemo, useRef, useState, type ReactNode } from 
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { api, type Artifact, type Schemas } from '../../api/client'
 import { run } from '../../app/actions'
+import { rankWeatherArtifacts } from '../../app/artifacts'
 import { useApp } from '../../app/store'
 import type { Appearance } from '../../shell/appearances'
 import { CoverageControl, type CoverageSetting } from './CoverageControl'
@@ -530,6 +531,7 @@ function WeatherMap({ appearance }: { appearance: Appearance }) {
               label={location.name || `Sample ${index + 1}`}
               statuses={pointStatuses(state, location, appearance)}
               artifacts={pointArtifacts(state, location)}
+              onOpen={() => run({ type: 'selectLocation', id: location.id ?? null })}
             />
           </Marker>
         ))}
@@ -659,7 +661,9 @@ export function pointArtifacts(
       .filter((output) => !location.id || output.requested_location_id === location.id)
       .map((output) => output.name),
   )
-  const artifacts = currentDownloadJob(state)?.bundle?.weather ?? []
+  const job = currentDownloadJob(state)
+  // Listed best first, by the same backend ranking used when a job finishes.
+  const artifacts = job ? rankWeatherArtifacts(state, job) : []
   if (names.size === 0) return []
   return artifacts.filter((artifact) => [...names].some((name) => artifact.path.endsWith(name)))
 }

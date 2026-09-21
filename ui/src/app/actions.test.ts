@@ -475,3 +475,11 @@ it('persists appearance with the workspace and carries over the legacy setting',
   const persisted = JSON.parse(localStorage.getItem('openepw.draft.v2') ?? '{}')
   expect(persisted.state.appearance).toBe('dark')
 })
+
+it('remembers the map point whose details were opened until the query changes', async () => {
+  expect(ACTION_REGISTRY.selectLocation.confirmation).toBe('none')
+  await dispatch({ type: 'selectLocation', id: 'point-b' })
+  expect(useApp.getState().selectedLocationId).toBe('point-b')
+  useApp.getState().edit({ years: [2023] })
+  expect(useApp.getState().selectedLocationId).toBeNull()
+})

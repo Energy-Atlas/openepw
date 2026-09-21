@@ -30,6 +30,7 @@ export const ACTION_REGISTRY = {
   setInspector: { confirmation: 'none', reversible: true },
   setAppearance: { confirmation: 'none', reversible: true },
   setPanelSize: { confirmation: 'none', reversible: true },
+  selectLocation: { confirmation: 'none', reversible: true },
 } as const
 
 export type AppAction =
@@ -59,6 +60,7 @@ export type AppAction =
   | { type: 'setInspector'; open: boolean; manually?: boolean }
   | { type: 'setAppearance'; appearance: AppearancePreference }
   | { type: 'setPanelSize'; panel: ResizablePanel; size: number }
+  | { type: 'selectLocation'; id: string | null }
 
 export type Action = AppAction
 type InvalidatingAction = Extract<
@@ -171,6 +173,7 @@ export async function dispatch(action: AppAction): Promise<unknown> {
     if (!validAppearance(action.appearance)) throw new Error('Unknown appearance.')
     return useApp.setState({ appearance: action.appearance })
   }
+  if (action.type === 'selectLocation') return useApp.setState({ selectedLocationId: action.id })
   if (action.type === 'setPanelSize')
     return useApp.setState((current) => ({
       panelSizes: {

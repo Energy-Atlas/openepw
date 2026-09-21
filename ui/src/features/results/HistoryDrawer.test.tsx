@@ -140,3 +140,80 @@ it('returns a restored locked stage to Explore when no baseline exists', async (
 
   await vi.waitFor(() => expect(useApp.getState().stage).toBe('explore'))
 })
+
+it('opens the backend-ranked EPW when a Download finishes', async () => {
+  vi.useFakeTimers()
+  const selection = { provider: 'p', dataset: 'good', product_id: null }
+  const worse = { provider: 'p', dataset: 'worse', product_id: null }
+  const running = {
+    id: 'ranked',
+    kind: 'weather',
+    plan_hash: 'plan',
+    state: 'running',
+    total: 2,
+    completed: 0,
+    failed: 0,
+  }
+  const done = {
+    ...running,
+    state: 'completed',
+    completed: 2,
+    bundle: {
+      weather: [
+        { id: 'worse', path: 'x/worse.epw' },
+        { id: 'good', path: 'x/good.epw' },
+      ],
+    },
+  }
+  useApp.setState({
+    stage: 'download',
+    busy: false,
+    artifact: null,
+    job: running as any,
+    jobs: [],
+    downloadJobs: [running as any],
+    projectJobs: [],
+    selectedDatasets: [worse, selection],
+    selectedLocationId: null,
+    discovery: {
+      candidates: [
+        {
+          id: 'c-good',
+          location_id: 'L',
+          source: { provider: 'p', dataset: 'good' },
+          product_id: null,
+        },
+        {
+          id: 'c-worse',
+          location_id: 'L',
+          source: { provider: 'p', dataset: 'worse' },
+          product_id: null,
+        },
+      ],
+      ranked_candidate_ids: { L: ['c-good', 'c-worse'] },
+    } as any,
+    weatherPlan: {
+      plan_hash: 'plan',
+      outputs: [
+        { name: 'worse.epw', requested_location_id: 'L', dataset_selection: worse, task_ids: [] },
+        {
+          name: 'good.epw',
+          requested_location_id: 'L',
+          dataset_selection: selection,
+          task_ids: [],
+        },
+      ],
+    } as any,
+  })
+  vi.spyOn(api, 'job').mockResolvedValue(done as any)
+  function Monitor() {
+    useJobMonitor()
+    return null
+  }
+  render(<Monitor />)
+  await act(async () => vi.advanceTimersByTime(500))
+  expect(run).toHaveBeenCalledWith({
+    type: 'selectArtifact',
+    artifact: { id: 'good', path: 'x/good.epw' },
+  })
+})
