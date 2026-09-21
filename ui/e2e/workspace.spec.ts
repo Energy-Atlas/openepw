@@ -2,7 +2,7 @@ import AxeBuilder from '@axe-core/playwright'
 import { expect, test, type Page } from '@playwright/test'
 
 test.beforeEach(async ({ page }) => {
-  await page.route('https://**', async (route) => {
+  await page.route(/^https:\/\//, async (route) => {
     const url = route.request().url()
     if (url.includes('/styles/'))
       return route.fulfill({
@@ -42,6 +42,21 @@ async function addCdsToReviewedPlan(page: Page) {
   await expect(cds).toBeChecked()
   await expect(plan).not.toContainText('This plan is stale and cannot run.')
 }
+
+test('browser map fixtures do not fetch live tiles', async ({ page }) => {
+  const liveTiles: string[] = []
+  page.context().on('response', (response) => {
+    if (
+      response.status() === 200 &&
+      /tiles\.(mapterhorn|openfreemap)\.com/.test(new URL(response.url()).hostname)
+    )
+      liveTiles.push(new URL(response.url()).hostname)
+  })
+  await page.reload()
+  await expect(page.getByRole('region', { name: 'Map' })).toBeVisible()
+  await page.waitForTimeout(1500)
+  expect(liveTiles).toEqual([])
+})
 
 test('Explore sends one spatial preview for an unchanged query', async ({ page }) => {
   let previews = 0

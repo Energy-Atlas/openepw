@@ -4,12 +4,11 @@ export default defineConfig({
   testDir: './e2e',
   timeout: 45000,
   workers: 1,
-  retries: process.env.CI ? 1 : 0,
   use: {
     baseURL: process.env.UI_PRODUCTION ? 'http://127.0.0.1:8011/ui/' : 'http://127.0.0.1:5174/ui/',
     channel: process.env.PLAYWRIGHT_CHANNEL || 'msedge',
     viewport: { width: 1440, height: 950 },
-    trace: process.env.CI ? 'on-first-retry' : 'retain-on-failure',
+    trace: 'retain-on-failure',
   },
   webServer: [
     {
