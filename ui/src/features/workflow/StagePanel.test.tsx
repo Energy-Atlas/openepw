@@ -1,0 +1,169 @@
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { useApp } from '../../app/store'
+import { StagePanel } from './StagePanel'
+import { RunSplitButton } from './RunSplitButton'
+
+const { run } = vi.hoisted(() => ({ run: vi.fn() }))
+vi.mock('../../app/actions', async () => {
+  const actual = await vi.importActual<typeof import('../../app/actions')>('../../app/actions')
+  return { ...actual, run }
+})
+
+beforeEach(() => {
+  run.mockReset()
+  useApp.setState({
+    stage: 'explore',
+    requestVersion: 1,
+    selectionVersion: 0,
+    futureVersion: 0,
+    discovery: null,
+    discoveryVersion: null,
+    selectedDatasets: [],
+    weatherPlan: null,
+    weatherPlanRequestVersion: null,
+    weatherPlanSelectionVersion: null,
+    futurePlan: null,
+    futurePlanVersion: null,
+    futurePlanBaselineId: null,
+    spatialPreview: null,
+    spatialPreviewVersion: null,
+    downloadJobs: [],
+    projectJobs: [],
+    importedArtifacts: [],
+    activeWeatherArtifact: null,
+    job: null,
+    busy: false,
+    error: '',
+  })
+})
+
+afterEach(() => {
+  cleanup()
+  vi.useRealTimers()
+})
+
+describe('stage controls', () => {
+  it('keeps Explore provider-free and exposes sampling offsets', () => {
+    render(<StagePanel />)
+    expect(screen.getByRole('heading', { name: 'Explore' })).toBeTruthy()
+    expect(screen.queryByLabelText(/provider/i)).toBeNull()
+    expect(screen.getByLabelText(/Horizontal spacing/)).toBeTruthy()
+    expect(screen.getByLabelText(/Horizontal offset/)).toBeTruthy()
+    expect(screen.getByLabelText(/Vertical offset/)).toBeTruthy()
+  })
+
+  it('shows authoritative count and a visible disabled Run reason', () => {
+    useApp.setState({
+      spatialPreview: {
+        locations: [],
+        total_count: 1200,
+        returned_count: 500,
+        planned_output_count: 1200,
+        execution_limit: 1000,
+        executable: false,
+        truncated: true,
+        issues: [],
+      },
+      spatialPreviewVersion: 1,
+    })
+    render(<RunSplitButton />)
+    const button = screen.getByRole('button', { name: 'Find availability' })
+    expect(button.getAttribute('aria-disabled')).toBe('true')
+    expect(screen.getByText(/Reduce the sample count/i)).toBeTruthy()
+  })
+
+  it('groups Download datasets, toggles whole-query selections and refreshes the plan', () => {
+    vi.useFakeTimers()
+    useApp.setState({
+      stage: 'download',
+      discoveryVersion: 1,
+      discovery: {
+        locations: [],
+        selected_candidate_ids: ['a'],
+        issues: [],
+        observed_at: 'now',
+        candidates: [
+          {
+            id: 'a',
+            location_id: 'one',
+            source: { provider: 'era5', dataset: 'single-levels' },
+            product_id: null,
+            variables: [],
+            available_years: [2024],
+            requires_credentials: [],
+            missing_fields: [],
+            warnings: [],
+            selection_reasons: ['Backend ranked'],
+          },
+          {
+            id: 'b',
+            location_id: 'two',
+            source: { provider: 'era5', dataset: 'single-levels' },
+            product_id: null,
+            variables: [],
+            available_years: [2024],
+            requires_credentials: [],
+            missing_fields: [],
+            warnings: [],
+            selection_reasons: [],
+          },
+        ],
+      } as any,
+      selectedDatasets: [{ provider: 'era5', dataset: 'single-levels', product_id: null }],
+    })
+    render(<StagePanel />)
+    expect(screen.getAllByText('era5 / single-levels')).toHaveLength(1)
+    fireEvent.click(screen.getByRole('checkbox', { name: /era5 \/ single-levels/i }))
+    expect(run).toHaveBeenCalledWith({ type: 'selectDatasets', selections: [] })
+    vi.advanceTimersByTime(400)
+    expect(run).toHaveBeenCalledWith({ type: 'planWeather' })
+  })
+
+  it('shows partial Download outcomes and imported EPWs', () => {
+    useApp.setState({
+      stage: 'download',
+      downloadJobs: [
+        {
+          id: 'job',
+          state: 'partially_completed',
+          completed: 1,
+          failed: 2,
+          total: 3,
+          bundle: { weather: [{ id: 'made', path: 'made.epw', role: 'weather' }] },
+        } as any,
+      ],
+      importedArtifacts: [{ id: 'upload', path: 'baseline.epw', role: 'baseline' } as any],
+    })
+    render(<StagePanel />)
+    expect(screen.getByText(/1 complete, 2 failed/i)).toBeTruthy()
+    expect(screen.getByText('made.epw')).toBeTruthy()
+    expect(screen.getByText('baseline.epw')).toBeTruthy()
+  })
+
+  it('shows one active Project baseline and implemented methods only', () => {
+    useApp.setState({
+      stage: 'project',
+      activeWeatherArtifact: {
+        id: 'baseline',
+        path: 'ithaca.epw',
+        role: 'weather',
+        media_type: 'application/vnd.energyplus.epw',
+      } as any,
+      importedArtifacts: [
+        {
+          id: 'baseline',
+          path: 'ithaca.epw',
+          role: 'weather',
+          media_type: 'application/vnd.energyplus.epw',
+        } as any,
+      ],
+    })
+    render(<StagePanel />)
+    expect(screen.getByText('ithaca.epw')).toBeTruthy()
+    expect(screen.getByRole('option', { name: /monthly morphing/i })).toBeTruthy()
+    expect(screen.getByRole('option', { name: /coherent hourly/i })).toBeTruthy()
+    expect(screen.queryByRole('option', { name: /sampled/i })).toBeNull()
+    expect(screen.getByText(/not a forecast/i)).toBeTruthy()
+  })
+})

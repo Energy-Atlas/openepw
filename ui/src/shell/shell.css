@@ -182,6 +182,204 @@ nav a {
 .request-panel {
   padding: 20px 18px;
 }
+.stage-panel {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+}
+.stage-panel-header {
+  position: sticky;
+  z-index: 2;
+  top: 0;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 3px 12px;
+  padding: 16px 18px 13px;
+  border-bottom: 1px solid var(--color-border-subtle);
+  background: color-mix(in srgb, var(--color-surface) 94%, transparent);
+  backdrop-filter: blur(10px);
+}
+.stage-panel-header h1 {
+  margin: 1px 0 0;
+}
+.stage-panel-header p {
+  grid-column: 1 / -1;
+  max-width: 48ch;
+  margin: 2px 0 0;
+  color: var(--color-text-muted);
+}
+.stage-kicker {
+  color: var(--color-text-muted);
+  font-size: 10px;
+}
+.stage-state {
+  align-self: center;
+  color: var(--tone-success-text);
+  font-size: 11px;
+}
+.stage-state.stale {
+  color: var(--tone-warning-text);
+}
+.stage-body {
+  padding: 0 18px 24px;
+}
+.control-section {
+  padding: 15px 0;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+.control-section:last-child {
+  border-bottom: 0;
+}
+.control-section h2 {
+  margin: 0 0 9px;
+}
+.check-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 9px;
+  color: var(--color-text);
+}
+.check-row input {
+  width: auto;
+  margin-top: 3px;
+}
+.sample-count {
+  display: grid;
+  gap: 2px;
+  padding: 10px 11px;
+  border-left: 2px solid var(--color-accent);
+  background: var(--color-surface-raised);
+  font-size: 12px;
+}
+.dataset-list {
+  border-top: 1px solid var(--color-border-subtle);
+}
+.dataset-row {
+  padding: 11px 0;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+.dataset-row .check-row {
+  margin: 0;
+}
+.selection-reason {
+  margin: 5px 0 0 25px;
+  color: var(--color-accent-text);
+  font-size: 11px;
+}
+.upstream-summary p,
+.method-explainer,
+.period-readout,
+.projection-note {
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+.plan-metrics {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border: 1px solid var(--color-border-subtle);
+}
+.plan-metrics span {
+  display: grid;
+  padding: 9px 10px;
+  color: var(--color-text-muted);
+  font-size: 11px;
+}
+.plan-metrics span + span {
+  border-left: 1px solid var(--color-border-subtle);
+}
+.plan-metrics strong {
+  color: var(--color-text);
+  font-size: 16px;
+  font-weight: 620;
+}
+.job-summary {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--color-border-subtle);
+  font-size: 11px;
+}
+.stage-artifacts {
+  display: grid;
+  gap: 4px;
+  margin-top: 8px;
+}
+.stage-artifacts button,
+.baseline-artifact {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  text-align: left;
+}
+.empty-inline {
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+.stage-error {
+  margin: 12px 18px;
+}
+.run-control {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.run-split {
+  display: inline-flex;
+}
+.run-primary,
+.run-menu-trigger {
+  height: 31px;
+  border-color: var(--color-accent);
+  border-radius: 0;
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  font-weight: 620;
+}
+.run-primary {
+  padding: 0 11px;
+  border-radius: 5px 0 0 5px;
+}
+.run-menu-trigger {
+  width: 30px;
+  padding: 0;
+  border-left-color: color-mix(in srgb, var(--color-on-accent) 35%, transparent);
+  border-radius: 0 5px 5px 0;
+}
+.run-control-idle .run-primary,
+.run-control-idle .run-menu-trigger {
+  border-color: var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+}
+.run-reason {
+  max-width: 220px;
+  color: var(--color-text-muted);
+  font-size: 11px;
+  line-height: 1.2;
+}
+.run-menu {
+  position: absolute;
+  z-index: 50;
+  top: calc(100% + 6px);
+  right: 0;
+  display: grid;
+  min-width: 190px;
+  padding: 4px;
+  border: 1px solid var(--color-border);
+  border-radius: 5px;
+  background: var(--color-surface);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 14%);
+}
+.run-menu button {
+  justify-content: flex-start;
+  border: 0;
+  background: transparent;
+  text-align: left;
+}
 .segmented {
   display: flex;
   gap: 3px;
