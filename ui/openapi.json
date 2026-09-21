@@ -1282,6 +1282,12 @@
             "default": 0,
             "title": "Offset Y Km",
             "type": "number"
+          },
+          "standard_offset": {
+            "default": "utc",
+            "enum": ["utc", "longitude"],
+            "title": "Standard Offset",
+            "type": "string"
           }
         },
         "title": "SamplingSpec",

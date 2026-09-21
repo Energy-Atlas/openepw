@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 from datetime import date, datetime, timezone
 from typing import Any, Literal
 
@@ -82,12 +83,24 @@ class PolygonQuery(Model):
         return self
 
 
+def nominal_offset_minutes(lon: float) -> int:
+    """Longitude-based nominal standard time (whole hours, 15 degrees each, halves round up).
+
+    This keeps solar noon near 12:00 local standard time. It approximates, and can differ
+    from, a site's legal standard time zone.
+    """
+    return math.floor(lon / 15 + 0.5) * 60
+
+
 class SamplingSpec(Model):
     dx_km: float = Field(default=25, gt=0)
     dy_km: float = Field(default=25, gt=0)
     offset_x_km: float = 0
     offset_y_km: float = 0
     max_locations: int = Field(default=1000, ge=1, le=10000)
+    # Fixed standard time for sampled points: UTC (default, backward compatible) or the
+    # longitude-based nominal offset of each point.
+    standard_offset: Literal["utc", "longitude"] = "utc"
 
 
 class SpatialPreview(Model):
@@ -372,6 +385,11 @@ class WeatherPlan(Model):
             raise ValueError("Plan exceeds execution item limits")
         for candidate in raw["selected_candidates"]:
             candidate.pop("observed_at", None)
+        # Fields added after plans were first stored are hashed only when non-default, so
+        # existing stored plans keep validating against their recorded hashes.
+        sampling = raw["request"].get("sampling")
+        if isinstance(sampling, dict) and sampling.get("standard_offset") == "utc":
+            sampling.pop("standard_offset")
         hashed = digest(raw)
         if self.plan_hash and self.plan_hash != hashed:
             raise ValueError("Plan contents do not match plan_hash; create a new plan")

@@ -1,6 +1,13 @@
 import math
 
-from ..models import BoundingBox, Location, OpenEPWError, PolygonQuery, SamplingSpec
+from ..models import (
+    BoundingBox,
+    Location,
+    OpenEPWError,
+    PolygonQuery,
+    SamplingSpec,
+    nominal_offset_minutes,
+)
 
 
 def cross(a, b, c):
@@ -89,7 +96,8 @@ def _iter_points(query: BoundingBox | PolygonQuery, spec: SamplingSpec, *, evalu
                 or any(inside(point, hole) for hole in polygon.coordinates[1:])
             ):
                 continue
-            yield Location(lat=lat, lon=lon)
+            offset = nominal_offset_minutes(lon) if spec.standard_offset == "longitude" else 0
+            yield Location(lat=lat, lon=lon, standard_offset_minutes=offset)
 
 
 def sample_preview(

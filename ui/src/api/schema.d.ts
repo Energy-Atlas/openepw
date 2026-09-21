@@ -787,6 +787,12 @@ export interface components {
        * @default 0
        */
       offset_y_km: number
+      /**
+       * Standard Offset
+       * @default utc
+       * @enum {string}
+       */
+      standard_offset: 'utc' | 'longitude'
     }
     /** SourceRef */
     SourceRef: {

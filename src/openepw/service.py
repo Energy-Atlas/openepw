@@ -517,7 +517,10 @@ class WeatherService:
             "output_mapping": [o.model_dump() for o in plan.outputs],
             "warnings": plan.warnings,
             "issues": [i.model_dump() for i in issues],
-            "timezone_policy": "fixed local standard time; default UTC when not supplied",
+            "timezone_policy": (
+                "fixed local standard time; default UTC when not supplied; sampled area points "
+                "use UTC unless sampling.standard_offset is longitude"
+            ),
             "leap_policy": (
                 plan.request.leap_policy if isinstance(plan.request, WeatherRequest) else "preserve"
             ),

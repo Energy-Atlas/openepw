@@ -104,3 +104,32 @@ def test_spatial_preview_returns_deterministic_prefix_and_limit_issue(tmp_path):
     assert [(issue.code, issue.severity) for issue in result.issues] == [
         ("RESOURCE_LIMIT", "error")
     ]
+
+
+def test_sampled_points_can_use_longitude_based_standard_time():
+    from openepw.models import BoundingBox, SamplingSpec, nominal_offset_minutes
+    from openepw.planning.spatial import sample
+
+    assert [nominal_offset_minutes(lon) for lon in (-76.5, -7.5, 7.5, 0, 179.9, -179.9)] == [
+        -300,
+        0,
+        60,
+        0,
+        720,
+        -720,
+    ]
+    box = BoundingBox(west=-77, south=42, east=-76, north=43)
+    utc = sample(box, SamplingSpec(dx_km=50, dy_km=50))
+    local = sample(box, SamplingSpec(dx_km=50, dy_km=50, standard_offset="longitude"))
+    assert {point.standard_offset_minutes for point in utc} == {0}
+    assert {point.standard_offset_minutes for point in local} == {-300}
+    assert [(p.lat, p.lon) for p in utc] == [(p.lat, p.lon) for p in local]
+    # A grid spanning nominal zones gives each point its own offset.
+    wide = sample(
+        BoundingBox(west=-10, south=40, east=10, north=41),
+        SamplingSpec(dx_km=400, dy_km=400, standard_offset="longitude"),
+    )
+    assert {nominal_offset_minutes(p.lon) for p in wide} == {
+        p.standard_offset_minutes for p in wide
+    }
+    assert len({p.standard_offset_minutes for p in wide}) > 1
