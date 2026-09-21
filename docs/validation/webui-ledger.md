@@ -93,3 +93,31 @@ boundary; do not delete coverage solely to shorten CI. Measure before/after runt
 and preserve evidence that the production module worker executes.
 
 Status: proposal only, awaiting the owner's decision before editing test code or CI.
+
+## Browser-test simplification implemented — 2026-09-21
+
+Owner approved implementation in session on 2026-09-21. Ten browser tests became three:
+offline map + module-worker execution (`@production`), the real-backend Explore →
+Agent confirmation → multi-dataset Download → Project inspector/history path, and one
+appearances/Axe/narrow-drawer focus/draft-reload/WebGL-failure test. The production
+script now runs only `--grep @production`. Every non-loopback request is stubbed or
+aborted; fixed sleeps were removed. The live-tile check waits for intercepted terrain
+tile requests, and it no longer counts the stubbed style (its old `openfreemap.com`
+pattern never matched the real `.org` host). Worker evidence is now stronger: the test
+evaluates the MapLibre worker's global scope for `registerWorkerSource` and `worker`,
+which exist only after the module and its shared runtime execute. A served-but-throwing
+`maplibre-gl-shared.mjs` failed the new test; the previous 200/content-type check would
+have passed it.
+
+Moved coverage: one-preview-per-query-version with a slow in-flight preview
+(`ExplorePanel.test.tsx`, fake timers); partial Download advancing to Project with
+explicit history counts and `SOURCE_UNAVAILABLE` (`HistoryDrawer.test.tsx`); and the
+sampled polygon partial-source job through the same fixture app over REST
+(`tests/unit/test_ui_fixture_jobs.py`, about 6 s). The existing no-retry, busy-deferral,
+Refresh sample preview and partial-unlock unit tests stay.
+
+Local measurement (Windows, Edge, one worker): development hosting 10 tests 62.7 s →
+3 tests 15.2 s; production hosting 10 tests 43.0 s → 1 test 3.6 s. Also passed:
+TypeScript, ESLint, Vitest 14 files/54 tests, Python 100 passed/15 live skipped, Ruff.
+Repo-wide `format:check` warns on this Windows checkout's CRLF files; the changed UI
+files pass Prettier. CI has not yet run this change.
