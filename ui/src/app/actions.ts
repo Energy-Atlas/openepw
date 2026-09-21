@@ -1,6 +1,8 @@
 import { api, type Artifact, type FutureRequest, type WeatherRequest } from '../api/client'
 import { rememberedIntent, rememberIntent } from './intent'
-import { useApp, type State } from './store'
+import { useApp, validAppearance, type State } from './store'
+import type { AppearancePreference } from '../shell/appearances'
+import { clampPanelSize, type ResizablePanel } from '../shell/panels'
 import { canNavigate, deriveWorkflow, type DatasetSelection, type Stage } from './workflow'
 
 export const ACTION_REGISTRY = {
@@ -26,6 +28,8 @@ export const ACTION_REGISTRY = {
   loadCoverage: { confirmation: 'none', reversible: true },
   setCoverageSelection: { confirmation: 'none', reversible: true },
   setInspector: { confirmation: 'none', reversible: true },
+  setAppearance: { confirmation: 'none', reversible: true },
+  setPanelSize: { confirmation: 'none', reversible: true },
 } as const
 
 export type AppAction =
@@ -53,6 +57,8 @@ export type AppAction =
   | { type: 'previewPage'; start: number }
   | { type: 'setCoverageSelection'; ids: string[] }
   | { type: 'setInspector'; open: boolean; manually?: boolean }
+  | { type: 'setAppearance'; appearance: AppearancePreference }
+  | { type: 'setPanelSize'; panel: ResizablePanel; size: number }
 
 export type Action = AppAction
 type InvalidatingAction = Extract<
@@ -160,6 +166,18 @@ export async function dispatch(action: AppAction): Promise<unknown> {
   if (action.type === 'setCoverageSelection')
     return useApp.setState({ selectedCoverageIds: action.ids })
   if (action.type === 'setInspector') return state.setInspectorOpen(action.open, action.manually)
+  // Layout and appearance are synchronous and reversible, so they never wait on a request.
+  if (action.type === 'setAppearance') {
+    if (!validAppearance(action.appearance)) throw new Error('Unknown appearance.')
+    return useApp.setState({ appearance: action.appearance })
+  }
+  if (action.type === 'setPanelSize')
+    return useApp.setState((current) => ({
+      panelSizes: {
+        ...current.panelSizes,
+        [action.panel]: clampPanelSize(action.panel, action.size),
+      },
+    }))
   if (action.type === 'navigate') {
     const status = deriveWorkflow(state)
     if (!canNavigate(status, action.stage)) throw new Error(`${action.stage} is not unlocked yet.`)

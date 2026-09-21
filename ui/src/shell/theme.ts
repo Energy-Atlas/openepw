@@ -1,15 +1,13 @@
 import { useEffect, useState } from 'react'
-import {
-  CHROME_VARIABLES,
-  resolveAppearance,
-  isAppearanceId,
-  type AppearancePreference,
-} from './appearances'
+import { run } from '../app/actions'
+import { useApp } from '../app/store'
+import { CHROME_VARIABLES, resolveAppearance, type AppearancePreference } from './appearances'
+
+/** Applies the stored appearance; changes go through the shared setAppearance action. */
 export function useTheme() {
-  const [preference, setPreference] = useState<AppearancePreference>(() => {
-    const p = localStorage.getItem('openepw.appearance.v1')
-    return p && isAppearanceId(p) ? p : 'system'
-  })
+  const preference = useApp((state) => state.appearance)
+  const setPreference = (appearance: AppearancePreference) =>
+    run({ type: 'setAppearance', appearance })
   const [dark, setDark] = useState(() => matchMedia('(prefers-color-scheme: dark)').matches)
   useEffect(() => {
     const q = matchMedia('(prefers-color-scheme: dark)')
@@ -25,7 +23,6 @@ export function useTheme() {
         appearance.chrome[key as keyof typeof appearance.chrome],
       )
     document.documentElement.style.colorScheme = appearance.scheme
-    localStorage.setItem('openepw.appearance.v1', preference)
-  }, [appearance, preference])
+  }, [appearance])
   return { preference, setPreference, appearance }
 }

@@ -450,3 +450,28 @@ it('retries only after confirmation and tracks the new job by kind', async () =>
   expect(useApp.getState().downloadJobs.map((job) => job.id)).toEqual(['retry'])
   expect(useApp.getState().projectJobs).toEqual([])
 })
+
+it('changes appearance and panel sizes through registered, clamped actions even while busy', async () => {
+  expect(ACTION_REGISTRY.setAppearance.confirmation).toBe('none')
+  expect(ACTION_REGISTRY.setPanelSize.confirmation).toBe('none')
+  useApp.setState({ busy: true, appearance: 'system' })
+  await dispatch({ type: 'setAppearance', appearance: 'monochrome' as any })
+  expect(useApp.getState().appearance).toBe('monochrome')
+  await expect(dispatch({ type: 'setAppearance', appearance: 'neon' as any })).rejects.toThrow(
+    'Unknown appearance',
+  )
+  await dispatch({ type: 'setPanelSize', panel: 'agent', size: 9000 })
+  expect(useApp.getState().panelSizes.agent).toBe(520)
+  await dispatch({ type: 'setPanelSize', panel: 'inspector', size: 10 })
+  expect(useApp.getState().panelSizes.inspector).toBe(180)
+})
+
+it('persists appearance with the workspace and carries over the legacy setting', async () => {
+  const { validAppearance } = await import('./store')
+  expect(validAppearance('dark')).toBe('dark')
+  expect(validAppearance('system')).toBe('system')
+  expect(validAppearance('neon')).toBeNull()
+  useApp.setState({ appearance: 'dark' })
+  const persisted = JSON.parse(localStorage.getItem('openepw.draft.v2') ?? '{}')
+  expect(persisted.state.appearance).toBe('dark')
+})

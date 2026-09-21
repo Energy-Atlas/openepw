@@ -25,3 +25,31 @@ it('propagates a real tool failure', async () => {
     runRecipe('sources', vi.fn().mockRejectedValue(new Error('provider unavailable'))),
   ).rejects.toThrow('provider unavailable')
 })
+
+it('parses layout and appearance commands before workflow words', async () => {
+  const { parseCommand } = await import('./runner')
+  expect(parseCommand('Use the dark engineering theme')).toBe('appearance:darkEngineering')
+  expect(parseCommand('dark appearance')).toBe('appearance:dark')
+  expect(parseCommand('switch to system mode')).toBe('appearance:system')
+  expect(parseCommand('make the agent panel wider')).toBe('resize:agent:40')
+  expect(parseCommand('narrower controls')).toBe('resize:controls:-40')
+  expect(parseCommand('taller inspector')).toBe('resize:inspector:40')
+  expect(parseCommand('reset panels')).toBe('reset-panels')
+  expect(parseCommand('refresh the plan')).toBe('plan')
+  expect(parseCommand('hello there')).toBeNull()
+})
+
+it('routes appearance and panel recipes through the shared registry actions', async () => {
+  const send = vi.fn().mockResolvedValue(undefined)
+  useApp.setState({ panelSizes: { controls: 300, agent: 360, inspector: 250 } })
+  await runRecipe('appearance:dark', send)
+  await runRecipe('resize:agent:40', send)
+  await runRecipe('reset-panels', send)
+  expect(send.mock.calls.map((call) => call[0])).toEqual([
+    { type: 'setAppearance', appearance: 'dark' },
+    { type: 'setPanelSize', panel: 'agent', size: 400 },
+    { type: 'setPanelSize', panel: 'controls', size: 340 },
+    { type: 'setPanelSize', panel: 'agent', size: 340 },
+    { type: 'setPanelSize', panel: 'inspector', size: 300 },
+  ])
+})

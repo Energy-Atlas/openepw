@@ -4,7 +4,6 @@ import { api } from '../../api/client'
 import { run } from '../../app/actions'
 import { useApp } from '../../app/store'
 import type { Appearance } from '../../shell/appearances'
-import { clampPanelSize } from '../../shell/panels'
 import { WeatherCharts } from './WeatherCharts'
 import { WeatherTable } from './WeatherTable'
 
@@ -54,8 +53,7 @@ export function WeatherInspector({ appearance }: { appearance: Appearance }) {
     const origin = event.clientY
     const initial = state.panelSizes.inspector
     const move = (pointer: PointerEvent) => {
-      const size = clampPanelSize('inspector', initial + origin - pointer.clientY)
-      useApp.setState((current) => ({ panelSizes: { ...current.panelSizes, inspector: size } }))
+      run({ type: 'setPanelSize', panel: 'inspector', size: initial + origin - pointer.clientY })
     }
     const stop = () => {
       removeEventListener('pointermove', move)
@@ -84,13 +82,11 @@ export function WeatherInspector({ appearance }: { appearance: Appearance }) {
         onKeyDown={(event) => {
           if (!['ArrowUp', 'ArrowDown'].includes(event.key)) return
           event.preventDefault()
-          const next = clampPanelSize(
-            'inspector',
-            state.panelSizes.inspector + (event.key === 'ArrowUp' ? 10 : -10),
-          )
-          useApp.setState((current) => ({
-            panelSizes: { ...current.panelSizes, inspector: next },
-          }))
+          run({
+            type: 'setPanelSize',
+            panel: 'inspector',
+            size: state.panelSizes.inspector + (event.key === 'ArrowUp' ? 10 : -10),
+          })
         }}
       >
         <GripHorizontal aria-hidden="true" />

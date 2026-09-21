@@ -13,7 +13,7 @@ import { StagePanel } from '../features/workflow/StagePanel'
 import { isActiveJob, JobProgress } from '../features/workflow/JobProgress'
 import { APPEARANCE_LIST, type AppearancePreference } from '../shell/appearances'
 import { isNarrow, resizeFromPointer } from '../shell/layout'
-import { clampPanelSize, nextDrawer, type Drawer } from '../shell/panels'
+import { nextDrawer, type Drawer } from '../shell/panels'
 import { useTheme } from '../shell/theme'
 import { useAnnouncements } from '../shell/announcements'
 import { ModalDialog } from '../shell/ModalDialog'
@@ -87,8 +87,11 @@ export function App() {
     const origin = event.clientX
     const initial = state.panelSizes[panel]
     const move = (pointer: PointerEvent) => {
-      const size = clampPanelSize(panel, resizeFromPointer(side, origin, initial, pointer.clientX))
-      useApp.setState((current) => ({ panelSizes: { ...current.panelSizes, [panel]: size } }))
+      run({
+        type: 'setPanelSize',
+        panel,
+        size: resizeFromPointer(side, origin, initial, pointer.clientX),
+      })
     }
     const stop = () => {
       removeEventListener('pointermove', move)
@@ -106,8 +109,7 @@ export function App() {
     if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return
     event.preventDefault()
     const outward = side === 'left' ? event.key === 'ArrowRight' : event.key === 'ArrowLeft'
-    const size = clampPanelSize(panel, state.panelSizes[panel] + (outward ? 10 : -10))
-    useApp.setState((current) => ({ panelSizes: { ...current.panelSizes, [panel]: size } }))
+    run({ type: 'setPanelSize', panel, size: state.panelSizes[panel] + (outward ? 10 : -10) })
   }
 
   return (

@@ -1,5 +1,7 @@
 import { expect, it } from 'vitest'
 import { calendarDay, heatmapModel, localHour, monthLabel } from './heatmap'
+import { heatmapOptions } from './WeatherCharts'
+import { APPEARANCES } from '../../shell/appearances'
 
 it('maps leap chronology according to the artifact calendar', () => {
   expect(calendarDay('2024-02-28T12:00:00', 'noleap')).toBe(59)
@@ -67,9 +69,7 @@ it('labels months independently of the viewer time zone', () => {
   )
 })
 
-it('colors heatmap cells by value on the sequential palette with a no-data map', async () => {
-  const { heatmapOptions } = await import('./WeatherCharts')
-  const { APPEARANCES } = await import('../../shell/appearances')
+it('colors heatmap cells by value on the sequential palette with a no-data map', () => {
   const options = heatmapOptions(
     {
       ...visualization(

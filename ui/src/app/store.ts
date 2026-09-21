@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware'
 import { validateDraft } from '../api/input'
 import type { Artifact, FutureRequest, Job, Plan, Schemas, WeatherRequest } from '../api/client'
 import type { DatasetSelection, Stage } from './workflow'
+import { isAppearanceId, type AppearancePreference } from '../shell/appearances'
 
 export type LogEntry = { id: string; kind: 'info' | 'error' | 'tool'; text: string }
 export type PanelSizes = { controls: number; agent: number; inspector: number }
@@ -54,6 +55,7 @@ export type State = {
   inspector: InspectorState
   pendingConfirmation: PendingConfirmation | null
   panelSizes: PanelSizes
+  appearance: AppearancePreference
   busy: boolean
   error: string
   logs: LogEntry[]
@@ -101,6 +103,20 @@ function resetSubmission(state: State, kinds: PlanKind[]) {
   return { submitKeys, submitted }
 }
 
+export function validAppearance(value: unknown): AppearancePreference | null {
+  return value === 'system' || (typeof value === 'string' && isAppearanceId(value)) ? value : null
+}
+
+// Appearance used to live under its own key; carry it over once into the persisted store.
+const LEGACY_APPEARANCE_KEY = 'openepw.appearance.v1'
+function legacyAppearance(): AppearancePreference {
+  try {
+    return validAppearance(localStorage.getItem(LEGACY_APPEARANCE_KEY)) ?? 'system'
+  } catch {
+    return 'system'
+  }
+}
+
 export const useApp = create<State>()(
   persist(
     (set, get) => ({
@@ -142,6 +158,7 @@ export const useApp = create<State>()(
       inspector: { open: false, manuallyCollapsed: false },
       pendingConfirmation: null,
       panelSizes: { controls: 340, agent: 340, inspector: 300 },
+      appearance: legacyAppearance(),
       busy: false,
       error: '',
       logs: [],
@@ -211,10 +228,13 @@ export const useApp = create<State>()(
         stage: state.stage,
         selectedCoverageIds: state.selectedCoverageIds,
         panelSizes: state.panelSizes,
+        appearance: state.appearance,
       }),
       merge: (saved, current) => {
         try {
           const value = saved as Partial<State>
+          const appearance = validAppearance(value.appearance) ?? current.appearance
+          current = { ...current, appearance }
           validateDraft(value.draft)
           if (
             !value.future ||

@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { run } from '../../app/actions'
 import { useApp } from '../../app/store'
 import { callStatus, groupTranscript } from './transcript'
-import { recipes, runRecipe } from './runner'
+import { parseCommand, recipes, runRecipe } from './runner'
 
 type Pending = {
   requiresConfirmation: true
@@ -29,23 +29,12 @@ export function AgentPanel() {
   }
 
   function submit() {
-    const normalized = message.trim().toLowerCase()
+    const recipe = parseCommand(message)
     setMessage('')
-    const recipe = normalized.includes('inspect')
-      ? 'inspect'
-      : normalized.includes('plan')
-        ? 'plan'
-        : normalized.includes('run') ||
-            normalized.includes('download') ||
-            normalized.includes('generate')
-          ? 'run'
-          : normalized.includes('source') || normalized.includes('availability')
-            ? 'sources'
-            : null
     if (recipe) void invoke(recipe)
     else
       state.log(
-        'Scripted Agent accepts the suggested actions only. Edit controls directly for other changes.',
+        'Scripted Agent accepts the suggested actions, appearance ("dark appearance") and panel commands ("wider agent panel", "reset panels").',
       )
   }
 
