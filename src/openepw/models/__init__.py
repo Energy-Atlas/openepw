@@ -411,6 +411,7 @@ class ArtifactBundle(Model):
 class WeatherJob(Model):
     id: str
     plan_hash: str
+    kind: Literal["weather", "future"] = "weather"
     state: Literal[
         "queued", "running", "completed", "partially_completed", "failed", "cancelled"
     ] = "queued"

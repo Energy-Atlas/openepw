@@ -135,6 +135,33 @@ def test_future_ensemble_progress_counts_artifacts(tmp_path):
     final = store.get(job.id)
     assert final.state == "completed"
     assert final.completed == final.total == 2
+    assert final.kind == "future"
+    assert store.list_jobs().items[0].kind == "future"
+
+
+def test_job_kind_comes_from_the_stored_plan_for_legacy_rows(tmp_path):
+    import json
+    import sqlite3
+
+    service = WeatherService(RuntimeConfig(data_root=tmp_path), providers=[StationProvider()])
+    plan = service.plan(
+        WeatherRequest(locations=Location(lat=1, lon=0), start="2024-01-01", end="2024-01-01")
+    )
+    store = JobStore(tmp_path)
+    job = store.submit(plan)
+    assert job.kind == "weather"
+    legacy_plan = plan.model_dump(mode="json")
+    legacy_plan["kind"] = "future"
+    legacy_job = job.model_dump(mode="json", exclude={"kind"})
+    with sqlite3.connect(store.path) as db:
+        db.execute(
+            "UPDATE jobs SET plan=?, job=? WHERE id=?",
+            (json.dumps(legacy_plan), json.dumps(legacy_job), job.id),
+        )
+    db.close()
+
+    assert store.get(job.id).kind == "future"
+    assert store.list_jobs().items[0].kind == "future"
 
 
 def test_job_connections_close_after_transaction(tmp_path):

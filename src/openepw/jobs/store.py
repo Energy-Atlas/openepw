@@ -7,6 +7,14 @@ from pathlib import Path
 
 from ..models import ArtifactBundle, OpenEPWError, WeatherJob, WeatherPlan
 
+# The stored plan is authoritative for job kind, including rows written before
+# WeatherJob carried it.
+JOB_COLUMNS = "job, coalesce(json_extract(plan, '$.kind'), 'weather')"
+
+
+def job_from_row(row):
+    return WeatherJob.model_validate_json(row[0]).model_copy(update={"kind": row[1]})
+
 
 class JobStore:
     def __init__(self, root):
@@ -36,6 +44,7 @@ class JobStore:
         job = WeatherJob(
             id=uuid.uuid4().hex,
             plan_hash=plan.plan_hash,
+            kind=plan.kind,
             total=max(1, len({o.name for o in plan.outputs})),
             idempotency_key=idempotency_key,
         )
@@ -43,10 +52,10 @@ class JobStore:
             db.execute("BEGIN IMMEDIATE")
             if idempotency_key:
                 row = db.execute(
-                    "SELECT job FROM jobs WHERE idempotency=?", (idempotency_key,)
+                    f"SELECT {JOB_COLUMNS} FROM jobs WHERE idempotency=?", (idempotency_key,)
                 ).fetchone()
                 if row:
-                    prior = WeatherJob.model_validate_json(row[0])
+                    prior = job_from_row(row)
                     if prior.plan_hash != plan.plan_hash:
                         raise OpenEPWError(
                             "IDEMPOTENCY_CONFLICT", "Key already refers to a different plan"
@@ -60,10 +69,10 @@ class JobStore:
 
     def get(self, job_id):
         with self.connect() as db:
-            row = db.execute("SELECT job FROM jobs WHERE id=?", (job_id,)).fetchone()
+            row = db.execute(f"SELECT {JOB_COLUMNS} FROM jobs WHERE id=?", (job_id,)).fetchone()
         if row is None:
             raise OpenEPWError("JOB_NOT_FOUND", "Unknown job identifier")
-        return WeatherJob.model_validate_json(row[0])
+        return job_from_row(row)
 
     def plan(self, job_id):
         with self.connect() as db:
@@ -122,12 +131,12 @@ class JobStore:
         with self.connect() as db:
             clause = "WHERE (json_extract(job, '$.submitted_at'), id) < (?, ?)" if after else ""
             rows = db.execute(
-                "SELECT job FROM jobs "
+                f"SELECT {JOB_COLUMNS} FROM jobs "
                 + clause
                 + " ORDER BY json_extract(job, '$.submitted_at') DESC, id DESC LIMIT ?",
                 (*after, limit + 1) if after else (limit + 1,),
             ).fetchall()
-        jobs = [WeatherJob.model_validate_json(row[0]) for row in rows]
+        jobs = [job_from_row(row) for row in rows]
         more = len(jobs) > limit
         jobs = jobs[:limit]
         token = (

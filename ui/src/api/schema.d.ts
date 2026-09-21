@@ -863,6 +863,12 @@ export interface components {
       id: string
       /** Idempotency Key */
       idempotency_key?: string | null
+      /**
+       * Kind
+       * @default weather
+       * @enum {string}
+       */
+      kind: 'weather' | 'future'
       /** Plan Hash */
       plan_hash: string
       /**

@@ -1559,6 +1559,12 @@
             ],
             "title": "Idempotency Key"
           },
+          "kind": {
+            "default": "weather",
+            "enum": ["weather", "future"],
+            "title": "Kind",
+            "type": "string"
+          },
           "plan_hash": {
             "title": "Plan Hash",
             "type": "string"
