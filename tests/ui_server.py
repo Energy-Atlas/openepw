@@ -2,8 +2,10 @@
 
 import hashlib
 import os
+import time
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 from openepw.api.app import create_app
@@ -52,6 +54,8 @@ class FixtureProvider:
         ]
 
     def fetch(self, task, http):
+        # Opt-in delay for manual progress checks; automated tests leave it at zero.
+        time.sleep(float(os.environ.get("OPENEPW_UI_FIXTURE_DELAY", "0")))
         location = Location.model_validate(task.parameters["location"])
         if self.sparse and location.lon > -76.48:
             raise OpenEPWError(
@@ -65,18 +69,29 @@ class FixtureProvider:
             pd.Timestamp(end, tz="UTC") + pd.Timedelta(days=1),
             freq="h",
         )
+        # Deterministic seasonal and diurnal cycles so charts show real gradients.
+        day = index.dayofyear.to_numpy()
+        hour = index.hour.to_numpy()
+        season = np.cos(2 * np.pi * (day - 200) / 365.0)
+        sun = np.clip(np.sin(np.pi * (hour - 6) / 12.0), 0, None) * (0.65 + 0.35 * season)
+        dry_bulb = 9.0 + 13.0 * season + 5.0 * np.sin(np.pi * (hour - 9) / 12.0)
         values = {
-            "dry_bulb": 20.0,
-            "dew_point": 10.0,
-            "relative_humidity": 50.0,
-            "pressure": 101325.0,
-            "ghi": 0.0,
-            "dhi": 0.0,
-            "wind_speed": 2.0,
-            "wind_direction": 180.0,
+            "dry_bulb": dry_bulb,
+            "dew_point": dry_bulb - 6.0,
+            "relative_humidity": 60.0 - 15.0 * sun,
+            "pressure": 101325.0 + 400.0 * np.sin(2 * np.pi * day / 9.0),
+            "ghi": 850.0 * sun,
+            "dhi": 180.0 * sun,
+            "wind_speed": 3.0 + 1.5 * np.sin(2 * np.pi * day / 5.0),
+            "wind_direction": (180.0 + 90.0 * np.sin(2 * np.pi * day / 11.0)) % 360.0,
         }
         if not self.sparse:
-            values.update({"dni": 0.0, "liquid_precipitation": 0.1})
+            values.update(
+                {
+                    "dni": 700.0 * sun,
+                    "liquid_precipitation": np.where((day % 4 == 0) & (hour < 6), 1.2, 0.0),
+                }
+            )
         frame = pd.DataFrame(values, index=index)
         raw = b"synthetic browser fixture"
         data = WeatherDataset(
