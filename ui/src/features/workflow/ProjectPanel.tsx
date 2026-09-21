@@ -3,6 +3,7 @@ import { run } from '../../app/actions'
 import { useApp } from '../../app/store'
 import { FutureForm } from '../request/FutureForm'
 import { PlanReview } from '../request/PlanReview'
+import { BaselineSummary } from './BaselineSummary'
 import { JobProgress } from './JobProgress'
 
 export function ProjectPanel() {
@@ -28,18 +29,7 @@ export function ProjectPanel() {
       <section className="control-section baseline-summary">
         <h2>Active baseline</h2>
         {baseline ? (
-          <button
-            type="button"
-            className="baseline-artifact"
-            onClick={() => run({ type: 'selectArtifact', artifact: baseline })}
-          >
-            <strong>{baseline.path.split('/').pop()}</strong>
-            <small>
-              {baseline.role === 'baseline' ? 'Imported EPW' : 'Downloaded EPW'} ·{' '}
-              {baseline.id.slice(0, 12)}
-            </small>
-            <small>Parsed and annual-QC validated; not certified simulation-ready.</small>
-          </button>
+          <BaselineSummary baseline={baseline} />
         ) : (
           <p className="notice">Select a generated EPW in Download or import a baseline.</p>
         )}

@@ -129,3 +129,9 @@ it('supports keyboard resizing with range semantics', () => {
     screen.getByRole('separator', { name: 'Resize stage controls' }).getAttribute('aria-valuenow'),
   ).toBe('350')
 })
+
+it('keeps the History button named when narrow screens hide its text', () => {
+  Object.defineProperty(window, 'innerWidth', { configurable: true, value: 700 })
+  render(<App />)
+  expect(screen.getByRole('button', { name: 'History' }).getAttribute('aria-label')).toBe('History')
+})

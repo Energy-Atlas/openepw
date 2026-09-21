@@ -1491,10 +1491,18 @@ footer {
   .cockpit-panel[data-open='false'] {
     visibility: hidden;
   }
+  /* The narrow inspector is a bottom sheet; its resize grip doubles as the sheet handle. */
   .inspector-slot,
   .weather-inspector {
-    right: 8px;
-    left: 8px;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    max-height: 75vh;
+    border-right: 0;
+    border-bottom: 0;
+    border-left: 0;
+    border-radius: 12px 12px 0 0;
+    box-shadow: 0 -10px 30px rgb(0 0 0 / 18%);
   }
   .geometry-tools {
     top: 54px;
@@ -1509,6 +1517,7 @@ footer {
     right: 8px;
   }
   .fit-selection {
+    top: 96px;
     right: 8px;
   }
   .inspector-reopen {
@@ -1528,11 +1537,16 @@ footer {
     border-bottom: 1px solid var(--color-border-subtle);
   }
   .weather-inspector > header {
-    grid-template-columns: 1fr auto;
+    grid-template-columns: minmax(0, 1fr) auto auto;
   }
   .weather-inspector header label {
     grid-column: 1 / -1;
     grid-row: 2;
+    justify-content: space-between;
+  }
+  .weather-inspector header label select {
+    flex: 1;
+    max-width: 320px;
   }
 }
 
@@ -1687,4 +1701,32 @@ footer {
   border: 0;
   padding: 0;
   margin: -1px;
+}
+.baseline-summary-card {
+  display: grid;
+  gap: 8px;
+}
+.baseline-facts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 12px;
+  margin: 0;
+}
+.baseline-facts dt {
+  color: var(--color-text-muted);
+  font-size: 10px;
+}
+.baseline-facts dd {
+  margin: 0;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+.link-button {
+  justify-self: start;
+  height: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-accent-text);
+  text-decoration: underline;
 }

@@ -123,7 +123,8 @@ export function GeometryToolbar({
           </button>
         </>
       )}
-      <output aria-live="polite">{measureSelection(mode, vertices)}</output>
+      {/* Measurements describe the shape being drawn; nothing is pending once it is applied. */}
+      <output aria-live="polite">{drawing ? measureSelection(mode, vertices) : ''}</output>
     </div>
   )
 }

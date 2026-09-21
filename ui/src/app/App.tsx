@@ -153,7 +153,12 @@ export function App() {
           )}
         </nav>
         <div className="header-actions">
-          <button type="button" ref={historyTrigger} onClick={() => setHistoryOpen(true)}>
+          <button
+            type="button"
+            ref={historyTrigger}
+            aria-label="History"
+            onClick={() => setHistoryOpen(true)}
+          >
             <History size={15} aria-hidden="true" />
             <span>History</span>
           </button>

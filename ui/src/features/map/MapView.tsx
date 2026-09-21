@@ -187,6 +187,26 @@ function WeatherMap({ appearance }: { appearance: Appearance }) {
       setError(reason instanceof Error ? reason.message : String(reason))
     }
   }
+  // Keyboard alternatives while drawing: Enter finishes, Escape cancels. Capture phase with
+  // preventDefault keeps the workspace Escape handler from also closing a drawer.
+  useEffect(() => {
+    if (!drawing) return
+    const keydown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null
+      if (target?.closest('input, textarea, select, [contenteditable="true"]')) return
+      if (event.key === 'Enter' && vertices.length) {
+        event.preventDefault()
+        apply(vertices)
+      } else if (event.key === 'Escape') {
+        event.preventDefault()
+        setVertices([])
+        setDrawing(false)
+      }
+    }
+    document.addEventListener('keydown', keydown, true)
+    return () => document.removeEventListener('keydown', keydown, true)
+  })
+
   function fitSelection() {
     // Camera flights are instant when the viewer prefers reduced motion.
     const duration = matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : undefined
@@ -258,7 +278,7 @@ function WeatherMap({ appearance }: { appearance: Appearance }) {
         <div className="map-instruction">
           Click the globe to add{' '}
           {mode === 'bbox' ? 'two corners' : mode === 'point' ? 'a point' : 'vertices'}. Arrow keys
-          nudge the latest vertex; Shift moves farther.
+          nudge the latest vertex; Shift moves farther. Enter finishes; Escape cancels.
         </div>
       )}
       <MapViewGL
