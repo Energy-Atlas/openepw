@@ -6,7 +6,7 @@ import { useApp } from './store'
 import { canNavigate, deriveWorkflow, type Stage } from './workflow'
 import { AgentPanel } from '../features/agent/AgentPanel'
 import { MapView } from '../features/map/MapView'
-import { HistoryDrawer, useJobMonitor } from '../features/results/HistoryDrawer'
+import { HistoryDrawer, useJobMonitor, useJobReconcile } from '../features/results/HistoryDrawer'
 import { WeatherInspector } from '../features/results/WeatherInspector'
 import { RunSplitButton } from '../features/workflow/RunSplitButton'
 import { StagePanel } from '../features/workflow/StagePanel'
@@ -31,6 +31,7 @@ export function App() {
   const controlsPanel = useRef<HTMLElement>(null)
   const agentPanel = useRef<HTMLElement>(null)
   const historyTrigger = useRef<HTMLButtonElement>(null)
+  useJobReconcile()
   useJobMonitor()
 
   useEffect(() => {
@@ -47,7 +48,8 @@ export function App() {
 
   useEffect(() => {
     const escape = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return
+      // A modal dialog handles its own Escape; do not also close the drawer beneath it.
+      if (event.key !== 'Escape' || event.defaultPrevented) return
       if (historyOpen) {
         setHistoryOpen(false)
         historyTrigger.current?.focus()

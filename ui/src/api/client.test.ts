@@ -41,3 +41,22 @@ it('calls spatial preview, coverage and full artifact visualization contracts', 
     '/v1/artifacts/artifact%2Fid/visualization?variables=dry_bulb&variables=dni',
   )
 })
+
+it('names rejected fields with a readable ASCII separator', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          code: 'INVALID_REQUEST',
+          message: 'Request schema validation failed',
+          fields: [['body', 'locations', 'lat']],
+        }),
+        { status: 422, headers: { 'content-type': 'application/json' } },
+      ),
+    ),
+  )
+  await expect(api.jobs()).rejects.toThrow(
+    'Request schema validation failed [INVALID_REQUEST] - fields: body.locations.lat',
+  )
+})

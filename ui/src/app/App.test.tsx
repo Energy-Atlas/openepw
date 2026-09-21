@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { useApp } from './store'
 import { App } from './App'
@@ -80,6 +80,22 @@ it('uses mutually exclusive narrow drawers and restores focus on Escape', () => 
     'false',
   )
   expect(document.activeElement).toBe(agent)
+})
+
+it('closes only the confirmation dialog when Escape is pressed above a narrow drawer', () => {
+  Object.defineProperty(window, 'innerWidth', { configurable: true, value: 700 })
+  render(<App />)
+  fireEvent.click(screen.getByRole('button', { name: 'Controls' }))
+  act(() =>
+    useApp.setState({
+      pendingConfirmation: { title: 'Update upstream inputs?', description: 'Stale.' },
+    }),
+  )
+  fireEvent.keyDown(screen.getByRole('alertdialog'), { key: 'Escape' })
+  expect(useApp.getState().pendingConfirmation).toBeNull()
+  expect(
+    screen.getByRole('complementary', { name: 'Stage controls' }).getAttribute('data-open'),
+  ).toBe('true')
 })
 
 it('supports keyboard resizing with range semantics', () => {

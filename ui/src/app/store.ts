@@ -8,6 +8,7 @@ export type LogEntry = { id: string; kind: 'info' | 'error' | 'tool'; text: stri
 export type PanelSizes = { controls: number; agent: number; inspector: number }
 export type InspectorState = { open: boolean; manuallyCollapsed: boolean }
 export type PendingConfirmation = { title: string; description: string }
+export type PlanKind = 'weather' | 'future'
 
 export type State = {
   stage: Stage
@@ -51,8 +52,10 @@ export type State = {
   busy: boolean
   error: string
   logs: LogEntry[]
-  submitKey: string | null
-  submitted: boolean
+  // Idempotency keys and submission state are per plan kind so Download and Project never
+  // share a key or block each other.
+  submitKeys: Record<PlanKind, string | null>
+  submitted: Record<PlanKind, boolean>
   edit: (patch: Partial<WeatherRequest>) => void
   editFuture: (patch: Partial<FutureRequest>) => void
   selectDatasets: (selections: DatasetSelection[]) => void
@@ -81,6 +84,16 @@ const defaultFuture: FutureRequest = {
   reference_period: [1985, 2014],
   climate_scenario: 'ssp245',
   profile: 'typical',
+}
+
+function resetSubmission(state: State, kinds: PlanKind[]) {
+  const submitKeys = { ...state.submitKeys }
+  const submitted = { ...state.submitted }
+  for (const kind of kinds) {
+    submitKeys[kind] = null
+    submitted[kind] = false
+  }
+  return { submitKeys, submitted }
 }
 
 export const useApp = create<State>()(
@@ -127,8 +140,8 @@ export const useApp = create<State>()(
       busy: false,
       error: '',
       logs: [],
-      submitKey: null,
-      submitted: false,
+      submitKeys: { weather: null, future: null },
+      submitted: { weather: false, future: false },
       edit: (patch) =>
         set((state) => {
           const clearBaseline = state.baselineOrigin === 'download'
@@ -136,8 +149,7 @@ export const useApp = create<State>()(
             draft: { ...state.draft, ...patch },
             version: state.version + 1,
             requestVersion: state.requestVersion + 1,
-            submitKey: null,
-            submitted: false,
+            ...resetSubmission(state, clearBaseline ? ['weather', 'future'] : ['weather']),
             activeWeatherArtifact: clearBaseline ? null : state.activeWeatherArtifact,
             baselineOrigin: clearBaseline ? null : state.baselineOrigin,
             future: clearBaseline ? { ...state.future, baseline: '' } : state.future,
@@ -149,8 +161,7 @@ export const useApp = create<State>()(
           future: { ...state.future, ...patch },
           version: state.version + 1,
           futureVersion: state.futureVersion + 1,
-          submitKey: null,
-          submitted: false,
+          ...resetSubmission(state, ['future']),
         })),
       selectDatasets: (selections) =>
         set((state) => {
@@ -160,8 +171,7 @@ export const useApp = create<State>()(
             draft: { ...state.draft, dataset_selections: selections },
             version: state.version + 1,
             selectionVersion: state.selectionVersion + 1,
-            submitKey: null,
-            submitted: false,
+            ...resetSubmission(state, clearBaseline ? ['weather', 'future'] : ['weather']),
             activeWeatherArtifact: clearBaseline ? null : state.activeWeatherArtifact,
             baselineOrigin: clearBaseline ? null : state.baselineOrigin,
             future: clearBaseline ? { ...state.future, baseline: '' } : state.future,

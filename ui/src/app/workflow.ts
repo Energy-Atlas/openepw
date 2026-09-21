@@ -19,6 +19,8 @@ export type WorkflowInput = {
   futurePlanBaselineId: string | null
   downloadJobs: Job[]
   projectJobs: Job[]
+  jobs?: Job[]
+  job?: Job | null
   importedArtifacts: Artifact[]
   activeWeatherArtifact: Artifact | null
   spatialPreview?: Schemas['SpatialPreview'] | null
@@ -53,6 +55,13 @@ function weatherArtifacts(jobs: Job[]) {
   return jobs.flatMap((job) => job.bundle?.weather ?? [])
 }
 
+// Weather jobs from History or an earlier session are baselines too; projection outputs never are.
+function historicalWeatherJobs(input: WorkflowInput) {
+  return [...(input.jobs ?? []), ...(input.job ? [input.job] : [])].filter(
+    (job) => job.kind === 'weather',
+  )
+}
+
 function uniqueArtifacts(artifacts: Artifact[]) {
   return [...new Map(artifacts.map((artifact) => [artifact.id, artifact])).values()]
 }
@@ -70,6 +79,7 @@ export function deriveWorkflow(input: WorkflowInput): WorkflowStatus {
   const eligibleArtifacts = uniqueArtifacts([
     ...input.importedArtifacts,
     ...weatherArtifacts(input.downloadJobs),
+    ...weatherArtifacts(historicalWeatherJobs(input)),
   ]).filter((artifact) => artifact.media_type === 'application/vnd.energyplus.epw')
   const eligibleIds = new Set(eligibleArtifacts.map((artifact) => artifact.id))
   const activeBaseline =

@@ -165,7 +165,11 @@ export async function dispatch(action: AppAction): Promise<unknown> {
     if (!status.run.enabled || !currentPlan)
       throw new Error(status.run.reason ?? 'Review a current plan before rerunning it.')
     if (!action.confirmed) throw new Error('Confirm starting another job from the current plan.')
-    useApp.setState({ plan: currentPlan, submitKey: crypto.randomUUID(), submitted: false })
+    useApp.setState((current) => ({
+      plan: currentPlan,
+      submitKeys: { ...current.submitKeys, [currentPlan.kind]: crypto.randomUUID() },
+      submitted: { ...current.submitted, [currentPlan.kind]: false },
+    }))
     return dispatch({ type: 'submitPlan' })
   }
   if (state.busy) throw new Error('Wait for the current action, or stop it first.')
@@ -229,8 +233,11 @@ export async function dispatch(action: AppAction): Promise<unknown> {
           weatherPlanRequestVersion: requestVersion,
           weatherPlanSelectionVersion: selectionVersion,
           plan: current.stage === 'download' ? plan : current.plan,
-          submitKey: rememberedIntent(plan.plan_hash) || crypto.randomUUID(),
-          submitted: false,
+          submitKeys: {
+            ...current.submitKeys,
+            weather: rememberedIntent(plan.plan_hash) || crypto.randomUUID(),
+          },
+          submitted: { ...current.submitted, weather: false },
         })
     }
     if (action.type === 'planFuture') {
@@ -249,15 +256,19 @@ export async function dispatch(action: AppAction): Promise<unknown> {
           futurePlanVersion: futureVersion,
           futurePlanBaselineId: baselineId,
           plan: current.stage === 'project' ? plan : current.plan,
-          submitKey: rememberedIntent(plan.plan_hash) || crypto.randomUUID(),
-          submitted: false,
+          submitKeys: {
+            ...current.submitKeys,
+            future: rememberedIntent(plan.plan_hash) || crypto.randomUUID(),
+          },
+          submitted: { ...current.submitted, future: false },
         })
     }
     if (action.type === 'submitPlan') {
-      if (!state.plan || state.submitted)
+      const kind = state.plan?.kind
+      if (!state.plan || !kind || state.submitted[kind])
         throw new Error('Review a current plan before submitting.')
-      const key = state.submitKey || crypto.randomUUID()
-      useApp.setState({ submitKey: key })
+      const key = state.submitKeys[kind] || crypto.randomUUID()
+      useApp.setState((current) => ({ submitKeys: { ...current.submitKeys, [kind]: key } }))
       rememberIntent(state.plan.plan_hash, key)
       const job = await api.submit(state.plan, key, controller.signal)
       controller.signal.throwIfAborted()
@@ -277,7 +288,7 @@ export async function dispatch(action: AppAction): Promise<unknown> {
           state.plan?.kind === 'future'
             ? [job, ...current.projectJobs.filter((item) => item.id !== job.id)]
             : current.projectJobs,
-        submitted: current.version === version,
+        submitted: { ...current.submitted, [kind]: current.version === version },
       }))
     }
     if (action.type === 'selectJob') {
@@ -359,20 +370,25 @@ export async function dispatch(action: AppAction): Promise<unknown> {
         controller.signal.throwIfAborted()
         result = visualization
         if (useApp.getState().artifact?.id === action.artifact.id)
-          useApp.setState((current) => ({
-            visualization,
-            activeWeatherArtifact: action.artifact,
-            baselineOrigin: action.artifact.role === 'baseline' ? 'upload' : 'download',
-            future: { ...current.future, baseline: action.artifact.id },
-            futureVersion:
-              current.future.baseline === action.artifact.id
-                ? current.futureVersion
-                : current.futureVersion + 1,
-            inspector: {
-              ...current.inspector,
-              open: !current.inspector.manuallyCollapsed,
-            },
-          }))
+          useApp.setState((current) => {
+            const inspector = { ...current.inspector, open: !current.inspector.manuallyCollapsed }
+            // Projection outputs are inspectable but never replace the Project baseline.
+            const eligible = deriveWorkflow(current).eligibleArtifacts.some(
+              (artifact) => artifact.id === action.artifact.id,
+            )
+            if (!eligible) return { visualization, inspector }
+            return {
+              visualization,
+              inspector,
+              activeWeatherArtifact: action.artifact,
+              baselineOrigin: action.artifact.role === 'baseline' ? 'upload' : 'download',
+              future: { ...current.future, baseline: action.artifact.id },
+              futureVersion:
+                current.future.baseline === action.artifact.id
+                  ? current.futureVersion
+                  : current.futureVersion + 1,
+            }
+          })
       } else {
         const detail = await api.jsonArtifact(action.artifact.id, controller.signal)
         controller.signal.throwIfAborted()

@@ -2,9 +2,63 @@ import { useEffect, useRef, useState, type RefObject } from 'react'
 import { api, type Artifact } from '../../api/client'
 import { run } from '../../app/actions'
 import { useApp } from '../../app/store'
+import { canNavigate, deriveWorkflow } from '../../app/workflow'
 import { ModalDialog } from '../../shell/ModalDialog'
 
 const terminal = new Set(['completed', 'partially_completed', 'failed', 'cancelled'])
+
+// A completion can land while another action is running; defer instead of dropping it.
+function whenIdle(callback: () => void) {
+  if (!useApp.getState().busy) return callback()
+  const unsubscribe = useApp.subscribe((state) => {
+    if (state.busy) return
+    unsubscribe()
+    callback()
+  })
+}
+
+// Restores job context after a reload: History weather EPWs become eligible baselines, an
+// unfinished job resumes monitoring, and a restored stage that is not unlocked falls back.
+export function useJobReconcile() {
+  useEffect(() => {
+    let alive = true
+    function validateStage() {
+      const state = useApp.getState()
+      if (!canNavigate(deriveWorkflow(state), state.stage)) state.setStage('explore')
+    }
+    api
+      .jobs()
+      .then((response) => {
+        if (!alive) return
+        useApp.setState((current) => {
+          const active = current.job
+            ? undefined
+            : response.items.find((job) => !terminal.has(job.state))
+          const known = new Set(current.jobs.map((job) => job.id))
+          return {
+            jobs: [...current.jobs, ...response.items.filter((job) => !known.has(job.id))],
+            cursor: response.next_cursor || null,
+            ...(active && {
+              job: active,
+              downloadJobs:
+                active.kind === 'weather'
+                  ? [active, ...current.downloadJobs]
+                  : current.downloadJobs,
+              projectJobs:
+                active.kind === 'future' ? [active, ...current.projectJobs] : current.projectJobs,
+            }),
+          }
+        })
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (alive) validateStage()
+      })
+    return () => {
+      alive = false
+    }
+  }, [])
+}
 
 export function useJobMonitor() {
   const job = useApp((state) => state.job)
@@ -34,9 +88,14 @@ export function useJobMonitor() {
           stage: download && terminal.has(next.state) && firstWeather ? 'project' : current.stage,
         }))
         attempts = 0
-        if (terminal.has(next.state) && firstWeather)
-          run({ type: 'selectArtifact', artifact: firstWeather })
-        else timer = setTimeout(poll, 1500)
+        if (terminal.has(next.state) && firstWeather) {
+          const selected = useApp.getState().artifact?.id
+          whenIdle(() => {
+            // Respect a selection the user made while the completion was deferred.
+            if (useApp.getState().artifact?.id === selected)
+              run({ type: 'selectArtifact', artifact: firstWeather })
+          })
+        } else timer = setTimeout(poll, 1500)
       } catch {
         if (alive) timer = setTimeout(poll, Math.min(1500 * 2 ** ++attempts, 15000))
       }

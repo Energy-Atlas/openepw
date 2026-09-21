@@ -26,7 +26,7 @@ export async function request<T>(path: string, init: RequestInit = {}): Promise<
           : 'Request rejected') +
         (data.code ? ' [' + data.code + ']' : '') +
         (Array.isArray(data.fields)
-          ? ' � ' + data.fields.map((p: unknown[]) => p.join('.')).join(', ')
+          ? ' - fields: ' + data.fields.map((p: unknown[]) => p.join('.')).join(', ')
           : ''),
     )
   return data as T

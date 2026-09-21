@@ -1,8 +1,9 @@
 import { act, cleanup, render, screen } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
 import { api } from '../../api/client'
+import { run } from '../../app/actions'
 import { useApp } from '../../app/store'
-import { HistoryDrawer, useJobMonitor } from './HistoryDrawer'
+import { HistoryDrawer, useJobMonitor, useJobReconcile } from './HistoryDrawer'
 
 vi.mock('../../app/actions', () => ({ run: vi.fn() }))
 
@@ -10,6 +11,7 @@ afterEach(() => {
   cleanup()
   vi.useRealTimers()
   vi.restoreAllMocks()
+  vi.mocked(run).mockClear()
 })
 
 function Harness() {
@@ -56,4 +58,85 @@ it('advances a partially completed Download to Project and keeps its failures ex
   expect(screen.getByText(/SOURCE_UNAVAILABLE/)).toBeTruthy()
   await act(async () => vi.advanceTimersByTime(5000))
   expect(poll).toHaveBeenCalledTimes(1)
+})
+
+it('selects a completed job artifact after a concurrent action finishes', async () => {
+  vi.useFakeTimers()
+  const weather = { id: 'made', path: 'made.epw', role: 'weather' }
+  const running = { id: 'job-busy', kind: 'weather', state: 'running', completed: 0, failed: 0 }
+  const done = { ...running, state: 'completed', completed: 1, bundle: { weather: [weather] } }
+  useApp.setState({
+    stage: 'download',
+    job: running as any,
+    jobs: [],
+    downloadJobs: [running as any],
+    projectJobs: [],
+    artifact: null,
+    busy: true,
+  })
+  vi.spyOn(api, 'job').mockResolvedValue(done as any)
+  function Monitor() {
+    useJobMonitor()
+    return null
+  }
+  render(<Monitor />)
+
+  await act(async () => vi.advanceTimersByTime(500))
+  expect(useApp.getState().stage).toBe('project')
+  expect(run).not.toHaveBeenCalled()
+
+  act(() => useApp.setState({ busy: false }))
+  expect(run).toHaveBeenCalledWith({ type: 'selectArtifact', artifact: weather })
+})
+
+it('reconciles History after reload and resumes an unfinished job', async () => {
+  const earlier = { id: 'earlier', path: 'earlier.epw', role: 'weather' }
+  const finished = {
+    id: 'done',
+    kind: 'weather',
+    state: 'completed',
+    bundle: { weather: [{ ...earlier, media_type: 'application/vnd.energyplus.epw' }] },
+  }
+  const unfinished = { id: 'running', kind: 'weather', state: 'running' }
+  useApp.setState({
+    stage: 'project',
+    job: null,
+    jobs: [],
+    downloadJobs: [],
+    projectJobs: [],
+    importedArtifacts: [],
+    discovery: null,
+  })
+  vi.spyOn(api, 'jobs').mockResolvedValue({ items: [unfinished, finished] } as any)
+  function Reconcile() {
+    useJobReconcile()
+    return null
+  }
+  render(<Reconcile />)
+
+  await vi.waitFor(() => expect(useApp.getState().job?.id).toBe('running'))
+  const state = useApp.getState()
+  expect(state.downloadJobs.map((job) => job.id)).toEqual(['running'])
+  expect(state.jobs.map((job) => job.id)).toEqual(['running', 'done'])
+  expect(state.stage).toBe('project')
+})
+
+it('returns a restored locked stage to Explore when no baseline exists', async () => {
+  useApp.setState({
+    stage: 'project',
+    job: null,
+    jobs: [],
+    downloadJobs: [],
+    projectJobs: [],
+    importedArtifacts: [],
+    discovery: null,
+  })
+  vi.spyOn(api, 'jobs').mockRejectedValue(new Error('offline'))
+  function Reconcile() {
+    useJobReconcile()
+    return null
+  }
+  render(<Reconcile />)
+
+  await vi.waitFor(() => expect(useApp.getState().stage).toBe('explore'))
 })

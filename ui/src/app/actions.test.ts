@@ -30,7 +30,10 @@ beforeEach(() => {
     visualization: null,
     detail: null,
     busy: false,
-    submitted: false,
+    jobs: [],
+    job: null,
+    submitKeys: { weather: null, future: null },
+    submitted: { weather: false, future: false },
     pendingConfirmation: null,
   })
   vi.restoreAllMocks()
@@ -66,7 +69,7 @@ it('marks a reviewed plan stale on draft edits while preserving immutable state'
 
 it('reuses a submit idempotency key after a lost response', async () => {
   const plan = { kind: 'weather', plan_hash: 'plan' } as any
-  useApp.setState({ plan, submitKey: 'same-intent', submitted: false })
+  useApp.setState({ plan, submitKeys: { weather: 'same-intent', future: null } })
   const submit = vi
     .spyOn(api, 'submit')
     .mockRejectedValueOnce(new Error('connection lost'))
@@ -76,7 +79,10 @@ it('reuses a submit idempotency key after a lost response', async () => {
   expect(submit.mock.calls.map((c) => c[1])).toEqual(['same-intent', 'same-intent'])
 })
 it('keeps an edited request unsubmitted after an older submission returns', async () => {
-  useApp.setState({ plan: { kind: 'weather' } as any, submitKey: 'old', submitted: false })
+  useApp.setState({
+    plan: { kind: 'weather' } as any,
+    submitKeys: { weather: 'old', future: null },
+  })
   let resolve!: (v: any) => void
   vi.spyOn(api, 'submit').mockImplementation(
     () =>
@@ -88,7 +94,7 @@ it('keeps an edited request unsubmitted after an older submission returns', asyn
   useApp.getState().edit({ years: [2021] })
   resolve({ id: 'job', state: 'queued' })
   await pending
-  expect(useApp.getState().submitted).toBe(false)
+  expect(useApp.getState().submitted.weather).toBe(false)
 })
 it('selecting another job clears the previous artifact preview', async () => {
   useApp.setState({ artifact: { id: 'old' } as any, preview: { total_rows: 24 } as any })
@@ -101,7 +107,6 @@ it('selecting another job clears the previous artifact preview', async () => {
 it('submitting a new job clears old inspection state', async () => {
   useApp.setState({
     plan: { kind: 'weather' } as any,
-    submitted: false,
     artifact: { id: 'old' } as any,
     preview: {} as any,
     detail: { old: true },
@@ -133,8 +138,8 @@ it('replanning after reload reuses persisted submission intent', async () => {
   rememberIntent('same-plan', 'before-reload')
   vi.spyOn(api, 'plan').mockResolvedValue({ kind: 'weather', plan_hash: 'same-plan' } as any)
   await dispatch({ type: 'planWeather' })
-  expect(useApp.getState().submitKey).toBe('before-reload')
-  expect(useApp.getState().submitted).toBe(false)
+  expect(useApp.getState().submitKeys.weather).toBe('before-reload')
+  expect(useApp.getState().submitted.weather).toBe(false)
 })
 
 it('explains a missing future baseline before making an invalid request', async () => {
@@ -178,12 +183,83 @@ it('loads full visualization and opens the inspector when weather is selected', 
     role: 'weather',
     media_type: 'application/vnd.energyplus.epw',
   } as any
+  useApp.setState({
+    downloadJobs: [{ id: 'download', kind: 'weather', bundle: { weather: [artifact] } } as any],
+  })
 
   await dispatch({ type: 'selectArtifact', artifact })
 
   expect(useApp.getState().visualization).toBe(visualization)
   expect(useApp.getState().inspector.open).toBe(true)
   expect(useApp.getState().activeWeatherArtifact).toBe(artifact)
+})
+
+it('inspects a projected EPW without replacing the Project baseline', async () => {
+  vi.spyOn(api, 'visualization').mockResolvedValue({ total_rows: 8760, series: {} } as any)
+  const epw = 'application/vnd.energyplus.epw'
+  const baseline = { id: 'baseline', role: 'baseline', media_type: epw } as any
+  const projected = { id: 'projected', role: 'weather', media_type: epw } as any
+  useApp.setState({
+    stage: 'project',
+    importedArtifacts: [baseline],
+    activeWeatherArtifact: baseline,
+    baselineOrigin: 'upload',
+    future: { ...useApp.getState().future, baseline: 'baseline' },
+    projectJobs: [
+      { id: 'future', kind: 'future', state: 'completed', bundle: { weather: [projected] } } as any,
+    ],
+  })
+  const futureVersion = useApp.getState().futureVersion
+
+  await dispatch({ type: 'selectArtifact', artifact: projected })
+
+  const state = useApp.getState()
+  expect(state.artifact).toBe(projected)
+  expect(state.inspector.open).toBe(true)
+  expect(state.activeWeatherArtifact).toBe(baseline)
+  expect(state.future.baseline).toBe('baseline')
+  expect(state.futureVersion).toBe(futureVersion)
+  expect(deriveWorkflow(state).activeBaseline).toBe(baseline)
+})
+
+it('accepts a weather EPW from an earlier session as a Project baseline', async () => {
+  vi.spyOn(api, 'visualization').mockResolvedValue({ total_rows: 8760, series: {} } as any)
+  const earlier = {
+    id: 'earlier',
+    role: 'weather',
+    media_type: 'application/vnd.energyplus.epw',
+  } as any
+  useApp.setState({
+    jobs: [
+      { id: 'old', kind: 'weather', state: 'completed', bundle: { weather: [earlier] } } as any,
+    ],
+  })
+  expect(deriveWorkflow(useApp.getState()).stages.project.unlocked).toBe(true)
+
+  await dispatch({ type: 'selectArtifact', artifact: earlier })
+
+  expect(useApp.getState().future.baseline).toBe('earlier')
+  expect(deriveWorkflow(useApp.getState()).activeBaseline).toBe(earlier)
+})
+
+it('keeps Download and Project submission keys independent', async () => {
+  const weather = { kind: 'weather', plan_hash: 'weather-plan' } as any
+  const future = { kind: 'future', plan_hash: 'future-plan' } as any
+  useApp.setState({ submitKeys: { weather: 'weather-key', future: 'future-key' } })
+  const submit = vi
+    .spyOn(api, 'submit')
+    .mockResolvedValueOnce({ id: 'projection', state: 'queued' } as any)
+    .mockResolvedValueOnce({ id: 'download', state: 'queued' } as any)
+
+  useApp.setState({ plan: future })
+  await dispatch({ type: 'submitPlan' })
+  useApp.setState({ plan: weather })
+  await dispatch({ type: 'submitPlan' })
+
+  expect(submit.mock.calls.map((call) => call[1])).toEqual(['future-key', 'weather-key'])
+  expect(useApp.getState().submitted).toEqual({ weather: true, future: true })
+  expect(useApp.getState().downloadJobs.map((job) => job.id)).toEqual(['download'])
+  expect(useApp.getState().projectJobs.map((job) => job.id)).toEqual(['projection'])
 })
 
 it('publishes confirmation metadata for shared job and invalidation actions', () => {
@@ -242,7 +318,6 @@ it('creates a new immutable Project job for an intentional rerun', async () => {
     activeWeatherArtifact: baseline,
     importedArtifacts: [baseline],
     future: { ...useApp.getState().future, baseline: 'baseline' },
-    submitted: false,
   })
   vi.spyOn(api, 'submit')
     .mockResolvedValueOnce({ id: 'first', state: 'queued' } as any)
