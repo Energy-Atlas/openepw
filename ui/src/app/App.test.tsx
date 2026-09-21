@@ -31,6 +31,7 @@ beforeEach(() => {
     importedArtifacts: [],
     activeWeatherArtifact: null,
     busy: false,
+    pendingConfirmation: null,
   })
 })
 
@@ -50,8 +51,12 @@ it('keeps fixed panel roles, a map-only center and an ordered stage stepper', ()
 
 it('opens server history in its own drawer', () => {
   render(<App />)
-  fireEvent.click(screen.getByRole('button', { name: 'History' }))
+  const trigger = screen.getByRole('button', { name: 'History' })
+  fireEvent.click(trigger)
   expect(screen.getByRole('dialog', { name: 'Job history' })).toBeTruthy()
+  expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Close history' }))
+  fireEvent.keyDown(document, { key: 'Escape' })
+  expect(document.activeElement).toBe(trigger)
 })
 
 it('uses mutually exclusive narrow drawers and restores focus on Escape', () => {
@@ -75,4 +80,14 @@ it('uses mutually exclusive narrow drawers and restores focus on Escape', () => 
     'false',
   )
   expect(document.activeElement).toBe(agent)
+})
+
+it('supports keyboard resizing with range semantics', () => {
+  render(<App />)
+  const separator = screen.getByRole('separator', { name: 'Resize stage controls' })
+  expect(separator.getAttribute('aria-valuenow')).toBe('340')
+  fireEvent.keyDown(separator, { key: 'ArrowRight' })
+  expect(
+    screen.getByRole('separator', { name: 'Resize stage controls' }).getAttribute('aria-valuenow'),
+  ).toBe('350')
 })

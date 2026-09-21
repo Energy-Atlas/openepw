@@ -81,7 +81,7 @@ def _variables(dataset, variables, *, maximum=None):
         preferred = ["dry_bulb", "liquid_precipitation", "dni"]
         variables = [name for name in preferred if name in dataset.data]
         if not variables:
-            variables = [name for name in UNITS if name in dataset.data][:(maximum or 4)]
+            variables = [name for name in UNITS if name in dataset.data][: (maximum or 4)]
     if maximum is not None and not 1 <= len(variables) <= maximum:
         limit = "four" if maximum == 4 else str(maximum)
         raise OpenEPWError("INVALID_REQUEST", f"Visualization requires one to {limit} variables")
@@ -144,7 +144,10 @@ def _summary(dataset, variables):
             values[name] = SummaryValue(**kwargs)
         monthly.append(
             MonthlySummary(
-                year=int(year), month=int(month), expected=expected, values=values,
+                year=int(year),
+                month=int(month),
+                expected=expected,
+                values=values,
                 source_years=sorted({int(y) for y in source.loc[group.index].dropna()}),
             )
         )
@@ -174,7 +177,10 @@ def preview(dataset, start=0, limit=168, variables=None):
         units={v: dataset.units.get(v, UNITS[v]) for v in variables},
         rows=rows,
         monthly=monthly,
-        warnings=["UTC interval ends; summaries use fixed local standard-time interval starts", WARNINGS[1]],
+        warnings=[
+            "UTC interval ends; summaries use fixed local standard-time interval starts",
+            WARNINGS[1],
+        ],
     )
 
 

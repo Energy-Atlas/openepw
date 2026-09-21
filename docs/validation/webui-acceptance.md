@@ -1,123 +1,105 @@
-# Web UI acceptance — 2026-09-20
+# Web UI acceptance — staged map-first redesign
 
-Status: **substantially complete for the approved local-first single-user scope**.
-Branch `feature/webui` is preserved. No push, merge, repository extraction or package
-publication. The original backend v0.1 acceptance remains separately recorded in
-[v0.1-acceptance.md](v0.1-acceptance.md).
+Status: **implemented and accepted for the local-first, single-user scope** on
+2026-09-20. Branch `feature/webui` is preserved; no push, merge or publication was
+performed. Earlier backend acceptance remains in [v0.1-acceptance.md](v0.1-acceptance.md).
 
 ## Delivered
 
-A small React/TypeScript/Vite workspace with dockable Request, Map, Results and
-API Docs plus a collapsed scripted Agent. System and six themes; compact layout;
-versioned theme/layout/draft persistence; in-memory optional bearer token.
-MapLibre provides real point/list/bbox/polygon selection, GeoJSON import, requested
-versus known source markers, displacement, globe/pitch, terrain/hillshade and
-supplied-height buildings. Keyboard/text request entry remains independent of maps.
+The active workspace is Explore → Download → Project. A reference-inspired Run
+split control gates each transition. Versioned state rejects stale spatial,
+discovery and plan responses; upstream edits invalidate dependent working state
+without deleting immutable jobs or artifacts. Partial Download success unlocks
+Project, and Project can be rerun against one selected validated EPW.
 
-Existing-weather discovery/planning/jobs/downloads and both future methods call
-real REST endpoints. Advanced JSON exposes the full request shape. Five scripted
-recipes share the manual dispatcher, with no LLM or simulated production workflows.
-Bounded charts/month summaries retain nulls, UTC interval ends, fixed offsets,
-noleap calendars and row/month source-year labels. All artifacts, QC, provenance,
-partial failures and server cancellation remain inspectable. Python owns science.
+The center is a full-bleed MapLibre terrain globe. Explore alone exposes floating
+point/list/bbox/polygon tools and the Python sampler supplies authoritative preview
+points, exact counts and execution-limit status. Coverage overlays use attributed
+documented metadata with explicit unknown extents; they never imply point/year
+availability. Dataset status markers provide text and patterns in addition to
+color, with artifact selection from point popovers.
 
-Generated OpenAPI client types, live REST operation docs, seven Python function
-signatures and six MCP tools/resources are available in API Docs, with a source
-link. Optional `serve --ui-dir ui/dist` serves the built frontend at `/ui/` without
-changing API route semantics. Python packaging remains independent.
+Download supports optional whole-query multi-dataset selection. The planner emits
+each feasible dataset × point × period EPW and preserves unavailable combinations
+as scoped issues. Imported EPWs must pass parser and annual QC validation before
+becoming eligible Project baselines, and are not called simulation-ready merely for
+passing that gate. The collapsible inspector uses the bounded
+full-artifact response for monthly temperature/precipitation and selectable hourly
+heatmaps; 8,760/8,784 calendars, nulls, units, gaps and TMYx source years remain
+explicit.
+
+Desktop stage and Agent sidebars keep stable roles and bounded resizable widths.
+Narrow screens retain the map and expose both as mutually exclusive drawers with
+Escape/focus restoration. The deterministic Agent, panels and header use one action
+registry. Reversible edits apply directly until they would invalidate current
+downstream work; invalidating edits and jobs require confirmation. History is a
+separate immutable job/artifact drawer. System plus all six curated appearances
+remain available.
+
+## Deterministic browser acceptance
+
+The offline fixture registers two datasets. One carries complete weather fields;
+the other deliberately omits precipitation/DNI and fails at part of a sampled
+polygon. It is imported only by the test server. Development and production suites
+cover:
+
+- authoritative sample preview, fixed globe/terrain controls and attributed coverage;
+- discovery, multiple dataset selections and automatically refreshed planning;
+- complete and partial jobs, asynchronous Project advancement and History details;
+- EPW selection, monthly/hourly charts, leap-year labeling and manual inspector collapse;
+- deterministic Agent confirmation, narrow drawers, keyboard focus and persisted drafts;
+- light, dark and monochrome visual checks with Axe serious/critical auditing;
+- numeric Explore controls when WebGL is unavailable; and
+- MapLibre module-worker loading from production static hosting.
+
+Screenshots and traces stay in ignored `ui/test-results/`. Manual desktop and narrow
+checks found no material panel overlap or hidden primary map surface. Browser-only
+MapLibre warnings about globe fog/style rebuilding were observed; no console error
+remained after correcting the heatmap axes.
 
 ## Verification actually run
 
-Windows, Python 3.14.7, Node 24.21.0 / npm 11.19.0; installed Edge for browser tests.
+Windows, Python 3.14.7 and Node 24.21.0 with installed Edge:
 
 | Check | Result |
 | --- | --- |
-| Full Python offline suite | 77 passed, 15 opt-in live checks skipped; two upstream deprecation warnings |
+| Full Python offline suite | 98 passed, 15 opt-in live checks skipped; two upstream deprecation warnings |
 | Ruff | Passed |
-| mypy | Passed, 42 source files |
-| UI TypeScript, ESLint, Prettier | Passed |
-| Vitest | 14 passed across five test files |
-| Vite production build | Passed; large-chunk warning retained |
-| Playwright development hosting | 10 passed |
-| Playwright FastAPI production hosting | 10 passed |
-| Six appearances + Axe | Heading color matches each theme; no serious/critical violations in checked request workspace |
-| Generated references | Regeneration matches committed catalog/types; route success/error schema coverage, including binary artifacts |
-| Python wheel/sdist | Built; installed core wheel in environment without FastAPI, MCP or xarray; core imports/models passed |
-| Package contents | No local credentials/cache, node_modules or built UI; wheel contains only Python package/metadata |
-| Git | Whitespace check passed; local credentials/build/cache paths confirmed ignored |
+| mypy | Passed, 43 source files |
+| UI Prettier, TypeScript and ESLint | Passed |
+| Vitest | 50 passed across 12 files |
+| Vite production build | Passed |
+| Playwright development hosting | 7 passed |
+| Playwright FastAPI production hosting | 7 passed |
+| Appearance/Axe review | Light, dark and monochrome screenshots; no serious/critical violations |
+| Generated contracts | OpenAPI, TypeScript schema and API catalog regenerated without drift |
+| Git | Whitespace check passed; branch left unpushed and unmerged |
 
-Browser scenarios cover real fixture-backend retrieval and download; future baseline
-and local-signal uploads/execution; API docs/themes; compact workflow; shared scripted
-actions and invalidation; actual map click coordinates; draft/list reload without
-automatic submission; WebGL initialization failure; partial jobs and explicit cancel.
-External map requests are intercepted for deterministic tests. Browser fixture data
-is clearly synthetic and test-only, never imported by production code. Light/results
-and dark/map screenshots were visually inspected. Browser screenshots/traces remain
-in ignored `ui/test-results/` and are regenerated by the test runs.
+## Scientific and interface boundaries
 
-Independent review reproduced three material defects before fixes: old previews
-surviving new submissions, lost mixed-year source mapping, and ineffective client
-abort. Added failing regressions, then fixed all three and obtained green tests.
-Minor findings fixed: editable comma-separated lists, persisted drafts, pagination
-concurrency/deduplication. Additional regression verifies a re-reviewed plan reuses
-its persisted intent after reload. Server idempotency and explicit rerun remain separate.
+- Python owns sampling, availability, planning, normalization, EPW generation,
+  provenance and visualization aggregation.
+- Coverage is documented extent. Discovery is observed point availability.
+- Missing values remain null/gaps. Uploads must pass annual structural QC, but that
+  gate is not simulation-readiness certification.
+- Future results are scenario projections, not forecasts; both approved methods
+  retain their distinct semantics.
+- Browser cancellation stops local waiting only. Server cancellation is separate.
+- Provider credentials remain outside requests, plans, browser storage and reports.
 
-## Bounded real-data checks
+## Remaining limits
 
-- A fresh empty-cache Open-Meteo request for Ithaca, 2024-02-14, returned 24 rows,
-  24 valid temperatures and no bundle issues. No API credentials were needed.
-- `OPENEPW_RUN_LIVE=1 python -m pytest tests/integration/test_ui_live.py -q` passed:
-  REST plan/job/poll/preview/download for the 2023 Open-Meteo baseline at
-  34.65, -87.765 and ACCESS-CM2/r1i1p1f1 SSP245 morph for target 2050,
-  reference 1985–2014. Both outputs had 8,760 rows, bounded 168-row previews and
-  successful downloads. This reused the existing `.local/live-cmip` cache and is
-  not evidence of a new complete climate archive download.
+- The initial JavaScript bundles remain large; code splitting is a follow-up.
+- Map styles/tiles/terrain have independent network availability and licensing.
+- Safari, Firefox and physical mobile devices are not accepted here; the automated
+  suite uses installed Edge on Windows.
+- Coverage catalog entries are deliberately sparse and only assert extents supported
+  by provider documentation.
+- The inspector displays one active artifact at a time; side-by-side comparison is
+  not implemented.
+- The Agent is scripted, not model-backed natural language.
+- Multi-user hosting, repository extraction and package publication remain out of scope.
 
-Other providers and WRF/ten-year ensemble acceptance remain the earlier backend
-results. This UI milestone did not re-download every provider or exercise every
-scenario/model combination. Actual keys never entered browser fixtures or reports.
-
-## Remaining limitations and reminders
-
-- No local milestone blocker. Public UI redistribution needs explicit permission
-  for adapted reference appearance definitions because the reference lacks a root
-  license grant. Owner-authorized local reuse is recorded in
-  [third-party notices](../../ui/THIRD_PARTY_NOTICES.md).
-- Chromium/Linux CI is configured, not remotely executed here. Safari, Firefox,
-  real mobile devices and exhaustive docking/keyboard accessibility are unverified.
-  The specific reload/theme/compact/failure checks above are not full certification.
-- Full ten-output future-ensemble rendering was not separately browser-tested;
-  the real local-signal UI test generated one output, while existing backend
-  acceptance covers ten outputs. More model/provider permutations remain opt-in.
-- Batch/hybrid/advanced grid controls use request JSON; provenance/QC details use
-  structured JSON. No global provider-cell overlay is fabricated. Camera fit across
-  the dateline may use a broad extent; backend geometry semantics remain authoritative.
-- Initial bundles remain large (about 1.70 MB main JS and 1.06 MB MapLibre,
-  uncompressed). Code splitting is a follow-up, not a local usability blocker.
-- Map styles/tiles/terrain have independent availability and licensing. The form
-  remains usable without them. Terrain is not provider resolution. A rapid theme
-  change can produce MapLibre's recoverable style-rebuild warning.
-- Client Stop cannot undo accepted server work. Refresh history or retry the same
-  reviewed intent to reconcile an interrupted submission; cancel its server job
-  explicitly if required. Local intent history is bounded to the last 100 plans.
-- Repository extraction, PyPI publication and multi-user hosting remain out of scope.
-
-Start/build instructions: [webui.md](../webui.md). Decisions:
-[ADR 0003](../decisions/0003-local-webui.md). Execution record:
-[webui-ledger.md](webui-ledger.md).
-
-## Post-delivery correction: Windows map worker
-
-The initial production map acceptance was too weak: blank-style/click tests did not
-verify worker execution. The owner's production server returned `.mjs` as
-`text/plain` (Windows MIME registry), preventing module worker imports despite 200
-responses. Fixed by explicit JavaScript content type in the optional static mount.
-A new backend regression forces the erroneous MIME mapping; a browser regression
-checks the shared worker runtime actually loads. An additional live production
-smoke loaded real basemap tiles with no page errors; its rendered map screenshot
-was visually verified. Production browser suite now has 11 passing scenarios and
-UI unit suite 15. Root/favicon handling and missing-baseline guidance also improved.
-The specific owner's future-plan 400 remains unclassified without its response;
-empty-baseline INVALID_ARTIFACT was independently reproduced and now prevented.
-
-Post-fix verification: 79 Python passed / 15 live skipped; 15 UI unit and 11 production browser tests passed; TypeScript, ESLint, Prettier, Ruff and mypy passed. Production assets rebuilt. Restart the running server and hard-refresh to load these changes.
+Operating guidance: [webui.md](../webui.md). Design contract:
+[map-first staged UI](../superpowers/specs/2026-09-20-webui-workflow-redesign.md).
+Execution record: [webui-ledger.md](webui-ledger.md).

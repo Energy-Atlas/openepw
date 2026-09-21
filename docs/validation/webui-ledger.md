@@ -32,3 +32,42 @@ Future-plan diagnostics: empty baseline reproduces INVALID_ARTIFACT (400), now i
 Validation additionally exposed a SQLite connection leak: transaction contexts committed but did not close handles, intermittently preventing Windows catalog temporary-directory cleanup. Added deterministic closed-connection regression; JobStore now closes each connection after commit/rollback. This preserves transaction/idempotency semantics.
 
 Post-fix verification: 79 Python passed / 15 live skipped; 15 UI unit and 11 production browser tests passed; TypeScript, ESLint, Prettier, Ruff and mypy passed. Production assets rebuilt. Restart the running server and hard-refresh to load these changes.
+
+## Map-first staged redesign
+
+Plan: `docs/superpowers/plans/2026-09-20-webui-workflow-redesign.md`.
+Specification: `docs/superpowers/specs/2026-09-20-webui-workflow-redesign.md`.
+
+Implemented canonical spatial preview and documented coverage contracts, optional
+whole-query multi-dataset planning, full-artifact visualization, versioned staged
+state, Explore/Download/Project controls, Run split action, fixed-role cockpit,
+History drawer, deterministic Agent transcript, floating globe tools, coverage
+layers, segmented point statuses and the collapsible weather inspector.
+
+Ruling: server-returned sample points are the only rendered execution preview.
+Coverage metadata is independently attributed and cannot upgrade unknown extents or
+stand in for discovery. Ruling: imported EPWs are eligible baselines after parsing,
+but no UI label upgrades them to simulation-ready. Ruling: panel controls, Run and
+Agent mutations remain entries in one registry; job starts retain confirmation.
+
+Browser finding: the initial heatmap used value axes, which ECharts rejects for its
+Cartesian heatmap renderer. The real browser suite exposed the error; both axes now
+use complete day/hour categories while plotted cells still come only from returned
+timestamps. Browser finding: failed coverage loading could retrigger on each busy
+transition; a one-attempt guard now returns the workspace to Ready and preserves the
+error in the Agent transcript.
+
+Acceptance fixture now has complete and sparse datasets plus a deterministic partial
+location failure. Development and production scenarios cover staged navigation,
+partial success, inspector charts, History, Agent confirmation, responsive drawers,
+keyboard focus, appearances/Axe, persisted drafts, WebGL fallback controls and the
+MapLibre worker. Full verification results are recorded in webui-acceptance.md.
+
+Final review corrections: debounced preview/planning retries after a busy request;
+sample points carry canonical location ids; status/artifact joins are scoped by the
+current plan, point and exact dataset/product selection; glyphs encode status as well
+as dataset identity; no-leap heatmap ordinals and all-null variables remain explicit;
+uploads must pass annual QC; execution limits count dataset × point × period outputs;
+and one shared modal focus scope provides trapping, inert background content, Escape
+handling and opener restoration. Current-plan reruns, jobs and downstream-invalidating
+edits require confirmation. Stable coverage colors follow provider/dataset identity.

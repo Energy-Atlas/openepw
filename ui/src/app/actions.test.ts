@@ -1,7 +1,7 @@
 import { rememberIntent } from './intent'
 import { it, expect, vi, beforeEach } from 'vitest'
 import { api } from '../api/client'
-import { ACTION_REGISTRY, dispatch } from './actions'
+import { ACTION_REGISTRY, confirmPendingAction, dispatch } from './actions'
 import { useApp } from './store'
 import { deriveWorkflow } from './workflow'
 beforeEach(() => {
@@ -31,6 +31,7 @@ beforeEach(() => {
     detail: null,
     busy: false,
     submitted: false,
+    pendingConfirmation: null,
   })
   vi.restoreAllMocks()
   localStorage.clear()
@@ -144,6 +145,10 @@ it('explains a missing future baseline before making an invalid request', async 
 })
 
 it('runs Explore through authoritative sampling and discovery before advancing', async () => {
+  useApp.setState({
+    spatialPreview: { executable: true } as any,
+    spatialPreviewVersion: useApp.getState().requestVersion,
+  })
   vi.spyOn(api, 'spatialPreview').mockResolvedValue({ executable: true } as any)
   vi.spyOn(api, 'discover').mockResolvedValue({
     candidates: [
@@ -227,13 +232,42 @@ it('registers a parsed upload as eligible but not implicitly simulation-ready', 
 
 it('creates a new immutable Project job for an intentional rerun', async () => {
   const plan = { kind: 'future', plan_hash: 'future-plan' } as any
-  useApp.setState({ stage: 'project', plan, futurePlan: plan, submitted: false })
+  const baseline = { id: 'baseline', media_type: 'application/vnd.energyplus.epw' } as any
+  useApp.setState({
+    stage: 'project',
+    plan,
+    futurePlan: plan,
+    futurePlanVersion: 0,
+    futurePlanBaselineId: 'baseline',
+    activeWeatherArtifact: baseline,
+    importedArtifacts: [baseline],
+    future: { ...useApp.getState().future, baseline: 'baseline' },
+    submitted: false,
+  })
   vi.spyOn(api, 'submit')
     .mockResolvedValueOnce({ id: 'first', state: 'queued' } as any)
     .mockResolvedValueOnce({ id: 'second', state: 'queued' } as any)
 
   await dispatch({ type: 'submitPlan' })
-  await dispatch({ type: 'rerunPlan' })
+  await expect(dispatch({ type: 'rerunPlan' })).rejects.toThrow(/Confirm/)
+  await dispatch({ type: 'rerunPlan', confirmed: true })
 
   expect(useApp.getState().projectJobs.map((job) => job.id)).toEqual(['second', 'first'])
+})
+
+it('confirms an upstream edit before invalidating a current reviewed plan', async () => {
+  const plan = { kind: 'weather', plan_hash: 'current' } as any
+  useApp.setState({
+    weatherPlan: plan,
+    weatherPlanRequestVersion: 0,
+    weatherPlanSelectionVersion: 0,
+  })
+
+  await dispatch({ type: 'editQuery', patch: { years: [2022] } })
+
+  expect(useApp.getState().requestVersion).toBe(0)
+  expect(useApp.getState().pendingConfirmation?.title).toMatch(/upstream/i)
+  await confirmPendingAction()
+  expect(useApp.getState().requestVersion).toBe(1)
+  expect(useApp.getState().draft.years).toEqual([2022])
 })

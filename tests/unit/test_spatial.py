@@ -57,7 +57,29 @@ def test_spatial_preview_counts_period_outputs_without_allocating_past_render_ca
     assert result.execution_limit == 10
     assert result.executable is True
     assert result.truncated is False
-    assert result.locations == service.locations(request)
+    assert [
+        location.model_copy(update={"id": None}) for location in result.locations
+    ] == service.locations(request)
+    assert all(location.id == location.key for location in result.locations)
+
+
+def test_spatial_preview_counts_each_selected_dataset_against_execution_limit(tmp_path):
+    service = WeatherService(RuntimeConfig(data_root=tmp_path), providers=[])
+    request = WeatherRequest(
+        locations=BoundingBox(west=0, south=0, east=1, north=1),
+        sampling=SamplingSpec(dx_km=100, dy_km=100, max_locations=10),
+        product="amy",
+        years=[2023, 2024],
+        dataset_selections=[
+            {"provider": "first", "dataset": "archive"},
+            {"provider": "second", "dataset": "archive"},
+        ],
+    )
+
+    result = service.preview_spatial(request)
+
+    assert result.planned_output_count == 16
+    assert result.execution_limit == 10
 
 
 def test_spatial_preview_returns_deterministic_prefix_and_limit_issue(tmp_path):
@@ -73,7 +95,7 @@ def test_spatial_preview_returns_deterministic_prefix_and_limit_issue(tmp_path):
 
     assert result.total_count == 4
     assert result.returned_count == 2
-    assert result.locations == [
+    assert [location.model_copy(update={"id": None}) for location in result.locations] == [
         Location(lat=0, lon=0),
         Location(lat=0, lon=0.899321012635454),
     ]

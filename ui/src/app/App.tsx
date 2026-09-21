@@ -1,7 +1,7 @@
 import { Bot, CloudSun, ExternalLink, History, PanelLeft, Settings2 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { setToken } from '../api/client'
-import { run } from './actions'
+import { confirmPendingAction, dismissPendingAction, run } from './actions'
 import { useApp } from './store'
 import { canNavigate, deriveWorkflow, type Stage } from './workflow'
 import { AgentPanel } from '../features/agent/AgentPanel'
@@ -14,6 +14,7 @@ import { APPEARANCE_LIST, type AppearancePreference } from '../shell/appearances
 import { isNarrow, resizeFromPointer } from '../shell/layout'
 import { clampPanelSize, nextDrawer, type Drawer } from '../shell/panels'
 import { useTheme } from '../shell/theme'
+import { ModalDialog } from '../shell/ModalDialog'
 
 const stages: Stage[] = ['explore', 'download', 'project']
 
@@ -27,6 +28,9 @@ export function App() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const controlsTrigger = useRef<HTMLButtonElement>(null)
   const agentTrigger = useRef<HTMLButtonElement>(null)
+  const controlsPanel = useRef<HTMLElement>(null)
+  const agentPanel = useRef<HTMLElement>(null)
+  const historyTrigger = useRef<HTMLButtonElement>(null)
   useJobMonitor()
 
   useEffect(() => {
@@ -36,10 +40,17 @@ export function App() {
   }, [])
 
   useEffect(() => {
+    if (!narrow || !drawer) return
+    const panel = drawer === 'controls' ? controlsPanel.current : agentPanel.current
+    panel?.querySelector<HTMLElement>('button, input, select, textarea, [tabindex]')?.focus()
+  }, [drawer, narrow])
+
+  useEffect(() => {
     const escape = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return
       if (historyOpen) {
         setHistoryOpen(false)
+        historyTrigger.current?.focus()
         return
       }
       if (settingsOpen) {
@@ -82,6 +93,18 @@ export function App() {
     addEventListener('pointerup', stop)
   }
 
+  function resizeWithKeyboard(
+    panel: 'controls' | 'agent',
+    side: 'left' | 'right',
+    event: React.KeyboardEvent,
+  ) {
+    if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return
+    event.preventDefault()
+    const outward = side === 'left' ? event.key === 'ArrowRight' : event.key === 'ArrowLeft'
+    const size = clampPanelSize(panel, state.panelSizes[panel] + (outward ? 10 : -10))
+    useApp.setState((current) => ({ panelSizes: { ...current.panelSizes, [panel]: size } }))
+  }
+
   return (
     <div className="app cockpit-app">
       <header className="app-header cockpit-header">
@@ -109,7 +132,7 @@ export function App() {
           })}
         </nav>
         <div className="header-actions">
-          <button type="button" onClick={() => setHistoryOpen(true)}>
+          <button type="button" ref={historyTrigger} onClick={() => setHistoryOpen(true)}>
             <History size={15} aria-hidden="true" />
             <span>History</span>
           </button>
@@ -191,7 +214,9 @@ export function App() {
         )}
         <div className="map-workspace" aria-label="Weather map workspace">
           <MapView appearance={appearance} />
-          {state.inspector.open && state.visualization && <WeatherInspector appearance={appearance} />}
+          {state.inspector.open && state.visualization && (
+            <WeatherInspector appearance={appearance} />
+          )}
           {!state.inspector.open && state.visualization && (
             <button
               type="button"
@@ -203,6 +228,7 @@ export function App() {
           )}
         </div>
         <aside
+          ref={controlsPanel}
           className="cockpit-panel cockpit-surface controls-panel"
           role="complementary"
           aria-label="Stage controls"
@@ -214,12 +240,18 @@ export function App() {
             <div
               className="panel-resizer panel-resizer-right"
               role="separator"
+              tabIndex={0}
               aria-label="Resize stage controls"
+              aria-valuemin={280}
+              aria-valuemax={520}
+              aria-valuenow={state.panelSizes.controls}
               onPointerDown={(event) => startResize('controls', 'left', event)}
+              onKeyDown={(event) => resizeWithKeyboard('controls', 'left', event)}
             />
           )}
         </aside>
         <aside
+          ref={agentPanel}
           className="cockpit-panel cockpit-surface agent-sidecar"
           role="complementary"
           aria-label="Agent"
@@ -231,14 +263,45 @@ export function App() {
             <div
               className="panel-resizer panel-resizer-left"
               role="separator"
+              tabIndex={0}
               aria-label="Resize Agent"
+              aria-valuemin={280}
+              aria-valuemax={520}
+              aria-valuenow={state.panelSizes.agent}
               onPointerDown={(event) => startResize('agent', 'right', event)}
+              onKeyDown={(event) => resizeWithKeyboard('agent', 'right', event)}
             />
           )}
         </aside>
       </main>
 
-      <HistoryDrawer open={historyOpen} onClose={() => setHistoryOpen(false)} />
+      <HistoryDrawer
+        open={historyOpen}
+        restoreFocus={historyTrigger}
+        onClose={() => {
+          setHistoryOpen(false)
+          historyTrigger.current?.focus()
+        }}
+      />
+      {state.pendingConfirmation && (
+        <ModalDialog
+          className="run-confirmation global-confirmation"
+          role="alertdialog"
+          labelledBy="invalidation-title"
+          onClose={dismissPendingAction}
+        >
+          <strong id="invalidation-title">{state.pendingConfirmation.title}</strong>
+          <p>{state.pendingConfirmation.description}</p>
+          <div className="actions">
+            <button type="button" className="primary" data-autofocus onClick={confirmPendingAction}>
+              Apply change
+            </button>
+            <button type="button" onClick={dismissPendingAction}>
+              Keep current work
+            </button>
+          </div>
+        </ModalDialog>
+      )}
       <footer className="status-bar">
         <span className="status-dot" /> Local workspace
         <span className="status-detail">Single user · scientific provenance retained</span>

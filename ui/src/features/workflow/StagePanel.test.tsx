@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useApp } from '../../app/store'
 import { StagePanel } from './StagePanel'
@@ -70,7 +70,48 @@ describe('stage controls', () => {
     render(<RunSplitButton />)
     const button = screen.getByRole('button', { name: 'Find availability' })
     expect(button.getAttribute('aria-disabled')).toBe('true')
-    expect(screen.getByText(/Reduce the sample count/i)).toBeTruthy()
+    const reason = screen.getByText(/Reduce the sample count/i)
+    expect(reason).toBeTruthy()
+    expect(button.getAttribute('aria-describedby')).toBe(reason.id)
+  })
+
+  it('moves focus into the split menu and restores it on Escape', () => {
+    render(<RunSplitButton />)
+    const trigger = screen.getByRole('button', { name: 'More run options' })
+    fireEvent.click(trigger)
+    expect(document.activeElement).toBe(
+      screen.getByRole('menuitem', { name: 'Refresh sample preview' }),
+    )
+    fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' })
+    expect(document.activeElement).toBe(trigger)
+  })
+
+  it('traps confirmation focus and restores the exact opener', async () => {
+    useApp.setState({
+      stage: 'download',
+      discovery: { candidates: [{ id: 'candidate' }] } as any,
+      discoveryVersion: 1,
+      selectedDatasets: [{ provider: 'openmeteo', dataset: 'era5' }],
+      selectionVersion: 2,
+      weatherPlan: { kind: 'weather', plan_hash: 'current' } as any,
+      weatherPlanRequestVersion: 1,
+      weatherPlanSelectionVersion: 2,
+    })
+    render(<RunSplitButton />)
+    const opener = screen.getByRole('button', { name: 'Download weather' })
+    fireEvent.click(opener)
+    expect(screen.getByRole('alertdialog', { name: 'Confirm Download weather' })).toBeTruthy()
+    expect(run).not.toHaveBeenCalled()
+    const confirm = screen.getByRole('button', { name: 'Confirm job' })
+    const keep = screen.getByRole('button', { name: 'Keep reviewing' })
+    expect(document.activeElement).toBe(confirm)
+    fireEvent.keyDown(screen.getByRole('alertdialog'), { key: 'Tab' })
+    expect(document.activeElement).toBe(keep)
+    fireEvent.keyDown(screen.getByRole('alertdialog'), { key: 'Tab', shiftKey: true })
+    expect(document.activeElement).toBe(confirm)
+    fireEvent.click(keep)
+    await waitFor(() => expect(document.activeElement).toBe(opener))
+    expect(run).not.toHaveBeenCalled()
   })
 
   it('groups Download datasets, toggles whole-query selections and refreshes the plan', () => {
@@ -117,6 +158,33 @@ describe('stage controls', () => {
     fireEvent.click(screen.getByRole('checkbox', { name: /era5 \/ single-levels/i }))
     expect(run).toHaveBeenCalledWith({ type: 'selectDatasets', selections: [] })
     vi.advanceTimersByTime(400)
+    expect(run).toHaveBeenCalledWith({ type: 'planWeather' })
+  })
+
+  it('retries a deferred live plan refresh after another request finishes', () => {
+    vi.useFakeTimers()
+    useApp.setState({
+      stage: 'download',
+      busy: true,
+      discoveryVersion: 1,
+      discovery: {
+        candidates: [
+          {
+            id: 'a',
+            source: { provider: 'era5', dataset: 'single-levels' },
+            product_id: null,
+          },
+        ],
+      } as any,
+      selectedDatasets: [{ provider: 'era5', dataset: 'single-levels' }],
+    })
+    render(<StagePanel />)
+    vi.advanceTimersByTime(400)
+    expect(run).not.toHaveBeenCalledWith({ type: 'planWeather' })
+
+    act(() => useApp.setState({ busy: false }))
+    vi.advanceTimersByTime(400)
+
     expect(run).toHaveBeenCalledWith({ type: 'planWeather' })
   })
 

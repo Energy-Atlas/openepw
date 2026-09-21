@@ -7,6 +7,7 @@ import type { DatasetSelection, Stage } from './workflow'
 export type LogEntry = { id: string; kind: 'info' | 'error' | 'tool'; text: string }
 export type PanelSizes = { controls: number; agent: number; inspector: number }
 export type InspectorState = { open: boolean; manuallyCollapsed: boolean }
+export type PendingConfirmation = { title: string; description: string }
 
 export type State = {
   stage: Stage
@@ -44,6 +45,7 @@ export type State = {
   coverageLayers: Schemas['CoverageLayer'][]
   selectedCoverageIds: string[]
   inspector: InspectorState
+  pendingConfirmation: PendingConfirmation | null
   panelSizes: PanelSizes
   busy: boolean
   error: string
@@ -118,6 +120,7 @@ export const useApp = create<State>()(
       coverageLayers: [],
       selectedCoverageIds: [],
       inspector: { open: false, manuallyCollapsed: false },
+      pendingConfirmation: null,
       panelSizes: { controls: 340, agent: 340, inspector: 300 },
       busy: false,
       error: '',

@@ -48,10 +48,10 @@ def test_signal_upload_and_preview(tmp_path):
         assert result.json()["role"] == "signals"
         signals = result.json()
         upload = client.post(
-            "/v1/artifacts", files={"file": ("test.epw", epw_bytes(synthetic()))}
+            "/v1/artifacts", files={"file": ("test.epw", epw_bytes(synthetic(2023, 8760)))}
         ).json()
         result = client.get(f"/v1/artifacts/{upload['id']}/preview").json()
-        assert result["total_rows"] == 24
+        assert result["total_rows"] == 8760
         assert client.get(f"/v1/artifacts/{upload['id']}/preview?limit=169").status_code == 422
 
         visualization = client.get(
@@ -60,15 +60,16 @@ def test_signal_upload_and_preview(tmp_path):
         )
         assert visualization.status_code == 200
         assert visualization.json()["timestamps"][0].endswith("00:00:00")
-        assert len(visualization.json()["series"]["dry_bulb"]) == 24
-        default_visualization = client.get(
-            f"/v1/artifacts/{upload['id']}/visualization"
-        ).json()
-        assert default_visualization["series"]["liquid_precipitation"] == [None] * 24
-        assert client.get(
-            f"/v1/artifacts/{upload['id']}/visualization",
-            params={"variables": "not_weather"},
-        ).status_code == 400
+        assert len(visualization.json()["series"]["dry_bulb"]) == 8760
+        default_visualization = client.get(f"/v1/artifacts/{upload['id']}/visualization").json()
+        assert default_visualization["series"]["liquid_precipitation"] == [None] * 8760
+        assert (
+            client.get(
+                f"/v1/artifacts/{upload['id']}/visualization",
+                params={"variables": "not_weather"},
+            ).status_code
+            == 400
+        )
         assert (
             client.get(
                 f"/v1/artifacts/{upload['id']}/visualization",
@@ -80,6 +81,12 @@ def test_signal_upload_and_preview(tmp_path):
             == 400
         )
         assert client.get(f"/v1/artifacts/{signals['id']}/visualization").status_code == 400
+
+        invalid = client.post(
+            "/v1/artifacts", files={"file": ("partial.epw", epw_bytes(synthetic()))}
+        )
+        assert invalid.status_code == 400
+        assert invalid.json()["code"] == "INVALID_ARTIFACT"
 
         oversized = service.artifacts.write(
             "oversized",

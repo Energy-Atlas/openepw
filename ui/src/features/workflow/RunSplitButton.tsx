@@ -1,18 +1,44 @@
 import { ChevronDown, Play } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { run } from '../../app/actions'
 import { useApp } from '../../app/store'
 import { deriveWorkflow } from '../../app/workflow'
+import { ModalDialog } from '../../shell/ModalDialog'
 
 export function RunSplitButton() {
   const state = useApp()
   const workflow = deriveWorkflow(state)
   const [open, setOpen] = useState(false)
+  const [confirming, setConfirming] = useState<'run' | 'rerun' | null>(null)
+  const menuTrigger = useRef<HTMLButtonElement>(null)
+  const runPrimary = useRef<HTMLButtonElement>(null)
+  const menu = useRef<HTMLDivElement>(null)
+  const confirmButton = useRef<HTMLButtonElement>(null)
+  const confirmationOpener = useRef<HTMLElement | null>(null)
   const blocked = !workflow.run.enabled
+
+  useEffect(() => {
+    if (open) menu.current?.querySelector<HTMLButtonElement>('[role="menuitem"]')?.focus()
+  }, [open])
+
+  useEffect(() => {
+    if (confirming) confirmButton.current?.focus()
+  }, [confirming])
 
   function primary() {
     if (blocked) return
-    run({ type: 'runCurrentStage', confirmed: state.stage !== 'explore' })
+    if (state.stage !== 'explore') {
+      confirmationOpener.current = runPrimary.current
+      setConfirming('run')
+      return
+    }
+    run({ type: 'runCurrentStage' })
+  }
+
+  function askToRerun() {
+    confirmationOpener.current = menuTrigger.current
+    setOpen(false)
+    setConfirming('rerun')
   }
 
   return (
@@ -21,8 +47,10 @@ export function RunSplitButton() {
         <button
           type="button"
           className="run-primary"
+          ref={runPrimary}
           aria-label={workflow.run.label}
           aria-disabled={blocked || undefined}
+          aria-describedby={workflow.run.reason ? 'run-reason' : undefined}
           title={workflow.run.reason ?? workflow.run.label}
           onClick={primary}
         >
@@ -32,6 +60,7 @@ export function RunSplitButton() {
         <button
           type="button"
           className="run-menu-trigger"
+          ref={menuTrigger}
           aria-label="More run options"
           aria-haspopup="menu"
           aria-expanded={open}
@@ -40,9 +69,23 @@ export function RunSplitButton() {
           <ChevronDown size={14} aria-hidden="true" />
         </button>
       </div>
-      {workflow.run.reason && <span className="run-reason">{workflow.run.reason}</span>}
+      {workflow.run.reason && (
+        <span className="run-reason" id="run-reason">
+          {workflow.run.reason}
+        </span>
+      )}
       {open && (
-        <div className="run-menu" role="menu">
+        <div
+          className="run-menu"
+          role="menu"
+          ref={menu}
+          onKeyDown={(event) => {
+            if (event.key === 'Escape') {
+              setOpen(false)
+              menuTrigger.current?.focus()
+            }
+          }}
+        >
           {state.stage === 'explore' && (
             <>
               <button role="menuitem" onClick={() => run({ type: 'previewSpatial' })}>
@@ -58,7 +101,7 @@ export function RunSplitButton() {
               <button role="menuitem" onClick={() => run({ type: 'planWeather' })}>
                 Refresh reviewed plan
               </button>
-              <button role="menuitem" onClick={() => run({ type: 'rerunPlan' })}>
+              <button role="menuitem" onClick={askToRerun}>
                 Retry or rerun plan
               </button>
             </>
@@ -68,12 +111,44 @@ export function RunSplitButton() {
               <button role="menuitem" onClick={() => run({ type: 'planFuture' })}>
                 Refresh projection plan
               </button>
-              <button role="menuitem" onClick={() => run({ type: 'rerunPlan' })}>
+              <button role="menuitem" onClick={askToRerun}>
                 Generate another run
               </button>
             </>
           )}
         </div>
+      )}
+      {confirming && (
+        <ModalDialog
+          className="run-confirmation"
+          role="alertdialog"
+          ariaLabel={`Confirm ${workflow.run.label}`}
+          onClose={() => setConfirming(null)}
+          restoreFocus={confirmationOpener}
+        >
+          <strong>
+            {confirming === 'rerun' ? 'Run the reviewed plan again?' : `${workflow.run.label}?`}
+          </strong>
+          <p>This starts a server job using the current reviewed plan.</p>
+          <div className="actions">
+            <button
+              type="button"
+              className="primary"
+              ref={confirmButton}
+              data-autofocus
+              onClick={() => {
+                const action = confirming === 'rerun' ? 'rerunPlan' : 'runCurrentStage'
+                setConfirming(null)
+                run({ type: action, confirmed: true })
+              }}
+            >
+              Confirm job
+            </button>
+            <button type="button" onClick={() => setConfirming(null)}>
+              Keep reviewing
+            </button>
+          </div>
+        </ModalDialog>
       )}
     </div>
   )

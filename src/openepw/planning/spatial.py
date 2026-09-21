@@ -50,9 +50,7 @@ def validate_polygon(p):
             raise OpenEPWError("INVALID_GEOMETRY", "Hole outside exterior ring")
 
 
-def _iter_points(
-    query: BoundingBox | PolygonQuery, spec: SamplingSpec, *, evaluation_limit: int
-):
+def _iter_points(query: BoundingBox | PolygonQuery, spec: SamplingSpec, *, evaluation_limit: int):
     polygon = query if isinstance(query, PolygonQuery) else None
     if polygon:
         validate_polygon(polygon)
@@ -101,7 +99,7 @@ def sample_preview(
     *,
     evaluation_limit: int = 1_000_000,
 ) -> tuple[list[Location], int]:
-    points = []
+    points: list[Location] = []
     total = 0
     for point in _iter_points(query, spec, evaluation_limit=evaluation_limit):
         total += 1

@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type RefObject } from 'react'
 import { api, type Artifact } from '../../api/client'
 import { run } from '../../app/actions'
 import { useApp } from '../../app/store'
+import { ModalDialog } from '../../shell/ModalDialog'
 
 const terminal = new Set(['completed', 'partially_completed', 'failed', 'cancelled'])
 
@@ -48,7 +49,15 @@ export function useJobMonitor() {
   }, [job?.id, job?.state])
 }
 
-export function HistoryDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function HistoryDrawer({
+  open,
+  onClose,
+  restoreFocus,
+}: {
+  open: boolean
+  onClose: () => void
+  restoreFocus?: RefObject<HTMLElement | null>
+}) {
   const state = useApp()
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
@@ -79,7 +88,12 @@ export function HistoryDrawer({ open, onClose }: { open: boolean; onClose: () =>
       ]
     : []
   return (
-    <aside className="history-drawer" role="dialog" aria-label="Job history">
+    <ModalDialog
+      className="history-drawer"
+      ariaLabel="Job history"
+      onClose={onClose}
+      restoreFocus={restoreFocus}
+    >
       <header>
         <div>
           <h2>History</h2>
@@ -138,6 +152,6 @@ export function HistoryDrawer({ open, onClose }: { open: boolean; onClose: () =>
           </div>
         </section>
       )}
-    </aside>
+    </ModalDialog>
   )
 }

@@ -1,6 +1,6 @@
 import { api, type Artifact, type FutureRequest, type WeatherRequest } from '../api/client'
 import { rememberedIntent, rememberIntent } from './intent'
-import { useApp } from './store'
+import { useApp, type State } from './store'
 import { canNavigate, deriveWorkflow, type DatasetSelection, type Stage } from './workflow'
 
 export const ACTION_REGISTRY = {
@@ -28,9 +28,9 @@ export const ACTION_REGISTRY = {
 } as const
 
 export type AppAction =
-  | { type: 'editQuery'; patch: Partial<WeatherRequest> }
-  | { type: 'editFuture'; patch: Partial<FutureRequest> }
-  | { type: 'selectDatasets'; selections: DatasetSelection[] }
+  | { type: 'editQuery'; patch: Partial<WeatherRequest>; confirmed?: boolean }
+  | { type: 'editFuture'; patch: Partial<FutureRequest>; confirmed?: boolean }
+  | { type: 'selectDatasets'; selections: DatasetSelection[]; confirmed?: boolean }
   | { type: 'navigate'; stage: Stage }
   | {
       type:
@@ -39,10 +39,10 @@ export type AppAction =
         | 'planWeather'
         | 'planFuture'
         | 'submitPlan'
-        | 'rerunPlan'
         | 'cancelActive'
         | 'loadCoverage'
     }
+  | { type: 'rerunPlan'; confirmed?: boolean }
   | { type: 'runCurrentStage'; confirmed?: boolean }
   | { type: 'selectJob'; id: string }
   | { type: 'cancelJob'; id: string }
@@ -53,7 +53,60 @@ export type AppAction =
   | { type: 'setInspector'; open: boolean; manually?: boolean }
 
 export type Action = AppAction
+type InvalidatingAction = Extract<
+  AppAction,
+  { type: 'editQuery' | 'editFuture' | 'selectDatasets' }
+>
 let active: AbortController | null = null
+let pendingInvalidation: InvalidatingAction | null = null
+
+function isInvalidatingAction(action: AppAction): action is InvalidatingAction {
+  return ['editQuery', 'editFuture', 'selectDatasets'].includes(action.type)
+}
+
+function invalidatesCurrentWork(state: State, action: InvalidatingAction) {
+  if (action.type === 'editQuery')
+    return (
+      state.discoveryVersion === state.requestVersion ||
+      (state.weatherPlanRequestVersion === state.requestVersion &&
+        state.weatherPlanSelectionVersion === state.selectionVersion) ||
+      state.baselineOrigin === 'download'
+    )
+  if (action.type === 'selectDatasets')
+    return (
+      (state.weatherPlanRequestVersion === state.requestVersion &&
+        state.weatherPlanSelectionVersion === state.selectionVersion) ||
+      state.baselineOrigin === 'download'
+    )
+  return (
+    action.type === 'editFuture' &&
+    state.futurePlanVersion === state.futureVersion &&
+    state.futurePlanBaselineId === state.future.baseline
+  )
+}
+
+function queueInvalidation(action: InvalidatingAction) {
+  pendingInvalidation = { ...action, confirmed: true }
+  useApp.setState({
+    pendingConfirmation: {
+      title: 'Update upstream inputs?',
+      description:
+        'This keeps job history and artifacts, but marks the dependent reviewed plan and active results stale.',
+    },
+  })
+}
+
+export function dismissPendingAction() {
+  pendingInvalidation = null
+  useApp.setState({ pendingConfirmation: null })
+}
+
+export async function confirmPendingAction() {
+  const action = pendingInvalidation
+  pendingInvalidation = null
+  useApp.setState({ pendingConfirmation: null })
+  if (action) return dispatch(action)
+}
 
 function recommendedSelections(discovery: Awaited<ReturnType<typeof api.discover>>) {
   const selected = new Set(discovery.selected_candidate_ids)
@@ -76,6 +129,10 @@ export async function dispatch(action: AppAction): Promise<unknown> {
     state.log(
       'Client cancellation requested; server jobs continue. Refresh History to reconcile submissions.',
     )
+    return
+  }
+  if (isInvalidatingAction(action) && !action.confirmed && invalidatesCurrentWork(state, action)) {
+    queueInvalidation(action)
     return
   }
   if (action.type === 'editQuery') return state.edit(action.patch)
@@ -103,8 +160,12 @@ export async function dispatch(action: AppAction): Promise<unknown> {
     return dispatch({ type: 'submitPlan' })
   }
   if (action.type === 'rerunPlan') {
-    if (!state.plan) throw new Error('Review a current plan before rerunning it.')
-    useApp.setState({ submitKey: crypto.randomUUID(), submitted: false })
+    const status = deriveWorkflow(state)
+    const currentPlan = state.stage === 'download' ? state.weatherPlan : state.futurePlan
+    if (!status.run.enabled || !currentPlan)
+      throw new Error(status.run.reason ?? 'Review a current plan before rerunning it.')
+    if (!action.confirmed) throw new Error('Confirm starting another job from the current plan.')
+    useApp.setState({ plan: currentPlan, submitKey: crypto.randomUUID(), submitted: false })
     return dispatch({ type: 'submitPlan' })
   }
   if (state.busy) throw new Error('Wait for the current action, or stop it first.')

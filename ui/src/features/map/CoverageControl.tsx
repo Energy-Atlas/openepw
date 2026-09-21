@@ -93,10 +93,18 @@ export function CoverageControl({
                         }
                       />
                     </label>
-                    <button type="button" aria-label={`Move ${layer.label} up`} onClick={() => move(index, -1)}>
+                    <button
+                      type="button"
+                      aria-label={`Move ${layer.label} up`}
+                      onClick={() => move(index, -1)}
+                    >
                       <ChevronUp aria-hidden="true" />
                     </button>
-                    <button type="button" aria-label={`Move ${layer.label} down`} onClick={() => move(index, 1)}>
+                    <button
+                      type="button"
+                      aria-label={`Move ${layer.label} down`}
+                      onClick={() => move(index, 1)}
+                    >
                       <ChevronDown aria-hidden="true" />
                     </button>
                   </div>

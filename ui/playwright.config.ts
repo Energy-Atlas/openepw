@@ -16,7 +16,10 @@ export default defineConfig({
       url: 'http://127.0.0.1:8011/health',
       reuseExistingServer: false,
       cwd: '.',
-      env: { OPENEPW_UI_TEST_ROOT: '../.local/ui-browser-tests' },
+      env: {
+        OPENEPW_UI_TEST_ROOT: `../.local/ui-browser-tests-${process.pid}`,
+        PYTHONPATH: '../src',
+      },
     },
     ...(!process.env.UI_PRODUCTION
       ? [

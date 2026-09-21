@@ -26,6 +26,7 @@ from ..models import (
     WeatherRequest,
 )
 from ..preview import WeatherPreview, WeatherVisualization
+from ..qc import validate
 from ..service import WeatherService
 
 
@@ -190,9 +191,7 @@ def create_app(service=None, *, remote=False, ui_dir=None):
     ):
         return service.preview_artifact(artifact_id, start, limit, variables)
 
-    @app.get(
-        "/v1/artifacts/{artifact_id}/visualization", response_model=WeatherVisualization
-    )
+    @app.get("/v1/artifacts/{artifact_id}/visualization", response_model=WeatherVisualization)
     def visualization(
         artifact_id: str,
         variables: list[str] | None = Query(None),
@@ -216,7 +215,13 @@ def create_app(service=None, *, remote=False, ui_dir=None):
         body = await file.read(5_000_001)
         if len(body) > 5_000_000:
             raise OpenEPWError("RESOURCE_LIMIT", "EPW exceeds upload limit")
-        read_epw(body)
+        dataset = read_epw(body)
+        issues = validate(dataset, profile="annual")
+        if any(issue.severity == "error" for issue in issues):
+            raise OpenEPWError(
+                "INVALID_ARTIFACT",
+                "Uploaded EPW failed annual validation and cannot be used as a Project baseline",
+            )
         return service.artifacts.write(
             uuid.uuid4().hex, "baseline.epw", body, "baseline", "application/vnd.energyplus.epw"
         )
@@ -224,8 +229,14 @@ def create_app(service=None, *, remote=False, ui_dir=None):
     @app.get(
         "/v1/artifacts/{artifact_id}",
         response_class=FileResponse,
-        responses={200: {"description": "Original artifact bytes; media type comes from ArtifactRef",
-                         "content": {"application/octet-stream": {"schema": {"type": "string", "format": "binary"}}}}},
+        responses={
+            200: {
+                "description": "Original artifact bytes; media type comes from ArtifactRef",
+                "content": {
+                    "application/octet-stream": {"schema": {"type": "string", "format": "binary"}}
+                },
+            }
+        },
     )
     def artifact(artifact_id: str):
         ref, path = service.artifacts.resolve(artifact_id)

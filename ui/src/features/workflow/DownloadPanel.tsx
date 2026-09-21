@@ -37,7 +37,8 @@ export function DownloadPanel() {
     if (
       state.discoveryVersion !== state.requestVersion ||
       state.selectedDatasets.length === 0 ||
-      planCurrent
+      planCurrent ||
+      state.busy
     )
       return
     const timer = window.setTimeout(() => run({ type: 'planWeather' }), 300)
@@ -48,6 +49,7 @@ export function DownloadPanel() {
     state.requestVersion,
     state.selectedDatasets,
     state.selectionVersion,
+    state.busy,
   ])
 
   const artifacts = [

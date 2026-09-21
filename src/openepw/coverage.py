@@ -55,7 +55,9 @@ LAYERS = (
         products=["tmy", "published"],
         attribution="European Commission Joint Research Centre PVGIS",
         source_url="https://re.jrc.ec.europa.eu/pvg_tools/en/",
-        limitations=["Coverage varies by radiation database; no single approved extent is asserted"],
+        limitations=[
+            "Coverage varies by radiation database; no single approved extent is asserted"
+        ],
         observed_at=_OBSERVED_AT,
     ),
 )

@@ -30,8 +30,7 @@ function distance(a: Position, b: Position) {
   const dLon = radians(b[0] - a[0])
   const lat1 = radians(a[1])
   const lat2 = radians(b[1])
-  const h =
-    Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2
   return 2 * EARTH_KM * Math.asin(Math.sqrt(h))
 }
 
@@ -47,7 +46,10 @@ export function measureSelection(mode: DrawMode, vertices: Position[]) {
   }
   const ring = [...vertices, vertices[0]]
   const meanLat = radians(vertices.reduce((sum, vertex) => sum + vertex[1], 0) / vertices.length)
-  const projected = ring.map(([lon, lat]) => [radians(lon) * EARTH_KM * Math.cos(meanLat), radians(lat) * EARTH_KM])
+  const projected = ring.map(([lon, lat]) => [
+    radians(lon) * EARTH_KM * Math.cos(meanLat),
+    radians(lat) * EARTH_KM,
+  ])
   const area = Math.abs(
     projected.slice(0, -1).reduce((sum, [x, y], index) => {
       const [nextX, nextY] = projected[index + 1]

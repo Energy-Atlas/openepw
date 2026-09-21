@@ -30,10 +30,12 @@ describe('derived staged workflow', () => {
     const missing = deriveWorkflow(base())
     expect(missing.run.enabled).toBe(false)
     expect(missing.run.reason).toMatch(/authoritative spatial preview/i)
-    const ready = deriveWorkflow(base({
-      spatialPreview: { executable: true } as any,
-      spatialPreviewVersion: 2,
-    }))
+    const ready = deriveWorkflow(
+      base({
+        spatialPreview: { executable: true } as any,
+        spatialPreviewVersion: 2,
+      }),
+    )
     expect(ready.run.enabled).toBe(true)
   })
 

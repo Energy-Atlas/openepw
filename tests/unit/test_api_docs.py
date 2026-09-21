@@ -27,6 +27,9 @@ def test_rest_routes_declare_success_and_error_schemas(tmp_path):
                 success = responses.get("200", responses.get("201", responses.get("202")))
                 assert success["content"]["application/json"]["schema"], (path, method)
             else:
-                assert responses["200"]["content"]["application/octet-stream"]["schema"]["format"] == "binary"
+                assert (
+                    responses["200"]["content"]["application/octet-stream"]["schema"]["format"]
+                    == "binary"
+                )
             assert "400" in responses and "401" in responses
     app.state.runner.close()

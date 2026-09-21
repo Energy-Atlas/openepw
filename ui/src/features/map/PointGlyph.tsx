@@ -21,7 +21,7 @@ export function PointGlyph({
   const segments = statuses.length || 1
   const gradient = statuses.length
     ? `conic-gradient(${statuses
-        .map((status, index) => `${status.color} ${(index * 100) / segments}% ${((index + 1) * 100) / segments}%`)
+        .flatMap((status, index) => segmentStops(status, index, segments))
         .join(',')})`
     : 'var(--color-muted)'
   const description = statuses.length
@@ -74,4 +74,18 @@ export function PointGlyph({
       )}
     </div>
   )
+}
+
+function segmentStops(status: DatasetPointStatus, index: number, segments: number) {
+  const start = (index * 100) / segments
+  const end = ((index + 1) * 100) / segments
+  const middle = (start + end) / 2
+  if (status.state === 'failed')
+    return [`${status.color} ${start}% ${middle}%`, `var(--tone-danger-text) ${middle}% ${end}%`]
+  if (status.state === 'gated')
+    return [`${status.color} ${start}% ${middle}%`, `var(--color-text-muted) ${middle}% ${end}%`]
+  if (status.state === 'unavailable') return [`var(--color-surface-raised) ${start}% ${end}%`]
+  if (status.state === 'complete')
+    return [`color-mix(in srgb, ${status.color} 72%, var(--tone-success-text)) ${start}% ${end}%`]
+  return [`${status.color} ${start}% ${end}%`]
 }

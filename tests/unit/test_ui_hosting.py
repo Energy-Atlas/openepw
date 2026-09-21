@@ -16,7 +16,10 @@ def test_optional_ui_keeps_api_routes_and_auth(tmp_path):
     service = WeatherService(RuntimeConfig(data_root=tmp_path / "data", bearer_token="test-only"))
     with TestClient(create_app(service, ui_dir=folder)) as client:
         assert client.get("/", follow_redirects=False).headers["location"] == "/ui/"
-        assert client.get("/favicon.ico", follow_redirects=False).headers["location"] == "/ui/favicon.svg"
+        assert (
+            client.get("/favicon.ico", follow_redirects=False).headers["location"]
+            == "/ui/favicon.svg"
+        )
         assert client.get("/ui/").text == "<html>OpenEPW</html>"
         assert client.get("/ui/results").status_code == 200
         assert client.get("/ui/missing.js").status_code == 404
@@ -39,4 +42,6 @@ def test_module_workers_have_javascript_mime_even_with_windows_registry(tmp_path
     (folder / "worker.mjs").write_text("export {}")
     service = WeatherService(RuntimeConfig(data_root=tmp_path / "data"))
     with TestClient(create_app(service, ui_dir=folder)) as client:
-        assert client.get("/ui/worker.mjs").headers["content-type"].split(";")[0] == "text/javascript"
+        assert (
+            client.get("/ui/worker.mjs").headers["content-type"].split(";")[0] == "text/javascript"
+        )

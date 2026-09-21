@@ -1,5 +1,12 @@
 import { it, expect } from 'vitest'
-import { canFinish, geometry, measureSelection, moveVertex, removeVertex, undoVertex } from './selection'
+import {
+  canFinish,
+  geometry,
+  measureSelection,
+  moveVertex,
+  removeVertex,
+  undoVertex,
+} from './selection'
 it('requires enough vertices and closes polygon rings', () => {
   expect(() =>
     geometry('polygon', [
@@ -52,8 +59,30 @@ it('supports reversible keyboard-friendly vertex edits', () => {
 it('reports finish readiness and a live measurement', () => {
   expect(canFinish('point', [[0, 0]])).toBe(true)
   expect(canFinish('bbox', [[0, 0]])).toBe(false)
-  expect(canFinish('polygon', [[0, 0], [1, 0], [1, 1]])).toBe(true)
-  expect(measureSelection('bbox', [[0, 0], [1, 1]])).toMatch(/km²/)
-  expect(measureSelection('polygon', [[0, 0], [1, 0], [1, 1]])).toMatch(/km²/)
-  expect(measureSelection('points', [[0, 0], [1, 1]])).toBe('2 points')
+  expect(
+    canFinish('polygon', [
+      [0, 0],
+      [1, 0],
+      [1, 1],
+    ]),
+  ).toBe(true)
+  expect(
+    measureSelection('bbox', [
+      [0, 0],
+      [1, 1],
+    ]),
+  ).toMatch(/km²/)
+  expect(
+    measureSelection('polygon', [
+      [0, 0],
+      [1, 0],
+      [1, 1],
+    ]),
+  ).toMatch(/km²/)
+  expect(
+    measureSelection('points', [
+      [0, 0],
+      [1, 1],
+    ]),
+  ).toBe('2 points')
 })

@@ -380,6 +380,35 @@ nav a {
   background: transparent;
   text-align: left;
 }
+.run-confirmation {
+  position: absolute;
+  z-index: 55;
+  top: calc(100% + 6px);
+  right: 0;
+  width: 280px;
+  padding: 12px;
+  border: 1px solid var(--tone-warning-text);
+  border-radius: 6px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  box-shadow: 0 10px 28px rgb(0 0 0 / 20%);
+}
+.run-confirmation p {
+  margin: 6px 0 10px;
+  color: var(--color-text-muted);
+  font-size: 11px;
+}
+.run-confirmation .actions {
+  margin: 0;
+}
+.global-confirmation {
+  position: fixed;
+  z-index: 180;
+  top: 50%;
+  right: 50%;
+  width: min(360px, calc(100vw - 32px));
+  transform: translate(50%, -50%);
+}
 .segmented {
   display: flex;
   gap: 3px;
@@ -949,7 +978,7 @@ footer {
 }
 .geometry-tools button[aria-pressed='true'],
 .geometry-tools .geometry-finish {
-  color: var(--color-accent-contrast);
+  color: var(--color-on-accent);
   background: var(--color-accent);
 }
 .geometry-tools svg,
@@ -986,7 +1015,7 @@ footer {
   min-width: 17px;
   border-radius: 10px;
   background: var(--color-accent);
-  color: var(--color-accent-contrast);
+  color: var(--color-on-accent);
   font-size: 9px;
 }
 .coverage-control > section {
@@ -1139,7 +1168,11 @@ footer {
 }
 .point-popover li[data-state='failed'] i,
 .point-popover li[data-state='gated'] i {
-  background-image: repeating-linear-gradient(45deg, transparent 0 2px, var(--color-surface) 2px 3px) !important;
+  background-image: repeating-linear-gradient(
+    45deg,
+    transparent 0 2px,
+    var(--color-surface) 2px 3px
+  ) !important;
 }
 .point-artifacts {
   display: grid;

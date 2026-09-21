@@ -91,11 +91,7 @@ def without_feb_29(dataset: WeatherDataset) -> WeatherDataset:
     )
     lineage = {
         name: item.model_copy(
-            update={
-                "transforms": list(
-                    dict.fromkeys([*item.transforms, transform])
-                )
-            }
+            update={"transforms": list(dict.fromkeys([*item.transforms, transform]))}
         )
         for name, item in dataset.lineage.items()
     }

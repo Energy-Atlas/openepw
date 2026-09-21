@@ -119,7 +119,9 @@ class WeatherService:
 
     def preview_spatial(self, request: WeatherRequest):
         periods = max(1, len(request.years))
-        execution_limit = min(request.sampling.max_locations, 1000 // periods)
+        datasets = max(1, len(request.dataset_selections))
+        outputs_per_location = periods * datasets
+        execution_limit = min(request.sampling.max_locations, 1000 // outputs_per_location)
         if isinstance(request.locations, Location):
             locations = [request.locations]
             total = 1
@@ -129,9 +131,7 @@ class WeatherService:
         else:
             from .planning.spatial import sample_preview
 
-            locations, total = sample_preview(
-                request.locations, request.sampling, execution_limit
-            )
+            locations, total = sample_preview(request.locations, request.sampling, execution_limit)
         executable = total <= execution_limit
         issues = []
         if not executable:
@@ -146,14 +146,15 @@ class WeatherService:
                     field="sampling",
                 )
             )
+        identified = [location.model_copy(update={"id": location.key}) for location in locations]
         return SpatialPreview(
-            locations=locations,
+            locations=identified,
             total_count=total,
-            returned_count=len(locations),
-            planned_output_count=total * periods,
+            returned_count=len(identified),
+            planned_output_count=total * outputs_per_location,
             execution_limit=execution_limit,
             executable=executable,
-            truncated=len(locations) < total,
+            truncated=len(identified) < total,
             issues=issues,
         )
 
@@ -212,9 +213,7 @@ class WeatherService:
                 "UNSUPPORTED_TIMEZONE",
                 "Fractional-hour output requires explicit temporal interpolation; request UTC or a whole-hour fixed offset in v0.1",
             )
-        output_multiplier = max(1, len(request.years)) * max(
-            1, len(request.dataset_selections)
-        )
+        output_multiplier = max(1, len(request.years)) * max(1, len(request.dataset_selections))
         if len(locations) * output_multiplier > 1000:
             raise OpenEPWError("RESOURCE_LIMIT", "Request exceeds 1000 output locations/periods")
         discovery = discovery or self.discover(request)
@@ -227,10 +226,11 @@ class WeatherService:
         issues = list(discovery.issues)
         for loc in discovery.locations:
             candidates = [c for c in discovery.candidates if c.location_id == loc.key]
+            chosen: list[tuple[Candidate, DatasetSelection | None]]
             if request.hybrid_policy.enabled:
                 if request.product not in ("historical", "amy"):
                     raise OpenEPWError("INVALID_ALIGNMENT", "Hybrids require actual dated series")
-                chosen: list[tuple[Candidate, DatasetSelection | None]] = []
+                chosen = []
                 for provider in dict.fromkeys(request.hybrid_policy.assignments.values()):
                     candidate = next((c for c in candidates if c.source.provider == provider), None)
                     if candidate is None:
@@ -272,9 +272,11 @@ class WeatherService:
                         continue
                     chosen.append((candidate, selection))
             else:
-                chosen = [
-                    (c, None) for c in candidates if c.id in discovery.selected_candidate_ids
-                ][:1]
+                chosen = []
+                for candidate in candidates:
+                    if candidate.id in discovery.selected_candidate_ids:
+                        chosen.append((candidate, None))
+                        break
             if not chosen:
                 if request.dataset_selections:
                     continue
@@ -333,13 +335,14 @@ class WeatherService:
                         tasks[key].dependents.append(loc.key)
                     ids.append(task_id)
                 if request.dataset_selections:
-                    for task_id, (_candidate, selection) in zip(ids, chosen, strict=True):
+                    for task_id, (_candidate, output_selection) in zip(ids, chosen, strict=True):
+                        assert output_selection is not None
                         outputs.append(
                             OutputSpec(
                                 requested_location_id=loc.key,
                                 task_ids=[task_id],
                                 name=digest([task_id])[:20] + ".epw",
-                                dataset_selection=selection,
+                                dataset_selection=output_selection,
                             )
                         )
                 else:
@@ -513,9 +516,7 @@ class WeatherService:
             "issues": [i.model_dump() for i in issues],
             "timezone_policy": "fixed local standard time; default UTC when not supplied",
             "leap_policy": (
-                plan.request.leap_policy
-                if isinstance(plan.request, WeatherRequest)
-                else "preserve"
+                plan.request.leap_policy if isinstance(plan.request, WeatherRequest) else "preserve"
             ),
             "simulation_ready": False,
         }

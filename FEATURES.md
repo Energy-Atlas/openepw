@@ -21,9 +21,11 @@ are recorded separately. Installed source package version: 0.1.0.
 | Future ensembles | Implemented | Model/member outputs for morph; temporal years for hourly archive |
 | REST/jobs/artifacts | Implemented, offline tested | SQLite + filesystem; single server process; bearer auth for remote REST |
 | MCP and CLI | Implemented, offline tested | Stdio and loopback Streamable HTTP; compact artifact references |
-| Local web UI | Implemented, browser tested | Optional same-repo build; single-user loopback, no LLM |
-| Map and previews | Implemented | MapLibre globe/terrain/context, source markers; missing/calendar/source-year semantics retained |
-| Scripted workflows/API docs | Implemented | Shared actions; REST/Python/MCP references and source link |
+| Local web UI | Implemented, browser tested | Explore → Download → Project; map-first, single-user loopback, no LLM |
+| Spatial preview and coverage | Implemented | Canonical Python samples/limits; attributed documented extents never imply point availability |
+| Multi-dataset planning | Implemented, offline tested | Whole-query selections; feasible dataset × point × period EPWs; unavailable combinations explicit |
+| Map and artifact inspector | Implemented | Fixed globe/terrain, segmented point status, full 8,760/8,784-row summaries; null/calendar/source-year semantics retained |
+| Scripted workflows/API docs | Implemented | One action registry; confirmations for jobs; REST/Python/MCP references and source link |
 | Packaging/CI | Wheel/sdist built; local installation verified | Cross-OS runners configured; see actual run evidence |
 
 Reserved: sampled/stochastic weather, additional hourly scenarios/geographies,

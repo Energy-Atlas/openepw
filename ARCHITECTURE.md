@@ -132,10 +132,11 @@ items to disappear. No Redis/Celery/database server is required.
 
 ## Interfaces and deployment
 
-REST: POST `/v1/geocode`, `/v1/weather/discover`, `/v1/weather/plan`,
+REST: POST `/v1/geocode`, `/v1/spatial/preview`, `/v1/weather/discover`, `/v1/weather/plan`,
 `/v1/weather/jobs`, `/v1/future/plan`, `/v1/future/jobs`, `/v1/artifacts`,
 `/v1/jobs/{id}/cancel`; GET `/v1/jobs/{id}`, `/v1/jobs/{id}/artifacts`,
-`/v1/artifacts/{id}`, `/health`. Jobs accept a plan plus optional idempotency key.
+`/v1/artifacts/{id}`, `/v1/artifacts/{id}/visualization`; GET
+`/v1/weather/coverage`, `/health`. Jobs accept a plan plus optional idempotency key.
 Uploads accept bounded EPW files, never arbitrary server paths. Remote REST requires
 a runtime bearer token; default binding is loopback. Request validation does not
 echo potentially secret inputs.
@@ -152,13 +153,15 @@ never request/plan fields. [Configuration template](config.example.toml),
 
 ## Optional local web UI (approved 2026-09-20)
 
-`ui/` is a separate React/TypeScript/Vite project in this repository. FlexLayout
-hosts Request, Map/Results/API Docs and a collapsed Agent border. React Aria handles
-settings; Zustand owns drafts and action state. MapLibre and ECharts visualize
-source geography and server-generated previews. No scientific transformation runs
-in the browser. The original no-frontend boundary is superseded for this milestone.
+`ui/` is a separate React/TypeScript/Vite project in this repository. A full-bleed
+MapLibre terrain globe is the primary surface, overlaid by role-stable stage controls
+and a deterministic Agent sidecar; narrow screens convert them to drawers. The
+Explore → Download → Project state machine and split Run control replace the old
+dock/tab workspace. Zustand owns versioned drafts and action state. ECharts renders
+only server-generated artifact summaries. No scientific transformation or spatial
+sampling runs in the browser. The original no-frontend boundary is superseded.
 
-Manual controls and five deterministic scripted recipes use one dispatcher. Draft
+Manual controls and five deterministic scripted recipes use one action registry and dispatcher. Draft
 edits invalidate plans; request versions suppress stale discovery/planning results.
 Abort signals stop client requests and suppress late results. They do not cancel
 accepted server jobs: job cancellation is a separate endpoint. Stable submission
@@ -166,8 +169,13 @@ keys survive retry and reload via bounded local intent records; explicit rerun
 creates a new key. Reload restores drafts, never executes an old plan automatically.
 Theme/layout/drafts persist locally; bearer credentials stay in process memory.
 
-Additive REST: GET `/v1/jobs` uses bounded cursor pagination; GET
-`/v1/artifacts/{id}/preview` returns at most 168 hourly rows plus monthly summaries;
+Additive REST: POST `/v1/spatial/preview` returns canonical sampled points, exact
+counts and execution-limit status; GET `/v1/weather/coverage` returns attributed
+documented extents with explicit unknown semantics. Optional whole-query dataset
+selections expand feasible dataset × point × period outputs without silent fallback.
+GET `/v1/jobs` uses bounded cursor pagination; GET `/v1/artifacts/{id}/preview`
+returns at most 168 hourly rows, while `/visualization` returns bounded full-artifact
+series and monthly summaries;
 POST `/v1/artifacts/signals` registers validated monthly signals. EPW preview retains
 missing values, fixed-offset month boundaries, noleap calendars, per-row source years
 and monthly valid/expected counts. Synthetic chronology is explicitly labeled.

@@ -23,9 +23,10 @@ export function ExplorePanel() {
   }
 
   useEffect(() => {
+    if (state.busy) return
     const timer = window.setTimeout(() => run({ type: 'previewSpatial' }), 350)
     return () => window.clearTimeout(timer)
-  }, [state.requestVersion])
+  }, [state.requestVersion, state.busy])
 
   async function search() {
     try {

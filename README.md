@@ -51,7 +51,9 @@ from openepw.config import RuntimeConfig
 config = RuntimeConfig.load(env_file=".env")  # explicit local credential loading
 request = WeatherRequest(
     locations=Location(lat=42.44, lon=-76.50, standard_offset_minutes=-300),
-    years=[2024], providers=["openmeteo"], dataset="era5",
+    years=[2024],
+    providers=["openmeteo"],
+    dataset="era5",
 )
 discovery = openepw.discover(request, config=config)
 plan = openepw.plan(request, discovery=discovery, config=config)
@@ -78,9 +80,13 @@ No historical TMY/XMY synthesis is implemented.
 
 ```python
 future = openepw.generate_future(
-    baseline="baseline.epw", target_year=2050,
-    reference_period=(1985, 2014), climate_scenario="ssp245",
-    method="morph", profile="typical", config=config,
+    baseline="baseline.epw",
+    target_year=2050,
+    reference_period=(1985, 2014),
+    climate_scenario="ssp245",
+    method="morph",
+    profile="typical",
+    config=config,
 )
 ```
 

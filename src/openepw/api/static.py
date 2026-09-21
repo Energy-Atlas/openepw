@@ -28,6 +28,7 @@ def mount_ui(app, directory):
         raise ValueError(
             "UI build missing: run npm --prefix ui run build, then pass --ui-dir ui/dist"
         )
+
     async def home(request):
         return RedirectResponse("/ui/")
 

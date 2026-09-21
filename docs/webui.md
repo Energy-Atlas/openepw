@@ -1,8 +1,7 @@
 # Local web UI
 
-> **Approved redesign:** [Map-first staged UI](superpowers/specs/2026-09-20-webui-workflow-redesign.md)
-> is the implementation contract for the next UI revision. The operating guidance
-> below describes the currently shipped interface until that redesign is built.
+> **Current design:** [Map-first staged UI](superpowers/specs/2026-09-20-webui-workflow-redesign.md)
+> is the implemented interaction contract. The older dock/tab workflow is superseded.
 
 The UI is optional and lives in the same repository. Python is the canonical
 service. Install the desired Python extras, run `npm ci --prefix ui` and
@@ -20,34 +19,35 @@ The UI assets are not bundled into the Python wheel. Vite development uses
 
 ## Using the workspace
 
-- **Request:** enter a point or select one geocoding result explicitly. Choose the
-  fixed standard-time offset, provider and product/year or date range. Find sources,
-  inspect actual candidate limitations, review a plan, then run it. Unknown source
-  resolution stays unknown. Advanced JSON exposes full API options, including
-  point lists, grid offsets, output caps, variable selection and explicit hybrids.
-- **Map:** select points, multiple points, two bbox corners or polygon vertices;
-  finish/cancel/undo polygon drawing. Import GeoJSON Polygon/Feature, including
-  holes, in Advanced request. Numeric/JSON alternatives remain available when
-  tiles or WebGL fail. Globe, pitch, real-height buildings, terrain and hillshade
-  are context only. No source grid cells are inferred from nominal resolution.
-- **Results:** refresh server history, select a job, inspect partial failures and
-  download its weather, QC, manifests and additional files. Preview pages contain
-  up to 168 hourly rows; monthly summaries show valid/expected counts. Missing
-  values stay missing. Synthetic chronology and actual source-year labels remain
-  visible. Use an existing weather artifact as a future baseline.
-- **Future:** upload a baseline EPW or use its opaque artifact ID. Choose monthly
-  morphing or hourly climate profiles, the correct scenario and real climate
-  window, then plan/run. Local monthly signal JSON upload is available. Sampled
-  generation is explicitly unavailable. Provider/archive restrictions remain those
-  documented by the Python backend.
-- **Agent:** expand the right border or use the header button. Five scripted recipes
-  call the same actions as manual controls. There is no LLM or natural-language
-  interpreter. The log records actual tool attempts/results. Stop client operation
-  aborts waiting client requests; an accepted job continues until Cancel server job.
-- **Settings:** System or six themes, optional in-memory session bearer token,
-  and Reset layout. Drag dock tabs/splitters; narrow windows use compact tabs.
+- **Explore:** define place/geometry, fixed standard-time offset, period, no-leap
+  output policy and sampling spacing/offsets. The Python sampler supplies the live
+  authoritative point preview and execution-limit result. Providers are not chosen
+  here. The floating map tools handle point/list/bbox/polygon drawing; numeric and
+  GeoJSON entry remain usable if the map fails. Run discovers actual point availability.
+- **Download:** inspect discovery evidence, choose one or more whole-query datasets,
+  review the automatically refreshed plan, then Run. Every feasible dataset × point ×
+  period produces its own EPW; unavailable combinations and partial failures remain
+  explicit. Imported EPWs are parsed and checked with annual QC automatically before
+  becoming eligible baselines, but passing that gate alone never labels them
+  simulation-ready.
+- **Project:** choose one active generated or imported EPW, one implemented future
+  method and its real scenario/window controls. Run produces scenario projections,
+  not forecasts. Monthly signals remain an optional local upload.
+- **Map and inspector:** the center is always a 3D terrain globe. Coverage controls
+  may show several attributed documented extents; these do not claim observed point
+  availability. Sample markers expose dataset status in text as well as color. Select
+  an EPW to inspect monthly temperature/precipitation and a variable-selectable full-
+  year hourly heatmap. Leap days, gaps, units and TMYx source years are retained.
+- **History and Agent:** History is an immutable job/artifact drawer. The right Agent
+  is deterministic and dispatches the same registered actions as controls. Reversible
+  edits apply directly until they would invalidate downstream work; those edits and
+  starting jobs require confirmation. Stopping client waiting does not cancel an
+  accepted server job.
+- **Responsive layout and settings:** desktop sidebars retain fixed roles and resize;
+  narrow windows retain the map and expose both sidebars as mutually exclusive
+  drawers. System plus six curated appearances and the in-memory bearer token remain.
 
-Drafts, layout, theme and the last 100 submission-intent hashes/keys persist in
+Drafts, panel sizes, selected coverage, theme and the last 100 submission-intent hashes/keys persist in
 browser local storage. Credentials never persist there. Reload expires reviewed
 plans and never automatically submits. Re-reviewing an unchanged plan reuses its
 submission key to reconcile a lost response. A completed submission offers Prepare

@@ -1,6 +1,6 @@
 # OpenEPW map-first staged UI redesign
 
-Status: approved on 2026-09-20 for documentation and subsequent implementation.
+Status: approved and implemented on 2026-09-20.
 
 Reference implementation: `../energyatlas-ui`, especially its header Run split
 button, compact analytical chrome, action registry, and chat transcript patterns.
@@ -14,7 +14,7 @@ local-first single-user deployment; real state and provenance only; optional UI
 packaging; bounded uploads; in-memory credentials; all six curated appearances;
 and no claim that a parseable EPW is simulation-ready.
 
-This is an implementation contract, not a claim about the UI currently shipped.
+This is the implementation contract for the currently shipped local UI.
 
 ## Product model
 

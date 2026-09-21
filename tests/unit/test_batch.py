@@ -131,7 +131,9 @@ def test_explicit_datasets_expand_across_query_and_report_unavailable_pairs(tmp_
     }
     unavailable = [issue for issue in plan.issues if issue.code == "DATASET_UNAVAILABLE"]
     assert len(unavailable) == 2
-    assert {issue.location_id for issue in unavailable} == {location.key for location in request.locations}
+    assert {issue.location_id for issue in unavailable} == {
+        location.key for location in request.locations
+    }
     assert all(len(output.task_ids) == 1 for output in plan.outputs)
 
 
