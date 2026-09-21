@@ -71,3 +71,25 @@ uploads must pass annual QC; execution limits count dataset × point × period o
 and one shared modal focus scope provides trapping, inert background content, Escape
 handling and opener restoration. Current-plan reruns, jobs and downstream-invalidating
 edits require confirmation. Stable coverage colors follow provider/dataset identity.
+
+## Browser-test simplification handoff — 2026-09-21
+
+Larger stream: stabilize and maintain the map-first web UI after implementation.
+Current item: propose a faster, smaller E2E suite; no test simplification has been
+implemented or approved yet. The branch is `feature/webui` with a clean working tree
+before this note. Recent CI failures were caused by an external-tile route stub that
+did not intercept HTTPS requests; `59a481b` corrected it and the subsequent UI CI
+run passed. Long failing browser runs, including retries/timeouts, dominated elapsed
+time; one incorrect intermediate hypothesis added an avoidable CI cycle.
+
+Proposal for owner review: retain one real-backend Explore → Download → Project and
+inspector path; one offline map/network interception check; one responsive/focus/Axe
+check; and one production-build worker-loading smoke check. Move preview request
+counts/no-retry behavior and partial-success state permutations to existing fast
+unit/integration tests with controlled timers. Remove fixed browser sleeps. Run the
+full browser set once against development hosting, and only the worker smoke against
+production hosting. Keep partial-job behavior covered at an appropriate integration
+boundary; do not delete coverage solely to shorten CI. Measure before/after runtime
+and preserve evidence that the production module worker executes.
+
+Status: proposal only, awaiting the owner's decision before editing test code or CI.
