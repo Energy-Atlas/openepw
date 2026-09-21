@@ -28,6 +28,7 @@ beforeEach(() => {
     futurePlanBaselineId: null,
     spatialPreview: null,
     spatialPreviewVersion: null,
+    spatialPreviewAttemptVersion: null,
     downloadJobs: [],
     projectJobs: [],
     importedArtifacts: [],

@@ -32,6 +32,46 @@ async function startDownload(page: Page) {
   await page.getByRole('button', { name: 'Confirm job' }).click()
 }
 
+test('Explore sends one spatial preview for an unchanged query', async ({ page }) => {
+  let previews = 0
+  page.on('request', (request) => {
+    if (new URL(request.url()).pathname === '/v1/spatial/preview') previews++
+  })
+  await page.reload()
+  await expect(page.getByText('1 sample points')).toBeVisible()
+  await page.waitForTimeout(1500)
+  expect(previews).toBe(1)
+
+  await page.getByLabel('Latitude').fill('41.5')
+  await expect.poll(() => previews).toBe(2)
+  await expect(page.getByText('Working with the OpenEPW service…')).toHaveCount(0)
+  await page.getByRole('button', { name: 'More run options' }).click()
+  await page.getByRole('menuitem', { name: 'Refresh sample preview' }).click()
+  await expect.poll(() => previews).toBe(3)
+})
+
+test('Explore does not automatically retry a failed spatial preview', async ({ page }) => {
+  let previews = 0
+  await page.route('**/v1/spatial/preview', async (route) => {
+    previews++
+    await route.fulfill({
+      status: 503,
+      contentType: 'application/json',
+      body: JSON.stringify({ code: 'SOURCE_UNAVAILABLE', message: 'Preview unavailable' }),
+    })
+  })
+  await page.reload()
+  await expect(page.getByRole('alert')).toContainText('Preview unavailable')
+  await expect(
+    page.getByText(/Sample preview did not complete; edit the query or use Refresh sample preview/),
+  ).toBeVisible()
+  await page.waitForTimeout(1500)
+  expect(previews).toBe(1)
+
+  await page.getByLabel('Latitude').fill('41.5')
+  await expect.poll(() => previews).toBe(2)
+})
+
 test('Explore uses authoritative sampling, fixed globe controls and documented coverage', async ({
   page,
 }) => {

@@ -175,7 +175,11 @@ export async function dispatch(action: AppAction): Promise<unknown> {
   const requestVersion = state.requestVersion
   const selectionVersion = state.selectionVersion
   const futureVersion = state.futureVersion
-  useApp.setState({ busy: true, error: '' })
+  useApp.setState({
+    busy: true,
+    error: '',
+    ...(action.type === 'previewSpatial' ? { spatialPreviewAttemptVersion: requestVersion } : {}),
+  })
   state.log(action.type, 'tool')
   try {
     let result: unknown

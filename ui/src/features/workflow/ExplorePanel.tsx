@@ -23,10 +23,20 @@ export function ExplorePanel() {
   }
 
   useEffect(() => {
-    if (state.busy) return
+    if (
+      state.busy ||
+      state.spatialPreviewVersion === state.requestVersion ||
+      state.spatialPreviewAttemptVersion === state.requestVersion
+    )
+      return
     const timer = window.setTimeout(() => run({ type: 'previewSpatial' }), 350)
     return () => window.clearTimeout(timer)
-  }, [state.requestVersion, state.busy])
+  }, [
+    state.requestVersion,
+    state.spatialPreviewVersion,
+    state.spatialPreviewAttemptVersion,
+    state.busy,
+  ])
 
   async function search() {
     try {
@@ -40,6 +50,8 @@ export function ExplorePanel() {
 
   const previewCurrent = state.spatialPreviewVersion === state.requestVersion
   const preview = state.spatialPreview
+  const previewIncomplete =
+    state.spatialPreviewAttemptVersion === state.requestVersion && !state.busy && !previewCurrent
 
   return (
     <div className="stage-body">
@@ -329,13 +341,23 @@ export function ExplorePanel() {
                 {preview.planned_output_count.toLocaleString()} planned point-period outputs · limit{' '}
                 {preview.execution_limit.toLocaleString()}
               </span>
-              {!previewCurrent && <span>Updating authoritative preview…</span>}
+              {!previewCurrent && (
+                <span>
+                  {previewIncomplete
+                    ? 'Sample preview did not complete; previous sample is stale. Edit the query or use Refresh sample preview.'
+                    : 'Updating authoritative preview…'}
+                </span>
+              )}
               {preview.truncated && (
                 <span>Showing the first {preview.returned_count.toLocaleString()} points.</span>
               )}
             </>
           ) : (
-            <span>Calculating an authoritative sample preview…</span>
+            <span>
+              {previewIncomplete
+                ? 'Sample preview did not complete; edit the query or use Refresh sample preview.'
+                : 'Calculating an authoritative sample preview…'}
+            </span>
           )}
         </div>
       </section>

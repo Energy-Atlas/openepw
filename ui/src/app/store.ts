@@ -20,6 +20,7 @@ export type State = {
   futureVersion: number
   spatialPreview: Schemas['SpatialPreview'] | null
   spatialPreviewVersion: number | null
+  spatialPreviewAttemptVersion: number | null
   discovery: Schemas['DiscoveryResult'] | null
   discoveryVersion: number | null
   selectedDatasets: DatasetSelection[]
@@ -95,6 +96,7 @@ export const useApp = create<State>()(
       futureVersion: 0,
       spatialPreview: null,
       spatialPreviewVersion: null,
+      spatialPreviewAttemptVersion: null,
       discovery: null,
       discoveryVersion: null,
       selectedDatasets: [],
