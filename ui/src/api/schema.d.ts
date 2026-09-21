@@ -89,6 +89,23 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/v1/artifacts/{artifact_id}/visualization': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Visualization */
+    get: operations['visualization_v1_artifacts__artifact_id__visualization_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   '/v1/future/jobs': {
     parameters: {
       query?: never
@@ -202,6 +219,40 @@ export interface paths {
     put?: never
     /** Cancel */
     post: operations['cancel_v1_jobs__job_id__cancel_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/spatial/preview': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** Spatial Preview */
+    post: operations['spatial_preview_v1_spatial_preview_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/weather/coverage': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Coverage */
+    get: operations['coverage_v1_weather_coverage_get']
+    put?: never
+    post?: never
     delete?: never
     options?: never
     head?: never
@@ -336,6 +387,59 @@ export interface components {
       warnings?: string[]
       /** Weather Types */
       weather_types?: string[]
+    }
+    /** CoverageLayer */
+    CoverageLayer: {
+      /** Attribution */
+      attribution: string
+      /**
+       * Coverage Basis
+       * @default documented
+       * @constant
+       */
+      coverage_basis: 'documented'
+      /** Dataset */
+      dataset: string
+      /** End Year */
+      end_year?: number | null
+      /** Geometry */
+      geometry?: {
+        [key: string]: unknown
+      } | null
+      /** Id */
+      id: string
+      /**
+       * Kind
+       * @enum {string}
+       */
+      kind: 'vector' | 'raster' | 'unknown'
+      /** Label */
+      label: string
+      /** Limitations */
+      limitations?: string[]
+      /** Observed At */
+      observed_at: string
+      /** Products */
+      products?: string[]
+      /** Provider */
+      provider: string
+      /** Resolution Km */
+      resolution_km?: number | null
+      /** Source Url */
+      source_url: string
+      /** Start Year */
+      start_year?: number | null
+      /** Tiles */
+      tiles?: string | null
+    }
+    /** DatasetSelection */
+    DatasetSelection: {
+      /** Dataset */
+      dataset: string
+      /** Product Id */
+      product_id?: string | null
+      /** Provider */
+      provider: string
     }
     /** DiscoveryResult */
     DiscoveryResult: {
@@ -506,7 +610,7 @@ export interface components {
     JobSubmission: {
       /** Idempotency Key */
       idempotency_key?: string | null
-      plan: components['schemas']['WeatherPlan']
+      plan: components['schemas']['WeatherPlan-Input']
     }
     /** Location */
     Location: {
@@ -597,6 +701,7 @@ export interface components {
     }
     /** OutputSpec */
     OutputSpec: {
+      dataset_selection?: components['schemas']['DatasetSelection'] | null
       /** Name */
       name: string
       /** Requested Location Id */
@@ -682,6 +787,25 @@ export interface components {
       /** Version */
       version?: string | null
     }
+    /** SpatialPreview */
+    SpatialPreview: {
+      /** Executable */
+      executable: boolean
+      /** Execution Limit */
+      execution_limit: number
+      /** Issues */
+      issues?: components['schemas']['Issue'][]
+      /** Locations */
+      locations: components['schemas']['Location'][]
+      /** Planned Output Count */
+      planned_output_count: number
+      /** Returned Count */
+      returned_count: number
+      /** Total Count */
+      total_count: number
+      /** Truncated */
+      truncated: boolean
+    }
     /** SummaryValue */
     SummaryValue: {
       /** Maximum */
@@ -753,7 +877,7 @@ export interface components {
       total: number
     }
     /** WeatherPlan */
-    WeatherPlan: {
+    'WeatherPlan-Input': {
       /**
        * Capability Version
        * @default 0.1
@@ -767,6 +891,8 @@ export interface components {
        * @default 0
        */
       estimated_calls: number
+      /** Issues */
+      issues?: components['schemas']['Issue'][]
       /**
        * Kind
        * @default weather
@@ -781,7 +907,56 @@ export interface components {
        */
       plan_hash: string
       /** Request */
-      request: components['schemas']['WeatherRequest'] | components['schemas']['FutureRequest']
+      request:
+        components['schemas']['WeatherRequest-Input'] | components['schemas']['FutureRequest']
+      /**
+       * Schema Version
+       * @default 0.1
+       * @constant
+       */
+      schema_version: '0.1'
+      /** Selected Candidates */
+      selected_candidates?: components['schemas']['Candidate'][]
+      /** Tasks */
+      tasks?: components['schemas']['FetchTask'][]
+      /** Transforms */
+      transforms?: components['schemas']['TransformStep'][]
+      /** Warnings */
+      warnings?: string[]
+    }
+    /** WeatherPlan */
+    'WeatherPlan-Output': {
+      /**
+       * Capability Version
+       * @default 0.1
+       * @constant
+       */
+      capability_version: '0.1'
+      /** Estimated Bytes */
+      estimated_bytes?: number | null
+      /**
+       * Estimated Calls
+       * @default 0
+       */
+      estimated_calls: number
+      /** Issues */
+      issues?: components['schemas']['Issue'][]
+      /**
+       * Kind
+       * @default weather
+       * @enum {string}
+       */
+      kind: 'weather' | 'future'
+      /** Outputs */
+      outputs?: components['schemas']['OutputSpec'][]
+      /**
+       * Plan Hash
+       * @default
+       */
+      plan_hash: string
+      /** Request */
+      request:
+        components['schemas']['WeatherRequest-Output'] | components['schemas']['FutureRequest']
       /**
        * Schema Version
        * @default 0.1
@@ -830,20 +1005,16 @@ export interface components {
       warnings?: string[]
     }
     /** WeatherRequest */
-    WeatherRequest: {
+    'WeatherRequest-Input': {
       /** Dataset */
       dataset?: string | null
+      /** Dataset Selections */
+      dataset_selections?: components['schemas']['DatasetSelection'][]
       /** End */
       end?: string | null
       /** Formats */
       formats?: 'epw'[]
       hybrid_policy?: components['schemas']['HybridPolicy']
-      /**
-       * Leap Policy
-       * @default preserve
-       * @constant
-       */
-      leap_policy: 'preserve'
       /** Locations */
       locations:
         | components['schemas']['Location'][]
@@ -875,10 +1046,106 @@ export interface components {
        * @constant
        */
       schema_version: '0.1'
+      /**
+       * Skip Feb 29
+       * @default false
+       */
+      skip_feb_29: boolean
       /** Start */
       start?: string | null
       /** Years */
       years?: number[]
+    }
+    /** WeatherRequest */
+    'WeatherRequest-Output': {
+      /** Dataset */
+      dataset?: string | null
+      /** Dataset Selections */
+      dataset_selections?: components['schemas']['DatasetSelection'][]
+      /** End */
+      end?: string | null
+      /** Formats */
+      formats?: 'epw'[]
+      hybrid_policy?: components['schemas']['HybridPolicy']
+      /**
+       * Leap Policy
+       * @enum {string}
+       */
+      readonly leap_policy: 'preserve' | 'skip_feb_29'
+      /** Locations */
+      locations:
+        | components['schemas']['Location'][]
+        | components['schemas']['Location']
+        | components['schemas']['BoundingBox']
+        | components['schemas']['PolygonQuery']
+      /**
+       * Missing Policy
+       * @default warn
+       * @enum {string}
+       */
+      missing_policy: 'warn' | 'error'
+      /**
+       * Product
+       * @default historical
+       * @enum {string}
+       */
+      product: 'historical' | 'amy' | 'tmy' | 'tmyx' | 'published'
+      /** Product Id */
+      product_id?: string | null
+      /** Providers */
+      providers?: string[]
+      /** Required Variables */
+      required_variables?: string[]
+      sampling?: components['schemas']['SamplingSpec']
+      /**
+       * Schema Version
+       * @default 0.1
+       * @constant
+       */
+      schema_version: '0.1'
+      /**
+       * Skip Feb 29
+       * @default false
+       */
+      skip_feb_29: boolean
+      /** Start */
+      start?: string | null
+      /** Years */
+      years?: number[]
+    }
+    /** WeatherVisualization */
+    WeatherVisualization: {
+      /** Calendar */
+      calendar: string
+      location: components['schemas']['Location']
+      /** Monthly */
+      monthly: components['schemas']['MonthlySummary'][]
+      /** Series */
+      series: {
+        [key: string]: (number | null)[]
+      }
+      /**
+       * Simulation Ready
+       * @default false
+       */
+      simulation_ready: boolean
+      /** Source Years */
+      source_years: (number | null)[]
+      /**
+       * Synthetic Chronology
+       * @default false
+       */
+      synthetic_chronology: boolean
+      /** Timestamps */
+      timestamps: string[]
+      /** Total Rows */
+      total_rows: number
+      /** Units */
+      units: {
+        [key: string]: string
+      }
+      /** Warnings */
+      warnings?: string[]
     }
   }
   responses: never
@@ -1240,6 +1507,77 @@ export interface operations {
       }
     }
   }
+  visualization_v1_artifacts__artifact_id__visualization_get: {
+    parameters: {
+      query?: {
+        variables?: string[] | null
+      }
+      header?: {
+        authorization?: string | null
+      }
+      path: {
+        artifact_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['WeatherVisualization']
+        }
+      }
+      /** @description Bad Request */
+      400: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorResponse']
+        }
+      }
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorResponse']
+        }
+      }
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorResponse']
+        }
+      }
+      /** @description Content Too Large */
+      413: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorResponse']
+        }
+      }
+      /** @description Unprocessable Content */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorResponse']
+        }
+      }
+    }
+  }
   future_job_v1_future_jobs_post: {
     parameters: {
       query?: never
@@ -1332,7 +1670,7 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['WeatherPlan']
+          'application/json': components['schemas']['WeatherPlan-Output']
         }
       }
       /** @description Bad Request */
@@ -1730,6 +2068,148 @@ export interface operations {
       }
     }
   }
+  spatial_preview_v1_spatial_preview_post: {
+    parameters: {
+      query?: never
+      header?: {
+        authorization?: string | null
+      }
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['WeatherRequest-Input']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['SpatialPreview']
+        }
+      }
+      /** @description Bad Request */
+      400: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorResponse']
+        }
+      }
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorResponse']
+        }
+      }
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorResponse']
+        }
+      }
+      /** @description Content Too Large */
+      413: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorResponse']
+        }
+      }
+      /** @description Unprocessable Content */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorResponse']
+        }
+      }
+    }
+  }
+  coverage_v1_weather_coverage_get: {
+    parameters: {
+      query?: {
+        provider?: string | null
+        product?: string | null
+        year?: number | null
+      }
+      header?: {
+        authorization?: string | null
+      }
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['CoverageLayer'][]
+        }
+      }
+      /** @description Bad Request */
+      400: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorResponse']
+        }
+      }
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorResponse']
+        }
+      }
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorResponse']
+        }
+      }
+      /** @description Content Too Large */
+      413: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorResponse']
+        }
+      }
+      /** @description Unprocessable Content */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorResponse']
+        }
+      }
+    }
+  }
   discover_v1_weather_discover_post: {
     parameters: {
       query?: never
@@ -1741,7 +2221,7 @@ export interface operations {
     }
     requestBody: {
       content: {
-        'application/json': components['schemas']['WeatherRequest']
+        'application/json': components['schemas']['WeatherRequest-Input']
       }
     }
     responses: {
@@ -1883,7 +2363,7 @@ export interface operations {
     }
     requestBody: {
       content: {
-        'application/json': components['schemas']['WeatherRequest']
+        'application/json': components['schemas']['WeatherRequest-Input']
       }
     }
     responses: {
@@ -1893,7 +2373,7 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['WeatherPlan']
+          'application/json': components['schemas']['WeatherPlan-Output']
         }
       }
       /** @description Bad Request */

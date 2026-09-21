@@ -223,6 +223,162 @@
         "title": "Candidate",
         "type": "object"
       },
+      "CoverageLayer": {
+        "additionalProperties": false,
+        "properties": {
+          "attribution": {
+            "title": "Attribution",
+            "type": "string"
+          },
+          "coverage_basis": {
+            "const": "documented",
+            "default": "documented",
+            "title": "Coverage Basis",
+            "type": "string"
+          },
+          "dataset": {
+            "title": "Dataset",
+            "type": "string"
+          },
+          "end_year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Year"
+          },
+          "geometry": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Geometry"
+          },
+          "id": {
+            "pattern": "^[a-z0-9_-]+$",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": ["vector", "raster", "unknown"],
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "limitations": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Limitations",
+            "type": "array"
+          },
+          "observed_at": {
+            "title": "Observed At",
+            "type": "string"
+          },
+          "products": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Products",
+            "type": "array"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "resolution_km": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolution Km"
+          },
+          "source_url": {
+            "title": "Source Url",
+            "type": "string"
+          },
+          "start_year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Year"
+          },
+          "tiles": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tiles"
+          }
+        },
+        "required": [
+          "id",
+          "provider",
+          "dataset",
+          "label",
+          "kind",
+          "attribution",
+          "source_url",
+          "observed_at"
+        ],
+        "title": "CoverageLayer",
+        "type": "object"
+      },
+      "DatasetSelection": {
+        "additionalProperties": false,
+        "properties": {
+          "dataset": {
+            "minLength": 1,
+            "title": "Dataset",
+            "type": "string"
+          },
+          "product_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Product Id"
+          },
+          "provider": {
+            "minLength": 1,
+            "title": "Provider",
+            "type": "string"
+          }
+        },
+        "required": ["provider", "dataset"],
+        "title": "DatasetSelection",
+        "type": "object"
+      },
       "DiscoveryResult": {
         "additionalProperties": false,
         "properties": {
@@ -696,7 +852,7 @@
             "title": "Idempotency Key"
           },
           "plan": {
-            "$ref": "#/components/schemas/WeatherPlan"
+            "$ref": "#/components/schemas/WeatherPlan-Input"
           }
         },
         "required": ["plan"],
@@ -966,6 +1122,16 @@
       "OutputSpec": {
         "additionalProperties": false,
         "properties": {
+          "dataset_selection": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DatasetSelection"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "name": {
             "pattern": "^[A-Za-z0-9_-]{1,100}\\.epw$",
             "title": "Name",
@@ -1185,6 +1351,64 @@
         "title": "SourceRef",
         "type": "object"
       },
+      "SpatialPreview": {
+        "additionalProperties": false,
+        "properties": {
+          "executable": {
+            "title": "Executable",
+            "type": "boolean"
+          },
+          "execution_limit": {
+            "minimum": 0.0,
+            "title": "Execution Limit",
+            "type": "integer"
+          },
+          "issues": {
+            "items": {
+              "$ref": "#/components/schemas/Issue"
+            },
+            "title": "Issues",
+            "type": "array"
+          },
+          "locations": {
+            "items": {
+              "$ref": "#/components/schemas/Location"
+            },
+            "title": "Locations",
+            "type": "array"
+          },
+          "planned_output_count": {
+            "minimum": 0.0,
+            "title": "Planned Output Count",
+            "type": "integer"
+          },
+          "returned_count": {
+            "minimum": 0.0,
+            "title": "Returned Count",
+            "type": "integer"
+          },
+          "total_count": {
+            "minimum": 0.0,
+            "title": "Total Count",
+            "type": "integer"
+          },
+          "truncated": {
+            "title": "Truncated",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "locations",
+          "total_count",
+          "returned_count",
+          "planned_output_count",
+          "execution_limit",
+          "executable",
+          "truncated"
+        ],
+        "title": "SpatialPreview",
+        "type": "object"
+      },
       "SummaryValue": {
         "additionalProperties": false,
         "properties": {
@@ -1365,7 +1589,7 @@
         "title": "WeatherJob",
         "type": "object"
       },
-      "WeatherPlan": {
+      "WeatherPlan-Input": {
         "additionalProperties": false,
         "properties": {
           "capability_version": {
@@ -1390,6 +1614,13 @@
             "title": "Estimated Calls",
             "type": "integer"
           },
+          "issues": {
+            "items": {
+              "$ref": "#/components/schemas/Issue"
+            },
+            "title": "Issues",
+            "type": "array"
+          },
           "kind": {
             "default": "weather",
             "enum": ["weather", "future"],
@@ -1411,7 +1642,107 @@
           "request": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/WeatherRequest"
+                "$ref": "#/components/schemas/WeatherRequest-Input"
+              },
+              {
+                "$ref": "#/components/schemas/FutureRequest"
+              }
+            ],
+            "title": "Request"
+          },
+          "schema_version": {
+            "const": "0.1",
+            "default": "0.1",
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "selected_candidates": {
+            "items": {
+              "$ref": "#/components/schemas/Candidate"
+            },
+            "title": "Selected Candidates",
+            "type": "array"
+          },
+          "tasks": {
+            "items": {
+              "$ref": "#/components/schemas/FetchTask"
+            },
+            "title": "Tasks",
+            "type": "array"
+          },
+          "transforms": {
+            "items": {
+              "$ref": "#/components/schemas/TransformStep"
+            },
+            "title": "Transforms",
+            "type": "array"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": ["request"],
+        "title": "WeatherPlan",
+        "type": "object"
+      },
+      "WeatherPlan-Output": {
+        "additionalProperties": false,
+        "properties": {
+          "capability_version": {
+            "const": "0.1",
+            "default": "0.1",
+            "title": "Capability Version",
+            "type": "string"
+          },
+          "estimated_bytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Bytes"
+          },
+          "estimated_calls": {
+            "default": 0,
+            "title": "Estimated Calls",
+            "type": "integer"
+          },
+          "issues": {
+            "items": {
+              "$ref": "#/components/schemas/Issue"
+            },
+            "title": "Issues",
+            "type": "array"
+          },
+          "kind": {
+            "default": "weather",
+            "enum": ["weather", "future"],
+            "title": "Kind",
+            "type": "string"
+          },
+          "outputs": {
+            "items": {
+              "$ref": "#/components/schemas/OutputSpec"
+            },
+            "title": "Outputs",
+            "type": "array"
+          },
+          "plan_hash": {
+            "default": "",
+            "title": "Plan Hash",
+            "type": "string"
+          },
+          "request": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WeatherRequest-Output"
               },
               {
                 "$ref": "#/components/schemas/FutureRequest"
@@ -1535,7 +1866,7 @@
         "title": "WeatherPreview",
         "type": "object"
       },
-      "WeatherRequest": {
+      "WeatherRequest-Input": {
         "additionalProperties": false,
         "properties": {
           "dataset": {
@@ -1548,6 +1879,152 @@
               }
             ],
             "title": "Dataset"
+          },
+          "dataset_selections": {
+            "items": {
+              "$ref": "#/components/schemas/DatasetSelection"
+            },
+            "title": "Dataset Selections",
+            "type": "array"
+          },
+          "end": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End"
+          },
+          "formats": {
+            "items": {
+              "const": "epw",
+              "type": "string"
+            },
+            "title": "Formats",
+            "type": "array"
+          },
+          "hybrid_policy": {
+            "$ref": "#/components/schemas/HybridPolicy"
+          },
+          "locations": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/Location"
+                },
+                "type": "array"
+              },
+              {
+                "$ref": "#/components/schemas/Location"
+              },
+              {
+                "$ref": "#/components/schemas/BoundingBox"
+              },
+              {
+                "$ref": "#/components/schemas/PolygonQuery"
+              }
+            ],
+            "title": "Locations"
+          },
+          "missing_policy": {
+            "default": "warn",
+            "enum": ["warn", "error"],
+            "title": "Missing Policy",
+            "type": "string"
+          },
+          "product": {
+            "default": "historical",
+            "enum": ["historical", "amy", "tmy", "tmyx", "published"],
+            "title": "Product",
+            "type": "string"
+          },
+          "product_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Product Id"
+          },
+          "providers": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Providers",
+            "type": "array"
+          },
+          "required_variables": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Required Variables",
+            "type": "array"
+          },
+          "sampling": {
+            "$ref": "#/components/schemas/SamplingSpec"
+          },
+          "schema_version": {
+            "const": "0.1",
+            "default": "0.1",
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "skip_feb_29": {
+            "default": false,
+            "title": "Skip Feb 29",
+            "type": "boolean"
+          },
+          "start": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start"
+          },
+          "years": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Years",
+            "type": "array"
+          }
+        },
+        "required": ["locations"],
+        "title": "WeatherRequest",
+        "type": "object"
+      },
+      "WeatherRequest-Output": {
+        "additionalProperties": false,
+        "properties": {
+          "dataset": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dataset"
+          },
+          "dataset_selections": {
+            "items": {
+              "$ref": "#/components/schemas/DatasetSelection"
+            },
+            "title": "Dataset Selections",
+            "type": "array"
           },
           "end": {
             "anyOf": [
@@ -1573,8 +2050,8 @@
             "$ref": "#/components/schemas/HybridPolicy"
           },
           "leap_policy": {
-            "const": "preserve",
-            "default": "preserve",
+            "enum": ["preserve", "skip_feb_29"],
+            "readOnly": true,
             "title": "Leap Policy",
             "type": "string"
           },
@@ -1644,6 +2121,11 @@
             "title": "Schema Version",
             "type": "string"
           },
+          "skip_feb_29": {
+            "default": false,
+            "title": "Skip Feb 29",
+            "type": "boolean"
+          },
           "start": {
             "anyOf": [
               {
@@ -1664,8 +2146,105 @@
             "type": "array"
           }
         },
-        "required": ["locations"],
+        "required": ["locations", "leap_policy"],
         "title": "WeatherRequest",
+        "type": "object"
+      },
+      "WeatherVisualization": {
+        "additionalProperties": false,
+        "properties": {
+          "calendar": {
+            "title": "Calendar",
+            "type": "string"
+          },
+          "location": {
+            "$ref": "#/components/schemas/Location"
+          },
+          "monthly": {
+            "items": {
+              "$ref": "#/components/schemas/MonthlySummary"
+            },
+            "title": "Monthly",
+            "type": "array"
+          },
+          "series": {
+            "additionalProperties": {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "title": "Series",
+            "type": "object"
+          },
+          "simulation_ready": {
+            "default": false,
+            "title": "Simulation Ready",
+            "type": "boolean"
+          },
+          "source_years": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Source Years",
+            "type": "array"
+          },
+          "synthetic_chronology": {
+            "default": false,
+            "title": "Synthetic Chronology",
+            "type": "boolean"
+          },
+          "timestamps": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Timestamps",
+            "type": "array"
+          },
+          "total_rows": {
+            "title": "Total Rows",
+            "type": "integer"
+          },
+          "units": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Units",
+            "type": "object"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "location",
+          "calendar",
+          "total_rows",
+          "timestamps",
+          "source_years",
+          "units",
+          "series",
+          "monthly"
+        ],
+        "title": "WeatherVisualization",
         "type": "object"
       }
     }
@@ -2193,6 +2772,120 @@
         "summary": "Preview"
       }
     },
+    "/v1/artifacts/{artifact_id}/visualization": {
+      "get": {
+        "operationId": "visualization_v1_artifacts__artifact_id__visualization_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "artifact_id",
+            "required": true,
+            "schema": {
+              "title": "Artifact Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "variables",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Variables"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WeatherVisualization"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Content Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        },
+        "summary": "Visualization"
+      }
+    },
     "/v1/future/jobs": {
       "post": {
         "operationId": "future_job_v1_future_jobs_post",
@@ -2325,7 +3018,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/WeatherPlan"
+                  "$ref": "#/components/schemas/WeatherPlan-Output"
                 }
               }
             },
@@ -2888,6 +3581,242 @@
         "summary": "Cancel"
       }
     },
+    "/v1/spatial/preview": {
+      "post": {
+        "operationId": "spatial_preview_v1_spatial_preview_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WeatherRequest-Input"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpatialPreview"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Content Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        },
+        "summary": "Spatial Preview"
+      }
+    },
+    "/v1/weather/coverage": {
+      "get": {
+        "operationId": "coverage_v1_weather_coverage_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "provider",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Provider"
+            }
+          },
+          {
+            "in": "query",
+            "name": "product",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Product"
+            }
+          },
+          {
+            "in": "query",
+            "name": "year",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 2200,
+                  "minimum": 1900,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Year"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CoverageLayer"
+                  },
+                  "title": "Response Coverage V1 Weather Coverage Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Content Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        },
+        "summary": "Coverage"
+      }
+    },
     "/v1/weather/discover": {
       "post": {
         "operationId": "discover_v1_weather_discover_post",
@@ -2913,7 +3842,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/WeatherRequest"
+                "$ref": "#/components/schemas/WeatherRequest-Input"
               }
             }
           },
@@ -3105,7 +4034,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/WeatherRequest"
+                "$ref": "#/components/schemas/WeatherRequest-Input"
               }
             }
           },
@@ -3116,7 +4045,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/WeatherPlan"
+                  "$ref": "#/components/schemas/WeatherPlan-Output"
                 }
               }
             },

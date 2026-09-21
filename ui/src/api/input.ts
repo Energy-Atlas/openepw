@@ -33,4 +33,18 @@ export function validateDraft(value: unknown): asserts value is WeatherRequest {
     (!Array.isArray(value.providers) || !value.providers.every((p) => typeof p === 'string'))
   )
     return fail()
+  if (
+    value.dataset_selections !== undefined &&
+    (!Array.isArray(value.dataset_selections) ||
+      !value.dataset_selections.every(
+        (selection) =>
+          obj(selection) &&
+          typeof selection.provider === 'string' &&
+          typeof selection.dataset === 'string' &&
+          (selection.product_id === undefined ||
+            selection.product_id === null ||
+            typeof selection.product_id === 'string'),
+      ))
+  )
+    return fail()
 }

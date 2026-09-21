@@ -1,8 +1,8 @@
 import type { components } from './schema'
 export type Schemas = components['schemas']
-export type WeatherRequest = Schemas['WeatherRequest']
+export type WeatherRequest = Schemas['WeatherRequest-Input']
 export type FutureRequest = Schemas['FutureRequest']
-export type Plan = Schemas['WeatherPlan']
+export type Plan = Schemas['WeatherPlan-Output']
 export type Job = Schemas['WeatherJob']
 export type Artifact = Schemas['ArtifactRef']
 let token = ''
@@ -37,6 +37,21 @@ export const api = {
   geocode: (query: string) => post<Schemas['GeocodeResult']>('/v1/geocode', { query }),
   discover: (body: WeatherRequest, signal?: AbortSignal) =>
     post<Schemas['DiscoveryResult']>('/v1/weather/discover', body, signal),
+  spatialPreview: (body: WeatherRequest, signal?: AbortSignal) =>
+    post<Schemas['SpatialPreview']>('/v1/spatial/preview', body, signal),
+  coverage: (
+    filters: { provider?: string; product?: string; year?: number } = {},
+    signal?: AbortSignal,
+  ) => {
+    const query = new URLSearchParams()
+    if (filters.provider) query.set('provider', filters.provider)
+    if (filters.product) query.set('product', filters.product)
+    if (filters.year !== undefined) query.set('year', String(filters.year))
+    return request<Schemas['CoverageLayer'][]>(
+      '/v1/weather/coverage' + (query.size ? `?${query}` : ''),
+      { signal },
+    )
+  },
   plan: (body: WeatherRequest | FutureRequest, kind: 'weather' | 'future', signal?: AbortSignal) =>
     post<Plan>(`/v1/${kind}/plan`, body, signal),
   submit: (plan: Plan, key: string, signal?: AbortSignal) =>
@@ -61,6 +76,14 @@ export const api = {
       `/v1/artifacts/${encodeURIComponent(id)}/preview?start=${start}&limit=168`,
       { signal },
     ),
+  visualization: (id: string, variables?: string[], signal?: AbortSignal) => {
+    const query = new URLSearchParams()
+    variables?.forEach((variable) => query.append('variables', variable))
+    return request<Schemas['WeatherVisualization']>(
+      `/v1/artifacts/${encodeURIComponent(id)}/visualization${query.size ? `?${query}` : ''}`,
+      { signal },
+    )
+  },
   jsonArtifact: (id: string, signal?: AbortSignal) =>
     request<unknown>('/v1/artifacts/' + encodeURIComponent(id), { signal }),
   async download(artifact: Artifact) {
