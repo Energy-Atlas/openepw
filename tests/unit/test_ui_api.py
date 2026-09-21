@@ -46,12 +46,49 @@ def test_signal_upload_and_preview(tmp_path):
         result = client.post("/v1/artifacts/signals", json=[signal().model_dump(mode="json")])
         assert result.status_code == 201
         assert result.json()["role"] == "signals"
+        signals = result.json()
         upload = client.post(
             "/v1/artifacts", files={"file": ("test.epw", epw_bytes(synthetic()))}
         ).json()
         result = client.get(f"/v1/artifacts/{upload['id']}/preview").json()
         assert result["total_rows"] == 24
         assert client.get(f"/v1/artifacts/{upload['id']}/preview?limit=169").status_code == 422
+
+        visualization = client.get(
+            f"/v1/artifacts/{upload['id']}/visualization",
+            params=[("variables", "dry_bulb"), ("variables", "dni")],
+        )
+        assert visualization.status_code == 200
+        assert visualization.json()["timestamps"][0].endswith("00:00:00")
+        assert len(visualization.json()["series"]["dry_bulb"]) == 24
+        default_visualization = client.get(
+            f"/v1/artifacts/{upload['id']}/visualization"
+        ).json()
+        assert default_visualization["series"]["liquid_precipitation"] == [None] * 24
+        assert client.get(
+            f"/v1/artifacts/{upload['id']}/visualization",
+            params={"variables": "not_weather"},
+        ).status_code == 400
+        assert (
+            client.get(
+                f"/v1/artifacts/{upload['id']}/visualization",
+                params=[
+                    ("variables", value)
+                    for value in ["dry_bulb", "dew_point", "pressure", "ghi", "dni"]
+                ],
+            ).status_code
+            == 400
+        )
+        assert client.get(f"/v1/artifacts/{signals['id']}/visualization").status_code == 400
+
+        oversized = service.artifacts.write(
+            "oversized",
+            "oversized.epw",
+            epw_bytes(synthetic(2024, 8785)),
+            "weather",
+            "application/vnd.energyplus.epw",
+        )
+        assert client.get(f"/v1/artifacts/{oversized.id}/visualization").status_code == 400
 
 
 def test_spatial_preview_and_documented_coverage_contracts(tmp_path):

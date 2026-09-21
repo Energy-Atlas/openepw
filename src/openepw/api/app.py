@@ -25,7 +25,7 @@ from ..models import (
     WeatherPlan,
     WeatherRequest,
 )
-from ..preview import WeatherPreview
+from ..preview import WeatherPreview, WeatherVisualization
 from ..service import WeatherService
 
 
@@ -189,6 +189,15 @@ def create_app(service=None, *, remote=False, ui_dir=None):
         variables: list[str] | None = Query(None),
     ):
         return service.preview_artifact(artifact_id, start, limit, variables)
+
+    @app.get(
+        "/v1/artifacts/{artifact_id}/visualization", response_model=WeatherVisualization
+    )
+    def visualization(
+        artifact_id: str,
+        variables: list[str] | None = Query(None),
+    ):
+        return service.visualize_artifact(artifact_id, variables)
 
     @app.get("/v1/jobs/{job_id}", response_model=WeatherJob)
     def job(job_id: str):

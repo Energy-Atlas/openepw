@@ -47,6 +47,15 @@ class WeatherService:
             raise OpenEPWError("INVALID_ARTIFACT", "Preview requires an EPW artifact")
         return preview(read_epw(path), start, limit, variables)
 
+    def visualize_artifact(self, artifact_id, variables=None):
+        from .epw import read_epw
+        from .preview import visualize
+
+        ref, path = self.artifacts.resolve(artifact_id)
+        if ref.media_type != "application/vnd.energyplus.epw":
+            raise OpenEPWError("INVALID_ARTIFACT", "Visualization requires an EPW artifact")
+        return visualize(read_epw(path), variables)
+
     def __init__(self, config: RuntimeConfig | None = None, *, http=None, providers=None):
         self.config = config or RuntimeConfig.load()
         self.http = http or HttpClient(self.config)
