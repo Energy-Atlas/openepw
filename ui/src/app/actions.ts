@@ -23,6 +23,8 @@ export const ACTION_REGISTRY = {
   uploadSignals: { confirmation: 'none', reversible: false },
   previewPage: { confirmation: 'none', reversible: true },
   loadCoverage: { confirmation: 'none', reversible: true },
+  setCoverageSelection: { confirmation: 'none', reversible: true },
+  setInspector: { confirmation: 'none', reversible: true },
 } as const
 
 export type AppAction =
@@ -47,6 +49,8 @@ export type AppAction =
   | { type: 'selectArtifact'; artifact: Artifact; variables?: string[] }
   | { type: 'uploadBaseline' | 'uploadSignals'; file: File }
   | { type: 'previewPage'; start: number }
+  | { type: 'setCoverageSelection'; ids: string[] }
+  | { type: 'setInspector'; open: boolean; manually?: boolean }
 
 export type Action = AppAction
 let active: AbortController | null = null
@@ -77,6 +81,9 @@ export async function dispatch(action: AppAction): Promise<unknown> {
   if (action.type === 'editQuery') return state.edit(action.patch)
   if (action.type === 'editFuture') return state.editFuture(action.patch)
   if (action.type === 'selectDatasets') return state.selectDatasets(action.selections)
+  if (action.type === 'setCoverageSelection')
+    return useApp.setState({ selectedCoverageIds: action.ids })
+  if (action.type === 'setInspector') return state.setInspectorOpen(action.open, action.manually)
   if (action.type === 'navigate') {
     const status = deriveWorkflow(state)
     if (!canNavigate(status, action.stage)) throw new Error(`${action.stage} is not unlocked yet.`)

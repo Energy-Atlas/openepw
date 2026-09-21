@@ -2,10 +2,8 @@ import { useEffect, useState, useRef } from 'react'
 import { api, type Artifact } from '../../api/client'
 import { useApp } from '../../app/store'
 import { run } from '../../app/actions'
-import type { Appearance } from '../../shell/appearances'
-import { WeatherCharts } from './WeatherCharts'
 const terminal = new Set(['completed', 'partially_completed', 'failed', 'cancelled'])
-export function ResultsView({ appearance }: { appearance: Appearance }) {
+export function ResultsView() {
   const s = useApp()
   const [connection, setConnection] = useState('')
   const historyBusy = useRef(false)
@@ -201,7 +199,7 @@ export function ResultsView({ appearance }: { appearance: Appearance }) {
               tooltips and the monthly table.
             </p>
           )}
-          <WeatherCharts preview={s.preview} appearance={appearance} />
+          <p className="notice">Select the EPW artifact to open the full-year weather inspector.</p>
           <div className="actions">
             <button
               disabled={s.preview.start === 0 || s.busy}

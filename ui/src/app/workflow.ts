@@ -61,7 +61,7 @@ export function deriveWorkflow(input: WorkflowInput): WorkflowStatus {
   const discoveryCurrent =
     input.discoveryVersion === input.requestVersion && Boolean(input.discovery?.candidates.length)
   const previewCurrent =
-    input.spatialPreview == null || input.spatialPreviewVersion === input.requestVersion
+    input.spatialPreview != null && input.spatialPreviewVersion === input.requestVersion
   const previewExecutable = input.spatialPreview?.executable !== false
   const weatherPlanCurrent =
     input.weatherPlan?.kind === 'weather' &&
@@ -92,7 +92,7 @@ export function deriveWorkflow(input: WorkflowInput): WorkflowStatus {
   let run: WorkflowStatus['run']
   if (input.stage === 'explore') {
     const reason = !previewCurrent
-      ? 'Wait for the current spatial preview.'
+      ? 'Wait for the authoritative spatial preview.'
       : !previewExecutable
         ? 'Reduce the sample count to the execution limit.'
         : input.busy

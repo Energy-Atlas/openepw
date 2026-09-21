@@ -7,6 +7,7 @@ import { canNavigate, deriveWorkflow, type Stage } from './workflow'
 import { AgentPanel } from '../features/agent/AgentPanel'
 import { MapView } from '../features/map/MapView'
 import { HistoryDrawer, useJobMonitor } from '../features/results/HistoryDrawer'
+import { WeatherInspector } from '../features/results/WeatherInspector'
 import { RunSplitButton } from '../features/workflow/RunSplitButton'
 import { StagePanel } from '../features/workflow/StagePanel'
 import { APPEARANCE_LIST, type AppearancePreference } from '../shell/appearances'
@@ -158,7 +159,15 @@ export function App() {
         </div>
       </header>
 
-      <main className={`cockpit ${narrow ? 'cockpit-narrow' : ''}`}>
+      <main
+        className={`cockpit ${narrow ? 'cockpit-narrow' : ''}`}
+        style={
+          {
+            '--controls-width': `${state.panelSizes.controls}px`,
+            '--agent-width': `${state.panelSizes.agent}px`,
+          } as React.CSSProperties
+        }
+      >
         {narrow && (
           <div className="drawer-triggers" aria-label="Workspace panels">
             <button
@@ -182,10 +191,15 @@ export function App() {
         )}
         <div className="map-workspace" aria-label="Weather map workspace">
           <MapView appearance={appearance} />
-          {state.inspector.open && state.visualization && (
-            <section className="inspector-slot" aria-label="Weather inspector">
-              Weather inspector · {state.visualization.total_rows.toLocaleString()} rows
-            </section>
+          {state.inspector.open && state.visualization && <WeatherInspector appearance={appearance} />}
+          {!state.inspector.open && state.visualization && (
+            <button
+              type="button"
+              className="inspector-reopen"
+              onClick={() => run({ type: 'setInspector', open: true })}
+            >
+              Inspect {state.artifact?.path.split('/').pop() ?? 'weather'}
+            </button>
           )}
         </div>
         <aside
