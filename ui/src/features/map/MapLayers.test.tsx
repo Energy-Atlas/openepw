@@ -113,3 +113,33 @@ it('uses only the latest matching plan job for point status and artifacts', () =
   expect(pointStatuses(state, location as any, APPEARANCES.light)[0].state).toBe('failed')
   expect(pointArtifacts(state, location as any)).toEqual([])
 })
+
+it('marks stale discovery as unknown and unplanned points as incompatible', async () => {
+  const { datasetColor } = await import('./datasetColor')
+  const location = { id: 'point', lat: 42, lon: -76, standard_offset_minutes: 0 }
+  const selection = { provider: 'p', dataset: 'd', product_id: null }
+  const base = {
+    requestVersion: 3,
+    selectionVersion: 1,
+    selectedDatasets: [selection],
+    discovery: {
+      candidates: [
+        { source: { provider: 'p', dataset: 'd' }, product_id: null, location_id: 'point' },
+      ],
+    },
+    downloadJobs: [],
+  }
+  const stale = { ...base, discoveryVersion: 2, weatherPlan: null } as any
+  expect(pointStatuses(stale, location as any, APPEARANCES.light)[0].state).toBe('unknown')
+
+  const unplanned = {
+    ...base,
+    discoveryVersion: 3,
+    weatherPlan: { plan_hash: 'plan', outputs: [] },
+    weatherPlanRequestVersion: 3,
+    weatherPlanSelectionVersion: 1,
+  } as any
+  const [status] = pointStatuses(unplanned, location as any, APPEARANCES.light)
+  expect(status.state).toBe('incompatible')
+  expect(status.color).toBe(datasetColor('p', 'd', APPEARANCES.light))
+})

@@ -4,7 +4,15 @@ import { run } from '../../app/actions'
 
 export type DatasetPointStatus = {
   label: string
-  state: 'available' | 'selected' | 'complete' | 'failed' | 'gated' | 'unavailable'
+  state:
+    | 'available'
+    | 'selected'
+    | 'complete'
+    | 'failed'
+    | 'gated'
+    | 'unavailable'
+    | 'incompatible'
+    | 'unknown'
   color: string
 }
 
@@ -85,6 +93,16 @@ function segmentStops(status: DatasetPointStatus, index: number, segments: numbe
   if (status.state === 'gated')
     return [`${status.color} ${start}% ${middle}%`, `var(--color-text-muted) ${middle}% ${end}%`]
   if (status.state === 'unavailable') return [`var(--color-surface-raised) ${start}% ${end}%`]
+  if (status.state === 'incompatible')
+    return [`${status.color} ${start}% ${middle}%`, `var(--tone-warning-text) ${middle}% ${end}%`]
+  // Unknown alternates thin bands so it reads as indeterminate without relying on hue.
+  if (status.state === 'unknown') {
+    const step = (end - start) / 6
+    return Array.from({ length: 6 }, (_, band) => {
+      const color = band % 2 ? 'var(--color-surface-raised)' : 'var(--color-text-muted)'
+      return `${color} ${start + band * step}% ${start + (band + 1) * step}%`
+    })
+  }
   if (status.state === 'complete')
     return [`color-mix(in srgb, ${status.color} 72%, var(--tone-success-text)) ${start}% ${end}%`]
   return [`${status.color} ${start}% ${end}%`]

@@ -1621,3 +1621,70 @@ footer {
 .job-progress-compact .progress-bar {
   width: 120px;
 }
+.dataset-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin: 7px 0 0 25px;
+}
+.dataset-facts dt {
+  color: var(--color-text-muted);
+  font-size: 10px;
+}
+.dataset-facts dd {
+  margin: 0;
+  font-size: 11px;
+}
+.dataset-credentials,
+.dataset-notes {
+  margin: 6px 0 0 25px;
+  font-size: 11px;
+}
+.dataset-notes summary {
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+.dataset-notes p {
+  margin: 4px 0 0;
+  color: var(--color-text-muted);
+}
+.dataset-attribution {
+  font-style: italic;
+}
+.map-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.map-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.map-legend i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+.map-legend-key {
+  color: var(--color-text-muted);
+}
+.coverage-limitation {
+  padding-left: 8px;
+  border-left: 2px solid var(--tone-warning-text);
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+  padding: 0;
+  margin: -1px;
+}

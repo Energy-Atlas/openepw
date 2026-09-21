@@ -94,7 +94,7 @@ describe('stage controls', () => {
       discoveryVersion: 1,
       selectedDatasets: [{ provider: 'openmeteo', dataset: 'era5' }],
       selectionVersion: 2,
-      weatherPlan: { kind: 'weather', plan_hash: 'current' } as any,
+      weatherPlan: { kind: 'weather', plan_hash: 'current', outputs: [{ name: 'epw' }] } as any,
       weatherPlanRequestVersion: 1,
       weatherPlanSelectionVersion: 2,
     })

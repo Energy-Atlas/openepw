@@ -15,6 +15,7 @@ import { APPEARANCE_LIST, type AppearancePreference } from '../shell/appearances
 import { isNarrow, resizeFromPointer } from '../shell/layout'
 import { clampPanelSize, nextDrawer, type Drawer } from '../shell/panels'
 import { useTheme } from '../shell/theme'
+import { useAnnouncements } from '../shell/announcements'
 import { ModalDialog } from '../shell/ModalDialog'
 
 const stages: Stage[] = ['explore', 'download', 'project']
@@ -34,6 +35,7 @@ export function App() {
   const historyTrigger = useRef<HTMLButtonElement>(null)
   useJobReconcile()
   useJobMonitor()
+  const announcement = useAnnouncements(state.stage, state.job)
 
   useEffect(() => {
     const resize = () => setNarrow(isNarrow())
@@ -326,6 +328,9 @@ export function App() {
           </div>
         </ModalDialog>
       )}
+      <p className="sr-only" role="status" aria-live="polite" data-testid="announcer">
+        {announcement}
+      </p>
       <footer className="status-bar">
         <span className="status-dot" /> Local workspace
         <span className="status-detail">Single user · scientific provenance retained</span>

@@ -57,6 +57,7 @@ type InvalidatingAction = Extract<
   AppAction,
   { type: 'editQuery' | 'editFuture' | 'selectDatasets' }
 >
+const QUIET_ACTIONS = new Set<AppAction['type']>(['previewSpatial', 'loadCoverage', 'previewPage'])
 let active: AbortController | null = null
 let pendingInvalidation: InvalidatingAction | null = null
 
@@ -116,6 +117,12 @@ export async function confirmPendingAction() {
   pendingInvalidation = null
   useApp.setState({ pendingConfirmation: null })
   if (action) return dispatch(action)
+}
+
+// Explore is provider-free: dataset choices from an earlier discovery must not shrink the
+// sampling limit. Download plans enforce the per-dataset output limit.
+function exploreRequest(draft: WeatherRequest): WeatherRequest {
+  return { ...draft, dataset_selections: [] }
 }
 
 function recommendedSelections(discovery: Awaited<ReturnType<typeof api.discover>>) {
@@ -194,11 +201,13 @@ export async function dispatch(action: AppAction): Promise<unknown> {
     error: '',
     ...(action.type === 'previewSpatial' ? { spatialPreviewAttemptVersion: requestVersion } : {}),
   })
-  state.log(action.type, 'tool')
+  // Routine map-driven refreshes stay out of the announced Agent transcript.
+  const quiet = QUIET_ACTIONS.has(action.type)
+  if (!quiet) state.log(action.type, 'tool')
   try {
     let result: unknown
     if (action.type === 'previewSpatial') {
-      const preview = await api.spatialPreview(state.draft, controller.signal)
+      const preview = await api.spatialPreview(exploreRequest(state.draft), controller.signal)
       controller.signal.throwIfAborted()
       result = preview
       if (useApp.getState().requestVersion === requestVersion)
@@ -206,8 +215,8 @@ export async function dispatch(action: AppAction): Promise<unknown> {
     }
     if (action.type === 'discover') {
       const [preview, discovery] = await Promise.all([
-        api.spatialPreview(state.draft, controller.signal),
-        api.discover(state.draft, controller.signal),
+        api.spatialPreview(exploreRequest(state.draft), controller.signal),
+        api.discover(exploreRequest(state.draft), controller.signal),
       ])
       controller.signal.throwIfAborted()
       result = discovery
@@ -219,6 +228,17 @@ export async function dispatch(action: AppAction): Promise<unknown> {
           discovery,
           discoveryVersion: requestVersion,
           selectedDatasets,
+          // Show documented extents for the recommended datasets unless the user chose overlays.
+          selectedCoverageIds: current.selectedCoverageIds.length
+            ? current.selectedCoverageIds
+            : current.coverageLayers
+                .filter((layer) =>
+                  selectedDatasets.some(
+                    (selection) =>
+                      selection.provider === layer.provider && selection.dataset === layer.dataset,
+                  ),
+                )
+                .map((layer) => layer.id),
           draft: { ...current.draft, dataset_selections: selectedDatasets },
           selectionVersion: current.selectionVersion + 1,
           version: current.version + 1,
@@ -416,11 +436,12 @@ export async function dispatch(action: AppAction): Promise<unknown> {
       result = coverage
       useApp.setState({ coverageLayers: coverage })
     }
-    state.log(
-      action.type === 'submitPlan'
-        ? 'Job accepted; completion is reported by the server.'
-        : `${action.type} completed.`,
-    )
+    if (!quiet)
+      state.log(
+        action.type === 'submitPlan'
+          ? 'Job accepted; completion is reported by the server.'
+          : `${action.type} completed.`,
+      )
     return result
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Operation failed'

@@ -68,6 +68,11 @@ export function CoverageControl({
                     ? 'No mapped extent; coverage is unknown.'
                     : `${layer.start_year ?? 'unknown'}–${layer.end_year ?? 'present'}`}
                 </p>
+                {layer.limitations?.map((limitation) => (
+                  <p key={limitation} className="coverage-limitation">
+                    {limitation}
+                  </p>
+                ))}
                 <p>{layer.attribution}</p>
                 <a href={layer.source_url} target="_blank" rel="noreferrer">
                   Source · observed {layer.observed_at.slice(0, 10)}

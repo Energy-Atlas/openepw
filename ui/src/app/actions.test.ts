@@ -269,7 +269,7 @@ it('publishes confirmation metadata for shared job and invalidation actions', ()
 })
 
 it('submits only a current Download plan after explicit confirmation', async () => {
-  const plan = { kind: 'weather', plan_hash: 'weather-plan' } as any
+  const plan = { kind: 'weather', plan_hash: 'weather-plan', outputs: [{ name: 'epw' }] } as any
   useApp.setState({
     stage: 'download',
     discovery: { candidates: [{ id: 'candidate' }] } as any,
@@ -383,4 +383,56 @@ it('confirms a Project edit when a completed projection used the current plan', 
 
   expect(useApp.getState().pendingConfirmation?.title).toMatch(/upstream/i)
   expect(useApp.getState().future.target_year).not.toBe(2070)
+})
+
+it('previews and discovers Explore queries without earlier dataset selections', async () => {
+  useApp.setState({
+    draft: {
+      ...useApp.getState().draft,
+      dataset_selections: [
+        { provider: 'a', dataset: 'x' },
+        { provider: 'b', dataset: 'y' },
+      ],
+    },
+  })
+  const preview = vi.spyOn(api, 'spatialPreview').mockResolvedValue({ executable: true } as any)
+  const discover = vi
+    .spyOn(api, 'discover')
+    .mockResolvedValue({ candidates: [], selected_candidate_ids: [] } as any)
+
+  await dispatch({ type: 'previewSpatial' })
+  await dispatch({ type: 'discover' })
+
+  for (const call of [...preview.mock.calls, ...discover.mock.calls])
+    expect(call[0].dataset_selections).toEqual([])
+})
+
+it('enables documented coverage for recommended datasets unless overlays were chosen', async () => {
+  vi.spyOn(api, 'spatialPreview').mockResolvedValue({ executable: true } as any)
+  vi.spyOn(api, 'discover').mockResolvedValue({
+    candidates: [{ id: 'c', source: { provider: 'openmeteo', dataset: 'era5' }, product_id: null }],
+    selected_candidate_ids: ['c'],
+  } as any)
+  useApp.setState({
+    selectedCoverageIds: [],
+    coverageLayers: [
+      { id: 'era5-extent', provider: 'openmeteo', dataset: 'era5' },
+      { id: 'other', provider: 'pvgis', dataset: 'tmy' },
+    ] as any,
+  })
+  await dispatch({ type: 'discover' })
+  expect(useApp.getState().selectedCoverageIds).toEqual(['era5-extent'])
+
+  useApp.setState({ selectedCoverageIds: ['other'] })
+  await dispatch({ type: 'discover' })
+  expect(useApp.getState().selectedCoverageIds).toEqual(['other'])
+})
+
+it('keeps routine map previews out of the announced Agent transcript', async () => {
+  useApp.setState({ logs: [] })
+  vi.spyOn(api, 'spatialPreview').mockResolvedValue({ executable: true } as any)
+  vi.spyOn(api, 'coverage').mockResolvedValue([])
+  await dispatch({ type: 'previewSpatial' })
+  await dispatch({ type: 'loadCoverage' })
+  expect(useApp.getState().logs).toEqual([])
 })

@@ -14,6 +14,7 @@ import { run } from '../../app/actions'
 import { useApp } from '../../app/store'
 import type { Appearance } from '../../shell/appearances'
 import { CoverageControl, type CoverageSetting } from './CoverageControl'
+import { coverageBeforeIds, datasetColor } from './datasetColor'
 import { GeometryToolbar } from './GeometryToolbar'
 import { PointGlyph, type DatasetPointStatus } from './PointGlyph'
 import { geometry, type DrawMode, type Position } from './selection'
@@ -53,9 +54,12 @@ function WeatherMap({ appearance }: { appearance: Appearance }) {
   const [drawing, setDrawing] = useState(false)
   const [vertices, setVertices] = useState<Position[]>([])
   const [loaded, setLoaded] = useState(false)
-  const [coverage, setCoverage] = useState<CoverageSetting[]>(() =>
-    state.selectedCoverageIds.map((id) => ({ id, opacity: 0.32 })),
-  )
+  // The store owns which overlays are on (so discovery can enable them); opacity is local.
+  const [opacities, setOpacities] = useState<Record<string, number>>({})
+  const coverage: CoverageSetting[] = state.selectedCoverageIds.map((id) => ({
+    id,
+    opacity: opacities[id] ?? 0.32,
+  }))
   const [camera, setCamera] = useState({
     longitude: -76.5,
     latitude: 42.44,
@@ -170,6 +174,7 @@ function WeatherMap({ appearance }: { appearance: Appearance }) {
     const layer = state.coverageLayers.find((item) => item.id === setting.id)
     return layer ? [{ layer, ...setting }] : []
   })
+  const beforeIds = coverageBeforeIds(activeCoverage.map(({ layer }) => layer))
 
   function apply(points: Position[]) {
     try {
@@ -183,8 +188,15 @@ function WeatherMap({ appearance }: { appearance: Appearance }) {
     }
   }
   function fitSelection() {
+    // Camera flights are instant when the viewer prefers reduced motion.
+    const duration = matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : undefined
     if (locations.length === 1)
-      ref.current?.flyTo({ center: [locations[0].lon, locations[0].lat], zoom: 8, pitch: 48 })
+      ref.current?.flyTo({
+        center: [locations[0].lon, locations[0].lat],
+        zoom: 8,
+        pitch: 48,
+        duration,
+      })
     else if (locations.length > 1)
       ref.current?.fitBounds(
         [
@@ -197,11 +209,14 @@ function WeatherMap({ appearance }: { appearance: Appearance }) {
             Math.max(...locations.map((point) => point.lat)),
           ],
         ],
-        { padding: 60 },
+        { padding: 60, duration },
       )
   }
   function changeCoverage(next: CoverageSetting[]) {
-    setCoverage(next)
+    setOpacities((current) => ({
+      ...current,
+      ...Object.fromEntries(next.map((item) => [item.id, item.opacity])),
+    }))
     run({ type: 'setCoverageSelection', ids: next.map((item) => item.id) })
   }
 
@@ -302,16 +317,18 @@ function WeatherMap({ appearance }: { appearance: Appearance }) {
               <Layer
                 id={`coverage-fill-${layer.id}`}
                 type="fill"
+                beforeId={beforeIds[layer.id]}
                 paint={{
-                  'fill-color': coverageColor(layer.provider, layer.dataset, appearance),
+                  'fill-color': datasetColor(layer.provider, layer.dataset, appearance),
                   'fill-opacity': opacity,
                 }}
               />
               <Layer
                 id={`coverage-line-${layer.id}`}
                 type="line"
+                beforeId={beforeIds[layer.id]}
                 paint={{
-                  'line-color': coverageColor(layer.provider, layer.dataset, appearance),
+                  'line-color': datasetColor(layer.provider, layer.dataset, appearance),
                   'line-width': 1.5,
                 }}
               />
@@ -321,6 +338,7 @@ function WeatherMap({ appearance }: { appearance: Appearance }) {
               <Layer
                 id={`coverage-raster-${layer.id}`}
                 type="raster"
+                beforeId={beforeIds[layer.id]}
                 paint={{ 'raster-opacity': opacity }}
               />
             </Source>
@@ -409,8 +427,26 @@ function WeatherMap({ appearance }: { appearance: Appearance }) {
         ))}
       </MapViewGL>
       <div className="map-caption">
-        <span className="dot" /> Authoritative sampled point <span className="spacer" /> Terrain is
-        context, not weather resolution.
+        <span className="dot" /> Authoritative sampled point
+        {state.selectedDatasets.length > 0 && (
+          <ul className="map-legend" aria-label="Dataset colors">
+            {state.selectedDatasets.map((selection) => (
+              <li key={`${selection.provider}/${selection.dataset}/${selection.product_id ?? ''}`}>
+                <i
+                  style={{
+                    background: datasetColor(selection.provider, selection.dataset, appearance),
+                  }}
+                />
+                {selection.provider} · {selection.dataset}
+              </li>
+            ))}
+            <li className="map-legend-key">
+              Ring halves: red failed · grey credential-gated · amber no planned output · striped
+              unknown
+            </li>
+          </ul>
+        )}
+        <span className="spacer" /> Terrain is context, not weather resolution.
       </div>
       {state.spatialPreview?.truncated && (
         <p className="map-limit" role="status">
@@ -420,8 +456,9 @@ function WeatherMap({ appearance }: { appearance: Appearance }) {
       )}
       {state.spatialPreview && !state.spatialPreview.executable && (
         <p className="map-limit blocking" role="alert">
-          Execution limit {state.spatialPreview.execution_limit.toLocaleString()} exceeded by{' '}
-          {state.spatialPreview.planned_output_count.toLocaleString()} planned outputs.
+          {state.spatialPreview.total_count.toLocaleString()} sampled locations exceed the limit of{' '}
+          {state.spatialPreview.execution_limit.toLocaleString()} for this period. Increase spacing
+          or reduce the area.
         </p>
       )}
       {error && (
@@ -431,12 +468,6 @@ function WeatherMap({ appearance }: { appearance: Appearance }) {
       )}
     </div>
   )
-}
-
-function coverageColor(provider: string, dataset: string, appearance: Appearance) {
-  const identity = `${provider}\u0000${dataset}`
-  const hash = [...identity].reduce((value, character) => value * 31 + character.charCodeAt(0), 0)
-  return appearance.data.categorical[Math.abs(hash) % appearance.data.categorical.length]
 }
 
 function draftOutline(locations: Schemas['WeatherRequest-Input']['locations']) {
@@ -462,8 +493,11 @@ export function pointStatuses(
   location: Schemas['Location'],
   appearance: Appearance,
 ): DatasetPointStatus[] {
-  const colors = appearance.data.categorical
-  return state.selectedDatasets.map((selection, index) => {
+  const discoveryCurrent = state.discoveryVersion === state.requestVersion
+  const planCurrent =
+    state.weatherPlanRequestVersion === state.requestVersion &&
+    state.weatherPlanSelectionVersion === state.selectionVersion
+  return state.selectedDatasets.map((selection) => {
     const candidate = state.discovery?.candidates.find(
       (item) =>
         item.source.provider === selection.provider &&
@@ -487,19 +521,23 @@ export function pointStatuses(
       Boolean(currentJob) &&
       ['failed', 'partially_completed'].includes(currentJob!.state) &&
       !artifact
-    const status: DatasetPointStatus['state'] = !candidate
-      ? 'unavailable'
-      : artifact
-        ? 'complete'
-        : failed
-          ? 'failed'
-          : candidate?.requires_credentials?.length
-            ? 'gated'
-            : 'selected'
+    const status: DatasetPointStatus['state'] = artifact
+      ? 'complete'
+      : !discoveryCurrent
+        ? 'unknown'
+        : !candidate
+          ? 'unavailable'
+          : failed
+            ? 'failed'
+            : candidate.requires_credentials?.length
+              ? 'gated'
+              : planCurrent && state.weatherPlan && !output
+                ? 'incompatible'
+                : 'selected'
     return {
       label: `${selection.provider} · ${selection.dataset}`,
       state: status,
-      color: colors[index % colors.length],
+      color: datasetColor(selection.provider, selection.dataset, appearance),
     }
   })
 }

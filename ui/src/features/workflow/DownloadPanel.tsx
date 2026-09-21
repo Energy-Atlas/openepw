@@ -5,6 +5,51 @@ import type { DatasetSelection } from '../../app/workflow'
 import { PlanReview } from '../request/PlanReview'
 import { JobProgress } from './JobProgress'
 
+type Candidate = NonNullable<ReturnType<typeof useApp.getState>['discovery']>['candidates'][number]
+type CoverageLayer = ReturnType<typeof useApp.getState>['coverageLayers'][number]
+
+function yearRange(years: number[]) {
+  if (!years.length) return null
+  const sorted = [...new Set(years)].sort((a, b) => a - b)
+  return sorted.length === 1 ? String(sorted[0]) : `${sorted[0]}–${sorted.at(-1)}`
+}
+
+/** Dataset facts from discovery, plus documented coverage metadata for the same dataset. */
+export function datasetFacts(candidates: Candidate[], coverage: CoverageLayer[]) {
+  const source = candidates[0]?.source
+  const layers = coverage.filter(
+    (layer) => layer.provider === source?.provider && layer.dataset === source?.dataset,
+  )
+  const intervals = [...new Set(candidates.map((candidate) => candidate.interval_minutes))]
+  const resolution =
+    source?.resolution_km ?? layers.find((layer) => layer.resolution_km != null)?.resolution_km
+  return {
+    years: yearRange(candidates.flatMap((candidate) => candidate.available_years ?? [])),
+    interval:
+      intervals.length === 1 && intervals[0] != null
+        ? intervals[0] === 60
+          ? 'Hourly'
+          : `${intervals[0]} min`
+        : null,
+    resolution: resolution != null ? `~${resolution} km` : null,
+    access: source?.access_path ?? null,
+    provisional: candidates.some((candidate) => candidate.source.provisional),
+    limitations: [
+      ...new Set([
+        ...candidates.flatMap((candidate) => candidate.warnings ?? []),
+        ...layers.flatMap((layer) => layer.limitations ?? []),
+      ]),
+    ],
+    attribution: [
+      ...new Set(
+        [source?.citation, source?.license, ...layers.map((layer) => layer.attribution)].filter(
+          (value): value is string => Boolean(value),
+        ),
+      ),
+    ],
+  }
+}
+
 function key(selection: DatasetSelection) {
   return `${selection.provider}\u0000${selection.dataset}\u0000${selection.product_id ?? ''}`
 }
@@ -127,7 +172,12 @@ export function DownloadPanel() {
                     Recommended: {reason}
                   </p>
                 ))}
-                {credentials.length > 0 && <small>Requires {credentials.join(', ')}</small>}
+                <DatasetFacts candidates={candidates} coverage={state.coverageLayers} />
+                {credentials.length > 0 && (
+                  <p className="dataset-credentials">
+                    Requires server credentials: {credentials.join(', ')}
+                  </p>
+                )}
                 {missing.length > 0 && <p className="warning">Missing: {missing.join(', ')}</p>}
               </article>
             )
@@ -180,5 +230,54 @@ export function DownloadPanel() {
         </div>
       </section>
     </div>
+  )
+}
+
+function DatasetFacts({
+  candidates,
+  coverage,
+}: {
+  candidates: Candidate[]
+  coverage: CoverageLayer[]
+}) {
+  const facts = datasetFacts(candidates, coverage)
+  const summary = [
+    facts.years && ['Years', facts.years],
+    facts.interval && ['Interval', facts.interval],
+    facts.resolution && ['Resolution', facts.resolution],
+    facts.access && ['Access', facts.access],
+  ].filter((item): item is [string, string] => Boolean(item))
+  return (
+    <>
+      {summary.length > 0 && (
+        <dl className="dataset-facts">
+          {summary.map(([term, value]) => (
+            <div key={term}>
+              <dt>{term}</dt>
+              <dd>{value}</dd>
+            </div>
+          ))}
+          {facts.provisional && (
+            <div>
+              <dt>Status</dt>
+              <dd>Provisional</dd>
+            </div>
+          )}
+        </dl>
+      )}
+      {(facts.limitations.length > 0 || facts.attribution.length > 0) && (
+        <details className="dataset-notes">
+          <summary>Limitations and attribution</summary>
+          {facts.limitations.map((limitation) => (
+            <p key={limitation}>{limitation}</p>
+          ))}
+          {facts.attribution.map((attribution) => (
+            <p key={attribution} className="dataset-attribution">
+              {attribution}
+            </p>
+          ))}
+        </details>
+      )}
+    </>
   )
 }

@@ -338,8 +338,8 @@ export function ExplorePanel() {
             <>
               <strong>{preview.total_count.toLocaleString()} sample points</strong>
               <span>
-                {preview.planned_output_count.toLocaleString()} planned point-period outputs · limit{' '}
-                {preview.execution_limit.toLocaleString()}
+                {preview.planned_output_count.toLocaleString()} point-period outputs · limit{' '}
+                {preview.execution_limit.toLocaleString()} locations
               </span>
               {!previewCurrent && (
                 <span>

@@ -121,9 +121,11 @@ export function deriveWorkflow(input: WorkflowInput): WorkflowStatus {
         ? 'Select at least one dataset.'
         : !weatherPlanCurrent
           ? 'Wait for the selected-dataset plan to refresh.'
-          : input.busy
-            ? 'A workflow action is already running.'
-            : null
+          : !input.weatherPlan?.outputs?.length
+            ? 'No selected dataset can produce an EPW; review the plan issues.'
+            : input.busy
+              ? 'A workflow action is already running.'
+              : null
     run = {
       action: 'submitWeather',
       label: 'Download weather',

@@ -123,3 +123,21 @@ describe('derived staged workflow', () => {
     expect(status.stages.project.complete).toBe(true)
   })
 })
+
+describe('Download run gating', () => {
+  it('blocks Run when the current plan has no executable outputs', () => {
+    const status = deriveWorkflow(
+      base({
+        stage: 'download',
+        discovery: { candidates: [{ id: 'gated' }] } as any,
+        discoveryVersion: 2,
+        selectedDatasets: [{ provider: 'nsrdb', dataset: 'psm3' }],
+        weatherPlan: { kind: 'weather', plan_hash: 'empty', outputs: [] } as any,
+        weatherPlanRequestVersion: 2,
+        weatherPlanSelectionVersion: 1,
+      }),
+    )
+    expect(status.run.enabled).toBe(false)
+    expect(status.run.reason).toMatch(/No selected dataset can produce an EPW/)
+  })
+})
