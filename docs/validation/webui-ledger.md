@@ -121,3 +121,34 @@ Local measurement (Windows, Edge, one worker): development hosting 10 tests 62.7
 TypeScript, ESLint, Vitest 14 files/54 tests, Python 100 passed/15 live skipped, Ruff.
 Repo-wide `format:check` warns on this Windows checkout's CRLF files; the changed UI
 files pass Prettier. CI has not yet run this change.
+
+## Implementation review and fixes — 2026-09-21
+
+Owner requested a progress review, then approved fixing the findings. The review
+(spec conformance, correctness audit, docs/CI state) found four correctness bugs, two
+small defects, spec deviations and doc drift; the acceptance record now lists the
+spec items still unimplemented.
+
+Fixed with regression tests (each confirmed failing without its fix):
+
+- Inspecting a projected EPW replaced the Project baseline, disabling Project Run
+  after every projection. Only eligible baselines now change it.
+- History and earlier-session weather EPWs could not unlock Project. `WeatherJob`
+  now carries `kind`, derived by `JobStore` from the stored plan (including legacy
+  rows); weather jobs in History count as eligible baselines. On load the UI
+  reconciles recent jobs, resumes monitoring an unfinished job, and returns a
+  restored locked stage to Explore.
+- Download and Project shared one idempotency key and submitted flag, so one blocked
+  the other and could reuse the other's key. They are now per plan kind.
+- A job's completion auto-selection was dropped when another action was running; it
+  now waits for the action to finish unless the user selected something meanwhile.
+- Escape in a modal also closed the narrow drawer beneath it; field errors used a
+  literal U+FFFD separator.
+
+Spec alignment: confirmations are limited to completed downstream work from the
+current plan (or clearing a downloaded baseline); narrow screens get a labelled
+stage selector that reaches earlier stages; the map is inert beneath an open narrow
+drawer. Removed dead code: unused `ResultsView`, `ApiDocs` and `RequestPanel`, the
+`flexlayout-react` dependency, its Vite CSS plugin, and old compact-tab/FlexLayout
+CSS. `api-catalog.json` is still generated, served and parity-tested. ROADMAP,
+ADR 0003 and limitations no longer describe docking.

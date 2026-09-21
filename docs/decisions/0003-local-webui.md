@@ -5,8 +5,10 @@ no-frontend constraint. Keep `ui/` beside the Python package, with an independen
 npm build and optional FastAPI `/ui/` static mount. No repository extraction or
 publication. Local-first single-user is the deployment scope.
 
-React/TypeScript/Vite, FlexLayout, React Aria, Zustand and MapLibre follow the
-owner-selected EnergyAtlas reference. Only appearance definitions and the small
+React/TypeScript/Vite, React Aria, Zustand and MapLibre follow the owner-selected
+EnergyAtlas reference. FlexLayout docking was also adopted initially; the map-first
+staged redesign (2026-09-20) replaced it with fixed-role sidebars, and the dependency
+was removed on 2026-09-21. Only appearance definitions and the small
 worker-build approach are adapted; no domain datasets, branding, LLM/simulated
 engines or reference credentials. Reference-theme redistribution permission remains
 a prepublication follow-up. Source provenance lives in `ui/THIRD_PARTY_NOTICES.md`.

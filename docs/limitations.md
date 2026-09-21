@@ -75,7 +75,7 @@ The same-repo UI is a local single-user frontend. Advanced batch/hybrid/grid opt
 use validated request JSON; they do not all have separate form controls. Artifact
 QC/provenance detail is presented as structured JSON plus summary/chart views.
 Desktop Edge is locally verified; Chromium Linux CI is configured, not claimed run.
-No Safari/Firefox/mobile-device or exhaustive docking/accessibility certification.
+No Safari/Firefox/mobile-device or exhaustive accessibility certification.
 Public basemap/terrain services require connectivity and have independent terms;
 weather requests remain usable when map rendering fails. Long archive retrievals
 may outlive browser requests; inspect server history before requesting a new run.

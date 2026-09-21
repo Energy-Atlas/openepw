@@ -19,12 +19,14 @@ plan were completed. Owner approved Stage 2 on 2026-09-20.
 ## Web UI — substantially complete
 
 Approved local-first single-user implementation is delivered in `ui/` on
-`feature/webui`: dockable themes, MapLibre/3D interaction, existing/future weather,
-real scripted workflows, bounded result/QC/provenance inspection, API references
-and optional FastAPI static hosting. See [acceptance and remaining limits](docs/validation/webui-acceptance.md).
+`feature/webui`: a map-first Explore → Download → Project workspace with curated
+appearances, MapLibre globe/terrain, existing/future weather, scripted workflows,
+bounded result/QC/provenance inspection, API documentation links and optional
+FastAPI static hosting. See [acceptance and remaining limits](docs/validation/webui-acceptance.md).
 No repository extraction or PyPI publication occurred. Follow-ups are browser/device
-coverage, bundle loading optimization and explicit reference-theme redistribution
-permission before public distribution, not blockers for this local milestone.
+coverage, bundle loading optimization, explicit reference-theme redistribution
+permission before public distribution, and the unimplemented redesign-spec items
+listed in the acceptance record; none blocks this local milestone.
 
 ## Follow-ups after v0.1
 

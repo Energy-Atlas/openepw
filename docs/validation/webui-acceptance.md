@@ -1,8 +1,9 @@
 # Web UI acceptance — staged map-first redesign
 
-Status: **implemented and accepted for the local-first, single-user scope** on
-2026-09-20. Branch `feature/webui` is preserved; no push, merge or publication was
-performed. Earlier backend acceptance remains in [v0.1-acceptance.md](v0.1-acceptance.md).
+Status: **core workflow implemented and accepted for the local-first, single-user
+scope** on 2026-09-20; a spec-conformance review on 2026-09-21 found gaps that remain
+open (see [Unimplemented spec items](#unimplemented-spec-items)). Branch
+`feature/webui` is pushed but not merged; no publication was performed. Earlier backend acceptance remains in [v0.1-acceptance.md](v0.1-acceptance.md).
 
 ## Delivered
 
@@ -40,17 +41,24 @@ remain available.
 
 The offline fixture registers two datasets. One carries complete weather fields;
 the other deliberately omits precipitation/DNI and fails at part of a sampled
-polygon. It is imported only by the test server. Development and production suites
-cover:
+polygon. It is imported only by the test server. Since 2026-09-21 the browser suite
+is three tests against development hosting, one of which also runs against
+production hosting:
 
-- authoritative sample preview, fixed globe/terrain controls and attributed coverage;
-- discovery, multiple dataset selections and automatically refreshed planning;
-- complete and partial jobs, asynchronous Project advancement and History details;
-- EPW selection, monthly/hourly charts, leap-year labeling and manual inspector collapse;
-- deterministic Agent confirmation, narrow drawers, keyboard focus and persisted drafts;
-- light, dark and monochrome visual checks with Axe serious/critical auditing;
-- numeric Explore controls when WebGL is unavailable; and
-- MapLibre module-worker loading from production static hosting.
+- offline map rendering with every external host stubbed, and evaluated MapLibre
+  module-worker execution (development and production);
+- authoritative sample preview, fixed globe/terrain controls, attributed coverage,
+  discovery, multi-dataset selection, Agent confirmation, a completed Download,
+  asynchronous Project advancement, monthly/hourly charts, leap-year labeling,
+  inspector collapse and History; and
+- light, dark and monochrome screenshots with Axe serious/critical auditing, narrow
+  stage selection, drawers and focus restoration, persisted drafts without job
+  submission, and numeric Explore controls when WebGL is unavailable.
+
+Partial-source jobs are verified over REST against the same fixture app
+(`tests/unit/test_ui_fixture_jobs.py`). Preview request counting, no-retry behavior,
+partial-job display, reload reconciliation, baseline eligibility, per-plan submit
+keys, confirmation scope and narrow-layout behavior are Vitest tests.
 
 Screenshots and traces stay in ignored `ui/test-results/`. Manual desktop and narrow
 checks found no material panel overlap or hidden primary map surface. Browser-only
@@ -59,21 +67,22 @@ remained after correcting the heatmap axes.
 
 ## Verification actually run
 
-Windows, Python 3.14.7 and Node 24.21.0 with installed Edge:
+Latest run, 2026-09-21, Windows, Python 3.14.7 and Node 24.21.0 with installed Edge:
 
 | Check | Result |
 | --- | --- |
-| Full Python offline suite | 98 passed, 15 opt-in live checks skipped; two upstream deprecation warnings |
-| Ruff | Passed |
-| mypy | Passed, 43 source files |
-| UI Prettier, TypeScript and ESLint | Passed |
-| Vitest | 50 passed across 12 files |
+| Full Python offline suite | 101 passed, 15 opt-in live checks skipped |
+| Ruff and mypy | Passed; mypy 43 source files |
+| UI TypeScript and ESLint | Passed |
+| UI Prettier | Passed with `--end-of-line auto`; the repo-wide check flags only CRLF line endings on this Windows checkout |
+| Vitest | 66 passed across 14 files |
 | Vite production build | Passed |
-| Playwright development hosting | 7 passed |
-| Playwright FastAPI production hosting | 7 passed |
-| Appearance/Axe review | Light, dark and monochrome screenshots; no serious/critical violations |
-| Generated contracts | OpenAPI, TypeScript schema and API catalog regenerated without drift |
-| Git | Whitespace check passed; branch left unpushed and unmerged |
+| Playwright development hosting | 3 passed |
+| Playwright FastAPI production hosting | 1 passed (`@production` worker smoke) |
+| Generated contracts | OpenAPI and TypeScript schema regenerated for the additive job `kind` field |
+
+The 2026-09-20 acceptance ran the earlier ten-test browser suite (development and
+production) with 98 Python and 50 Vitest tests; see the ledger.
 
 ## Scientific and interface boundaries
 
@@ -99,6 +108,33 @@ Windows, Python 3.14.7 and Node 24.21.0 with installed Edge:
   not implemented.
 - The Agent is scripted, not model-backed natural language.
 - Multi-user hosting, repository extraction and package publication remain out of scope.
+
+## Unimplemented spec items
+
+Found by the 2026-09-21 conformance review against the
+[redesign spec](../superpowers/specs/2026-09-20-webui-workflow-redesign.md) and not yet
+implemented:
+
+- Explore: a move/edit geometry tool, keyboard finish/cancel, and a debounced live
+  preview while a box or polygon is being drawn.
+- Download: rows lack temporal availability, resolution, limitations and attribution;
+  credential requirements are shown but do not gate Run; retrying only failed items
+  is not offered.
+- Project: the baseline card omits location, dataset, period, calendar and QC
+  warnings; with several EPWs the first bundle EPW is auto-selected rather than a
+  backend-ranked one for the selected point.
+- Map: no compact legend, no coverage auto-enable after discovery, coverage
+  limitations are not rendered, overlay reordering does not change MapLibre layer
+  order, and incompatible/unknown point states are not rendered. Coverage and point
+  glyphs color the same dataset differently.
+- Inspector: no valid/expected counts, synthetic-chronology label or visible no-data
+  cells; a fixed five-variable selector; no table or download controls.
+- Agent: flat log lines instead of expandable tool-result cards; appearance and panel
+  sizing bypass the action registry; routine previews are announced in the live log.
+- Accessibility: stage changes and job completion are not announced; map camera
+  flights ignore reduced motion; the narrow inspector is not a bottom sheet.
+- Explore's sample limit uses dataset selections left over from an earlier discovery,
+  and the limit message compares a location limit with an output count.
 
 Operating guidance: [webui.md](../webui.md). Design contract:
 [map-first staged UI](../superpowers/specs/2026-09-20-webui-workflow-redesign.md).
