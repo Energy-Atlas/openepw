@@ -3,6 +3,7 @@ import { run } from '../../app/actions'
 import { useApp } from '../../app/store'
 import type { DatasetSelection } from '../../app/workflow'
 import { PlanReview } from '../request/PlanReview'
+import { JobProgress } from './JobProgress'
 
 function key(selection: DatasetSelection) {
   return `${selection.provider}\u0000${selection.dataset}\u0000${selection.product_id ?? ''}`
@@ -57,8 +58,11 @@ export function DownloadPanel() {
     ...state.downloadJobs.flatMap((job) => job.bundle?.weather ?? []),
   ]
 
+  const [latestJob, ...earlierJobs] = state.downloadJobs
+
   return (
     <div className="stage-body">
+      {latestJob && <JobProgress job={latestJob} kind="weather" />}
       <section className="control-section upstream-summary">
         <h2>Explore query</h2>
         <p>
@@ -153,7 +157,7 @@ export function DownloadPanel() {
           />
           <small>Parsing makes the file eligible; it does not certify simulation readiness.</small>
         </label>
-        {state.downloadJobs.map((job) => (
+        {earlierJobs.map((job) => (
           <article className="job-summary" key={job.id}>
             <span className={`badge ${job.state}`}>{job.state.replaceAll('_', ' ')}</span>
             <strong>{job.id.slice(0, 8)}</strong>

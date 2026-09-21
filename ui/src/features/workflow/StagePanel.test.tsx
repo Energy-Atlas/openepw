@@ -205,7 +205,7 @@ describe('stage controls', () => {
       importedArtifacts: [{ id: 'upload', path: 'baseline.epw', role: 'baseline' } as any],
     })
     render(<StagePanel />)
-    expect(screen.getByText(/1 complete, 2 failed/i)).toBeTruthy()
+    expect(screen.getByText('1 EPW output created · 2 failed')).toBeTruthy()
     expect(screen.getByText('made.epw')).toBeTruthy()
     expect(screen.getByText('baseline.epw')).toBeTruthy()
   })
@@ -235,4 +235,24 @@ describe('stage controls', () => {
     expect(screen.queryByRole('option', { name: /sampled/i })).toBeNull()
     expect(screen.getByText(/not a forecast/i)).toBeTruthy()
   })
+})
+
+it('starts each stage at the top and scrolls a newly started job into view', () => {
+  render(<StagePanel />)
+  const panel = screen.getByRole('region', { name: 'Explore controls' })
+  panel.scrollTop = 240
+  act(() => useApp.setState({ stage: 'download', discovery: { candidates: [] } as any }))
+  expect(screen.getByRole('region', { name: 'Download controls' }).scrollTop).toBe(0)
+
+  const download = screen.getByRole('region', { name: 'Download controls' })
+  download.scrollTop = 180
+  act(() =>
+    useApp.setState({
+      downloadJobs: [
+        { id: 'new-job', kind: 'weather', state: 'queued', total: 2, completed: 0, failed: 0 },
+      ] as any,
+    }),
+  )
+  expect(download.scrollTop).toBe(0)
+  expect(screen.getByRole('region', { name: 'Downloading weather' })).toBeTruthy()
 })

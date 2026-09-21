@@ -76,3 +76,21 @@ it('loads another full-artifact variable and remembers manual collapse', () => {
   fireEvent.click(screen.getByRole('button', { name: 'Collapse weather inspector' }))
   expect(run).toHaveBeenCalledWith({ type: 'setInspector', open: false, manually: true })
 })
+
+it('labels synthetic chronology, valid-hour coverage and offers the EPW download', () => {
+  render(<WeatherInspector appearance={APPEARANCES.light} />)
+  expect(screen.getByText(/Synthetic chronology/)).toBeTruthy()
+  expect(screen.getByText('Dry-bulb temperature: 1 of 8,784 hours valid')).toBeTruthy()
+  expect(screen.getByRole('button', { name: 'Download tmyx.epw' })).toBeTruthy()
+})
+
+it('keeps a chosen heatmap variable and never requests a variable twice', () => {
+  render(<WeatherInspector appearance={APPEARANCES.light} />)
+  fireEvent.change(screen.getByLabelText('Hourly variable'), { target: { value: 'dry_bulb' } })
+  expect(run).toHaveBeenCalledWith({
+    type: 'selectArtifact',
+    artifact,
+    variables: ['dry_bulb', 'liquid_precipitation'],
+  })
+  expect(useApp.getState().inspector.variable).toBe('dry_bulb')
+})

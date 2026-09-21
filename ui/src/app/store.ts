@@ -6,7 +6,12 @@ import type { DatasetSelection, Stage } from './workflow'
 
 export type LogEntry = { id: string; kind: 'info' | 'error' | 'tool'; text: string }
 export type PanelSizes = { controls: number; agent: number; inspector: number }
-export type InspectorState = { open: boolean; manuallyCollapsed: boolean }
+export type InspectorState = {
+  open: boolean
+  manuallyCollapsed: boolean
+  /** Heatmap variable chosen for the current artifact; cleared when the artifact changes. */
+  variable?: string
+}
 export type PendingConfirmation = { title: string; description: string }
 export type PlanKind = 'weather' | 'future'
 

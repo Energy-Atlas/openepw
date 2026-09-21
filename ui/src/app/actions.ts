@@ -365,12 +365,16 @@ export async function dispatch(action: AppAction): Promise<unknown> {
       if (useApp.getState().artifact?.id === state.artifact.id) useApp.setState({ preview })
     }
     if (action.type === 'selectArtifact') {
-      useApp.setState({
+      useApp.setState((current) => ({
         artifact: action.artifact,
         preview: null,
         visualization: null,
         detail: null,
-      })
+        inspector:
+          current.artifact?.id === action.artifact.id
+            ? current.inspector
+            : { ...current.inspector, variable: undefined },
+      }))
       if (action.artifact.media_type === 'application/vnd.energyplus.epw') {
         const visualization = await api.visualization(
           action.artifact.id,

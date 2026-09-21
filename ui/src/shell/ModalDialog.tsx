@@ -39,38 +39,46 @@ export function ModalDialog({
   }, [restoreFocus])
 
   return createPortal(
-    <div
-      ref={dialog}
-      className={className}
-      role={role}
-      aria-modal="true"
-      aria-label={ariaLabel}
-      aria-labelledby={labelledBy}
-      tabIndex={-1}
-      onKeyDown={(event) => {
-        if (event.key === 'Escape') {
+    <>
+      {/* The backdrop marks the rest of the page as unavailable; alerts need an explicit choice. */}
+      <div
+        className="modal-backdrop"
+        aria-hidden="true"
+        onClick={role === 'dialog' ? onClose : undefined}
+      />
+      <div
+        ref={dialog}
+        className={className}
+        role={role}
+        aria-modal="true"
+        aria-label={ariaLabel}
+        aria-labelledby={labelledBy}
+        tabIndex={-1}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') {
+            event.preventDefault()
+            onClose()
+            return
+          }
+          if (event.key !== 'Tab') return
+          const focusable = getFocusable(dialog.current)
+          if (!focusable.length) {
+            event.preventDefault()
+            dialog.current?.focus()
+            return
+          }
+          const current = document.activeElement
+          const index = focusable.indexOf(current as HTMLElement)
+          const next = event.shiftKey
+            ? focusable[(index <= 0 ? focusable.length : index) - 1]
+            : focusable[(index + 1) % focusable.length]
           event.preventDefault()
-          onClose()
-          return
-        }
-        if (event.key !== 'Tab') return
-        const focusable = getFocusable(dialog.current)
-        if (!focusable.length) {
-          event.preventDefault()
-          dialog.current?.focus()
-          return
-        }
-        const current = document.activeElement
-        const index = focusable.indexOf(current as HTMLElement)
-        const next = event.shiftKey
-          ? focusable[(index <= 0 ? focusable.length : index) - 1]
-          : focusable[(index + 1) % focusable.length]
-        event.preventDefault()
-        next.focus()
-      }}
-    >
-      {children}
-    </div>,
+          next.focus()
+        }}
+      >
+        {children}
+      </div>
+    </>,
     document.body,
   )
 }

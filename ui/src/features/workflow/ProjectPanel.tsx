@@ -3,6 +3,7 @@ import { run } from '../../app/actions'
 import { useApp } from '../../app/store'
 import { FutureForm } from '../request/FutureForm'
 import { PlanReview } from '../request/PlanReview'
+import { JobProgress } from './JobProgress'
 
 export function ProjectPanel() {
   const state = useApp()
@@ -23,6 +24,7 @@ export function ProjectPanel() {
 
   return (
     <div className="stage-body">
+      {state.projectJobs[0] && <JobProgress job={state.projectJobs[0]} kind="future" />}
       <section className="control-section baseline-summary">
         <h2>Active baseline</h2>
         {baseline ? (
@@ -32,7 +34,11 @@ export function ProjectPanel() {
             onClick={() => run({ type: 'selectArtifact', artifact: baseline })}
           >
             <strong>{baseline.path.split('/').pop()}</strong>
-            <small>{baseline.id.slice(0, 12)} · parsed and annual-QC validated EPW</small>
+            <small>
+              {baseline.role === 'baseline' ? 'Imported EPW' : 'Downloaded EPW'} ·{' '}
+              {baseline.id.slice(0, 12)}
+            </small>
+            <small>Parsed and annual-QC validated; not certified simulation-ready.</small>
           </button>
         ) : (
           <p className="notice">Select a generated EPW in Download or import a baseline.</p>

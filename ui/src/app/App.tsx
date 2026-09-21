@@ -10,6 +10,7 @@ import { HistoryDrawer, useJobMonitor, useJobReconcile } from '../features/resul
 import { WeatherInspector } from '../features/results/WeatherInspector'
 import { RunSplitButton } from '../features/workflow/RunSplitButton'
 import { StagePanel } from '../features/workflow/StagePanel'
+import { isActiveJob, JobProgress } from '../features/workflow/JobProgress'
 import { APPEARANCE_LIST, type AppearancePreference } from '../shell/appearances'
 import { isNarrow, resizeFromPointer } from '../shell/layout'
 import { clampPanelSize, nextDrawer, type Drawer } from '../shell/panels'
@@ -329,13 +330,17 @@ export function App() {
         <span className="status-dot" /> Local workspace
         <span className="status-detail">Single user · scientific provenance retained</span>
         <span className="spacer" />
-        <span>
-          {state.busy
-            ? 'Backend request in progress'
-            : state.job
-              ? `Job ${state.job.state.replaceAll('_', ' ')}`
-              : workflow.run.reason || 'Ready'}
-        </span>
+        {state.job && isActiveJob(state.job) ? (
+          <JobProgress job={state.job} kind={state.job.kind} compact />
+        ) : (
+          <span>
+            {state.busy
+              ? 'Backend request in progress'
+              : state.job
+                ? `Job ${state.job.state.replaceAll('_', ' ')}`
+                : workflow.run.reason || 'Ready'}
+          </span>
+        )}
       </footer>
     </div>
   )

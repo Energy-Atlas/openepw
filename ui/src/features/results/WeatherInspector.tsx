@@ -1,16 +1,30 @@
-import { ChevronDown, GripHorizontal } from 'lucide-react'
+import { ChevronDown, Download, GripHorizontal } from 'lucide-react'
+import { api } from '../../api/client'
 import { run } from '../../app/actions'
 import { useApp } from '../../app/store'
 import type { Appearance } from '../../shell/appearances'
 import { clampPanelSize } from '../../shell/panels'
 import { WeatherCharts } from './WeatherCharts'
 
-const VARIABLES = [
+// Continuous EPW variables the visualization endpoint accepts (see openepw.dataset.UNITS).
+export const VARIABLES = [
   ['dni', 'Direct normal irradiance'],
   ['ghi', 'Global horizontal irradiance'],
+  ['dhi', 'Diffuse horizontal irradiance'],
+  ['horizontal_infrared', 'Horizontal infrared radiation'],
   ['dry_bulb', 'Dry-bulb temperature'],
+  ['dew_point', 'Dew-point temperature'],
   ['relative_humidity', 'Relative humidity'],
+  ['pressure', 'Station pressure'],
   ['wind_speed', 'Wind speed'],
+  ['wind_direction', 'Wind direction'],
+  ['total_sky_cover', 'Total sky cover'],
+  ['opaque_sky_cover', 'Opaque sky cover'],
+  ['visibility', 'Visibility'],
+  ['precipitable_water', 'Precipitable water'],
+  ['liquid_precipitation', 'Liquid precipitation'],
+  ['snow_depth', 'Snow depth'],
+  ['albedo', 'Albedo'],
 ] as const
 
 export function WeatherInspector({ appearance }: { appearance: Appearance }) {
@@ -22,10 +36,16 @@ export function WeatherInspector({ appearance }: { appearance: Appearance }) {
   const hasValues = (variable: string) =>
     visualization.series[variable]?.some((value) => value != null) ?? false
   const usable = available.filter(hasValues)
-  const heatVariable = hasValues('dni')
-    ? 'dni'
-    : (usable.find((variable) => !['dry_bulb', 'liquid_precipitation'].includes(variable)) ??
-      usable[0])
+  // An explicit choice is shown even when all missing, so the gap stays visible.
+  const heatVariable =
+    state.inspector.variable && available.includes(state.inspector.variable)
+      ? state.inspector.variable
+      : hasValues('dni')
+        ? 'dni'
+        : (usable.find((variable) => !['dry_bulb', 'liquid_precipitation'].includes(variable)) ??
+          usable[0])
+  const heatLabel = VARIABLES.find(([value]) => value === heatVariable)?.[1] ?? heatVariable
+  const valid = visualization.series[heatVariable]?.filter((value) => value != null).length ?? 0
 
   function resize(event: React.PointerEvent) {
     const origin = event.clientY
@@ -84,13 +104,15 @@ export function WeatherInspector({ appearance }: { appearance: Appearance }) {
           Hourly variable
           <select
             value={heatVariable}
-            onChange={(event) =>
+            onChange={(event) => {
+              const variable = event.target.value
+              useApp.setState((current) => ({ inspector: { ...current.inspector, variable } }))
               run({
                 type: 'selectArtifact',
                 artifact,
-                variables: ['dry_bulb', 'liquid_precipitation', event.target.value],
+                variables: [...new Set(['dry_bulb', 'liquid_precipitation', variable])],
               })
-            }
+            }}
           >
             {VARIABLES.map(([value, label]) => (
               <option
@@ -105,6 +127,14 @@ export function WeatherInspector({ appearance }: { appearance: Appearance }) {
         </label>
         <button
           type="button"
+          aria-label={`Download ${artifact.path.split('/').pop()}`}
+          title="Download EPW"
+          onClick={() => void api.download(artifact)}
+        >
+          <Download aria-hidden="true" />
+        </button>
+        <button
+          type="button"
           aria-label="Collapse weather inspector"
           onClick={() => run({ type: 'setInspector', open: false, manually: true })}
         >
@@ -114,6 +144,17 @@ export function WeatherInspector({ appearance }: { appearance: Appearance }) {
       <div className="inspector-meta">
         <span>Source years: {formatSourceYears(visualization.source_years)}</span>
         {visualization.total_rows === 8784 && <span>Leap day retained</span>}
+        {visualization.synthetic_chronology && (
+          <span className="meta-flag">
+            Synthetic chronology: source years differ from timestamps
+          </span>
+        )}
+        {heatVariable && (
+          <span>
+            {heatLabel}: {valid.toLocaleString()} of {visualization.total_rows.toLocaleString()}{' '}
+            hours valid
+          </span>
+        )}
         {!hasValues('liquid_precipitation') && <span>Precipitation unavailable</span>}
         {!hasValues('dni') && (
           <span>DNI unavailable{heatVariable ? `; showing ${heatVariable}` : ''}</span>
@@ -126,6 +167,7 @@ export function WeatherInspector({ appearance }: { appearance: Appearance }) {
         <WeatherCharts
           visualization={visualization}
           heatVariable={heatVariable}
+          heatLabel={heatLabel}
           appearance={appearance}
         />
       ) : (

@@ -16,6 +16,7 @@ export function RunSplitButton() {
   const confirmButton = useRef<HTMLButtonElement>(null)
   const confirmationOpener = useRef<HTMLElement | null>(null)
   const blocked = !workflow.run.enabled
+  const confirmationPlan = state.stage === 'project' ? state.futurePlan : state.weatherPlan
 
   useEffect(() => {
     if (open) menu.current?.querySelector<HTMLButtonElement>('[role="menuitem"]')?.focus()
@@ -130,6 +131,19 @@ export function RunSplitButton() {
             {confirming === 'rerun' ? 'Run the reviewed plan again?' : `${workflow.run.label}?`}
           </strong>
           <p>This starts a server job using the current reviewed plan.</p>
+          {confirmationPlan && (
+            <dl className="confirmation-facts">
+              <div>
+                <dt>{confirmationPlan.kind === 'future' ? 'Projection outputs' : 'EPW outputs'}</dt>
+                <dd>{new Set(confirmationPlan.outputs?.map((output) => output.name)).size}</dd>
+              </div>
+              <div>
+                <dt>Source tasks</dt>
+                <dd>{confirmationPlan.tasks?.length ?? 0}</dd>
+              </div>
+            </dl>
+          )}
+          <p>Progress appears in the stage panel and status bar; History keeps every job.</p>
           <div className="actions">
             <button
               type="button"

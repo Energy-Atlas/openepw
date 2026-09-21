@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import { deriveWorkflow } from '../../app/workflow'
 import { useApp } from '../../app/store'
 import { DownloadPanel } from './DownloadPanel'
@@ -14,8 +15,19 @@ export function StagePanel() {
   const state = useApp()
   const workflow = deriveWorkflow(state)
   const title = state.stage[0].toUpperCase() + state.stage.slice(1)
+  const panel = useRef<HTMLElement>(null)
+  const latestJob =
+    state.stage === 'download'
+      ? state.downloadJobs[0]?.id
+      : state.stage === 'project'
+        ? state.projectJobs[0]?.id
+        : undefined
+  // Each stage starts at its top, and a newly started job brings its progress into view.
+  useEffect(() => {
+    if (panel.current) panel.current.scrollTop = 0
+  }, [state.stage, latestJob])
   return (
-    <section className="panel stage-panel" aria-label={`${title} controls`}>
+    <section ref={panel} className="panel stage-panel" aria-label={`${title} controls`}>
       <header className="stage-panel-header">
         <div>
           <span className="stage-kicker">Stage controls</span>

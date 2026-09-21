@@ -2,26 +2,114 @@ import * as echarts from 'echarts'
 import { useEffect, useRef } from 'react'
 import type { Schemas } from '../../api/client'
 import type { Appearance } from '../../shell/appearances'
+import { heatmapModel, monthLabel } from './heatmap'
 
-export function calendarDay(timestamp: string, calendar: string) {
-  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(timestamp)
-  if (calendar === 'noleap' && match) {
-    const month = Number(match[2])
-    const day = Number(match[3])
-    const monthLengths = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-    return monthLengths.slice(0, month - 1).reduce((sum, length) => sum + length, 0) + day
+export { calendarDay } from './heatmap'
+
+function formatValue(value: number) {
+  const magnitude = Math.abs(value)
+  return magnitude >= 1000
+    ? value.toFixed(0)
+    : magnitude >= 10
+      ? value.toFixed(1)
+      : value.toFixed(2)
+}
+
+export function heatmapOptions(
+  visualization: Schemas['WeatherVisualization'],
+  heatVariable: string,
+  heatLabel: string | undefined,
+  appearance: Appearance,
+  reducedMotion = false,
+) {
+  const heatUnit = visualization.units[heatVariable] ?? ''
+  const model = heatmapModel(visualization, heatVariable)
+  const tooltipRow = (index: number, value: string) => {
+    const year = visualization.source_years[index]
+    return `${visualization.timestamps[index]}<br/>${value}<br/>Source year: ${year ?? 'unknown'}`
   }
-  const date = new Date(`${timestamp.replace(' ', 'T')}Z`)
-  return Math.floor((date.getTime() - Date.UTC(date.getUTCFullYear(), 0, 1)) / 86_400_000) + 1
+  return {
+    animation: !reducedMotion,
+    textStyle: { fontFamily: 'Geist Variable', color: appearance.chrome.textMuted },
+    grid: { left: 36, right: 16, top: 34, bottom: 22 },
+    tooltip: {
+      formatter: (params: { seriesIndex: number; value: number[] }) =>
+        params.seriesIndex === 0
+          ? tooltipRow(params.value[3], `${formatValue(params.value[2])} ${heatUnit}`)
+          : tooltipRow(params.value[2], 'Missing value'),
+    },
+    xAxis: {
+      type: 'category',
+      data: model.days,
+      axisLabel: { fontSize: 10 },
+      axisTick: { show: false },
+      splitLine: { show: false },
+    },
+    yAxis: {
+      type: 'category',
+      data: Array.from({ length: 24 }, (_, hour) => hour),
+      axisLabel: { fontSize: 10, interval: 5 },
+      axisTick: { show: false },
+    },
+    // ECharts needs a visual map per heatmap series; missing cells get a flat no-data color.
+    visualMap: [
+      {
+        type: 'continuous',
+        seriesIndex: 0,
+        // Cells are [day, hour, value, row]; without this ECharts colors by the row index.
+        dimension: 2,
+        min: model.min,
+        max: model.max,
+        calculable: false,
+        orient: 'horizontal',
+        top: 0,
+        right: 16,
+        itemWidth: 10,
+        itemHeight: 120,
+        precision: Math.abs(model.max - model.min) >= 10 ? 0 : 1,
+        text: [`${formatValue(model.max)} ${heatUnit}`, formatValue(model.min)],
+        textGap: 6,
+        textStyle: { color: appearance.chrome.textMuted, fontSize: 10 },
+        inRange: { color: [...appearance.data.sequential] },
+      },
+      {
+        type: 'continuous',
+        seriesIndex: 1,
+        show: false,
+        dimension: 2,
+        min: 0,
+        max: Math.max(visualization.timestamps.length, 1),
+        inRange: { color: [appearance.data.noData, appearance.data.noData] },
+      },
+    ],
+    series: [
+      {
+        name: heatLabel ?? heatVariable,
+        type: 'heatmap',
+        data: model.cells,
+        progressive: 2000,
+        emphasis: { itemStyle: { borderColor: appearance.chrome.text, borderWidth: 1 } },
+      },
+      {
+        name: 'Missing',
+        type: 'heatmap',
+        data: model.missing,
+        itemStyle: { color: appearance.data.noData },
+        progressive: 2000,
+      },
+    ],
+  }
 }
 
 export function WeatherCharts({
   visualization,
   heatVariable,
+  heatLabel,
   appearance,
 }: {
   visualization: Schemas['WeatherVisualization']
   heatVariable: string
+  heatLabel?: string
   appearance: Appearance
 }) {
   const monthlyHost = useRef<HTMLDivElement>(null)
@@ -30,34 +118,54 @@ export function WeatherCharts({
   useEffect(() => {
     if (!monthlyHost.current) return
     const chart = echarts.init(monthlyHost.current)
-    const months = visualization.monthly.map((summary) =>
-      new Intl.DateTimeFormat(undefined, { month: 'short' }).format(
-        new Date(Date.UTC(summary.year, summary.month - 1, 1)),
-      ),
-    )
+    const months = visualization.monthly.map((summary) => monthLabel(summary.year, summary.month))
+    const count = (index: number, variable: string) => {
+      const summary = visualization.monthly[index]
+      return `${summary.values[variable]?.valid ?? 0}/${summary.expected} valid`
+    }
     chart.setOption({
       animation: !matchMedia('(prefers-reduced-motion: reduce)').matches,
       textStyle: { fontFamily: 'Geist Variable', color: appearance.chrome.textMuted },
-      tooltip: { trigger: 'axis' },
-      legend: {
-        data: ['Temperature', 'Precipitation'],
-        textStyle: { color: appearance.chrome.text },
+      tooltip: {
+        trigger: 'axis',
+        formatter: (params: { dataIndex: number; seriesName: string; value: number | null }[]) => {
+          const index = params[0]?.dataIndex ?? 0
+          const lines = params.map((param) => {
+            const variable =
+              param.seriesName === 'Temperature' ? 'dry_bulb' : 'liquid_precipitation'
+            const unit = visualization.units[variable] ?? ''
+            const value = param.value == null ? 'missing' : `${formatValue(param.value)} ${unit}`
+            return `${param.seriesName}: ${value} (${count(index, variable)})`
+          })
+          return [months[index], ...lines].join('<br/>')
+        },
       },
-      grid: { left: 48, right: 54, top: 38, bottom: 30 },
+      legend: {
+        top: 0,
+        right: 8,
+        itemWidth: 14,
+        itemHeight: 8,
+        data: ['Temperature', 'Precipitation'],
+        textStyle: { color: appearance.chrome.text, fontSize: 11 },
+      },
+      grid: { left: 44, right: 48, top: 44, bottom: 24 },
       xAxis: {
         type: 'category',
         data: months,
+        axisLabel: { fontSize: 10, hideOverlap: true },
         axisLine: { lineStyle: { color: appearance.chrome.border } },
       },
       yAxis: [
         {
           type: 'value',
           name: visualization.units.dry_bulb ?? '°C',
+          nameTextStyle: { align: 'right' },
           splitLine: { lineStyle: { color: appearance.chrome.borderSubtle } },
         },
         {
           type: 'value',
           name: visualization.units.liquid_precipitation ?? 'mm',
+          nameTextStyle: { align: 'left' },
           splitLine: { show: false },
         },
       ],
@@ -66,6 +174,7 @@ export function WeatherCharts({
           name: 'Temperature',
           type: 'line',
           connectNulls: false,
+          z: 3,
           data: visualization.monthly.map((item) => item.values.dry_bulb?.mean ?? null),
           lineStyle: { color: appearance.data.categorical[0] },
           itemStyle: { color: appearance.data.categorical[0] },
@@ -74,6 +183,7 @@ export function WeatherCharts({
           name: 'Precipitation',
           type: 'bar',
           yAxisIndex: 1,
+          barMaxWidth: 14,
           data: visualization.monthly.map((item) => item.values.liquid_precipitation?.sum ?? null),
           itemStyle: { color: appearance.data.categorical[1] },
         },
@@ -90,75 +200,22 @@ export function WeatherCharts({
   useEffect(() => {
     if (!heatHost.current) return
     const chart = echarts.init(heatHost.current)
-    const values = visualization.series[heatVariable] ?? []
-    const renderedDays = visualization.timestamps.map((timestamp) =>
-      calendarDay(timestamp, visualization.calendar),
+    chart.setOption(
+      heatmapOptions(
+        visualization,
+        heatVariable,
+        heatLabel,
+        appearance,
+        matchMedia('(prefers-reduced-motion: reduce)').matches,
+      ),
     )
-    const firstDay = renderedDays.length ? Math.min(...renderedDays) : 1
-    const lastDay = renderedDays.length ? Math.max(...renderedDays) : 1
-    const data = values.flatMap((value, index) =>
-      value == null
-        ? []
-        : [
-            [
-              calendarDay(visualization.timestamps[index], visualization.calendar),
-              new Date(`${visualization.timestamps[index].replace(' ', 'T')}Z`).getUTCHours(),
-              value,
-              index,
-            ],
-          ],
-    )
-    chart.setOption({
-      animation: !matchMedia('(prefers-reduced-motion: reduce)').matches,
-      textStyle: { fontFamily: 'Geist Variable', color: appearance.chrome.textMuted },
-      grid: { left: 42, right: 20, top: 12, bottom: 32 },
-      tooltip: {
-        formatter: (params: { value: [number, number, number, number] }) => {
-          const index = params.value[3]
-          const year = visualization.source_years[index]
-          return `${visualization.timestamps[index]}<br/>${params.value[2]} ${visualization.units[heatVariable] ?? ''}<br/>Source year: ${year ?? 'unknown'}`
-        },
-      },
-      xAxis: {
-        type: 'category',
-        name: 'day',
-        data: Array.from({ length: lastDay - firstDay + 1 }, (_, index) => firstDay + index),
-        splitLine: { show: false },
-      },
-      yAxis: {
-        type: 'category',
-        name: 'hour',
-        data: Array.from({ length: 24 }, (_, hour) => hour),
-        splitLine: { lineStyle: { color: appearance.chrome.borderSubtle } },
-      },
-      visualMap: {
-        show: false,
-        min: Math.min(...data.map((item) => Number(item[2])), 0),
-        max: Math.max(...data.map((item) => Number(item[2])), 1),
-        inRange: {
-          color: [
-            appearance.chrome.surfaceRaised,
-            appearance.data.categorical[1],
-            appearance.data.categorical[2],
-          ],
-        },
-      },
-      series: [
-        {
-          type: 'heatmap',
-          data,
-          progressive: 2000,
-          emphasis: { itemStyle: { borderColor: appearance.chrome.text, borderWidth: 1 } },
-        },
-      ],
-    })
     const resize = new ResizeObserver(() => chart.resize())
     resize.observe(heatHost.current)
     return () => {
       resize.disconnect()
       chart.dispose()
     }
-  }, [visualization, heatVariable, appearance])
+  }, [visualization, heatVariable, heatLabel, appearance])
 
   return (
     <div className="weather-charts">
@@ -166,13 +223,13 @@ export function WeatherCharts({
         ref={monthlyHost}
         className="monthly-chart"
         role="img"
-        aria-label="Monthly mean temperature and precipitation totals; missing values appear as gaps"
+        aria-label="Monthly mean temperature and precipitation totals with valid-sample counts; missing values appear as gaps"
       />
       <div
         ref={heatHost}
         className="heatmap-chart"
         role="img"
-        aria-label={`Hourly ${heatVariable} heatmap by day of year and hour; missing values are blank`}
+        aria-label={`Hourly ${heatVariable} heatmap by day of year and hour on a sequential color scale; missing values use the no-data color`}
       />
     </div>
   )
