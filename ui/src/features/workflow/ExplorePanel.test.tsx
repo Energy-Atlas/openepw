@@ -65,3 +65,42 @@ it('defers the automatic preview until another action is no longer busy', async 
   expect(preview).toHaveBeenCalledTimes(1)
   expect(useApp.getState().spatialPreviewVersion).toBe(8)
 })
+
+it('sends one preview per query version, even while a slow preview is in flight', async () => {
+  vi.useFakeTimers()
+  useApp.setState({
+    requestVersion: 9,
+    spatialPreviewVersion: null,
+    spatialPreviewAttemptVersion: null,
+    spatialPreview: null,
+    busy: false,
+  })
+  let finish!: () => void
+  const result = {
+    locations: [{ lat: 42.44, lon: -76.5, standard_offset_minutes: 0, id: 'point' }],
+    total_count: 1,
+    returned_count: 1,
+    planned_output_count: 1,
+    execution_limit: 1000,
+    executable: true,
+    truncated: false,
+    issues: [],
+  }
+  const preview = vi
+    .spyOn(api, 'spatialPreview')
+    .mockImplementationOnce(() => new Promise((resolve) => (finish = () => resolve(result))))
+    .mockResolvedValue(result)
+  render(<ExplorePanel />)
+
+  await act(async () => vi.advanceTimersByTime(6000))
+  expect(preview).toHaveBeenCalledTimes(1)
+  await act(async () => finish())
+  await act(async () => vi.advanceTimersByTime(6000))
+  expect(preview).toHaveBeenCalledTimes(1)
+  expect(useApp.getState().spatialPreviewVersion).toBe(9)
+
+  act(() => useApp.setState({ requestVersion: 10 }))
+  await act(async () => vi.advanceTimersByTime(6000))
+  expect(preview).toHaveBeenCalledTimes(2)
+  expect(useApp.getState().spatialPreviewVersion).toBe(10)
+})
