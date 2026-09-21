@@ -6,6 +6,7 @@ import { useApp } from '../../app/store'
 import type { Appearance } from '../../shell/appearances'
 import { WeatherCharts } from './WeatherCharts'
 import { WeatherTable } from './WeatherTable'
+import { formatOffset, nominalOffsetMinutes, offsetMismatch } from '../../app/timezone'
 
 // Continuous EPW variables the visualization endpoint accepts (see openepw.dataset.UNITS).
 export const VARIABLES = [
@@ -149,6 +150,19 @@ export function WeatherInspector({ appearance }: { appearance: Appearance }) {
             Table
           </button>
         </span>
+        <span>
+          Hours: local standard time{' '}
+          {formatOffset(visualization.location.standard_offset_minutes ?? 0)}
+        </span>
+        {offsetMismatch(
+          visualization.location.standard_offset_minutes ?? 0,
+          visualization.location.lon,
+        ) && (
+          <span className="meta-flag">
+            File time zone differs from this longitude's{' '}
+            {formatOffset(nominalOffsetMinutes(visualization.location.lon))}; hours may look shifted
+          </span>
+        )}
         <span>Source years: {formatSourceYears(visualization.source_years)}</span>
         {visualization.total_rows === 8784 && <span>Leap day retained</span>}
         {visualization.synthetic_chronology && (

@@ -13,6 +13,7 @@ from openepw.config import RuntimeConfig
 from openepw.dataset import WeatherDataset
 from openepw.models import Candidate, Location, OpenEPWError, SourceRef, VariableLineage
 from openepw.providers.base import ProviderResult
+from openepw.providers.openmeteo import interval_bounds
 from openepw.service import WeatherService
 
 
@@ -62,16 +63,14 @@ class FixtureProvider:
                 "SOURCE_UNAVAILABLE",
                 "Synthetic alternate source is unavailable at this sampled point",
             )
-        start = task.parameters["start"]
-        end = task.parameters["end"]
-        index = pd.date_range(
-            pd.Timestamp(start, tz="UTC") + pd.Timedelta(hours=1),
-            pd.Timestamp(end, tz="UTC") + pd.Timedelta(days=1),
-            freq="h",
-        )
-        # Deterministic seasonal and diurnal cycles so charts show real gradients.
-        day = index.dayofyear.to_numpy()
-        hour = index.hour.to_numpy()
+        # Same UTC window as the Open-Meteo adapter: the local standard-time period.
+        start, end = interval_bounds(task.parameters)
+        index = pd.date_range(start + pd.Timedelta(hours=1), end, freq="h")
+        # Deterministic seasonal and diurnal cycles on local solar time (from longitude), so a
+        # correct standard-time offset puts the daily peak near noon and a wrong one shifts it.
+        solar = index + pd.Timedelta(hours=location.lon / 15)
+        day = solar.dayofyear.to_numpy()
+        hour = solar.hour.to_numpy()
         season = np.cos(2 * np.pi * (day - 200) / 365.0)
         sun = np.clip(np.sin(np.pi * (hour - 6) / 12.0), 0, None) * (0.65 + 0.35 * season)
         dry_bulb = 9.0 + 13.0 * season + 5.0 * np.sin(np.pi * (hour - 9) / 12.0)

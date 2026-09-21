@@ -12,6 +12,7 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import { api, type Artifact, type Schemas } from '../../api/client'
 import { run } from '../../app/actions'
 import { rankWeatherArtifacts } from '../../app/artifacts'
+import { followOffset } from '../../app/timezone'
 import { useApp } from '../../app/store'
 import type { Appearance } from '../../shell/appearances'
 import { CoverageControl, type CoverageSetting } from './CoverageControl'
@@ -316,7 +317,7 @@ function WeatherMap({ appearance }: { appearance: Appearance }) {
             setVertices([])
             run({
               type: 'editQuery',
-              patch: { locations: { lat: 42.44, lon: -76.5, standard_offset_minutes: 0 } },
+              patch: { locations: { lat: 42.44, lon: -76.5, standard_offset_minutes: -300 } },
             })
             queueMicrotask(() => run({ type: 'previewSpatial' }))
           }}
@@ -518,9 +519,8 @@ function WeatherMap({ appearance }: { appearance: Appearance }) {
                 type: 'editQuery',
                 patch: {
                   locations: {
-                    ...state.draft.locations,
+                    ...followOffset(state.draft.locations, event.lngLat.lng),
                     lat: event.lngLat.lat,
-                    lon: event.lngLat.lng,
                   },
                 },
               })

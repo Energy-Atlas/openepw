@@ -74,12 +74,23 @@ export type State = {
   log: (text: string, kind?: LogEntry['kind']) => void
 }
 
+// Sampled area points use longitude-based standard time so EPW hours match the site.
+export const DEFAULT_SAMPLING = {
+  dx_km: 25,
+  dy_km: 25,
+  offset_x_km: 0,
+  offset_y_km: 0,
+  max_locations: 1000,
+  standard_offset: 'longitude' as const,
+}
+
 const defaultDraft: WeatherRequest = {
   schema_version: '0.1',
   missing_policy: 'warn',
   skip_feb_29: false,
-  locations: { lat: 42.44, lon: -76.5, standard_offset_minutes: 0 },
+  locations: { lat: 42.44, lon: -76.5, standard_offset_minutes: -300 },
   years: [2024],
+  sampling: DEFAULT_SAMPLING,
   providers: [],
   dataset_selections: [],
   product: 'amy',
@@ -249,9 +260,18 @@ export const useApp = create<State>()(
           const stage = ['explore', 'download', 'project'].includes(value.stage ?? '')
             ? value.stage!
             : 'explore'
+          // Drafts saved before sampled points had a standard-time policy were UTC by accident.
+          const draft = {
+            ...value.draft!,
+            sampling: {
+              ...DEFAULT_SAMPLING,
+              ...value.draft!.sampling,
+              standard_offset: value.draft!.sampling?.standard_offset ?? 'longitude',
+            },
+          }
           return {
             ...current,
-            draft: value.draft,
+            draft,
             future: { ...current.future, ...value.future },
             stage,
             mode: stage === 'project' ? 'future' : 'weather',

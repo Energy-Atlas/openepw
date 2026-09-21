@@ -136,3 +136,20 @@ it('offers charts and table views of the active artifact', () => {
   expect(table.getAttribute('aria-pressed')).toBe('true')
   expect(screen.queryByText(/^heatmap /)).toBeNull()
 })
+
+it('states the file time zone and flags one that contradicts the longitude', () => {
+  render(<WeatherInspector appearance={APPEARANCES.light} />)
+  expect(screen.getByText('Hours: local standard time UTC−5')).toBeTruthy()
+  expect(screen.queryByText(/File time zone differs/)).toBeNull()
+  cleanup()
+  const visualization = useApp.getState().visualization!
+  useApp.setState({
+    visualization: {
+      ...visualization,
+      location: { ...visualization.location, standard_offset_minutes: 0 },
+    },
+  })
+  render(<WeatherInspector appearance={APPEARANCES.light} />)
+  expect(screen.getByText('Hours: local standard time UTC')).toBeTruthy()
+  expect(screen.getByText(/File time zone differs from this longitude's UTC−5/)).toBeTruthy()
+})

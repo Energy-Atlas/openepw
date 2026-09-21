@@ -104,3 +104,38 @@ it('sends one preview per query version, even while a slow preview is in flight'
   expect(preview).toHaveBeenCalledTimes(2)
   expect(useApp.getState().spatialPreviewVersion).toBe(10)
 })
+
+it('warns when a point offset contradicts its longitude and fixes it in one step', async () => {
+  const { fireEvent, screen } = await import('@testing-library/react')
+  useApp.setState({
+    busy: false,
+    pendingConfirmation: null,
+    baselineOrigin: null,
+    discoveryVersion: null,
+    weatherPlan: null,
+    downloadJobs: [],
+    spatialPreviewVersion: 1,
+    requestVersion: 1,
+    draft: {
+      ...useApp.getState().draft,
+      locations: { lat: 42.44, lon: -76.5, standard_offset_minutes: 0 },
+    },
+  })
+  render(<ExplorePanel />)
+  expect(screen.getByText(/is far from this longitude/).textContent).toContain('UTC−5')
+  fireEvent.click(screen.getByRole('button', { name: 'Use UTC−5' }))
+  expect((useApp.getState().draft.locations as any).standard_offset_minutes).toBe(-300)
+
+  cleanup()
+  useApp.setState({
+    draft: {
+      ...useApp.getState().draft,
+      locations: { west: -77, south: 42, east: -76, north: 43 },
+    },
+  })
+  render(<ExplorePanel />)
+  const policy = screen.getByLabelText(/Standard time for sampled points/) as HTMLSelectElement
+  expect(policy.value).toBe('longitude')
+  fireEvent.change(policy, { target: { value: 'utc' } })
+  expect(useApp.getState().draft.sampling?.standard_offset).toBe('utc')
+})

@@ -4,6 +4,12 @@ import { run } from '../../app/actions'
 import { useApp } from '../../app/store'
 import { validateDraft } from '../../api/input'
 import { ListInput } from '../request/ListInput'
+import {
+  followOffset,
+  formatOffset,
+  nominalOffsetMinutes,
+  offsetMismatch,
+} from '../../app/timezone'
 
 export function ExplorePanel() {
   const state = useApp()
@@ -20,6 +26,7 @@ export function ExplorePanel() {
     offset_x_km: state.draft.sampling?.offset_x_km ?? 0,
     offset_y_km: state.draft.sampling?.offset_y_km ?? 0,
     max_locations: state.draft.sampling?.max_locations ?? 1000,
+    standard_offset: state.draft.sampling?.standard_offset ?? 'longitude',
   }
 
   useEffect(() => {
@@ -81,7 +88,16 @@ export function ExplorePanel() {
                 type="button"
                 key={`${place.lat},${place.lon}`}
                 onClick={() => {
-                  run({ type: 'editQuery', patch: { locations: place } })
+                  run({
+                    type: 'editQuery',
+                    // Geocoding does not resolve time zones; start from longitude-based time.
+                    patch: {
+                      locations: {
+                        ...place,
+                        standard_offset_minutes: nominalOffsetMinutes(place.lon),
+                      },
+                    },
+                  })
                   setPlaces([])
                 }}
               >
@@ -119,7 +135,7 @@ export function ExplorePanel() {
                   onChange={(event) =>
                     run({
                       type: 'editQuery',
-                      patch: { locations: { ...location, lon: Number(event.target.value) } },
+                      patch: { locations: followOffset(location, Number(event.target.value)) },
                     })
                   }
                 />
@@ -143,8 +159,37 @@ export function ExplorePanel() {
                   })
                 }
               />
-              <small>Minutes from UTC; daylight saving time is not applied.</small>
+              <small>
+                Minutes from UTC ({formatOffset(location.standard_offset_minutes ?? 0)}); daylight
+                saving time is not applied. Longitude suggests{' '}
+                {formatOffset(nominalOffsetMinutes(location.lon))}; use the site's legal standard
+                time if it differs.
+              </small>
             </label>
+            {offsetMismatch(location.standard_offset_minutes ?? 0, location.lon) && (
+              <p className="warning offset-warning" role="status">
+                {formatOffset(location.standard_offset_minutes ?? 0)} is far from this longitude's{' '}
+                {formatOffset(nominalOffsetMinutes(location.lon))}: EPW hours of day will look
+                shifted.{' '}
+                <button
+                  type="button"
+                  className="link-button"
+                  onClick={() =>
+                    run({
+                      type: 'editQuery',
+                      patch: {
+                        locations: {
+                          ...location,
+                          standard_offset_minutes: nominalOffsetMinutes(location.lon),
+                        },
+                      },
+                    })
+                  }
+                >
+                  Use {formatOffset(nominalOffsetMinutes(location.lon))}
+                </button>
+              </p>
+            )}
           </>
         ) : (
           <p className="notice">
@@ -333,6 +378,29 @@ export function ExplorePanel() {
             <small>km</small>
           </label>
         </div>
+        <label>
+          Standard time for sampled points
+          <select
+            value={sampling.standard_offset}
+            onChange={(event) =>
+              run({
+                type: 'editQuery',
+                patch: {
+                  sampling: {
+                    ...sampling,
+                    standard_offset: event.target.value as 'utc' | 'longitude',
+                  },
+                },
+              })
+            }
+          >
+            <option value="longitude">Longitude-based per point</option>
+            <option value="utc">UTC</option>
+          </select>
+          <small>
+            Sets each sampled EPW's fixed time zone. Longitude-based keeps solar noon near 12:00.
+          </small>
+        </label>
         <div className={`sample-count ${preview?.executable === false ? 'warning' : ''}`}>
           {preview ? (
             <>

@@ -483,3 +483,21 @@ it('remembers the map point whose details were opened until the query changes', 
   useApp.getState().edit({ years: [2023] })
   expect(useApp.getState().selectedLocationId).toBeNull()
 })
+
+it('migrates saved drafts so sampled points default to longitude-based standard time', async () => {
+  const { DEFAULT_SAMPLING } = await import('./store')
+  const draft = { ...useApp.getState().draft, sampling: { dx_km: 10, dy_km: 10 } }
+  localStorage.setItem(
+    'openepw.draft.v2',
+    JSON.stringify({
+      state: { draft, future: useApp.getState().future, stage: 'explore' },
+      version: 2,
+    }),
+  )
+  await useApp.persist.rehydrate()
+  expect(useApp.getState().draft.sampling).toEqual({
+    ...DEFAULT_SAMPLING,
+    dx_km: 10,
+    dy_km: 10,
+  })
+})

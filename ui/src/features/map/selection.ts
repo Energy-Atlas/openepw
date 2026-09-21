@@ -1,3 +1,5 @@
+import { nominalOffsetMinutes } from '../../app/timezone'
+
 export type DrawMode = 'point' | 'points' | 'bbox' | 'polygon'
 export type Position = [number, number]
 
@@ -67,7 +69,12 @@ export function geometry(mode: DrawMode, vertices: Position[]) {
     )
   )
     throw Error('Select valid coordinates')
-  const points = vertices.map(([lon, lat]) => ({ lat, lon, standard_offset_minutes: 0 }))
+  // New points default to longitude-based standard time, not UTC.
+  const points = vertices.map(([lon, lat]) => ({
+    lat,
+    lon,
+    standard_offset_minutes: nominalOffsetMinutes(lon),
+  }))
   if (mode === 'point') return points[0]
   if (mode === 'points') return points
   if (mode === 'bbox') {

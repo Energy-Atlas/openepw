@@ -3,6 +3,7 @@ import { api, type Artifact, type Schemas } from '../../api/client'
 import { run } from '../../app/actions'
 import { useApp } from '../../app/store'
 import { canNavigate, deriveWorkflow } from '../../app/workflow'
+import { formatOffset } from '../../app/timezone'
 
 type Summary = Schemas['WeatherVisualization']
 
@@ -68,6 +69,10 @@ export function BaselineSummary({ baseline }: { baseline: Artifact }) {
             <dd>
               {current.timestamps[0]?.slice(0, 10)} – {current.timestamps.at(-1)?.slice(0, 10)}
             </dd>
+          </div>
+          <div>
+            <dt>Time zone</dt>
+            <dd>{formatOffset(location?.standard_offset_minutes ?? 0)} standard time</dd>
           </div>
           <div>
             <dt>Calendar</dt>
