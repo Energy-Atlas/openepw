@@ -9,7 +9,7 @@ import {
 import type { GeoJSONSourceSpecification, StyleSpecification } from 'maplibre-gl'
 import { Component, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import type { Artifact, Schemas } from '../../api/client'
+import { api, type Artifact, type Schemas } from '../../api/client'
 import { run } from '../../app/actions'
 import { useApp } from '../../app/store'
 import type { Appearance } from '../../shell/appearances'
@@ -18,6 +18,11 @@ import { coverageBeforeIds, datasetColor } from './datasetColor'
 import { GeometryToolbar } from './GeometryToolbar'
 import { PointGlyph, type DatasetPointStatus } from './PointGlyph'
 import { VertexHandles } from './VertexHandles'
+import {
+  createPreviewScheduler,
+  provisionalRequest,
+  type SpatialPreview,
+} from './provisionalPreview'
 import {
   applyShape,
   canFinish,
@@ -63,6 +68,22 @@ function WeatherMap({ appearance }: { appearance: Appearance }) {
   const [vertices, setVertices] = useState<Position[]>([])
   // Editing reopens the applied geometry's vertices; drawing builds a new shape.
   const [editing, setEditing] = useState(false)
+  // Provisional sampling of the working shape; never stored, never authoritative.
+  const [provisional, setProvisional] = useState<SpatialPreview | null>(null)
+  const scheduler = useMemo(
+    () =>
+      createPreviewScheduler({
+        fetch: (request, signal) => api.spatialPreview(request, signal),
+        onResult: setProvisional,
+      }),
+    [],
+  )
+  useEffect(() => () => scheduler.dispose(), [scheduler])
+  const provisionalKey = JSON.stringify(
+    drawing || editing ? provisionalRequest(state.draft, mode, vertices) : null,
+  )
+  useEffect(() => scheduler.schedule(JSON.parse(provisionalKey)), [scheduler, provisionalKey])
+  const provisionalShown = (drawing || editing) && provisional
   const [loaded, setLoaded] = useState(false)
   // The store owns which overlays are on (so discovery can enable them); opacity is local.
   const [opacities, setOpacities] = useState<Record<string, number>>({})
@@ -313,6 +334,13 @@ function WeatherMap({ appearance }: { appearance: Appearance }) {
       >
         Fit selection
       </button>
+      {provisionalShown && (
+        <p className="map-provisional" role="status">
+          Updating preview: ~{provisional.total_count.toLocaleString()} sample points
+          {provisional.executable ? '' : `, over the ${provisional.execution_limit} limit`}. Not
+          applied until you finish.
+        </p>
+      )}
       {editing && (
         <div className="map-instruction">
           Drag a vertex handle, or focus one and use arrow keys (Shift moves farther) and Delete.
@@ -440,6 +468,30 @@ function WeatherMap({ appearance }: { appearance: Appearance }) {
             />
           </Source>
         )}
+        <Source
+          id="provisional-samples"
+          type="geojson"
+          data={{
+            type: 'FeatureCollection',
+            features: (provisionalShown ? provisional.locations : []).map((location) => ({
+              type: 'Feature' as const,
+              geometry: { type: 'Point' as const, coordinates: [location.lon, location.lat] },
+              properties: {},
+            })),
+          }}
+        >
+          <Layer
+            id="provisional-sample-points"
+            type="circle"
+            paint={{
+              'circle-radius': 4,
+              'circle-color': appearance.chrome.textMuted,
+              'circle-opacity': 0.5,
+              'circle-stroke-color': appearance.chrome.surface,
+              'circle-stroke-width': 1,
+            }}
+          />
+        </Source>
         {(drawing || editing) && (
           <VertexHandles
             vertices={vertices}
