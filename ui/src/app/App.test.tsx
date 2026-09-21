@@ -98,6 +98,28 @@ it('closes only the confirmation dialog when Escape is pressed above a narrow dr
   ).toBe('true')
 })
 
+it('offers a narrow stage selector that reaches earlier stages and respects locks', () => {
+  Object.defineProperty(window, 'innerWidth', { configurable: true, value: 700 })
+  useApp.setState({ stage: 'download', discovery: { candidates: [] } as any })
+  render(<App />)
+  const selector = screen.getByRole('combobox', { name: 'Workflow stage' }) as HTMLSelectElement
+  expect(selector.value).toBe('download')
+  expect((screen.getByRole('option', { name: /Project/ }) as HTMLOptionElement).disabled).toBe(true)
+  fireEvent.change(selector, { target: { value: 'explore' } })
+  expect(useApp.getState().stage).toBe('explore')
+})
+
+it('makes the map inert while a narrow drawer is open', () => {
+  Object.defineProperty(window, 'innerWidth', { configurable: true, value: 700 })
+  render(<App />)
+  const map = screen.getByLabelText('Weather map workspace')
+  expect(map.hasAttribute('inert')).toBe(false)
+  fireEvent.click(screen.getByRole('button', { name: 'Controls' }))
+  expect(map.hasAttribute('inert')).toBe(true)
+  fireEvent.keyDown(document, { key: 'Escape' })
+  expect(map.hasAttribute('inert')).toBe(false)
+})
+
 it('supports keyboard resizing with range semantics', () => {
   render(<App />)
   const separator = screen.getByRole('separator', { name: 'Resize stage controls' })

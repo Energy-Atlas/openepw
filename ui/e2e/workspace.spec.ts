@@ -105,10 +105,10 @@ test('Explore, Download and Project complete with confirmation and the artifact 
   const plan = page.getByRole('region', { name: 'Reviewed plan' })
   await expect(plan).toContainText('EPW mappings')
   const cds = page.getByLabel('cds / reanalysis-era5-single-levels')
+  // No job has completed yet, so a dataset change applies without a confirmation.
   await cds.click()
-  await expect(page.getByRole('alertdialog', { name: 'Update upstream inputs?' })).toBeVisible()
-  await page.getByRole('button', { name: 'Apply change' }).click()
   await expect(cds).toBeChecked()
+  await expect(page.getByRole('alertdialog')).toHaveCount(0)
   await expect(plan).not.toContainText('This plan is stale and cannot run.')
   await expect(run).toBeEnabled()
   await run.click()
@@ -149,6 +149,7 @@ test('appearances, narrow drawers, draft reload and map failure stay accessible'
 
   await page.setViewportSize({ width: 700, height: 850 })
   await expect(page.getByLabel('Weather map workspace')).toBeVisible()
+  await expect(page.getByRole('combobox', { name: 'Workflow stage' })).toHaveValue('explore')
   await page.getByRole('button', { name: 'Controls' }).click()
   await expect(page.getByRole('complementary', { name: 'Stage controls' })).toBeVisible()
   await page.getByRole('button', { name: 'Agent panel' }).click()

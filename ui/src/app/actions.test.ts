@@ -330,12 +330,35 @@ it('creates a new immutable Project job for an intentional rerun', async () => {
   expect(useApp.getState().projectJobs.map((job) => job.id)).toEqual(['second', 'first'])
 })
 
-it('confirms an upstream edit before invalidating a current reviewed plan', async () => {
+it('applies upstream edits directly when only derived discovery or plan state is current', async () => {
+  const plan = { kind: 'weather', plan_hash: 'current' } as any
+  useApp.setState({
+    discovery: { candidates: [{ id: 'candidate' }] } as any,
+    discoveryVersion: 0,
+    weatherPlan: plan,
+    weatherPlanRequestVersion: 0,
+    weatherPlanSelectionVersion: 0,
+    futurePlan: { kind: 'future', plan_hash: 'future' } as any,
+    futurePlanVersion: 0,
+    futurePlanBaselineId: '',
+  })
+
+  await dispatch({ type: 'editQuery', patch: { years: [2022] } })
+  await dispatch({ type: 'selectDatasets', selections: [] })
+  await dispatch({ type: 'editFuture', patch: { target_year: 2060 } })
+
+  expect(useApp.getState().pendingConfirmation).toBeNull()
+  expect(useApp.getState().requestVersion).toBe(1)
+  expect(useApp.getState().future.target_year).toBe(2060)
+})
+
+it('confirms an upstream edit before completed downstream work becomes stale', async () => {
   const plan = { kind: 'weather', plan_hash: 'current' } as any
   useApp.setState({
     weatherPlan: plan,
     weatherPlanRequestVersion: 0,
     weatherPlanSelectionVersion: 0,
+    downloadJobs: [{ id: 'done', plan_hash: 'current', state: 'completed' } as any],
   })
 
   await dispatch({ type: 'editQuery', patch: { years: [2022] } })
@@ -345,4 +368,19 @@ it('confirms an upstream edit before invalidating a current reviewed plan', asyn
   await confirmPendingAction()
   expect(useApp.getState().requestVersion).toBe(1)
   expect(useApp.getState().draft.years).toEqual([2022])
+})
+
+it('confirms a Project edit when a completed projection used the current plan', async () => {
+  useApp.setState({
+    futurePlan: { kind: 'future', plan_hash: 'projection' } as any,
+    futurePlanVersion: 0,
+    futurePlanBaselineId: '',
+    future: { ...useApp.getState().future, baseline: '' },
+    projectJobs: [{ id: 'done', plan_hash: 'projection', state: 'completed' } as any],
+  })
+
+  await dispatch({ type: 'editFuture', patch: { target_year: 2070 } })
+
+  expect(useApp.getState().pendingConfirmation?.title).toMatch(/upstream/i)
+  expect(useApp.getState().future.target_year).not.toBe(2070)
 })

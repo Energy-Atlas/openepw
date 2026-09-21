@@ -64,24 +64,34 @@ function isInvalidatingAction(action: AppAction): action is InvalidatingAction {
   return ['editQuery', 'editFuture', 'selectDatasets'].includes(action.type)
 }
 
+const terminalJobStates = new Set(['completed', 'partially_completed', 'failed', 'cancelled'])
+
+function completedFrom(jobs: State['downloadJobs'], plan: State['plan'], current: boolean) {
+  return (
+    current &&
+    plan != null &&
+    jobs.some((job) => terminalJobStates.has(job.state) && job.plan_hash === plan.plan_hash)
+  )
+}
+
+// Only completed downstream work warrants confirmation; current discoveries and plans are
+// derived, reversible state and refresh automatically after an edit.
 function invalidatesCurrentWork(state: State, action: InvalidatingAction) {
-  if (action.type === 'editQuery')
-    return (
-      state.discoveryVersion === state.requestVersion ||
-      (state.weatherPlanRequestVersion === state.requestVersion &&
-        state.weatherPlanSelectionVersion === state.selectionVersion) ||
-      state.baselineOrigin === 'download'
-    )
-  if (action.type === 'selectDatasets')
-    return (
-      (state.weatherPlanRequestVersion === state.requestVersion &&
-        state.weatherPlanSelectionVersion === state.selectionVersion) ||
-      state.baselineOrigin === 'download'
+  if (action.type === 'editFuture')
+    return completedFrom(
+      state.projectJobs,
+      state.futurePlan,
+      state.futurePlanVersion === state.futureVersion &&
+        state.futurePlanBaselineId === state.future.baseline,
     )
   return (
-    action.type === 'editFuture' &&
-    state.futurePlanVersion === state.futureVersion &&
-    state.futurePlanBaselineId === state.future.baseline
+    state.baselineOrigin === 'download' ||
+    completedFrom(
+      state.downloadJobs,
+      state.weatherPlan,
+      state.weatherPlanRequestVersion === state.requestVersion &&
+        state.weatherPlanSelectionVersion === state.selectionVersion,
+    )
   )
 }
 

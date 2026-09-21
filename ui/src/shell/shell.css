@@ -841,6 +841,11 @@ footer {
   opacity: 0.45;
   cursor: not-allowed;
 }
+.stage-select {
+  min-width: 0;
+  max-width: 100%;
+  font-weight: 550;
+}
 .header-actions {
   display: flex;
   align-items: center;
@@ -1439,15 +1444,9 @@ footer {
     display: grid;
     grid-template-columns: auto 1fr auto;
   }
-  .stage-stepper button {
-    display: none;
-    min-width: 0;
-  }
-  .stage-stepper button[aria-current='step'] {
-    display: inline-flex;
-  }
-  .stage-stepper button[aria-current='step']::after {
-    content: ' ▾';
+  .stage-stepper {
+    align-items: center;
+    justify-content: start;
   }
   .header-actions > button span,
   .run-reason,

@@ -115,23 +115,39 @@ export function App() {
           <strong>openepw</strong>
         </div>
         <nav className="stage-stepper" aria-label="Workflow stages">
-          {stages.map((stage, index) => {
-            const available = canNavigate(workflow, stage)
-            return (
-              <button
-                type="button"
-                key={stage}
-                aria-label={stage[0].toUpperCase() + stage.slice(1)}
-                aria-current={state.stage === stage ? 'step' : undefined}
-                aria-disabled={!available || undefined}
-                onClick={() => available && run({ type: 'navigate', stage })}
-              >
-                <span>{index + 1}</span>
-                <strong>{stage[0].toUpperCase() + stage.slice(1)}</strong>
-                {workflow.stages[stage].complete && <i aria-label="complete">✓</i>}
-              </button>
-            )
-          })}
+          {narrow ? (
+            <select
+              className="stage-select"
+              aria-label="Workflow stage"
+              value={state.stage}
+              onChange={(event) => run({ type: 'navigate', stage: event.target.value as Stage })}
+            >
+              {stages.map((stage, index) => (
+                <option key={stage} value={stage} disabled={!canNavigate(workflow, stage)}>
+                  {index + 1}. {stage[0].toUpperCase() + stage.slice(1)}
+                  {workflow.stages[stage].complete ? ' ✓' : ''}
+                </option>
+              ))}
+            </select>
+          ) : (
+            stages.map((stage, index) => {
+              const available = canNavigate(workflow, stage)
+              return (
+                <button
+                  type="button"
+                  key={stage}
+                  aria-label={stage[0].toUpperCase() + stage.slice(1)}
+                  aria-current={state.stage === stage ? 'step' : undefined}
+                  aria-disabled={!available || undefined}
+                  onClick={() => available && run({ type: 'navigate', stage })}
+                >
+                  <span>{index + 1}</span>
+                  <strong>{stage[0].toUpperCase() + stage.slice(1)}</strong>
+                  {workflow.stages[stage].complete && <i aria-label="complete">✓</i>}
+                </button>
+              )
+            })
+          )}
         </nav>
         <div className="header-actions">
           <button type="button" ref={historyTrigger} onClick={() => setHistoryOpen(true)}>
@@ -214,7 +230,12 @@ export function App() {
             </button>
           </div>
         )}
-        <div className="map-workspace" aria-label="Weather map workspace">
+        <div
+          className="map-workspace"
+          aria-label="Weather map workspace"
+          // A narrow drawer is modal over the map: keep focus and pointer input out of it.
+          inert={narrow && drawer !== null}
+        >
           <MapView appearance={appearance} />
           {state.inspector.open && state.visualization && (
             <WeatherInspector appearance={appearance} />
