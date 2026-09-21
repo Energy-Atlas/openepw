@@ -2,6 +2,7 @@ import { Send, ShieldAlert, Terminal, Wrench } from 'lucide-react'
 import { useState } from 'react'
 import { run } from '../../app/actions'
 import { useApp } from '../../app/store'
+import { callStatus, groupTranscript } from './transcript'
 import { recipes, runRecipe } from './runner'
 
 type Pending = {
@@ -68,21 +69,34 @@ export function AgentPanel() {
             </p>
           </article>
         )}
-        {state.logs.map((entry) => (
-          <article className={`agent-entry ${entry.kind}`} key={entry.id}>
-            <div>
-              {entry.kind === 'tool' ? <Wrench size={13} aria-hidden="true" /> : null}
-              <small>
-                {entry.kind === 'tool'
-                  ? 'Tool call'
-                  : entry.kind === 'error'
-                    ? 'Failed'
-                    : 'Observed'}
-              </small>
-            </div>
-            <p>{entry.text}</p>
-          </article>
-        ))}
+        {groupTranscript(state.logs).map((item, index, items) =>
+          item.kind === 'note' ? (
+            <article className={`agent-entry ${item.entry.kind}`} key={item.id}>
+              <div>
+                <small>{item.entry.kind === 'error' ? 'Failed' : 'Observed'}</small>
+              </div>
+              <p>{item.entry.text}</p>
+            </article>
+          ) : (
+            <details
+              className={`agent-card ${callStatus(item)}`}
+              key={item.id}
+              open={index === items.length - 1 || callStatus(item) === 'failed'}
+            >
+              <summary>
+                <Wrench size={13} aria-hidden="true" />
+                <span>{item.call.text}</span>
+                <small className="agent-card-status">{callStatus(item)}</small>
+              </summary>
+              {item.results.map((result) => (
+                <p key={result.id} className={result.kind === 'error' ? 'error-text' : undefined}>
+                  {result.text}
+                </p>
+              ))}
+              {!item.results.length && <p>Waiting for the result…</p>}
+            </details>
+          ),
+        )}
         {pending && (
           <article className="agent-confirmation" aria-label={pending.title}>
             <div>

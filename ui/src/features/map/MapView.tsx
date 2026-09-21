@@ -58,7 +58,8 @@ function WeatherMap({ appearance }: { appearance: Appearance }) {
   const [opacities, setOpacities] = useState<Record<string, number>>({})
   const coverage: CoverageSetting[] = state.selectedCoverageIds.map((id) => ({
     id,
-    opacity: opacities[id] ?? 0.32,
+    // Light by default so an automatically enabled extent never hides the map.
+    opacity: opacities[id] ?? 0.18,
   }))
   const [camera, setCamera] = useState({
     longitude: -76.5,

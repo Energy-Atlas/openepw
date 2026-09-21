@@ -46,7 +46,7 @@ it('labels documented and unknown coverage without implying availability', () =>
   expect(screen.getByText('Extents are not observed availability.')).toBeTruthy()
   expect(screen.getByText('No mapped extent; coverage is unknown.')).toBeTruthy()
   fireEvent.click(screen.getByRole('checkbox', { name: /Known extent/ }))
-  expect(change).toHaveBeenCalledWith([{ id: 'known', opacity: 0.32 }])
+  expect(change).toHaveBeenCalledWith([{ id: 'known', opacity: 0.18 }])
 })
 
 it('renders unlimited status segments and opens an artifact picker', () => {

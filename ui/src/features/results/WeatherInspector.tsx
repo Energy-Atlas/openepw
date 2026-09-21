@@ -1,10 +1,12 @@
 import { ChevronDown, Download, GripHorizontal } from 'lucide-react'
+import { useState } from 'react'
 import { api } from '../../api/client'
 import { run } from '../../app/actions'
 import { useApp } from '../../app/store'
 import type { Appearance } from '../../shell/appearances'
 import { clampPanelSize } from '../../shell/panels'
 import { WeatherCharts } from './WeatherCharts'
+import { WeatherTable } from './WeatherTable'
 
 // Continuous EPW variables the visualization endpoint accepts (see openepw.dataset.UNITS).
 export const VARIABLES = [
@@ -29,6 +31,7 @@ export const VARIABLES = [
 
 export function WeatherInspector({ appearance }: { appearance: Appearance }) {
   const state = useApp()
+  const [view, setView] = useState<'charts' | 'table'>('charts')
   const visualization = state.visualization
   const artifact = state.artifact
   if (!visualization || !artifact) return null
@@ -142,6 +145,14 @@ export function WeatherInspector({ appearance }: { appearance: Appearance }) {
         </button>
       </header>
       <div className="inspector-meta">
+        <span className="inspector-view" role="group" aria-label="Inspector view">
+          <button type="button" aria-pressed={view === 'charts'} onClick={() => setView('charts')}>
+            Charts
+          </button>
+          <button type="button" aria-pressed={view === 'table'} onClick={() => setView('table')}>
+            Table
+          </button>
+        </span>
         <span>Source years: {formatSourceYears(visualization.source_years)}</span>
         {visualization.total_rows === 8784 && <span>Leap day retained</span>}
         {visualization.synthetic_chronology && (
@@ -163,7 +174,9 @@ export function WeatherInspector({ appearance }: { appearance: Appearance }) {
           <span key={warning}>{warning}</span>
         ))}
       </div>
-      {heatVariable ? (
+      {view === 'table' ? (
+        <WeatherTable artifactId={artifact.id} preview={state.preview} busy={state.busy} />
+      ) : heatVariable ? (
         <WeatherCharts
           visualization={visualization}
           heatVariable={heatVariable}

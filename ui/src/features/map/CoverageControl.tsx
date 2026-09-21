@@ -51,7 +51,7 @@ export function CoverageControl({
                     onChange={(event) =>
                       onChange(
                         event.target.checked
-                          ? [...selected, { id: layer.id, opacity: 0.32 }]
+                          ? [...selected, { id: layer.id, opacity: 0.18 }]
                           : selected.filter((item) => item.id !== layer.id),
                       )
                     }
