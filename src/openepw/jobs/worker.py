@@ -6,6 +6,19 @@ from concurrent.futures import ThreadPoolExecutor
 from ..models import Issue, OpenEPWError, WeatherPlan, utcnow
 from .store import JobStore
 
+TERMINAL = ("completed", "partially_completed", "failed", "cancelled")
+
+
+def subplan(plan, outputs):
+    """A plan restricted to the given outputs and the tasks they need, with a fresh hash."""
+    names = {output.name for output in outputs}
+    task_ids = {task_id for output in outputs for task_id in output.task_ids}
+    raw = plan.model_dump(mode="json", exclude={"plan_hash"})
+    raw["outputs"] = [o.model_dump(mode="json") for o in plan.outputs if o.name in names]
+    raw["tasks"] = [t.model_dump(mode="json") for t in plan.tasks if t.id in task_ids]
+    raw["issues"] = []
+    return WeatherPlan.model_validate(raw)
+
 
 class JobRunner:
     def __init__(self, service, store=None):
@@ -21,6 +34,22 @@ class JobRunner:
         job = self.store.submit(plan, idempotency_key)
         self.enqueue(job.id)
         return job
+
+    def retry_failed(self, job_id, idempotency_key=None):
+        """Submit a new job for the outputs a finished job did not produce."""
+        job = self.store.get(job_id)
+        if job.state not in TERMINAL:
+            raise OpenEPWError("INVALID_REQUEST", "Only a finished job can be retried")
+        plan = self.store.plan(job_id)
+        if plan.kind == "future":
+            if job.state == "completed":
+                raise OpenEPWError("NOTHING_TO_RETRY", "The projection job has no failed outputs")
+            return self.submit(plan, idempotency_key)
+        produced = {name for name, bundle in self.store.items(job_id).items() if bundle.weather}
+        failed = [o for o in {o.name: o for o in plan.outputs}.values() if o.name not in produced]
+        if not failed:
+            raise OpenEPWError("NOTHING_TO_RETRY", "Every planned output was produced")
+        return self.submit(subplan(plan, failed), idempotency_key)
 
     def enqueue(self, job_id):
         with self.lock:
@@ -77,15 +106,9 @@ class JobRunner:
             if name in completed:
                 continue
             try:
-                subplan = plan
-                if output:
-                    raw = plan.model_dump(mode="json", exclude={"plan_hash"})
-                    raw["outputs"] = [o.model_dump() for o in plan.outputs if o.name == output.name]
-                    raw["tasks"] = [t.model_dump() for t in plan.tasks if t.id in output.task_ids]
-                    raw["issues"] = []
-                    subplan = WeatherPlan.model_validate(raw)
                 bundle = self.service.execute(
-                    subplan, cancelled=lambda: self.store.get(job_id).cancellation_requested
+                    subplan(plan, [output]) if output else plan,
+                    cancelled=lambda: self.store.get(job_id).cancellation_requested,
                 )
                 self.store.complete_item(job_id, name, bundle)
                 completed[name] = bundle

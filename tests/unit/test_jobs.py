@@ -112,6 +112,59 @@ def test_running_job_persists_completed_and_failed_progress(tmp_path):
     assert snapshots[-1] == ("partially_completed", 1, 1)
 
 
+def test_retry_failed_submits_only_the_outputs_a_job_did_not_produce(tmp_path):
+    import pytest
+
+    class FailingProvider(StationProvider):
+        name = "broken"
+
+        def fetch(self, task, http):
+            raise OpenEPWError("SOURCE_FAILED", "Synthetic source failure")
+
+    service = WeatherService(
+        RuntimeConfig(data_root=tmp_path), providers=[StationProvider(), FailingProvider()]
+    )
+    plan = service.plan(
+        WeatherRequest(
+            locations=Location(lat=1, lon=0),
+            start="2024-01-01",
+            end="2024-01-01",
+            dataset_selections=[
+                {"provider": "station", "dataset": "synthetic"},
+                {"provider": "broken", "dataset": "synthetic"},
+            ],
+        )
+    )
+    store = JobStore(tmp_path)
+    runner = JobRunner(service, store)
+    job = store.submit(plan)
+    runner.run(job.id)
+    assert store.get(job.id).state == "partially_completed"
+    runner.enqueue = lambda job_id: None  # run synchronously below
+
+    retry = runner.retry_failed(job.id, "retry-1")
+    retried = store.plan(retry.id)
+    assert retry.total == 1
+    assert [o.dataset_selection.provider for o in retried.outputs] == ["broken"]
+    assert {t.id for t in retried.tasks} == set(retried.outputs[0].task_ids)
+    assert retried.plan_hash != plan.plan_hash
+    assert runner.retry_failed(job.id, "retry-1").id == retry.id
+
+    runner.run(retry.id)
+    assert store.get(retry.id).state == "failed"
+
+    complete = store.submit(
+        service.plan(
+            WeatherRequest(locations=Location(lat=2, lon=0), start="2024-01-01", end="2024-01-01")
+        )
+    )
+    with pytest.raises(OpenEPWError, match="INVALID_REQUEST"):
+        runner.retry_failed(complete.id)
+    runner.run(complete.id)
+    with pytest.raises(OpenEPWError, match="NOTHING_TO_RETRY"):
+        runner.retry_failed(complete.id)
+
+
 def test_restart_resumes_after_verified_completed_item(tmp_path):
     from openepw.models import WeatherPlan
 

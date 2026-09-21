@@ -77,6 +77,10 @@ status = client.get("/v1/jobs/" + job["id"]).raise_for_status().json()
 
 Poll until a terminal state, then read `bundle`. Use POST `/v1/jobs/{id}/cancel`
 for cooperative cancellation; an in-flight external request may finish first.
+POST `/v1/jobs/{id}/retry` (optional `idempotency_key`) starts a new job for only the
+outputs a finished job did not produce; it returns `NOTHING_TO_RETRY` when every output
+exists. Jobs report `kind` (`weather` or `future`) and update `completed`/`failed` as
+each output finishes, so clients can show progress.
 GET `/v1/artifacts/{id}` downloads a verified artifact. POST `/v1/artifacts` accepts
 multipart EPW upload and returns the baseline ID for future requests. No request
 accepts API keys; configure server runtime credentials. A repeated idempotency key

@@ -73,3 +73,11 @@ def test_sampled_partial_source_failure_keeps_successful_epws(tmp_path, monkeypa
         assert all(issue["code"] == "SOURCE_UNAVAILABLE" for issue in result["errors"])
         listed = client.get("/v1/jobs").json()["items"]
         assert [(item["id"], item["state"]) for item in listed] == [(job_id, "partially_completed")]
+
+        # Retrying submits only the missing outputs; the synthetic source fails again.
+        retry = client.post(f"/v1/jobs/{job_id}/retry", json={"idempotency_key": "retry"})
+        assert retry.status_code == 202
+        assert retry.json()["total"] == result["failed"]
+        assert retry.json()["kind"] == "weather"
+        missing = client.post("/v1/jobs/unknown/retry")
+        assert missing.status_code == 404
