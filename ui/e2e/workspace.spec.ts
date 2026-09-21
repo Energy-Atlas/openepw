@@ -17,7 +17,7 @@ test.beforeEach(async ({ page }) => {
     return route.abort()
   })
   await page.goto('./')
-  await expect(page.getByText('1 sample points')).toBeVisible()
+  await expect(page.getByText('1 sample points')).toBeVisible({ timeout: 15000 })
 })
 
 async function discover(page: Page) {
@@ -32,8 +32,27 @@ async function startDownload(page: Page) {
   await page.getByRole('button', { name: 'Confirm job' }).click()
 }
 
+async function addCdsToReviewedPlan(page: Page) {
+  const plan = page.getByRole('region', { name: 'Reviewed plan' })
+  await expect(plan).toContainText('EPW mappings')
+  const cds = page.getByLabel('cds / reanalysis-era5-single-levels')
+  await cds.click()
+  await expect(page.getByRole('alertdialog', { name: 'Update upstream inputs?' })).toBeVisible()
+  await page.getByRole('button', { name: 'Apply change' }).click()
+  await expect(cds).toBeChecked()
+  await expect(plan).not.toContainText('This plan is stale and cannot run.')
+}
+
 test('Explore sends one spatial preview for an unchanged query', async ({ page }) => {
   let previews = 0
+  let delayOnePreview = false
+  await page.route('**/v1/spatial/preview', async (route) => {
+    if (delayOnePreview) {
+      delayOnePreview = false
+      await new Promise((resolve) => setTimeout(resolve, 6000))
+    }
+    await route.continue()
+  })
   page.on('request', (request) => {
     if (new URL(request.url()).pathname === '/v1/spatial/preview') previews++
   })
@@ -42,9 +61,12 @@ test('Explore sends one spatial preview for an unchanged query', async ({ page }
   await page.waitForTimeout(1500)
   expect(previews).toBe(1)
 
+  delayOnePreview = true
   await page.getByLabel('Latitude').fill('41.5')
   await expect.poll(() => previews).toBe(2)
-  await expect(page.getByText('Working with the OpenEPW service…')).toHaveCount(0)
+  await expect(page.getByText('Working with the OpenEPW service…')).toHaveCount(0, {
+    timeout: 15000,
+  })
   await page.getByRole('button', { name: 'More run options' }).click()
   await page.getByRole('menuitem', { name: 'Refresh sample preview' }).click()
   await expect.poll(() => previews).toBe(3)
@@ -92,7 +114,7 @@ test('multi-dataset Download runs, advances asynchronously and opens the full ar
   page,
 }) => {
   await discover(page)
-  await page.getByLabel('cds / reanalysis-era5-single-levels').check()
+  await addCdsToReviewedPlan(page)
   const run = page.getByRole('button', { name: 'Download weather' })
   await expect(run).toBeEnabled()
   await startDownload(page)
@@ -136,7 +158,7 @@ test('a sampled partial source failure remains explicit while successful EPWs un
   })
   await expect(page.getByText(/[2-9] sample points/)).toBeVisible()
   await discover(page)
-  await page.getByLabel('cds / reanalysis-era5-single-levels').check()
+  await addCdsToReviewedPlan(page)
   await expect(page.getByRole('button', { name: 'Download weather' })).toBeEnabled()
   await startDownload(page)
   await expect(page.getByRole('heading', { name: 'Project', exact: true })).toBeVisible({
