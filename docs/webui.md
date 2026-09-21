@@ -1,5 +1,9 @@
 # Local web UI
 
+> **Approved redesign:** [Map-first staged UI](superpowers/specs/2026-09-20-webui-workflow-redesign.md)
+> is the implementation contract for the next UI revision. The operating guidance
+> below describes the currently shipped interface until that redesign is built.
+
 The UI is optional and lives in the same repository. Python is the canonical
 service. Install the desired Python extras, run `npm ci --prefix ui` and
 `npm --prefix ui run build` with Node 24, then from the root run:

@@ -4,6 +4,12 @@ Status: approved on 2026-09-20 for autonomous implementation. Local-first, singl
 Branch: preserve `feature/webui`. Baseline backend: `b1f8d4a`.
 Reference: `../energyatlas-ui`, `feature/agentic`, inspected commit `e52d513`.
 
+> **Superseded in part:** [the map-first staged workflow redesign](2026-09-20-webui-workflow-redesign.md)
+> replaces this document's workflow, information architecture, layout, map-mode,
+> results-placement, raw-JSON, hybrid-control and Agent interaction decisions.
+> Deployment, security, provenance, packaging and other non-conflicting decisions
+> below remain valid.
+
 ## Confirmed intent
 
 Build a simple, useful OpenEPW frontend in this repository under `ui/`. Reuse the
