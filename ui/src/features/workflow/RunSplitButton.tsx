@@ -9,7 +9,7 @@ export function RunSplitButton() {
   const state = useApp()
   const workflow = deriveWorkflow(state)
   const [open, setOpen] = useState(false)
-  const [confirming, setConfirming] = useState<'run' | 'rerun' | null>(null)
+  const [confirming, setConfirming] = useState<'run' | 'rerun' | 'retry' | null>(null)
   const menuTrigger = useRef<HTMLButtonElement>(null)
   const runPrimary = useRef<HTMLButtonElement>(null)
   const menu = useRef<HTMLDivElement>(null)
@@ -17,6 +17,17 @@ export function RunSplitButton() {
   const confirmationOpener = useRef<HTMLElement | null>(null)
   const blocked = !workflow.run.enabled
   const confirmationPlan = state.stage === 'project' ? state.futurePlan : state.weatherPlan
+  const latestJob =
+    state.stage === 'download'
+      ? state.downloadJobs[0]
+      : state.stage === 'project'
+        ? state.projectJobs[0]
+        : undefined
+  // Only finished jobs that are missing outputs can be retried.
+  const retryable =
+    latestJob &&
+    ['partially_completed', 'failed', 'cancelled'].includes(latestJob.state) &&
+    latestJob.completed < latestJob.total
 
   useEffect(() => {
     if (open) menu.current?.querySelector<HTMLButtonElement>('[role="menuitem"]')?.focus()
@@ -34,6 +45,12 @@ export function RunSplitButton() {
       return
     }
     run({ type: 'runCurrentStage' })
+  }
+
+  function askToRetry() {
+    confirmationOpener.current = menuTrigger.current
+    setOpen(false)
+    setConfirming('retry')
   }
 
   function askToRerun() {
@@ -102,8 +119,13 @@ export function RunSplitButton() {
               <button role="menuitem" onClick={() => run({ type: 'planWeather' })}>
                 Refresh reviewed plan
               </button>
+              {retryable && (
+                <button role="menuitem" onClick={askToRetry}>
+                  Retry failed outputs
+                </button>
+              )}
               <button role="menuitem" onClick={askToRerun}>
-                Retry or rerun plan
+                Rerun the whole plan
               </button>
             </>
           )}
@@ -112,6 +134,11 @@ export function RunSplitButton() {
               <button role="menuitem" onClick={() => run({ type: 'planFuture' })}>
                 Refresh projection plan
               </button>
+              {retryable && (
+                <button role="menuitem" onClick={askToRetry}>
+                  Retry failed projection
+                </button>
+              )}
               <button role="menuitem" onClick={askToRerun}>
                 Generate another run
               </button>
@@ -128,10 +155,18 @@ export function RunSplitButton() {
           restoreFocus={confirmationOpener}
         >
           <strong>
-            {confirming === 'rerun' ? 'Run the reviewed plan again?' : `${workflow.run.label}?`}
+            {confirming === 'retry'
+              ? 'Retry the missing outputs?'
+              : confirming === 'rerun'
+                ? 'Run the reviewed plan again?'
+                : `${workflow.run.label}?`}
           </strong>
-          <p>This starts a server job using the current reviewed plan.</p>
-          {confirmationPlan && (
+          <p>
+            {confirming === 'retry' && latestJob
+              ? `This starts a new server job for the ${latestJob.total - latestJob.completed} outputs job ${latestJob.id.slice(0, 8)} did not produce. Its successful outputs are kept.`
+              : 'This starts a server job using the current reviewed plan.'}
+          </p>
+          {confirming !== 'retry' && confirmationPlan && (
             <dl className="confirmation-facts">
               <div>
                 <dt>{confirmationPlan.kind === 'future' ? 'Projection outputs' : 'EPW outputs'}</dt>
@@ -151,9 +186,14 @@ export function RunSplitButton() {
               ref={confirmButton}
               data-autofocus
               onClick={() => {
-                const action = confirming === 'rerun' ? 'rerunPlan' : 'runCurrentStage'
                 setConfirming(null)
-                run({ type: action, confirmed: true })
+                if (confirming === 'retry' && latestJob)
+                  run({ type: 'retryFailed', id: latestJob.id, confirmed: true })
+                else
+                  run({
+                    type: confirming === 'rerun' ? 'rerunPlan' : 'runCurrentStage',
+                    confirmed: true,
+                  })
               }}
             >
               Confirm job

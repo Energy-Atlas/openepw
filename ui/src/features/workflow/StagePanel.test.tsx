@@ -256,3 +256,29 @@ it('starts each stage at the top and scrolls a newly started job into view', () 
   expect(download.scrollTop).toBe(0)
   expect(screen.getByRole('region', { name: 'Downloading weather' })).toBeTruthy()
 })
+
+it('offers a confirmed retry only when the latest job is missing outputs', () => {
+  const partial = {
+    id: 'partial-123456',
+    kind: 'weather',
+    state: 'partially_completed',
+    total: 8,
+    completed: 6,
+    failed: 2,
+  }
+  useApp.setState({ stage: 'download', downloadJobs: [{ ...partial, state: 'completed' }] as any })
+  const { unmount } = render(<RunSplitButton />)
+  fireEvent.click(screen.getByRole('button', { name: 'More run options' }))
+  expect(screen.queryByRole('menuitem', { name: 'Retry failed outputs' })).toBeNull()
+  unmount()
+
+  useApp.setState({ downloadJobs: [partial] as any })
+  render(<RunSplitButton />)
+  fireEvent.click(screen.getByRole('button', { name: 'More run options' }))
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Retry failed outputs' }))
+  expect(screen.getByRole('alertdialog').textContent).toContain(
+    '2 outputs job partial- did not produce',
+  )
+  fireEvent.click(screen.getByRole('button', { name: 'Confirm job' }))
+  expect(run).toHaveBeenCalledWith({ type: 'retryFailed', id: 'partial-123456', confirmed: true })
+})

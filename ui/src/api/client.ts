@@ -62,6 +62,8 @@ export const api = {
     ),
   job: (id: string, signal?: AbortSignal) =>
     request<Job>('/v1/jobs/' + encodeURIComponent(id), { signal }),
+  retry: (id: string, key: string, signal?: AbortSignal) =>
+    post<Job>(`/v1/jobs/${encodeURIComponent(id)}/retry`, { idempotency_key: key }, signal),
   cancel: (id: string, signal?: AbortSignal) =>
     post<Job>(`/v1/jobs/${encodeURIComponent(id)}/cancel`, {}, signal),
   upload: (file: File, signal?: AbortSignal) => {

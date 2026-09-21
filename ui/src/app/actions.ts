@@ -15,6 +15,7 @@ export const ACTION_REGISTRY = {
   runCurrentStage: { confirmation: 'stage-dependent', reversible: false },
   submitPlan: { confirmation: 'job', reversible: false },
   rerunPlan: { confirmation: 'job', reversible: false },
+  retryFailed: { confirmation: 'job', reversible: false },
   selectJob: { confirmation: 'none', reversible: true },
   cancelJob: { confirmation: 'job', reversible: false },
   cancelActive: { confirmation: 'none', reversible: true },
@@ -43,6 +44,7 @@ export type AppAction =
         | 'loadCoverage'
     }
   | { type: 'rerunPlan'; confirmed?: boolean }
+  | { type: 'retryFailed'; id: string; confirmed?: boolean }
   | { type: 'runCurrentStage'; confirmed?: boolean }
   | { type: 'selectJob'; id: string }
   | { type: 'cancelJob'; id: string }
@@ -189,6 +191,8 @@ export async function dispatch(action: AppAction): Promise<unknown> {
     }))
     return dispatch({ type: 'submitPlan' })
   }
+  if (action.type === 'retryFailed' && !action.confirmed)
+    throw new Error('Confirm starting a job for the missing outputs.')
   if (state.busy) throw new Error('Wait for the current action, or stop it first.')
   const controller = new AbortController()
   active = controller
@@ -319,6 +323,23 @@ export async function dispatch(action: AppAction): Promise<unknown> {
             ? [job, ...current.projectJobs.filter((item) => item.id !== job.id)]
             : current.projectJobs,
         submitted: { ...current.submitted, [kind]: current.version === version },
+      }))
+    }
+    if (action.type === 'retryFailed') {
+      const job = await api.retry(action.id, crypto.randomUUID(), controller.signal)
+      controller.signal.throwIfAborted()
+      result = job
+      useApp.setState((current) => ({
+        job,
+        jobs: [job, ...current.jobs.filter((item) => item.id !== job.id)],
+        downloadJobs:
+          job.kind === 'weather'
+            ? [job, ...current.downloadJobs.filter((item) => item.id !== job.id)]
+            : current.downloadJobs,
+        projectJobs:
+          job.kind === 'future'
+            ? [job, ...current.projectJobs.filter((item) => item.id !== job.id)]
+            : current.projectJobs,
       }))
     }
     if (action.type === 'selectJob') {

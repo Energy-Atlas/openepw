@@ -436,3 +436,17 @@ it('keeps routine map previews out of the announced Agent transcript', async () 
   await dispatch({ type: 'loadCoverage' })
   expect(useApp.getState().logs).toEqual([])
 })
+
+it('retries only after confirmation and tracks the new job by kind', async () => {
+  const retry = vi
+    .spyOn(api, 'retry')
+    .mockResolvedValue({ id: 'retry', kind: 'weather', state: 'queued' } as any)
+  await expect(dispatch({ type: 'retryFailed', id: 'partial' })).rejects.toThrow(/Confirm/)
+  expect(retry).not.toHaveBeenCalled()
+
+  await dispatch({ type: 'retryFailed', id: 'partial', confirmed: true })
+  expect(retry.mock.calls[0][0]).toBe('partial')
+  expect(useApp.getState().job?.id).toBe('retry')
+  expect(useApp.getState().downloadJobs.map((job) => job.id)).toEqual(['retry'])
+  expect(useApp.getState().projectJobs).toEqual([])
+})
