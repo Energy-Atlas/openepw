@@ -7,7 +7,7 @@ import json
 from datetime import date, datetime, timezone
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, computed_field, model_validator
 
 
 def utcnow() -> str:
@@ -127,8 +127,28 @@ class WeatherRequest(Model):
     )
     hybrid_policy: HybridPolicy = Field(default_factory=HybridPolicy)
     missing_policy: Literal["warn", "error"] = "warn"
-    leap_policy: Literal["preserve"] = "preserve"
+    skip_feb_29: bool = Field(default=False, exclude_if=lambda value: not value)
     formats: list[Literal["epw"]] = Field(default_factory=lambda: ["epw"])
+
+    @model_validator(mode="before")
+    @classmethod
+    def accept_legacy_leap_policy(cls, value):
+        if not isinstance(value, dict) or "leap_policy" not in value:
+            return value
+        data = dict(value)
+        policy = data.pop("leap_policy")
+        if policy not in ("preserve", "skip_feb_29"):
+            raise ValueError("Unknown leap policy")
+        skip = policy == "skip_feb_29"
+        if "skip_feb_29" in data and data["skip_feb_29"] != skip:
+            raise ValueError("Conflicting leap policy values")
+        data["skip_feb_29"] = skip
+        return data
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def leap_policy(self) -> Literal["preserve", "skip_feb_29"]:
+        return "skip_feb_29" if self.skip_feb_29 else "preserve"
 
     @model_validator(mode="after")
     def valid(self):
@@ -148,6 +168,9 @@ class WeatherRequest(Model):
             raise ValueError("Invalid or duplicate year")
         if self.product in ("historical", "amy") and not (self.years or self.start):
             raise ValueError("Historical requests require years or inclusive dates")
+        if self.skip_feb_29:
+            if self.product not in ("historical", "amy") or not self.years:
+                raise ValueError("skip_feb_29 requires an actual-year historical or AMY request")
         return self
 
 

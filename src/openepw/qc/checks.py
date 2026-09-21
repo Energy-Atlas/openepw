@@ -40,18 +40,23 @@ def validate(dataset: WeatherDataset, profile: str = "standard") -> list[Issue]:
         add("DUPLICATE_TIME", "Duplicate interval ends", error=True)
     if not data.index.is_monotonic_increasing:
         add("UNSORTED_TIME", "Intervals are not chronological", error=True)
-    if (
-        len(data) > 1
-        and (
-            data.index.to_series().diff().iloc[1:] != pd.Timedelta(minutes=dataset.interval_minutes)
-        ).any()
-    ):
-        add("MISSING_INTERVAL", "Non-contiguous intervals", error=True)
     local = local_interval_starts(dataset)
+    if len(data) > 1:
+        expected_intervals = pd.date_range(
+            local[0], local[-1], freq=pd.Timedelta(minutes=dataset.interval_minutes)
+        )
+        if dataset.calendar == "noleap":
+            expected_intervals = expected_intervals[
+                ~((expected_intervals.month == 2) & (expected_intervals.day == 29))
+            ]
+        if not local.equals(expected_intervals):
+            add("MISSING_INTERVAL", "Non-contiguous intervals", error=True)
     if profile == "annual":
         expected = pd.date_range(
             f"{local[0].year}-01-01", f"{local[0].year + 1}-01-01", freq="h", inclusive="left"
         )
+        if dataset.calendar == "noleap":
+            expected = expected[~((expected.month == 2) & (expected.day == 29))]
         if not local.equals(expected):
             add("INCOMPLETE_YEAR", "Expected one complete local standard-time year", error=True)
     for variable in ESSENTIAL:

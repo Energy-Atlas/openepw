@@ -12,6 +12,15 @@ requirement. Preserve 8,784 rows for actual leap years unless an explicit record
 policy removes Feb 29. Future representative years default to 8,760 with the leap
 policy recorded. Never discard leap data implicitly.
 
+For actual-year `WeatherRequest` values, `skip_feb_29=True` is the explicit 365-day
+compatibility policy. Filtering uses local fixed-standard-time interval starts, not
+UTC dates. A leap year therefore loses exactly 24 February 29 intervals and retains
+all of December 31. The output keeps its source-year labels, declares
+`OPENEPW_CALENDAR=noleap`, and records the transform in metadata, variable lineage,
+the request, and the manifest. Annual QC accepts that exact no-leap sequence while
+continuing to reject any other missing interval. Partial-date and published-product
+requests reject this option.
+
 | Fields | Missing sentinel | Format/QC distinction |
 | --- | --- | --- |
 | Dry bulb / dew point °C | 99.9 | Dictionary range roughly −70 to 70; physical QC can be stricter |

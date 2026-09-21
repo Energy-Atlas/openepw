@@ -20,6 +20,32 @@ def test_request_date_and_product_conflicts():
             WeatherRequest(locations=[Location(lat=42, lon=-76)], **extra)
 
 
+def test_skip_feb_29_requires_actual_year_request():
+    for extra in [
+        dict(product="tmy", skip_feb_29=True),
+        dict(start="2024-01-01", end="2024-12-31", skip_feb_29=True),
+    ]:
+        with pytest.raises(ValidationError):
+            WeatherRequest(locations=Location(lat=42, lon=-76), **extra)
+
+    request = WeatherRequest(
+        locations=Location(lat=42, lon=-76),
+        product="amy",
+        years=[2024],
+        skip_feb_29=True,
+    )
+    assert request.skip_feb_29 is True
+    assert request.leap_policy == "skip_feb_29"
+
+    copied = request.model_copy(update={"skip_feb_29": False})
+    assert copied.skip_feb_29 is False
+    assert copied.leap_policy == "preserve"
+
+    request.skip_feb_29 = False
+    assert request.skip_feb_29 is False
+    assert request.leap_policy == "preserve"
+
+
 def test_future_scenario_and_period_validation():
     with pytest.raises(ValidationError):
         FutureRequest(baseline="base.epw", target_year=2050, climate_scenario="made-up")
@@ -40,3 +66,15 @@ def test_plan_hash_is_stable_and_tampering_detected():
     raw["request"]["years"] = [2023]
     with pytest.raises(ValidationError):
         WeatherPlan.model_validate(raw)
+
+
+def test_legacy_plan_without_skip_feb_29_replays():
+    plan = WeatherPlan(
+        request=WeatherRequest(locations=Location(lat=42, lon=-76), years=[2024])
+    ).model_dump(mode="json")
+    plan["request"].pop("skip_feb_29", None)
+    plan["plan_hash"] = "256d616d06cf1068636f5749da12a410d9b871d37ad98c91f52b1aaa13f23273"
+
+    replayed = WeatherPlan.model_validate(plan)
+
+    assert replayed.plan_hash == plan["plan_hash"]
