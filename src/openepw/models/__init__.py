@@ -90,6 +90,46 @@ class SamplingSpec(Model):
     max_locations: int = Field(default=1000, ge=1, le=10000)
 
 
+class SpatialPreview(Model):
+    locations: list[Location]
+    total_count: int = Field(ge=0)
+    returned_count: int = Field(ge=0)
+    planned_output_count: int = Field(ge=0)
+    execution_limit: int = Field(ge=0)
+    executable: bool
+    truncated: bool
+    issues: list[Issue] = Field(default_factory=list)
+
+
+class CoverageLayer(Model):
+    id: str = Field(pattern=r"^[a-z0-9_-]+$")
+    provider: str
+    dataset: str
+    label: str
+    kind: Literal["vector", "raster", "unknown"]
+    geometry: dict[str, Any] | None = None
+    tiles: str | None = None
+    products: list[str] = Field(default_factory=list)
+    start_year: int | None = None
+    end_year: int | None = None
+    resolution_km: float | None = None
+    attribution: str
+    source_url: str
+    limitations: list[str] = Field(default_factory=list)
+    coverage_basis: Literal["documented"] = "documented"
+    observed_at: str
+
+    @model_validator(mode="after")
+    def valid_layer(self):
+        if self.kind == "vector" and self.geometry is None:
+            raise ValueError("Vector coverage requires geometry")
+        if self.kind == "raster" and self.tiles is None:
+            raise ValueError("Raster coverage requires tiles")
+        if self.kind == "unknown" and (self.geometry is not None or self.tiles is not None):
+            raise ValueError("Unknown coverage cannot include map geometry")
+        return self
+
+
 class HybridPolicy(Model):
     enabled: bool = False
     assignments: dict[str, str] = Field(default_factory=dict)

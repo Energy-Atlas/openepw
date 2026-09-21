@@ -20,6 +20,7 @@ from .models import (
     Location,
     OpenEPWError,
     OutputSpec,
+    SpatialPreview,
     WeatherPlan,
     WeatherRequest,
     digest,
@@ -105,6 +106,51 @@ class WeatherService:
         from .planning.spatial import sample
 
         return sample(request.locations, request.sampling)
+
+    def preview_spatial(self, request: WeatherRequest):
+        periods = max(1, len(request.years))
+        execution_limit = min(request.sampling.max_locations, 1000 // periods)
+        if isinstance(request.locations, Location):
+            locations = [request.locations]
+            total = 1
+        elif isinstance(request.locations, list):
+            locations = request.locations[:execution_limit]
+            total = len(request.locations)
+        else:
+            from .planning.spatial import sample_preview
+
+            locations, total = sample_preview(
+                request.locations, request.sampling, execution_limit
+            )
+        executable = total <= execution_limit
+        issues = []
+        if not executable:
+            issues.append(
+                Issue(
+                    code="RESOURCE_LIMIT",
+                    message=(
+                        f"Sampling produces {total} locations; reduce the area or increase "
+                        f"spacing to stay within {execution_limit} locations for this period"
+                    ),
+                    severity="error",
+                    field="sampling",
+                )
+            )
+        return SpatialPreview(
+            locations=locations,
+            total_count=total,
+            returned_count=len(locations),
+            planned_output_count=total * periods,
+            execution_limit=execution_limit,
+            executable=executable,
+            truncated=len(locations) < total,
+            issues=issues,
+        )
+
+    def coverage(self, provider=None, product=None, year=None):
+        from .coverage import coverage_layers
+
+        return coverage_layers(provider=provider, product=product, year=year)
 
     def discover(self, request: WeatherRequest):
         locations = self.locations(request)

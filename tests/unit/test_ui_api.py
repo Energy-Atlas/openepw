@@ -52,3 +52,33 @@ def test_signal_upload_and_preview(tmp_path):
         result = client.get(f"/v1/artifacts/{upload['id']}/preview").json()
         assert result["total_rows"] == 24
         assert client.get(f"/v1/artifacts/{upload['id']}/preview?limit=169").status_code == 422
+
+
+def test_spatial_preview_and_documented_coverage_contracts(tmp_path):
+    service = WeatherService(RuntimeConfig(data_root=tmp_path), providers=[])
+    with TestClient(create_app(service)) as client:
+        request = WeatherRequest(
+            locations={"west": 0, "south": 0, "east": 1, "north": 1},
+            sampling={"dx_km": 100, "dy_km": 100, "max_locations": 10},
+            product="amy",
+            years=[2024],
+        )
+        sampled = client.post("/v1/spatial/preview", json=request.model_dump(mode="json"))
+        assert sampled.status_code == 200
+        assert sampled.json()["total_count"] == 4
+
+        response = client.get("/v1/weather/coverage", params={"year": 2024})
+        assert response.status_code == 200
+        layers = response.json()
+        era5 = next(layer for layer in layers if layer["id"] == "openmeteo-era5")
+        assert era5["coverage_basis"] == "documented"
+        assert era5["kind"] == "vector"
+        assert era5["geometry"]["type"] == "Polygon"
+        assert era5["tiles"] is None
+        assert era5["attribution"]
+        assert era5["source_url"].startswith("https://")
+        assert era5["observed_at"]
+
+        unknown = next(layer for layer in layers if layer["kind"] == "unknown")
+        assert unknown["geometry"] is None
+        assert unknown["tiles"] is None

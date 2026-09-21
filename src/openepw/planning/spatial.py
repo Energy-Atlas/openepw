@@ -50,7 +50,9 @@ def validate_polygon(p):
             raise OpenEPWError("INVALID_GEOMETRY", "Hole outside exterior ring")
 
 
-def sample(query: BoundingBox | PolygonQuery, spec: SamplingSpec) -> list[Location]:
+def _iter_points(
+    query: BoundingBox | PolygonQuery, spec: SamplingSpec, *, evaluation_limit: int
+):
     polygon = query if isinstance(query, PolygonQuery) else None
     if polygon:
         validate_polygon(polygon)
@@ -69,9 +71,8 @@ def sample(query: BoundingBox | PolygonQuery, spec: SamplingSpec) -> list[Locati
     dy = spec.dy_km / 111.195
     first = box.south + (spec.offset_y_km % spec.dy_km) / 111.195
     rows = math.floor((box.north - first) / dy) + 1
-    if rows > spec.max_locations:
+    if rows > evaluation_limit:
         raise OpenEPWError("RESOURCE_LIMIT", "Sampling exceeds location limit before allocation")
-    points = []
     evaluated = 0
     for row in range(max(rows, 0)):
         lat = first + row * dy
@@ -80,7 +81,7 @@ def sample(query: BoundingBox | PolygonQuery, spec: SamplingSpec) -> list[Locati
         origin = box.west + (spec.offset_x_km % spec.dx_km) / factor
         columns = math.floor((east - origin) / dx) + 1
         evaluated += columns
-        if evaluated > spec.max_locations:
+        if evaluated > evaluation_limit:
             raise OpenEPWError("RESOURCE_LIMIT", "Bounding sampling grid exceeds location limit")
         for col in range(max(columns, 0)):
             lon = (origin + col * dx + 180) % 360 - 180
@@ -90,7 +91,29 @@ def sample(query: BoundingBox | PolygonQuery, spec: SamplingSpec) -> list[Locati
                 or any(inside(point, hole) for hole in polygon.coordinates[1:])
             ):
                 continue
-            points.append(Location(lat=lat, lon=lon))
+            yield Location(lat=lat, lon=lon)
+
+
+def sample_preview(
+    query: BoundingBox | PolygonQuery,
+    spec: SamplingSpec,
+    preview_limit: int,
+    *,
+    evaluation_limit: int = 1_000_000,
+) -> tuple[list[Location], int]:
+    points = []
+    total = 0
+    for point in _iter_points(query, spec, evaluation_limit=evaluation_limit):
+        total += 1
+        if len(points) < preview_limit:
+            points.append(point)
+    if total == 0:
+        raise OpenEPWError("INVALID_GEOMETRY", "Sampling produces no locations")
+    return points, total
+
+
+def sample(query: BoundingBox | PolygonQuery, spec: SamplingSpec) -> list[Location]:
+    points = list(_iter_points(query, spec, evaluation_limit=spec.max_locations))
     if not points:
         raise OpenEPWError("INVALID_GEOMETRY", "Sampling produces no locations")
     return points

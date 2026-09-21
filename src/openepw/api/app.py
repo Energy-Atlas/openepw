@@ -14,11 +14,13 @@ from ..jobs.worker import JobRunner
 from ..models import (
     ArtifactBundle,
     ArtifactRef,
+    CoverageLayer,
     DiscoveryResult,
     FutureRequest,
     GeocodeResult,
     JobListResponse,
     OpenEPWError,
+    SpatialPreview,
     WeatherJob,
     WeatherPlan,
     WeatherRequest,
@@ -123,6 +125,18 @@ def create_app(service=None, *, remote=False, ui_dir=None):
     @app.post("/v1/weather/discover", response_model=DiscoveryResult)
     def discover(request: WeatherRequest):
         return service.discover(request)
+
+    @app.post("/v1/spatial/preview", response_model=SpatialPreview)
+    def spatial_preview(request: WeatherRequest):
+        return service.preview_spatial(request)
+
+    @app.get("/v1/weather/coverage", response_model=list[CoverageLayer])
+    def coverage(
+        provider: str | None = None,
+        product: str | None = None,
+        year: int | None = Query(default=None, ge=1900, le=2200),
+    ):
+        return service.coverage(provider=provider, product=product, year=year)
 
     @app.post("/v1/weather/plan", response_model=WeatherPlan)
     def plan(request: WeatherRequest):
