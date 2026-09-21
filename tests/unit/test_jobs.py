@@ -145,6 +145,8 @@ def test_retry_failed_submits_only_the_outputs_a_job_did_not_produce(tmp_path):
     retry = runner.retry_failed(job.id, "retry-1")
     retried = store.plan(retry.id)
     assert retry.total == 1
+    assert retry.retry_of == job.id
+    assert JobStore(tmp_path).get(retry.id).retry_of == job.id
     assert [o.dataset_selection.provider for o in retried.outputs] == ["broken"]
     assert {t.id for t in retried.tasks} == set(retried.outputs[0].task_ids)
     assert retried.plan_hash != plan.plan_hash

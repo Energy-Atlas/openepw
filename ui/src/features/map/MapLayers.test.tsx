@@ -3,7 +3,7 @@ import { afterEach, expect, it, vi } from 'vitest'
 import { run } from '../../app/actions'
 import { CoverageControl } from './CoverageControl'
 import { PointGlyph } from './PointGlyph'
-import { pointArtifacts, pointStatuses } from './MapView'
+import { buildPointContext, pointArtifacts, pointStatuses } from './MapView'
 import { APPEARANCES } from '../../shell/appearances'
 
 vi.mock('../../app/actions', () => ({ run: vi.fn() }))
@@ -114,6 +114,75 @@ it('uses only the latest matching plan job for point status and artifacts', () =
   expect(pointArtifacts(state, location as any)).toEqual([])
 })
 
+it('combines a partial job with its successful retry without borrowing an unrelated job', () => {
+  const location = { id: 'point', lat: 42, lon: -76, standard_offset_minutes: 0 } as any
+  const first = { provider: 'p', dataset: 'first', product_id: null }
+  const second = { provider: 'p', dataset: 'second', product_id: null }
+  const artifact = (id: string, name: string) => ({
+    id,
+    path: `weather/${name}`,
+    media_type: 'application/vnd.energyplus.epw',
+  })
+  const state = {
+    requestVersion: 0,
+    discoveryVersion: 0,
+    selectionVersion: 0,
+    weatherPlanRequestVersion: 0,
+    weatherPlanSelectionVersion: 0,
+    selectedDatasets: [first, second],
+    discovery: {
+      candidates: [first, second].map((selection) => ({
+        source: selection,
+        location_id: 'point',
+        product_id: null,
+        requires_credentials: [],
+      })),
+    },
+    weatherPlan: {
+      plan_hash: 'full',
+      outputs: [first, second].map((selection) => ({
+        requested_location_id: 'point',
+        name: `${selection.dataset}.epw`,
+        dataset_selection: selection,
+      })),
+    },
+    downloadJobs: [
+      {
+        id: 'unrelated',
+        plan_hash: 'other',
+        state: 'completed',
+        bundle: { weather: [artifact('wrong', 'second.epw')] },
+      },
+      {
+        id: 'retry',
+        retry_of: 'partial',
+        plan_hash: 'subset',
+        state: 'completed',
+        bundle: { weather: [artifact('recovered', 'second.epw')] },
+      },
+      {
+        id: 'partial',
+        plan_hash: 'full',
+        state: 'partially_completed',
+        bundle: { weather: [artifact('original', 'first.epw')] },
+      },
+    ],
+  } as any
+  const context = buildPointContext(state)
+  expect(
+    pointStatuses(state, location, APPEARANCES.light, context).map((item) => item.state),
+  ).toEqual(['complete', 'complete'])
+  expect(pointArtifacts(state, location, context).map((item) => item.id)).toEqual([
+    'original',
+    'recovered',
+  ])
+  const restored = { ...state, jobs: state.downloadJobs, downloadJobs: [] }
+  expect(pointArtifacts(restored, location).map((item) => item.id)).toEqual([
+    'original',
+    'recovered',
+  ])
+})
+
 it('marks stale discovery as unknown and unplanned points as incompatible', async () => {
   const { datasetColor } = await import('./datasetColor')
   const location = { id: 'point', lat: 42, lon: -76, standard_offset_minutes: 0 }
@@ -142,6 +211,20 @@ it('marks stale discovery as unknown and unplanned points as incompatible', asyn
   const [status] = pointStatuses(unplanned, location as any, APPEARANCES.light)
   expect(status.state).toBe('incompatible')
   expect(status.color).toBe(datasetColor('p', 'd', APPEARANCES.light))
+})
+
+it('keeps legacy outputs without dataset attribution off the point glyph', () => {
+  const state = {
+    discovery: { candidates: [] },
+    selectedDatasets: [{ provider: 'p', dataset: 'd', product_id: null }],
+    weatherPlan: {
+      plan_hash: 'legacy',
+      outputs: [{ requested_location_id: 'point', name: 'legacy.epw' }],
+    },
+    downloadJobs: [],
+    jobs: [],
+  } as any
+  expect(pointArtifacts(state, { id: 'point' } as any)).toEqual([])
 })
 
 it('selects a point when its details open, not when they close', () => {

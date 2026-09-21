@@ -49,16 +49,17 @@ production hosting:
   module-worker execution (development and production);
 - authoritative sample preview, fixed globe/terrain controls, attributed coverage,
   discovery, multi-dataset selection, Agent confirmation, a completed Download,
-  asynchronous Project advancement, monthly/hourly charts, leap-year labeling,
-  inspector collapse and History; and
+  asynchronous Project advancement and a completed Project job using synthetic local
+  signals, monthly/hourly charts, leap-year labeling, inspector collapse and History; and
 - light, dark and monochrome screenshots with Axe serious/critical auditing, narrow
   stage selection, drawers and focus restoration, persisted drafts without job
   submission, and numeric Explore controls when WebGL is unavailable.
 
 Partial-source jobs are verified over REST against the same fixture app
-(`tests/unit/test_ui_fixture_jobs.py`). Preview request counting, no-retry behavior,
-partial-job display, reload reconciliation, baseline eligibility, per-plan submit
-keys, confirmation scope and narrow-layout behavior are Vitest tests.
+(`tests/unit/test_ui_fixture_jobs.py`). Preview request counting, failed-table
+explicit retry behavior, partial-job display, reload reconciliation, baseline
+eligibility, per-plan submit keys, confirmation scope and narrow-layout behavior
+are Vitest tests.
 
 Screenshots and traces stay in ignored `ui/test-results/`. Manual desktop and narrow
 checks found no material panel overlap or hidden primary map surface. Browser-only
@@ -75,7 +76,7 @@ Latest run, 2026-09-21, Windows, Python 3.14.7 and Node 24.21.0 with installed E
 | Ruff and mypy | Passed; mypy 43 source files |
 | UI TypeScript and ESLint | Passed |
 | UI Prettier | Passed with `--end-of-line auto`; the repo-wide check flags only CRLF line endings on this Windows checkout |
-| Vitest | 125 passed across 24 files |
+| Vitest | 128 passed across 25 files |
 | Vite production build | Passed |
 | Playwright development hosting | 3 passed |
 | Playwright FastAPI production hosting | 1 passed (`@production` worker smoke) |

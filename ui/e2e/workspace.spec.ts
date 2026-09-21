@@ -117,8 +117,9 @@ test('Explore, Download and Project complete with confirmation and the artifact 
   await expect(page.getByRole('heading', { name: 'Project', exact: true })).toBeVisible({
     timeout: 30000,
   })
-  await expect(page.getByRole('region', { name: 'Weather inspector' })).toBeVisible()
-  await expect(page.getByText(/8,784 rows/)).toBeVisible()
+  const inspector = page.getByRole('region', { name: 'Weather inspector' })
+  await expect(inspector).toBeVisible()
+  await expect(inspector.getByText(/8,784 rows/)).toBeVisible()
   await expect(page.getByRole('img', { name: /Monthly mean temperature/ })).toBeVisible()
   await expect(page.getByRole('img', { name: /Hourly dni heatmap/ })).toBeVisible()
   await expect(page.getByText('Leap day retained')).toBeVisible()
@@ -127,6 +128,41 @@ test('Explore, Download and Project complete with confirmation and the artifact 
   await expect(page.getByRole('region', { name: 'Weather inspector' })).toBeVisible()
   await page.getByRole('button', { name: 'History' }).click()
   await expect(page.getByRole('dialog', { name: 'Job history' })).toContainText('completed')
+  await page.getByRole('button', { name: 'Close history' }).click()
+
+  // The offline fixture has no external CMIP6 archive; a local synthetic monthly signal
+  // exercises the real Project planner and worker without network or licensed data.
+  const stopWaiting = page.getByRole('button', { name: 'Stop waiting on this client' })
+  if (await stopWaiting.isVisible()) await stopWaiting.click()
+  await page.getByText('Models, members, and local signals').click()
+  const signal = {
+    model: 'synthetic-model',
+    member: 'r1',
+    scenario: 'ssp245',
+    reference_period: [1985, 2014],
+    climate_period: [2036, 2065],
+    license: 'synthetic test data',
+    source_uri: 'synthetic://browser',
+    source_checksums: ['0'.repeat(64)],
+    temperature_delta: Array(12).fill(2),
+  }
+  const signalUpload = page.getByLabel('Monthly signal JSON')
+  await expect(signalUpload).toBeEnabled()
+  await signalUpload.setInputFiles({
+    name: 'signal.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify([signal])),
+  })
+  await expect(page.getByText('Local signals registered')).toBeVisible()
+  const projectRun = page.getByRole('button', { name: 'Generate projections' })
+  await expect(projectRun).toBeEnabled()
+  await projectRun.click()
+  await page.getByRole('button', { name: 'Confirm job' }).click()
+  await expect(page.getByRole('region', { name: 'Generating projections result' })).toContainText(
+    '1 projection output created',
+    { timeout: 30000 },
+  )
+  await expect(page.getByRole('region', { name: 'Weather inspector' })).toBeVisible()
 })
 
 test('appearances, narrow drawers, draft reload and map failure stay accessible', async ({

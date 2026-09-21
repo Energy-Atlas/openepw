@@ -40,10 +40,11 @@ class JobStore:
             # sqlite's transaction context commits/rolls back but does not close.
             db.close()
 
-    def submit(self, plan, idempotency_key=None):
+    def submit(self, plan, idempotency_key=None, retry_of=None):
         job = WeatherJob(
             id=uuid.uuid4().hex,
             plan_hash=plan.plan_hash,
+            retry_of=retry_of,
             kind=plan.kind,
             total=max(1, len({o.name for o in plan.outputs})),
             idempotency_key=idempotency_key,

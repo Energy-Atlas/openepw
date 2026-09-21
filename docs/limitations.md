@@ -74,8 +74,9 @@ that an uncached external source can never change.
 ## Optional local web UI
 
 The same-repo UI is a local single-user frontend. Advanced batch/hybrid/grid options
-use validated request JSON; they do not all have separate form controls. Artifact
-QC/provenance detail is presented as structured JSON plus summary/chart views.
+remain available through Python, REST and CLI rather than raw JSON editing in the
+staged UI. The inspector shows bounded monthly/hourly charts and a paged hourly
+table; History exposes QC and provenance artifacts for detailed review.
 Desktop Edge is locally verified; Chromium Linux CI is configured, not claimed run.
 No Safari/Firefox/mobile-device or exhaustive accessibility certification.
 Public basemap/terrain services require connectivity and have independent terms;

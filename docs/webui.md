@@ -78,10 +78,11 @@ user's server. Windows defaults to installed Edge. On Linux set
 `PLAYWRIGHT_CHANNEL=chromium` and install Playwright Chromium first. Tests exercise
 the real Python pipeline with a clearly test-only synthetic provider. The browser
 suite is deliberately small: offline map plus MapLibre module-worker execution, the
-Explore → Download → Project inspector path, and responsive/focus/Axe/WebGL-failure
-checks. Only the tagged `@production` worker smoke runs against FastAPI production
-hosting. Preview request counts, no-retry behavior and partial-job outcomes are
-covered by Vitest and `tests/unit/test_ui_fixture_jobs.py`. Live tests
+Explore → Download → completed Project path with synthetic local signals and inspector,
+and responsive/focus/Axe/WebGL-failure checks. Only the tagged `@production`
+worker smoke runs against FastAPI production hosting. Preview request counts,
+failed-table explicit retry behavior and partial-job outcomes are covered by
+Vitest and `tests/unit/test_ui_fixture_jobs.py`. Live tests
 are opt-in; see [acceptance](validation/webui-acceptance.md).
 
 API reference: [Python](api/python.md), [MCP](api/mcp.md), live OpenAPI and interactive

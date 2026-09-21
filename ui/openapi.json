@@ -1602,6 +1602,17 @@
             "title": "Plan Hash",
             "type": "string"
           },
+          "retry_of": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retry Of"
+          },
           "state": {
             "default": "queued",
             "enum": [

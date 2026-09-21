@@ -1,6 +1,6 @@
-import { useEffect } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Schemas } from '../../api/client'
-import { run } from '../../app/actions'
+import { dispatch, run } from '../../app/actions'
 
 const PAGE = 168
 
@@ -14,11 +14,33 @@ export function WeatherTable({
   preview: Schemas['WeatherPreview'] | null
   busy: boolean
 }) {
+  const attemptedArtifact = useRef<string | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
+
+  function loadFirstPage() {
+    attemptedArtifact.current = artifactId
+    setLoadError(null)
+    void dispatch({ type: 'previewPage', start: 0 }).catch((error: unknown) => {
+      if (attemptedArtifact.current === artifactId)
+        setLoadError(error instanceof Error ? error.message : 'Hourly rows unavailable')
+    })
+  }
+
   useEffect(() => {
-    if (!preview && !busy) run({ type: 'previewPage', start: 0 })
+    if (!preview && !busy && attemptedArtifact.current !== artifactId) loadFirstPage()
   }, [artifactId, preview, busy])
 
-  if (!preview) return <p className="empty-inline">Loading hourly rows…</p>
+  if (!preview)
+    return loadError ? (
+      <div className="empty-inline" role="alert">
+        {loadError}{' '}
+        <button type="button" onClick={loadFirstPage}>
+          Retry hourly rows
+        </button>
+      </div>
+    ) : (
+      <p className="empty-inline">Loading hourly rows…</p>
+    )
   const variables = Object.keys(preview.units)
   const first = preview.start + 1
   const last = preview.start + preview.rows.length

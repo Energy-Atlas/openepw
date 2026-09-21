@@ -906,6 +906,8 @@ export interface components {
       kind: 'weather' | 'future'
       /** Plan Hash */
       plan_hash: string
+      /** Retry Of */
+      retry_of?: string | null
       /**
        * State
        * @default queued

@@ -30,8 +30,8 @@ class JobRunner:
         self.lock = threading.Lock()
         self.active = set()
 
-    def submit(self, plan, idempotency_key=None):
-        job = self.store.submit(plan, idempotency_key)
+    def submit(self, plan, idempotency_key=None, retry_of=None):
+        job = self.store.submit(plan, idempotency_key, retry_of=retry_of)
         self.enqueue(job.id)
         return job
 
@@ -44,12 +44,12 @@ class JobRunner:
         if plan.kind == "future":
             if job.state == "completed":
                 raise OpenEPWError("NOTHING_TO_RETRY", "The projection job has no failed outputs")
-            return self.submit(plan, idempotency_key)
+            return self.submit(plan, idempotency_key, retry_of=job_id)
         produced = {name for name, bundle in self.store.items(job_id).items() if bundle.weather}
         failed = [o for o in {o.name: o for o in plan.outputs}.values() if o.name not in produced]
         if not failed:
             raise OpenEPWError("NOTHING_TO_RETRY", "Every planned output was produced")
-        return self.submit(subplan(plan, failed), idempotency_key)
+        return self.submit(subplan(plan, failed), idempotency_key, retry_of=job_id)
 
     def enqueue(self, job_id):
         with self.lock:

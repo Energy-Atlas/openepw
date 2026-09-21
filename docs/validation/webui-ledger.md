@@ -263,3 +263,26 @@ across 24 files; TypeScript, ESLint, Prettier and build passed; Playwright 3 dev
 and 1 production passed. Browser check: default offset UTC−5, DNI peak at local hour 12,
 area points sampled at −300, and the complete dataset's EPW opened first. The ranking
 monitor test fails when bundle order is restored.
+
+## Review follow-ups — 2026-09-21
+
+- Failed hourly-page requests now stop after one attempt, show the service error and
+  offer an explicit Retry button. A red/green component regression covers failure,
+  no automatic second request, and successful manual retry.
+- Retry jobs expose `retry_of` in the durable job contract. Map point status and
+  artifact popovers combine only jobs in the latest current-plan retry lineage,
+  including jobs reconciled from History; unrelated and older whole-plan jobs stay
+  separate. Point candidate, output, artifact and ranking lookups are indexed once
+  per map update rather than recomputed for every marker.
+- The browser flow now uploads synthetic local monthly signals, runs a real Project
+  job and checks its completed output. It remains fully offline. The limitations
+  text no longer implies raw-JSON UI controls.
+
+Verification: Python 105 passed / 15 live skipped; Ruff and mypy passed; Vitest 128
+across 25 files; UI TypeScript, ESLint and targeted Prettier passed; build passed;
+Playwright 3 development and 1 production passed. The browser suite initially
+exposed a duplicate-text locator and was corrected to scope the row count to the
+inspector. External MapLibre style/fog warnings and two upstream Python deprecation
+warnings remain. Parallel development/production browser runs collided on fixture
+port 8011; the production smoke passed when rerun serially. CI has not run this
+change.

@@ -5,7 +5,10 @@ import { useApp } from '../../app/store'
 import { APPEARANCES } from '../../shell/appearances'
 import { WeatherInspector } from './WeatherInspector'
 
-vi.mock('../../app/actions', () => ({ run: vi.fn() }))
+vi.mock('../../app/actions', () => ({
+  run: vi.fn(),
+  dispatch: vi.fn().mockResolvedValue(undefined),
+}))
 vi.mock('./WeatherCharts', () => ({
   WeatherCharts: ({ heatVariable }: { heatVariable: string }) => <div>heatmap {heatVariable}</div>,
 }))
@@ -95,11 +98,9 @@ it('keeps a chosen heatmap variable and never requests a variable twice', () => 
   expect(useApp.getState().inspector.variable).toBe('dry_bulb')
 })
 
-it('switches to a paged table that loads rows and marks missing values', async () => {
+it('shows paged rows and marks missing values', async () => {
   const { WeatherTable } = await import('./WeatherTable')
-  const { rerender } = render(<WeatherTable artifactId="a" preview={null} busy={false} />)
-  expect(run).toHaveBeenCalledWith({ type: 'previewPage', start: 0 })
-  rerender(
+  render(
     <WeatherTable
       artifactId="a"
       busy={false}

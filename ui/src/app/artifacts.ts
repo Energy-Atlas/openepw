@@ -6,38 +6,10 @@ type RankingState = {
   selectedDatasets: Schemas['DatasetSelection'][]
   selectedLocationId: string | null
 }
-type Output = NonNullable<NonNullable<RankingState['weatherPlan']>['outputs']>[number]
-
-function sameDataset(
-  candidate: Schemas['Candidate'],
-  selection: Schemas['DatasetSelection'] | null | undefined,
-) {
-  return (
-    !!selection &&
-    candidate.source.provider === selection.provider &&
-    candidate.source.dataset === selection.dataset &&
-    (candidate.product_id ?? null) === (selection.product_id ?? null)
-  )
-}
-
-/**
- * Backend rank of an output's dataset at its location: the position of the first matching
- * candidate in discovery's ranked list, then the user's selection order as a tie-break.
- */
-function outputRank(state: RankingState, output: Output) {
-  const ranked = state.discovery?.ranked_candidate_ids?.[output.requested_location_id] ?? []
-  const candidates = new Map((state.discovery?.candidates ?? []).map((item) => [item.id, item]))
-  const position = ranked.findIndex((id) => {
-    const candidate = candidates.get(id)
-    return candidate && sameDataset(candidate, output.dataset_selection)
-  })
-  const selection = state.selectedDatasets.findIndex(
-    (item) =>
-      item.provider === output.dataset_selection?.provider &&
-      item.dataset === output.dataset_selection?.dataset &&
-      (item.product_id ?? null) === (output.dataset_selection?.product_id ?? null),
-  )
-  return [position < 0 ? Infinity : position, selection < 0 ? Infinity : selection] as const
+function datasetKey(selection: Schemas['DatasetSelection'] | null | undefined) {
+  return selection
+    ? `${selection.provider}\u0000${selection.dataset}\u0000${selection.product_id ?? ''}`
+    : ''
 }
 
 /**
@@ -50,19 +22,44 @@ export function rankWeatherArtifacts(state: RankingState, job: Job): Artifact[] 
   const plan = state.weatherPlan
   if (job.kind === 'future' || !plan || plan.plan_hash !== job.plan_hash) return weather
   const outputs = plan.outputs ?? []
+  const outputByName = new Map(outputs.map((output) => [output.name, output]))
+  const candidateById = new Map((state.discovery?.candidates ?? []).map((item) => [item.id, item]))
+  const selectionOrder = new Map(
+    state.selectedDatasets.map((selection, index) => [datasetKey(selection), index]),
+  )
+  const ranksByLocation = new Map<string, Map<string, number>>()
+  for (const [locationId, ranked] of Object.entries(state.discovery?.ranked_candidate_ids ?? {})) {
+    const ranks = new Map<string, number>()
+    ranked.forEach((id, index) => {
+      const candidate = candidateById.get(id)
+      if (!candidate) return
+      const key = datasetKey({ ...candidate.source, product_id: candidate.product_id })
+      if (!ranks.has(key)) ranks.set(key, index)
+    })
+    ranksByLocation.set(locationId, ranks)
+  }
   const locationOrder = [...new Set(outputs.map((output) => output.requested_location_id))]
+  const locationIndex = new Map(locationOrder.map((id, index) => [id, index]))
   const preferred =
     state.selectedLocationId && locationOrder.includes(state.selectedLocationId)
       ? state.selectedLocationId
       : locationOrder[0]
   const scored = weather.map((artifact, index) => {
-    const output = outputs.find((item) => artifact.path.endsWith(item.name))
+    const output = outputByName.get(artifact.path.split('/').at(-1) ?? '')
     if (!output) return { artifact, key: [2, Infinity, Infinity, Infinity, index] }
-    const [rank, selection] = outputRank(state, output)
+    const dataset = datasetKey(output.dataset_selection)
+    const rank = ranksByLocation.get(output.requested_location_id)?.get(dataset) ?? Infinity
+    const selection = selectionOrder.get(dataset) ?? Infinity
     const location = output.requested_location_id === preferred ? 0 : 1
     return {
       artifact,
-      key: [location, locationOrder.indexOf(output.requested_location_id), rank, selection, index],
+      key: [
+        location,
+        locationIndex.get(output.requested_location_id) ?? Infinity,
+        rank,
+        selection,
+        index,
+      ],
     }
   })
   scored.sort((a, b) => {

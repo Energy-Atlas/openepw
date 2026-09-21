@@ -9,7 +9,7 @@ import {
 import type { GeoJSONSourceSpecification, StyleSpecification } from 'maplibre-gl'
 import { Component, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import { api, type Artifact, type Schemas } from '../../api/client'
+import { api, type Artifact, type Job, type Schemas } from '../../api/client'
 import { run } from '../../app/actions'
 import { rankWeatherArtifacts } from '../../app/artifacts'
 import { followOffset } from '../../app/timezone'
@@ -179,6 +179,17 @@ function WeatherMap({ appearance }: { appearance: Appearance }) {
   }, [style, appearance])
 
   const locations = state.spatialPreview?.locations ?? []
+  const pointContext = useMemo(
+    () => buildPointContext(state),
+    [
+      state.discovery,
+      state.weatherPlan,
+      state.downloadJobs,
+      state.jobs,
+      state.selectedDatasets,
+      state.selectedLocationId,
+    ],
+  )
   const movablePoint =
     state.stage === 'explore' &&
     !Array.isArray(state.draft.locations) &&
@@ -529,8 +540,8 @@ function WeatherMap({ appearance }: { appearance: Appearance }) {
           >
             <PointGlyph
               label={location.name || `Sample ${index + 1}`}
-              statuses={pointStatuses(state, location, appearance)}
-              artifacts={pointArtifacts(state, location)}
+              statuses={pointStatuses(state, location, appearance, pointContext)}
+              artifacts={pointArtifacts(state, location, pointContext)}
               onOpen={() => run({ type: 'selectLocation', id: location.id ?? null })}
             />
           </Marker>
@@ -598,34 +609,115 @@ function draftOutline(locations: Schemas['WeatherRequest-Input']['locations']) {
   return null
 }
 
+type PointState = ReturnType<typeof useApp.getState>
+type Dataset = Schemas['DatasetSelection']
+type Candidate = Schemas['Candidate']
+
+function datasetKey(selection: Dataset) {
+  return `${selection.provider}\u0000${selection.dataset}\u0000${selection.product_id ?? ''}`
+}
+
+function pointKey(locationId: string, selection: Dataset) {
+  return `${locationId}\u0000${datasetKey(selection)}`
+}
+
+type PointContext = {
+  candidates: Map<string, { candidate: Candidate; index: number }>
+  outputKeys: Set<string>
+  artifactsBySelection: Set<string>
+  artifactsByLocation: Map<string, Artifact[]>
+  allArtifacts: Artifact[]
+  latestJob: Job | undefined
+}
+
+/** Build plan/job lookups once per map update, not once per sampled marker. */
+export function buildPointContext(state: PointState): PointContext {
+  const candidates = new Map<string, { candidate: Candidate; index: number }>()
+  state.discovery?.candidates.forEach((candidate, index) => {
+    const key = pointKey(candidate.location_id ?? '*', {
+      provider: candidate.source.provider,
+      dataset: candidate.source.dataset,
+      product_id: candidate.product_id,
+    })
+    if (!candidates.has(key)) candidates.set(key, { candidate, index })
+  })
+  const outputs = state.weatherPlan?.outputs ?? []
+  const outputKeys = new Set(
+    outputs
+      .filter((output) => output.dataset_selection)
+      .map((output) => pointKey(output.requested_location_id, output.dataset_selection!)),
+  )
+  const outputByName = new Map(outputs.map((output) => [output.name, output]))
+  const activeIds = new Set(state.downloadJobs.map((job) => job.id))
+  const jobs = [
+    ...state.downloadJobs,
+    ...(state.jobs ?? []).filter((job) => !activeIds.has(job.id)),
+  ]
+  const root = jobs.find((job) => job.plan_hash === state.weatherPlan?.plan_hash)
+  const familyIds = new Set(root ? [root.id] : [])
+  let previousSize = -1
+  while (familyIds.size !== previousSize) {
+    previousSize = familyIds.size
+    for (const job of jobs) if (job.retry_of && familyIds.has(job.retry_of)) familyIds.add(job.id)
+  }
+  const family = jobs.filter((job) => familyIds.has(job.id))
+  const latestJob = family[0]
+  const seen = new Set<string>()
+  const merged = family
+    .flatMap((job) => job.bundle?.weather ?? [])
+    .filter((artifact) => {
+      const name = artifact.path.split('/').at(-1) ?? artifact.path
+      if (seen.has(name)) return false
+      seen.add(name)
+      return true
+    })
+  const template = family.find((job) => job.bundle)?.bundle
+  const allArtifacts =
+    root && template
+      ? rankWeatherArtifacts(state, { ...root, bundle: { ...template, weather: merged } })
+      : []
+  const artifactsBySelection = new Set<string>()
+  const artifactsByLocation = new Map<string, Artifact[]>()
+  for (const artifact of allArtifacts) {
+    const output = outputByName.get(artifact.path.split('/').at(-1) ?? '')
+    if (!output) continue
+    if (output.dataset_selection)
+      artifactsBySelection.add(pointKey(output.requested_location_id, output.dataset_selection))
+    const existing = artifactsByLocation.get(output.requested_location_id) ?? []
+    existing.push(artifact)
+    artifactsByLocation.set(output.requested_location_id, existing)
+  }
+  return {
+    candidates,
+    outputKeys,
+    artifactsBySelection,
+    artifactsByLocation,
+    allArtifacts,
+    latestJob,
+  }
+}
+
 export function pointStatuses(
   state: ReturnType<typeof useApp.getState>,
   location: Schemas['Location'],
   appearance: Appearance,
+  context = buildPointContext(state),
 ): DatasetPointStatus[] {
   const discoveryCurrent = state.discoveryVersion === state.requestVersion
   const planCurrent =
     state.weatherPlanRequestVersion === state.requestVersion &&
     state.weatherPlanSelectionVersion === state.selectionVersion
   return state.selectedDatasets.map((selection) => {
-    const candidate = state.discovery?.candidates.find(
-      (item) =>
-        item.source.provider === selection.provider &&
-        item.source.dataset === selection.dataset &&
-        (item.product_id ?? null) === (selection.product_id ?? null) &&
-        (!item.location_id || item.location_id === location.id),
-    )
-    const artifact = artifactsForSelection(state, location, selection).some(
-      (item) => item.media_type === 'application/vnd.energyplus.epw',
-    )
-    const currentJob = currentDownloadJob(state)
-    const output = (state.weatherPlan?.outputs ?? []).find(
-      (item) =>
-        item.requested_location_id === location.id &&
-        item.dataset_selection?.provider === selection.provider &&
-        item.dataset_selection.dataset === selection.dataset &&
-        (item.dataset_selection.product_id ?? null) === (selection.product_id ?? null),
-    )
+    const local = context.candidates.get(pointKey(location.id ?? '', selection))
+    const global = context.candidates.get(pointKey('*', selection))
+    const candidate =
+      local && global
+        ? (local.index < global.index ? local : global).candidate
+        : (local ?? global)?.candidate
+    const key = pointKey(location.id ?? '', selection)
+    const artifact = context.artifactsBySelection.has(key)
+    const output = context.outputKeys.has(key)
+    const currentJob = context.latestJob
     const failed =
       Boolean(output) &&
       Boolean(currentJob) &&
@@ -655,40 +747,7 @@ export function pointStatuses(
 export function pointArtifacts(
   state: ReturnType<typeof useApp.getState>,
   location: Schemas['Location'],
+  context = buildPointContext(state),
 ): Artifact[] {
-  const names = new Set(
-    (state.weatherPlan?.outputs ?? [])
-      .filter((output) => !location.id || output.requested_location_id === location.id)
-      .map((output) => output.name),
-  )
-  const job = currentDownloadJob(state)
-  // Listed best first, by the same backend ranking used when a job finishes.
-  const artifacts = job ? rankWeatherArtifacts(state, job) : []
-  if (names.size === 0) return []
-  return artifacts.filter((artifact) => [...names].some((name) => artifact.path.endsWith(name)))
-}
-
-function artifactsForSelection(
-  state: ReturnType<typeof useApp.getState>,
-  location: Schemas['Location'],
-  selection: Schemas['DatasetSelection'],
-) {
-  const names = new Set(
-    (state.weatherPlan?.outputs ?? [])
-      .filter(
-        (output) =>
-          (!location.id || output.requested_location_id === location.id) &&
-          output.dataset_selection?.provider === selection.provider &&
-          output.dataset_selection.dataset === selection.dataset &&
-          (output.dataset_selection.product_id ?? null) === (selection.product_id ?? null),
-      )
-      .map((output) => output.name),
-  )
-  return (currentDownloadJob(state)?.bundle?.weather ?? []).filter((artifact) =>
-    [...names].some((name) => artifact.path.endsWith(name)),
-  )
-}
-
-function currentDownloadJob(state: ReturnType<typeof useApp.getState>) {
-  return state.downloadJobs.find((job) => job.plan_hash === state.weatherPlan?.plan_hash)
+  return location.id ? (context.artifactsByLocation.get(location.id) ?? []) : context.allArtifacts
 }
