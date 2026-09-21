@@ -71,15 +71,16 @@ Latest run, 2026-09-21, Windows, Python 3.14.7 and Node 24.21.0 with installed E
 
 | Check | Result |
 | --- | --- |
-| Full Python offline suite | 101 passed, 15 opt-in live checks skipped |
+| Full Python offline suite | 103 passed, 15 opt-in live checks skipped |
 | Ruff and mypy | Passed; mypy 43 source files |
 | UI TypeScript and ESLint | Passed |
 | UI Prettier | Passed with `--end-of-line auto`; the repo-wide check flags only CRLF line endings on this Windows checkout |
-| Vitest | 66 passed across 14 files |
+| Vitest | 98 passed across 20 files |
 | Vite production build | Passed |
 | Playwright development hosting | 3 passed |
 | Playwright FastAPI production hosting | 1 passed (`@production` worker smoke) |
-| Generated contracts | OpenAPI and TypeScript schema regenerated for the additive job `kind` field |
+| Generated contracts | OpenAPI and TypeScript schema regenerated for job `kind` and `POST /v1/jobs/{id}/retry`; no drift |
+| Manual visual check | Desktop light/dark and 700 px narrow screenshots of Explore, Download confirmation, running progress, Project inspector, table and History against a delayed fixture |
 
 The 2026-09-20 acceptance ran the earlier ten-test browser suite (development and
 production) with 98 Python and 50 Vitest tests; see the ledger.
@@ -111,30 +112,17 @@ production) with 98 Python and 50 Vitest tests; see the ledger.
 
 ## Unimplemented spec items
 
-Found by the 2026-09-21 conformance review against the
-[redesign spec](../superpowers/specs/2026-09-20-webui-workflow-redesign.md) and not yet
-implemented:
+The 2026-09-21 conformance review against the
+[redesign spec](../superpowers/specs/2026-09-20-webui-workflow-redesign.md) listed
+gaps; most were implemented the same day (see the ledger). Still open:
 
-- Explore: a move/edit geometry tool, keyboard finish/cancel, and a debounced live
-  preview while a box or polygon is being drawn.
-- Download: rows lack temporal availability, resolution, limitations and attribution;
-  credential requirements are shown but do not gate Run; retrying only failed items
-  is not offered.
-- Project: the baseline card omits location, dataset, period, calendar and QC
-  warnings; with several EPWs the first bundle EPW is auto-selected rather than a
-  backend-ranked one for the selected point.
-- Map: no compact legend, no coverage auto-enable after discovery, coverage
-  limitations are not rendered, overlay reordering does not change MapLibre layer
-  order, and incompatible/unknown point states are not rendered. Coverage and point
-  glyphs color the same dataset differently.
-- Inspector: no valid/expected counts, synthetic-chronology label or visible no-data
-  cells; a fixed five-variable selector; no table or download controls.
-- Agent: flat log lines instead of expandable tool-result cards; appearance and panel
-  sizing bypass the action registry; routine previews are announced in the live log.
-- Accessibility: stage changes and job completion are not announced; map camera
-  flights ignore reduced motion; the narrow inspector is not a bottom sheet.
-- Explore's sample limit uses dataset selections left over from an earlier discovery,
-  and the limit message compares a location limit with an output count.
+- Explore: a move/edit tool for existing vertices (only arrow-key nudging of the latest
+  vertex exists) and a debounced live preview while a box or polygon is being drawn;
+  the authoritative preview runs when the shape is finished.
+- Project: when a job produces several EPWs, the first bundle EPW is opened
+  automatically rather than a backend-ranked EPW for a selected map point.
+- Agent: appearance and panel sizing are changed directly rather than through the
+  shared action registry, so scripted recipes cannot set them.
 
 Operating guidance: [webui.md](../webui.md). Design contract:
 [map-first staged UI](../superpowers/specs/2026-09-20-webui-workflow-redesign.md).

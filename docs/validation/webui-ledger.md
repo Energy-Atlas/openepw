@@ -152,3 +152,55 @@ drawer. Removed dead code: unused `ResultsView`, `ApiDocs` and `RequestPanel`, t
 `flexlayout-react` dependency, its Vite CSS plugin, and old compact-tab/FlexLayout
 CSS. `api-catalog.json` is still generated, served and parity-tested. ROADMAP,
 ADR 0003 and limitations no longer describe docking.
+
+## UI issue fixes — 2026-09-21
+
+Owner reported: an incorrect heatmap color gradient, a Download confirmation drifting
+to the page corner, other Download layout problems, and no download progress hint;
+and asked to fix these plus the open spec items autonomously. Reproduced in a real
+browser against the fixture backend with an opt-in `OPENEPW_UI_FIXTURE_DELAY`, using
+desktop light/dark and 700 px screenshots before and after each change.
+
+Root causes and fixes:
+
+- Heatmap: the ECharts visual map had no `dimension`, so cells were colored by their
+  row index (the last data dimension), producing a left-to-right time ramp instead of
+  values. It now maps dimension 2 on the sequential palette with a visible legend
+  scaled to the observed range (previously forced to include 0 and 1, flattening
+  pressure and temperature). Days are category indexes from the first rendered day
+  (previously shifted by one, dropping the last day); missing hours use the no-data
+  color. The fixture was constant, which hid this; it now has seasonal and diurnal
+  cycles.
+- Monthly axis labels were formatted in the viewer's zone from UTC month starts, so
+  every month was labelled one month early west of UTC; they now format in UTC.
+- Confirmation: `.run-confirmation` was styled as an absolute popover under Run but
+  portalled to `<body>`, so it landed at the document's bottom-right and stretched
+  the page. It is now a centered modal with a backdrop and plan facts.
+- Progress: the worker saved failed counts only at the end; it now persists
+  completed and failed counts after every output. The UI shows a progress card
+  (bar, processed/failed, elapsed) at the top of Download/Project and a compact bar
+  in the status bar; indeterminate states animate (static under reduced motion).
+- Layout: stage panels kept the Explore scroll position, hiding new content; they now
+  reset on stage change and when a job starts. Duplicate dividers, the Fit-selection
+  and zoom controls overlapping the inspector/Agent panel, hidden attribution (now
+  visible and underlined for WCAG link contrast), non-wrapping Agent suggestions, the
+  cramped baseline card and the narrow History button's missing name were fixed.
+
+Spec items implemented: retry of only failed outputs (`POST /v1/jobs/{id}/retry`,
+confirmed from the Run menu); Download rows with years, interval, resolution,
+access, provisional status, limitations and attribution, and Run gated when a plan
+has no outputs; shared dataset colors with a map legend, unknown/incompatible point
+states, ordered coverage overlays with limitations and auto-enable after discovery;
+Explore previews independent of old dataset selections with corrected limit wording;
+an inspector variable list, valid-hour coverage, synthetic-chronology label, EPW
+download and paged table; a Project baseline card with location, period, calendar,
+source years, origin and QC; a narrow bottom-sheet inspector; Enter/Escape to finish
+or cancel drawing; stage and job-completion announcements; quiet routine previews;
+reduced-motion camera moves; and expandable Agent tool cards. Remaining open items are
+listed in the acceptance record.
+
+Verification: Python 103 passed / 15 live skipped; Ruff, format and mypy passed;
+Vitest 98 across 20 files; TypeScript, ESLint and Prettier (line-ending agnostic)
+passed; production build passed; Playwright 3 development and 1 production passed;
+generated contracts have no drift. Each root-cause test was confirmed to fail without
+its fix. CI has not run these commits.
