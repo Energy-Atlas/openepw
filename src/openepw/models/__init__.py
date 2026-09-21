@@ -141,6 +141,12 @@ class HybridPolicy(Model):
         return self
 
 
+class DatasetSelection(Model):
+    provider: str = Field(min_length=1)
+    dataset: str = Field(min_length=1)
+    product_id: str | None = None
+
+
 class WeatherRequest(Model):
     schema_version: Literal["0.1"] = "0.1"
     locations: list[Location] | Location | BoundingBox | PolygonQuery
@@ -152,6 +158,9 @@ class WeatherRequest(Model):
     product_id: str | None = None
     providers: list[str] = Field(default_factory=list)
     dataset: str | None = None
+    dataset_selections: list[DatasetSelection] = Field(
+        default_factory=list, exclude_if=lambda value: not value
+    )
     required_variables: list[str] = Field(
         default_factory=lambda: [
             "dry_bulb",
@@ -211,6 +220,14 @@ class WeatherRequest(Model):
         if self.skip_feb_29:
             if self.product not in ("historical", "amy") or not self.years:
                 raise ValueError("skip_feb_29 requires an actual-year historical or AMY request")
+        selection_keys = [
+            (selection.provider, selection.dataset, selection.product_id)
+            for selection in self.dataset_selections
+        ]
+        if len(selection_keys) != len(set(selection_keys)):
+            raise ValueError("Duplicate dataset selection")
+        if self.dataset_selections and self.hybrid_policy.enabled:
+            raise ValueError("Dataset selections cannot be combined with hybrid assignment")
         return self
 
 
@@ -319,6 +336,9 @@ class OutputSpec(Model):
     requested_location_id: str
     task_ids: list[str]
     name: str = Field(pattern=r"^[A-Za-z0-9_-]{1,100}\.epw$")
+    dataset_selection: DatasetSelection | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
 
 
 class WeatherPlan(Model):
@@ -330,6 +350,7 @@ class WeatherPlan(Model):
     transforms: list[TransformStep] = Field(default_factory=list)
     outputs: list[OutputSpec] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
+    issues: list[Issue] = Field(default_factory=list, exclude_if=lambda value: not value)
     estimated_calls: int = 0
     estimated_bytes: int | None = None
     capability_version: Literal["0.1"] = "0.1"

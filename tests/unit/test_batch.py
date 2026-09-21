@@ -105,6 +105,57 @@ def test_explicit_hybrid_uses_assigned_source(tmp_path):
         combine({"station": a, "solar": z}, request.hybrid_policy.assignments)
 
 
+def test_explicit_datasets_expand_across_query_and_report_unavailable_pairs(tmp_path):
+    first = StationProvider()
+    second = StationProvider()
+    second.name = "solar"
+    service = WeatherService(RuntimeConfig(data_root=tmp_path), providers=[first, second])
+    request = WeatherRequest(
+        locations=[Location(lat=1, lon=0), Location(lat=2, lon=0)],
+        start="2024-01-01",
+        end="2024-01-01",
+        dataset_selections=[
+            {"provider": "station", "dataset": "synthetic"},
+            {"provider": "solar", "dataset": "synthetic"},
+            {"provider": "missing", "dataset": "synthetic"},
+        ],
+    )
+
+    plan = service.plan(request)
+
+    assert len(plan.outputs) == 4
+    assert len(plan.tasks) == 4
+    assert {output.dataset_selection.provider for output in plan.outputs} == {
+        "station",
+        "solar",
+    }
+    unavailable = [issue for issue in plan.issues if issue.code == "DATASET_UNAVAILABLE"]
+    assert len(unavailable) == 2
+    assert {issue.location_id for issue in unavailable} == {location.key for location in request.locations}
+    assert all(len(output.task_ids) == 1 for output in plan.outputs)
+
+
+def test_all_selected_datasets_unavailable_is_an_error(tmp_path):
+    import pytest
+
+    from openepw.models import OpenEPWError
+
+    service = WeatherService(RuntimeConfig(data_root=tmp_path), providers=[StationProvider()])
+    request = WeatherRequest(
+        locations=Location(lat=1, lon=0),
+        start="2024-01-01",
+        end="2024-01-01",
+        dataset_selections=[
+            {"provider": "station", "dataset": "synthetic", "product_id": "not-offered"}
+        ],
+    )
+
+    with pytest.raises(OpenEPWError) as exc:
+        service.plan(request)
+
+    assert exc.value.issue.code == "PROVIDER_UNAVAILABLE"
+
+
 def test_subhourly_missing_state_is_not_silently_filled():
     import numpy as np
 

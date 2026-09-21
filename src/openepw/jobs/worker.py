@@ -80,6 +80,7 @@ class JobRunner:
                     raw = plan.model_dump(mode="json", exclude={"plan_hash"})
                     raw["outputs"] = [o.model_dump() for o in plan.outputs if o.name == output.name]
                     raw["tasks"] = [t.model_dump() for t in plan.tasks if t.id in output.task_ids]
+                    raw["issues"] = []
                     subplan = WeatherPlan.model_validate(raw)
                 bundle = self.service.execute(
                     subplan, cancelled=lambda: self.store.get(job_id).cancellation_requested
@@ -102,7 +103,7 @@ class JobRunner:
             self.store.save(job)
         weather = []
         extra = []
-        errors = list(job.errors)
+        errors = [*plan.issues, *job.errors]
         manifests = []
         qc = []
         for bundle in completed.values():

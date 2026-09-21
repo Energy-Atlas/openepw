@@ -20,6 +20,34 @@ def test_request_date_and_product_conflicts():
             WeatherRequest(locations=[Location(lat=42, lon=-76)], **extra)
 
 
+def test_dataset_selections_are_unique_and_cannot_mix_with_hybrid():
+    base = dict(locations=Location(lat=42, lon=-76), years=[2024])
+    request = WeatherRequest(
+        **base,
+        dataset_selections=[
+            {"provider": "era5", "dataset": "era5-single-levels"},
+            {"provider": "pvgis", "dataset": "sarah3", "product_id": "tmy"},
+        ],
+    )
+    assert [selection.provider for selection in request.dataset_selections] == ["era5", "pvgis"]
+
+    with pytest.raises(ValidationError, match="Duplicate dataset selection"):
+        WeatherRequest(
+            **base,
+            dataset_selections=[
+                {"provider": "era5", "dataset": "era5-single-levels"},
+                {"provider": "era5", "dataset": "era5-single-levels"},
+            ],
+        )
+
+    with pytest.raises(ValidationError, match="hybrid"):
+        WeatherRequest(
+            **base,
+            dataset_selections=[{"provider": "era5", "dataset": "era5-single-levels"}],
+            hybrid_policy={"enabled": True, "assignments": {"dry_bulb": "era5"}},
+        )
+
+
 def test_skip_feb_29_requires_actual_year_request():
     for extra in [
         dict(product="tmy", skip_feb_29=True),
