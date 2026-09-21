@@ -75,7 +75,7 @@ Latest run, 2026-09-21, Windows, Python 3.14.7 and Node 24.21.0 with installed E
 | Ruff and mypy | Passed; mypy 43 source files |
 | UI TypeScript and ESLint | Passed |
 | UI Prettier | Passed with `--end-of-line auto`; the repo-wide check flags only CRLF line endings on this Windows checkout |
-| Vitest | 98 passed across 20 files |
+| Vitest | 111 passed across 22 files |
 | Vite production build | Passed |
 | Playwright development hosting | 3 passed |
 | Playwright FastAPI production hosting | 1 passed (`@production` worker smoke) |
@@ -114,15 +114,10 @@ production) with 98 Python and 50 Vitest tests; see the ledger.
 
 The 2026-09-21 conformance review against the
 [redesign spec](../superpowers/specs/2026-09-20-webui-workflow-redesign.md) listed
-gaps; most were implemented the same day (see the ledger). Still open:
+gaps; all but one were implemented the same day (see the ledger). Still open:
 
-- Explore: a move/edit tool for existing vertices (only arrow-key nudging of the latest
-  vertex exists) and a debounced live preview while a box or polygon is being drawn;
-  the authoritative preview runs when the shape is finished.
 - Project: when a job produces several EPWs, the first bundle EPW is opened
   automatically rather than a backend-ranked EPW for a selected map point.
-- Agent: appearance and panel sizing are changed directly rather than through the
-  shared action registry, so scripted recipes cannot set them.
 
 Operating guidance: [webui.md](../webui.md). Design contract:
 [map-first staged UI](../superpowers/specs/2026-09-20-webui-workflow-redesign.md).

@@ -204,3 +204,29 @@ Vitest 98 across 20 files; TypeScript, ESLint and Prettier (line-ending agnostic
 passed; production build passed; Playwright 3 development and 1 production passed;
 generated contracts have no drift. Each root-cause test was confirmed to fail without
 its fix. CI has not run these commits.
+
+## Remaining spec items 2–4 — 2026-09-21
+
+Owner asked to implement items 2–4 of the open-item plan autonomously (item 1, ranked
+EPW auto-selection, remains open).
+
+- Appearance and panel sizing now go through the action registry. Appearance is
+  persisted in the workspace store (migrating `openepw.appearance.v1`); `setPanelSize`
+  clamps and never waits on a busy request. The scripted Agent parses appearance,
+  resize and reset-panel commands.
+- Applied shapes can be edited: an Edit tool reopens points, point lists, boxes and
+  single-ring polygons as draggable, focusable handles with a live outline; arrows
+  nudge, Delete removes down to the minimum, Enter applies, Escape discards. Point
+  edits keep names, ids and offsets. Handle keys are stopped natively because MapLibre
+  listens on the map container; clicks on markers no longer add vertices.
+- Provisional previews: complete area shapes being drawn or edited are sampled 600 ms
+  after the last change with superseded requests aborted; the result is faded points
+  and a "not applied" status kept out of the store, so Run and the authoritative
+  preview are unaffected.
+
+Browser checks against the fixture: drawing and editing by drag and keyboard applied
+246 → 440 samples without panning the globe; Escape discarded; one provisional
+request per settled drag; authoritative count and Run state unchanged until finish.
+Verification: Python 103 passed / 15 skipped; Ruff and mypy passed; Vitest 111 across
+22 files; TypeScript, ESLint and Prettier passed; build passed; Playwright 3
+development and 1 production passed. The native key-stop test fails without its fix.
