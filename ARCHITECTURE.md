@@ -156,6 +156,11 @@ MCP exposes `weather_geocode`, `weather_discover`, `weather_plan`, `weather_fetc
 Python service directly. Stdio and loopback Streamable HTTP are supported; remote
 MCP authentication is deferred rather than exposed without protection.
 
+MCP availability research tooling lives under `scripts/mcp_research/`, outside the
+installed package. Its bounded collector and offline inventory analysis feed the
+[Stage 1 findings](docs/validation/mcp-stage-1/README.md). A shared production
+availability catalog remains a Stage 2 proposal; current adapters are unchanged.
+
 Configuration precedence: programmatic overrides → environment → explicitly loaded
 local dotenv → ignored local TOML. Credentials are SecretStr runtime fields and
 never request/plan fields. [Configuration template](config.example.toml),

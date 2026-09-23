@@ -1,5 +1,10 @@
 # Provider implementation status — v0.1
 
+Later metadata investigation: [MCP Stage 1 availability findings](../validation/mcp-stage-1/README.md)
+(2026-09-23). These distinguish catalog evidence from usable weather, document
+stale inventories and incomplete indexes, and do not expand the live acceptance
+claims below.
+
 All six access providers returned data through the implemented service on
 2026-09-20. Credentials stayed local. This demonstrates the tested requests,
 not universal geographic/year coverage or simulation fitness.

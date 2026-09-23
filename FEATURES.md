@@ -23,6 +23,7 @@ are recorded separately. Installed source package version: 0.1.0.
 | Future ensembles | Implemented | Model/member outputs for morph; temporal years for hourly archive |
 | REST/jobs/artifacts | Implemented, offline tested | SQLite + filesystem; identity-keyed progress and failed-output retry; single server process; bearer auth for remote REST |
 | MCP and CLI | Implemented, offline tested | Stdio and loopback Streamable HTTP; compact artifact references |
+| MCP availability research | Stage 1 completed, tooling offline tested | Bounded inventory investigation; [findings](docs/validation/mcp-stage-1/README.md); production catalog/recommendation integration remains future work |
 | Packaging/CI | Wheel/sdist built; local installation verified | Cross-OS runners configured; see actual run evidence |
 
 Reserved: sampled/stochastic weather, additional hourly scenarios/geographies,

@@ -1,0 +1,22 @@
+# Availability source register
+
+Collected 2026-09-23. Exact timestamps, final status, version headers and SHA-256
+values are in [evidence.json](evidence.json). IDs below identify ledger records.
+This table records data notices and handling policy, not a blanket redistribution
+license for every website or inventory. Raw responses remain ignored/local.
+
+| Source and record IDs | Authority / access | Useful fields and caveats | Attribution / reuse handling |
+| --- | --- | --- | --- |
+| `openmeteo-doc` | [Historical API documentation](https://open-meteo.com/en/docs/historical-weather-api) | Dataset-dependent global/land coverage, resolution, start dates, variables, elevation/grid options | Attribute Open-Meteo and underlying ERA5; free-hosting eligibility remains separate from dataset coverage. Keep raw HTML local |
+| `pvgis-doc`, `pvgis-london` | [JRC API documentation](https://joint-research-centre.ec.europa.eu/photovoltaic-geographical-information-system-pvgis/using-pvgis-5/api-non-interactive-service_en); [v5_3 TMY endpoint](https://re.jrc.ec.europa.eu/api/v5_3/tmy) | TMY source period depends on radiation DB; London response identifies SARAH3/ERA5, source years and horizon settings | Preserve JRC and upstream dataset attribution. Publish metadata observations, not downloaded hourly rows |
+| `onebuilding-*` | [Root](https://climate.onebuilding.org/), [source descriptions](https://climate.onebuilding.org/sources/default.html), linked U.S./U.K./Australia catalogs | Stable product paths, published period variants; coordinates absent from selected HTML catalogs | Raw catalog/weather redistribution unverified. No weather ZIPs downloaded; publish aggregate counts and derived findings only |
+| `noaa-doc`, `noaa-history`, `noaa-inventory` | [ISD documentation](https://www.ncei.noaa.gov/products/land-based-station/integrated-surface-database), [station history](https://www.ncei.noaa.gov/pub/data/noaa/isd-history.csv), [monthly inventory](https://www.ncei.noaa.gov/pub/data/noaa/isd-inventory.csv) | Station IDs/coordinates/elevation/operating dates; monthly inventory aborted at cap. Latest history is dated 2025 | Attribute NOAA/NCEI. Publish selected mapping observations, not the full inventory; unknown completeness remains explicit |
+| `nsrdb-doc`, `nsrdb-ithaca`, `nsrdb-phoenix` | [NLR NSRDB API](https://developer.nlr.gov/docs/solar/nsrdb/) and its public location-query catalog | Product IDs, actual years, published labels and upstream intervals at two points | Attribute NLR/NSRDB. Public DEMO_KEY only; no download credentials or personal email used. Omit query keys and upstream download URLs from evidence |
+| `cds-era5`, `cds-land`, `cds-*-process` | [ERA5](https://cds.climate.copernicus.eu/datasets/reanalysis-era5-single-levels), [ERA5-Land](https://cds.climate.copernicus.eu/datasets/reanalysis-era5-land), public collection/process JSON | Verbatim bbox/temporal intervals and request enums. Preserve global-description/bbox discrepancy and land-mask uncertainty | Returned collection metadata declares CC-BY-4.0. Attribute Copernicus/ECMWF. No retrieval jobs, accepted terms or credentials needed for these public calls |
+| `cmip6-doc`, `cmip6-catalog`, `cmip6-license`, four `cmip6-*-tas/rsds` records | [Pangeo](https://pangeo-data.github.io/pangeo-cmip6-cloud/), [catalog CSV](https://storage.googleapis.com/cmip6/pangeo-cmip6.csv), [WCRP registry](https://github.com/WCRP-CMIP/CMIP6_CVs/blob/main/CMIP6_source_id.json) | Coherent model/member/grid/variable catalog entries; selected Zarr attrs and time shape; effective license history | Preserve per-model grants and original/effective license evidence. Do not claim every catalog combination passes licensing or window checks. Full catalog stays local |
+| `oedi-doc`, `oedi-sites`, two tails and attempted directories | [Argonne/OEDI dataset 5974](https://data.openei.org/submissions/5974), [PUMA locations](https://data.openei.org/files/5974/PUMA%20information%20%281%29.csv) and scenario archive Range metadata | Delivered site list, documented scenarios/windows and ZIP64 directory sizes; membership unresolved | Source declares CC BY 4.0; retain Argonne authors, DOI 10.25984/2202668 and warming caveat. No EPW archive members published or downloaded |
+
+Request reproduction uses built-in IDs plus [requests.json](requests.json).
+Additional URLs were obtained from saved authoritative catalog links or CMIP6
+store entries. No recursive crawler or approximate guessed country/station path
+was used for the follow-ups.

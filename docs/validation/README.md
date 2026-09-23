@@ -2,6 +2,10 @@
 
 Latest: [v0.1 acceptance](v0.1-acceptance.md) and [execution ledger](stage-2-ledger.md).
 
+MCP follow-up: [Stage 1 availability investigation](mcp-stage-1/README.md), completed
+2026-09-23 with bounded metadata collection, three targeted probes and offline
+research-tool tests. This does not replace the v0.1 weather acceptance evidence.
+
 # Stage 1 evidence
 
 Observed 2026-09-20 from Windows, Python 3.14 standard library. These are small

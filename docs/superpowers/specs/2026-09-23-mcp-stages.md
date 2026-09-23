@@ -6,8 +6,10 @@ Status: Stage 1 scope and product/batch decisions are recorded as accepted in
 [ADR 0003](../../decisions/0003-mcp-availability-and-batches.md). Stages 2–6 below
 are proposed for discussion, not an approved implementation plan or completion
 claim. These stages are separate from the completed v0.1 implementation stages.
-The present task records decisions and develops the stage sequence; it does not
-start provider probing or product implementation.
+The owner subsequently approved the Stage 1 investigation for implementation.
+Its [execution plan](../plans/2026-09-23-mcp-stage-1.md) and
+[findings](../../validation/mcp-stage-1/README.md) record completed research and
+remaining unknowns. No later stage or production MCP behavior is implemented here.
 
 ## Intended outcome
 
