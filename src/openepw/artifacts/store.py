@@ -10,7 +10,7 @@ from ..models import ArtifactRef, OpenEPWError
 
 def atomic_write(path: Path, body: bytes):
     path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_name(path.name + "." + uuid.uuid4().hex + ".tmp")
+    temporary = path.with_name(".tmp-" + uuid.uuid4().hex)
     try:
         with temporary.open("wb") as file:
             file.write(body)

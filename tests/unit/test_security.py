@@ -75,6 +75,16 @@ def test_artifact_write_rejects_windows_special_names(tmp_path, name):
         ArtifactStore(tmp_path).write("a" * 32, name, b"test", "test")
 
 
+def test_artifact_write_with_long_semantic_name_uses_short_temporary_path(tmp_path):
+    from openepw.artifacts.store import ArtifactStore
+
+    store = ArtifactStore(tmp_path)
+    name = "a" * 90 + ".epw"
+    ref = store.write("b" * 32, name, b"weather", "weather")
+
+    assert store.resolve(ref.id)[1].name == name
+
+
 def test_http_logging_redacts_runtime_credentials(tmp_path, caplog):
     import logging
 
