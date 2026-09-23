@@ -31,3 +31,33 @@ def test_api_plan_parity_and_auth(tmp_path):
 def test_remote_without_token_rejected(tmp_path):
     with pytest.raises(ValueError):
         create_app(WeatherService(RuntimeConfig(data_root=tmp_path)), remote=True)
+
+
+def test_retry_route_submits_only_failed_outputs(tmp_path):
+    from openepw.models import Location, OpenEPWError, WeatherRequest
+
+    class SometimesFails(StationProvider):
+        def fetch(self, task, http):
+            if task.source.identity == "2":
+                raise OpenEPWError("SOURCE_FAILED", "Synthetic failure")
+            return super().fetch(task, http)
+
+    service = WeatherService(RuntimeConfig(data_root=tmp_path), providers=[SometimesFails()])
+    app = create_app(service)
+    plan = service.plan(
+        WeatherRequest(
+            locations=[Location(lat=1, lon=0), Location(lat=2, lon=0)],
+            start="2024-01-01",
+            end="2024-01-01",
+        )
+    )
+    with TestClient(app) as client:
+        original = app.state.runner.store.submit(plan)
+        app.state.runner.run(original.id)
+        app.state.runner.enqueue = lambda job_id: None
+        response = client.post(f"/v1/jobs/{original.id}/retry", json={})
+        assert response.status_code == 202
+        retry = response.json()
+        assert retry["retry_of"] == original.id
+        assert retry["total"] == 1
+        assert len(app.state.runner.store.plan(retry["id"]).outputs) == 1

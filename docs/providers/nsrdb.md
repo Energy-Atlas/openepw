@@ -4,6 +4,11 @@
 
 Production credentials passed both aggregate v4 actual-year retrieval (2024, 8,784 hours) and native published TMY retrieval (8,760 hours). Published TMY/TDY/TGY IDs are selected from the live catalog. Hour-center actual-year timestamps become interval ends; native TMY fixed timezone and mixed original source years are retained. Only the specific NLR S3 redirect is followed without forwarding credentials. Other spatial footprints/subhourly products remain deferred.
 
+Interactive discovery makes one NSRDB catalog attempt. If NLR returns HTTP 429,
+discovery reports `RATE_LIMITED` while retaining other providers' candidates instead
+of waiting through NLR's long `Retry-After` period. Download requests retain the
+normal configured retry policy.
+
 ## Earlier source/access review
 
 Use `developer.nlr.gov`, not a hardcoded legacy NREL hostname. The legacy hostname

@@ -13,6 +13,7 @@ from .epw.writer import epw_bytes
 from .models import (
     ArtifactBundle,
     Candidate,
+    DatasetSelection,
     DiscoveryResult,
     FetchTask,
     GeocodeResult,
@@ -25,6 +26,7 @@ from .models import (
     digest,
     utcnow,
 )
+from .planning.output_identity import filename, location_label, output_id, period_label
 from .providers.era5 import CDSProvider
 from .providers.http import HttpClient
 from .providers.noaa_isd import NOAAProvider
@@ -101,20 +103,43 @@ class WeatherService:
         locations = self.locations(request)
         candidates: list[Candidate] = []
         issues = []
-        for name in request.providers:
-            if name not in self.providers:
-                issues.append(
-                    Issue(code="PROVIDER_UNAVAILABLE", message=f"Unknown provider: {name}")
-                )
+        if not request.dataset_selections:
+            for name in request.providers:
+                if name not in self.providers:
+                    issues.append(
+                        Issue(code="PROVIDER_UNAVAILABLE", message=f"Unknown provider: {name}")
+                    )
         for loc in locations:
-            for name, p in self.providers.items():
-                if request.providers and name not in request.providers:
+            queries = (
+                [
+                    (
+                        selection.provider,
+                        request.model_copy(
+                            update={
+                                "dataset": selection.dataset,
+                                "product_id": selection.product_id or request.product_id,
+                            }
+                        ),
+                    )
+                    for selection in request.dataset_selections
+                ]
+                if request.dataset_selections
+                else [
+                    (name, request)
+                    for name in self.providers
+                    if not request.providers or name in request.providers
+                ]
+            )
+            for name, query in queries:
+                p = self.providers.get(name)
+                if p is None:
                     continue
                 try:
-                    candidates.extend(p.discover(request, loc, self.http))
+                    candidates.extend(p.discover(query, loc, self.http))
                 except OpenEPWError as exc:
                     issues.append(exc.issue)
         selected = []
+        ranked: dict[str, list[str]] = {}
         for loc in locations:
             choices = [c for c in candidates if c.location_id == loc.key]
             choices.sort(
@@ -126,6 +151,7 @@ class WeatherService:
                     bool(c.requires_credentials),
                 )
             )
+            ranked[loc.key] = [c.id for c in choices]
             if choices:
                 choices[0].selection_reasons = [
                     "Fewest missing requested fields; explicit provider order; ungated access as tie-break"
@@ -135,6 +161,7 @@ class WeatherService:
             locations=locations,
             candidates=candidates,
             selected_candidate_ids=selected,
+            ranked_candidate_ids=ranked,
             issues=issues,
         )
 
@@ -147,7 +174,8 @@ class WeatherService:
                 "UNSUPPORTED_TIMEZONE",
                 "Fractional-hour output requires explicit temporal interpolation; request UTC or a whole-hour fixed offset in v0.1",
             )
-        if len(locations) * max(1, len(request.years)) > 1000:
+        output_multiplier = max(1, len(request.years)) * max(1, len(request.dataset_selections))
+        if len(locations) * output_multiplier > 1000:
             raise OpenEPWError("RESOURCE_LIMIT", "Request exceeds 1000 output locations/periods")
         discovery = discovery or self.discover(request)
         if [p.key for p in discovery.locations] != [p.key for p in self.locations(request)]:
@@ -156,8 +184,10 @@ class WeatherService:
         outputs = []
         selected: list[Candidate] = []
         warnings = [i.message for i in discovery.issues]
-        for loc in discovery.locations:
+        issues = list(discovery.issues)
+        for occurrence, loc in enumerate(discovery.locations):
             candidates = [c for c in discovery.candidates if c.location_id == loc.key]
+            chosen: list[tuple[Candidate, DatasetSelection | None]]
             if request.hybrid_policy.enabled:
                 if request.product not in ("historical", "amy"):
                     raise OpenEPWError("INVALID_ALIGNMENT", "Hybrids require actual dated series")
@@ -168,20 +198,61 @@ class WeatherService:
                         raise OpenEPWError(
                             "PROVIDER_UNAVAILABLE", "Assigned hybrid provider is unavailable"
                         )
-                    chosen.append(candidate)
+                    chosen.append((candidate, None))
+            elif request.dataset_selections:
+                chosen = []
+                ranking = discovery.ranked_candidate_ids.get(loc.key, [])
+                ordered = sorted(
+                    candidates,
+                    key=lambda candidate: (
+                        ranking.index(candidate.id) if candidate.id in ranking else len(ranking)
+                    ),
+                )
+                for selection in request.dataset_selections:
+                    candidate = next(
+                        (
+                            c
+                            for c in ordered
+                            if c.source.provider == selection.provider
+                            and c.source.dataset == selection.dataset
+                            and (
+                                selection.product_id is None or c.product_id == selection.product_id
+                            )
+                        ),
+                        None,
+                    )
+                    if candidate is None:
+                        issues.append(
+                            Issue(
+                                code="DATASET_UNAVAILABLE",
+                                message=f"{selection.provider}/{selection.dataset} is unavailable for this location",
+                                severity="warning",
+                                field="dataset_selections",
+                                location_id=loc.key,
+                                dataset_selection=selection.model_dump(mode="json"),
+                            )
+                        )
+                        continue
+                    chosen.append((candidate, selection))
             else:
-                chosen = [c for c in candidates if c.id in discovery.selected_candidate_ids][:1]
+                chosen = []
+                chosen.extend(
+                    (c, None) for c in candidates if c.id in discovery.selected_candidate_ids
+                )
+                chosen = chosen[:1]
             if not chosen:
+                if request.dataset_selections:
+                    continue
                 raise OpenEPWError(
                     "PROVIDER_UNAVAILABLE", "No candidate supports requested product/location"
                 )
-            selected.extend(c for c in chosen if c.id not in [v.id for v in selected])
+            selected.extend(c for c, _ in chosen if c.id not in [v.id for v in selected])
             periods = [(f"{y}-01-01", f"{y}-12-31") for y in request.years] or [
                 (str(request.start), str(request.end))
             ]
             for start, end in periods:
                 ids = []
-                for candidate in chosen:
+                for candidate, _selection in chosen:
                     warnings.extend(candidate.warnings)
                     if (
                         candidate.source.resolution_km
@@ -226,17 +297,69 @@ class WeatherService:
                     elif loc.key not in tasks[key].dependents:
                         tasks[key].dependents.append(loc.key)
                     ids.append(task_id)
-                outputs.append(
-                    OutputSpec(
-                        requested_location_id=loc.key, task_ids=ids, name=digest(ids)[:20] + ".epw"
-                    )
+                groups: list[tuple[list[str], list[Candidate], DatasetSelection | None]] = (
+                    [
+                        ([task_id], [pair[0]], pair[1])
+                        for task_id, pair in zip(ids, chosen, strict=True)
+                    ]
+                    if request.dataset_selections
+                    else [(ids, [pair[0] for pair in chosen], None)]
                 )
+                for output_task_ids, output_candidates, output_selection in groups:
+                    identity = output_id(
+                        {
+                            "kind": "weather",
+                            "location_id": loc.key,
+                            "occurrence": occurrence,
+                            "task_ids": output_task_ids,
+                            "sources": [
+                                {
+                                    "provider": c.source.provider,
+                                    "dataset": c.source.dataset,
+                                    "product_id": c.product_id or request.product_id,
+                                }
+                                for c in output_candidates
+                            ],
+                            "selection": output_selection.model_dump(mode="json")
+                            if output_selection
+                            else None,
+                            "product": request.product,
+                            "period": [start, end],
+                            "skip_feb_29": request.skip_feb_29,
+                            "hybrid_assignments": request.hybrid_policy.assignments,
+                            "missing_policy": request.missing_policy,
+                        }
+                    )
+                    first = output_candidates[0]
+                    outputs.append(
+                        OutputSpec(
+                            id=identity,
+                            requested_location_id=loc.key,
+                            task_ids=output_task_ids,
+                            dataset_selection=output_selection,
+                            name=filename(
+                                [
+                                    location_label(loc),
+                                    first.source.provider,
+                                    first.source.dataset,
+                                    first.product_id or first.source.identity or request.product_id,
+                                    period_label(start, end, request.product, request.product_id),
+                                ],
+                                identity,
+                            ),
+                        )
+                    )
+        if not outputs:
+            raise OpenEPWError(
+                "PROVIDER_UNAVAILABLE", "No selected dataset supports any requested location"
+            )
         return WeatherPlan(
             request=request,
             selected_candidates=selected,
             tasks=list(tasks.values()),
             outputs=outputs,
             warnings=list(dict.fromkeys(warnings)),
+            issues=issues,
             estimated_calls=len(tasks),
         )
 
@@ -260,7 +383,13 @@ class WeatherService:
                 )
             Location.model_validate(task.parameters.get("location"))
         bundle_id = uuid.uuid4().hex
-        weather, additional, issues, manifest_outputs, qc_records = [], [], [], [], []
+        weather, additional, issues, manifest_outputs, qc_records = (
+            [],
+            [],
+            list(plan.issues),
+            [],
+            [],
+        )
         results = {}
         for task in plan.tasks:
             if cancelled():
@@ -278,9 +407,10 @@ class WeatherService:
                 progress(task.id, exc.issue)
         written = set()
         for output in plan.outputs:
-            if output.name in written:
+            output_key = output.id or output.name
+            if output_key in written:
                 continue
-            written.add(output.name)
+            written.add(output_key)
             if not all(t in results for t in output.task_ids):
                 continue
             try:
@@ -336,10 +466,9 @@ class WeatherService:
                 manifest_outputs.append(
                     {
                         "artifact_id": ref.id,
+                        "output_id": output.id,
                         "task_ids": output.task_ids,
-                        "requested_locations": [
-                            o.requested_location_id for o in plan.outputs if o.name == output.name
-                        ],
+                        "requested_locations": [output.requested_location_id],
                         "source": parts[0].source.model_dump(mode="json"),
                         "lineage": {
                             k: v.model_dump(mode="json") for k, v in dataset.lineage.items()
@@ -352,10 +481,10 @@ class WeatherService:
                     {"artifact_id": ref.id, "issues": [i.model_dump() for i in checks]}
                 )
                 issues.extend(checks)
-                progress(output.name, None)
+                progress(output_key, None)
             except OpenEPWError as exc:
-                issues.append(exc.issue.model_copy(update={"task_id": output.name}))
-                progress(output.name, exc.issue)
+                issues.append(exc.issue.model_copy(update={"task_id": output_key}))
+                progress(output_key, exc.issue)
         return self._bundle(
             plan, bundle_id, weather, additional, issues, manifest_outputs, qc_records
         )
@@ -378,9 +507,7 @@ class WeatherService:
             "issues": [i.model_dump() for i in issues],
             "timezone_policy": "fixed local standard time; default UTC when not supplied",
             "leap_policy": (
-                plan.request.leap_policy
-                if isinstance(plan.request, WeatherRequest)
-                else "preserve"
+                plan.request.leap_policy if isinstance(plan.request, WeatherRequest) else "preserve"
             ),
             "simulation_ready": False,
         }

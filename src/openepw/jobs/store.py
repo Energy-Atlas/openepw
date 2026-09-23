@@ -1,8 +1,15 @@
+import json
 import sqlite3
 import uuid
+from contextlib import contextmanager
 from pathlib import Path
 
 from ..models import ArtifactBundle, OpenEPWError, WeatherJob, WeatherPlan
+
+
+def _job_from_row(row):
+    job = WeatherJob.model_validate_json(row[0])
+    return job.model_copy(update={"kind": json.loads(row[1]).get("kind", "weather")})
 
 
 class JobStore:
@@ -18,26 +25,33 @@ class JobStore:
                 "CREATE TABLE IF NOT EXISTS items (job_id TEXT, name TEXT, bundle TEXT, PRIMARY KEY(job_id,name))"
             )
 
+    @contextmanager
     def connect(self):
         db = sqlite3.connect(self.path, timeout=30)
-        db.execute("PRAGMA busy_timeout=30000")
-        return db
+        try:
+            db.execute("PRAGMA busy_timeout=30000")
+            with db:
+                yield db
+        finally:
+            db.close()
 
-    def submit(self, plan, idempotency_key=None):
+    def submit(self, plan, idempotency_key=None, retry_of=None):
         job = WeatherJob(
             id=uuid.uuid4().hex,
             plan_hash=plan.plan_hash,
-            total=max(1, len({o.name for o in plan.outputs})),
+            kind=plan.kind,
+            retry_of=retry_of,
+            total=max(1, len({o.id or o.name for o in plan.outputs})),
             idempotency_key=idempotency_key,
         )
         with self.connect() as db:
             db.execute("BEGIN IMMEDIATE")
             if idempotency_key:
                 row = db.execute(
-                    "SELECT job FROM jobs WHERE idempotency=?", (idempotency_key,)
+                    "SELECT job,plan FROM jobs WHERE idempotency=?", (idempotency_key,)
                 ).fetchone()
                 if row:
-                    prior = WeatherJob.model_validate_json(row[0])
+                    prior = _job_from_row(row)
                     if prior.plan_hash != plan.plan_hash:
                         raise OpenEPWError(
                             "IDEMPOTENCY_CONFLICT", "Key already refers to a different plan"
@@ -51,10 +65,10 @@ class JobStore:
 
     def get(self, job_id):
         with self.connect() as db:
-            row = db.execute("SELECT job FROM jobs WHERE id=?", (job_id,)).fetchone()
+            row = db.execute("SELECT job,plan FROM jobs WHERE id=?", (job_id,)).fetchone()
         if row is None:
             raise OpenEPWError("JOB_NOT_FOUND", "Unknown job identifier")
-        return WeatherJob.model_validate_json(row[0])
+        return _job_from_row(row)
 
     def plan(self, job_id):
         with self.connect() as db:

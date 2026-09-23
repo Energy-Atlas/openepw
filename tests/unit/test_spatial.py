@@ -29,3 +29,22 @@ def test_polygon_holes_and_self_intersection():
     bow = PolygonQuery(coordinates=[[(0, 0), (2, 2), (0, 2), (2, 0), (0, 0)]])
     with pytest.raises(OpenEPWError):
         sample(bow, SamplingSpec())
+
+
+def test_sampled_points_can_use_longitude_based_standard_time():
+    from openepw.models import nominal_offset_minutes
+
+    assert [nominal_offset_minutes(lon) for lon in (-76.5, -7.5, 7.5, 0, 179.9, -179.9)] == [
+        -300,
+        0,
+        60,
+        0,
+        720,
+        -720,
+    ]
+    box = BoundingBox(west=-77, south=42, east=-76, north=43)
+    utc = sample(box, SamplingSpec(dx_km=50, dy_km=50))
+    local = sample(box, SamplingSpec(dx_km=50, dy_km=50, standard_offset="longitude"))
+    assert {point.standard_offset_minutes for point in utc} == {0}
+    assert {point.standard_offset_minutes for point in local} == {-300}
+    assert [(p.lat, p.lon) for p in utc] == [(p.lat, p.lon) for p in local]

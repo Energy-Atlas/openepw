@@ -2,9 +2,29 @@ import json
 import threading
 import uuid
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 
 from ..models import Issue, OpenEPWError, WeatherPlan, utcnow
 from .store import JobStore
+
+TERMINAL = ("completed", "partially_completed", "failed", "cancelled")
+
+
+def subplan(plan, outputs):
+    """Restrict a plan to output identities and their required fetch tasks."""
+    keys = {output.id or output.name for output in outputs}
+    task_ids = {task_id for output in outputs for task_id in output.task_ids}
+    raw = plan.model_dump(mode="json", exclude={"plan_hash"})
+    raw["outputs"] = [
+        output.model_copy(update={"index": i}).model_dump(mode="json")
+        if plan.kind == "future" and output.index is None
+        else output.model_dump(mode="json")
+        for i, output in enumerate(plan.outputs)
+        if (output.id or output.name) in keys
+    ]
+    raw["tasks"] = [task.model_dump(mode="json") for task in plan.tasks if task.id in task_ids]
+    raw["issues"] = []
+    return WeatherPlan.model_validate(raw)
 
 
 class JobRunner:
@@ -17,10 +37,59 @@ class JobRunner:
         self.lock = threading.Lock()
         self.active = set()
 
-    def submit(self, plan, idempotency_key=None):
-        job = self.store.submit(plan, idempotency_key)
+    def submit(self, plan, idempotency_key=None, retry_of=None):
+        job = self.store.submit(plan, idempotency_key, retry_of=retry_of)
         self.enqueue(job.id)
         return job
+
+    def retry_failed(self, job_id, idempotency_key=None):
+        """Submit only output identities that have no verified successful artifact."""
+        job = self.store.get(job_id)
+        if job.state not in TERMINAL:
+            raise OpenEPWError("INVALID_REQUEST", "Only a finished job can be retried")
+        plan = self.store.plan(job_id)
+        produced: set[str] = set()
+        for key, bundle in self.store.items(job_id).items():
+            if plan.kind == "future":
+                try:
+                    _, manifest_path = self.service.artifacts.resolve(bundle.manifest.id)
+                    manifest_outputs = json.loads(manifest_path.read_text())["outputs"]
+                except (OpenEPWError, KeyError, ValueError):
+                    manifest_outputs = []
+                output_by_artifact = {
+                    entry["artifact_id"]: entry.get("output_id")
+                    for entry in manifest_outputs
+                    if "artifact_id" in entry
+                }
+                for ref in bundle.weather:
+                    try:
+                        self.service.artifacts.resolve(ref.id)
+                    except OpenEPWError:
+                        continue
+                    if plan.outputs[0].id is not None:
+                        identity = output_by_artifact.get(ref.id)
+                        if isinstance(identity, str) and identity in {
+                            output.id for output in plan.outputs
+                        }:
+                            produced.add(identity)
+                    else:
+                        produced.update(
+                            output.id or output.name
+                            for output in plan.outputs
+                            if output.name == Path(ref.path).name
+                        )
+            else:
+                try:
+                    if bundle.weather and all(
+                        self.service.artifacts.resolve(ref.id) for ref in bundle.weather
+                    ):
+                        produced.add(key)
+                except OpenEPWError:
+                    pass
+        missing = [o for o in plan.outputs if (o.id or o.name) not in produced]
+        if not missing:
+            raise OpenEPWError("NOTHING_TO_RETRY", "Every planned output was produced")
+        return self.submit(subplan(plan, missing), idempotency_key, retry_of=job_id)
 
     def enqueue(self, job_id):
         with self.lock:
@@ -65,24 +134,20 @@ class JobRunner:
                     self.service.artifacts.resolve(ref.id)
             except OpenEPWError:
                 del completed[name]
-        outputs = list({o.name: o for o in plan.outputs}.values())
+        outputs = list({(o.id or o.name): o for o in plan.outputs}.values())
         if plan.kind == "future":
             outputs = [None]
+        attempted = len(completed)
         for output in outputs:
             if self.store.get(job_id).cancellation_requested:
                 break
-            name = output.name if output else "future"
+            name = (output.id or output.name) if output else "future"
             if name in completed:
                 continue
             try:
-                subplan = plan
-                if output:
-                    raw = plan.model_dump(mode="json", exclude={"plan_hash"})
-                    raw["outputs"] = [o.model_dump() for o in plan.outputs if o.name == output.name]
-                    raw["tasks"] = [t.model_dump() for t in plan.tasks if t.id in output.task_ids]
-                    subplan = WeatherPlan.model_validate(raw)
+                execution_plan = subplan(plan, [output]) if output else plan
                 bundle = self.service.execute(
-                    subplan, cancelled=lambda: self.store.get(job_id).cancellation_requested
+                    execution_plan, cancelled=lambda: self.store.get(job_id).cancellation_requested
                 )
                 self.store.complete_item(job_id, name, bundle)
                 completed[name] = bundle
@@ -98,11 +163,13 @@ class JobRunner:
                     )
                 )
                 job.errors.append(issue)
+            attempted += 1
             job.completed = sum(len(b.weather) for b in completed.values())
+            job.failed = max(0, attempted - job.completed)
             self.store.save(job)
         weather = []
         extra = []
-        errors = list(job.errors)
+        errors = [*plan.issues, *job.errors]
         manifests = []
         qc = []
         for bundle in completed.values():

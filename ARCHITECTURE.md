@@ -20,7 +20,7 @@ src/openepw/
   epw/{schema,reader,writer}.py
   qc/checks.py
   providers/{base,http,openmeteo,pvgis,onebuilding,noaa_isd,nsrdb,era5}.py
-  planning/{spatial,hybrid,future}.py
+  planning/{spatial,hybrid,future,output_identity}.py
   service.py             discovery, planning, execution and bundles
   generation/{cmip6,morph,hourly_archive,climate_profile}.py
   artifacts/store.py     atomic files, checksums, opaque identifiers
@@ -44,8 +44,8 @@ as immutable, checksummed artifacts.
 
 `WeatherRequest` accepts a Location, point list, BoundingBox, or GeoJSON-style
 PolygonQuery; actual years or inclusive dates; a published product ID; provider
-ordering; dataset; required variables; explicit hybrid assignments and missing
-policy. `FutureRequest` separates SSP/RCP scenarios, reference and target periods,
+ordering; dataset-level selections; required variables; explicit hybrid assignments
+and missing policy. `FutureRequest` separates SSP/RCP scenarios, reference and target periods,
 method, profile and model/member selectors. Unknown fields/schema versions fail.
 
 `WeatherPlan` contains the typed request, source candidates, fetch tasks, output
@@ -54,6 +54,10 @@ observations do not affect its identity. Task cache identifiers are SHA-256 valu
 weather execution verifies them against source/request inputs. Plan graph references
 and artifact names are validated. A hash is an integrity check, not authorization;
 execution also restricts provider endpoints, climate stores and resource budgets.
+Each new `OutputSpec` has a deterministic ID distinct from its fetch task IDs and
+semantic EPW filename. An occurrence index keeps even identical requested point
+entries distinct. Legacy persisted plans without output IDs retain their old hashes
+and use filenames as their internal item keys.
 
 ## Weather semantics
 
@@ -78,7 +82,10 @@ Providers implement `discover(request, location, http)` and
 `fetch(task, http) -> ProviderResult(dataset, source, raw, native_epw)`.
 The service owns generic planning, cache and output orchestration. Discovery returns
 alternatives and explains selection by missing fields, caller provider order and
-credential requirements. A successful HTTP status is not proof of usable weather.
+credential requirements, including the full ranking per requested point. A
+dataset-level selection resolves its own locally ranked station at each point;
+unavailable point/dataset combinations remain explicit plan issues, never a
+silently substituted dataset. A successful HTTP status is not proof of usable weather.
 
 Only fully resolved source requests with identical scientific options deduplicate.
 Unknown cells remain provisional. Batches maintain requested-location → output
@@ -124,9 +131,13 @@ source and output mappings, per-variable lineage, transformations, warnings, and
 `simulation_ready=false`.
 
 SQLite uses WAL/busy timeout. Each unique output item is recorded independently;
-a restarted worker verifies and reuses completed bundles, then executes remaining
+a shared source retrieval may therefore fan out to several EPWs. New items are
+keyed by output ID rather than display filename. Connections close after each
+transaction, and completed/failed counts persist during running jobs.
+A restarted worker verifies and reuses completed bundles, then executes remaining
 items. Jobs support idempotency keys, queued/running/completed/partially_completed/
-failed/cancelled states, counts and cooperative cancellation. Use one server process
+failed/cancelled states, counts, linked failed-output retry and cooperative
+cancellation. Use one server process
 per data root; worker threads are bounded. Failed items do not cause successful
 items to disappear. No Redis/Celery/database server is required.
 
@@ -134,7 +145,7 @@ items to disappear. No Redis/Celery/database server is required.
 
 REST: POST `/v1/geocode`, `/v1/weather/discover`, `/v1/weather/plan`,
 `/v1/weather/jobs`, `/v1/future/plan`, `/v1/future/jobs`, `/v1/artifacts`,
-`/v1/jobs/{id}/cancel`; GET `/v1/jobs/{id}`, `/v1/jobs/{id}/artifacts`,
+`/v1/jobs/{id}/cancel`, `/v1/jobs/{id}/retry`; GET `/v1/jobs/{id}`, `/v1/jobs/{id}/artifacts`,
 `/v1/artifacts/{id}`, `/health`. Jobs accept a plan plus optional idempotency key.
 Uploads accept bounded EPW files, never arbitrary server paths. Remote REST requires
 a runtime bearer token; default binding is loopback. Request validation does not

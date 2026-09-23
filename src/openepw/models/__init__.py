@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 from datetime import date, datetime, timezone
 from typing import Any, Literal
 
@@ -32,6 +33,7 @@ class Issue(Model):
     location_id: str | None = None
     task_id: str | None = None
     retryable: bool = False
+    dataset_selection: dict[str, str | None] | None = None
 
 
 class OpenEPWError(Exception):
@@ -82,12 +84,18 @@ class PolygonQuery(Model):
         return self
 
 
+def nominal_offset_minutes(lon: float) -> int:
+    """Approximate fixed standard time from longitude, not a legal time zone."""
+    return math.floor(lon / 15 + 0.5) * 60
+
+
 class SamplingSpec(Model):
     dx_km: float = Field(default=25, gt=0)
     dy_km: float = Field(default=25, gt=0)
     offset_x_km: float = 0
     offset_y_km: float = 0
     max_locations: int = Field(default=1000, ge=1, le=10000)
+    standard_offset: Literal["utc", "longitude"] = "utc"
 
 
 class HybridPolicy(Model):
@@ -101,6 +109,12 @@ class HybridPolicy(Model):
         return self
 
 
+class DatasetSelection(Model):
+    provider: str = Field(min_length=1)
+    dataset: str = Field(min_length=1)
+    product_id: str | None = None
+
+
 class WeatherRequest(Model):
     schema_version: Literal["0.1"] = "0.1"
     locations: list[Location] | Location | BoundingBox | PolygonQuery
@@ -112,6 +126,9 @@ class WeatherRequest(Model):
     product_id: str | None = None
     providers: list[str] = Field(default_factory=list)
     dataset: str | None = None
+    dataset_selections: list[DatasetSelection] = Field(
+        default_factory=list, exclude_if=lambda value: not value
+    )
     required_variables: list[str] = Field(
         default_factory=lambda: [
             "dry_bulb",
@@ -171,6 +188,11 @@ class WeatherRequest(Model):
         if self.skip_feb_29:
             if self.product not in ("historical", "amy") or not self.years:
                 raise ValueError("skip_feb_29 requires an actual-year historical or AMY request")
+        selections = [(s.provider, s.dataset, s.product_id) for s in self.dataset_selections]
+        if len(selections) != len(set(selections)):
+            raise ValueError("Duplicate dataset selection")
+        if self.dataset_selections and self.hybrid_policy.enabled:
+            raise ValueError("Dataset selections cannot be combined with hybrid assignment")
         return self
 
 
@@ -247,6 +269,8 @@ class DiscoveryResult(Model):
     locations: list[Location]
     candidates: list[Candidate]
     selected_candidate_ids: list[str] = Field(default_factory=list)
+    # Location key -> candidate ids, best first, by the same rule as selected_candidate_ids.
+    ranked_candidate_ids: dict[str, list[str]] = Field(default_factory=dict)
     issues: list[Issue] = Field(default_factory=list)
     observed_at: str = Field(default_factory=utcnow)
 
@@ -276,9 +300,14 @@ class TransformStep(Model):
 
 
 class OutputSpec(Model):
+    id: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
+    index: int | None = Field(default=None, ge=0)
     requested_location_id: str
     task_ids: list[str]
     name: str = Field(pattern=r"^[A-Za-z0-9_-]{1,100}\.epw$")
+    dataset_selection: DatasetSelection | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
 
 
 class WeatherPlan(Model):
@@ -290,6 +319,7 @@ class WeatherPlan(Model):
     transforms: list[TransformStep] = Field(default_factory=list)
     outputs: list[OutputSpec] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
+    issues: list[Issue] = Field(default_factory=list, exclude_if=lambda value: not value)
     estimated_calls: int = 0
     estimated_bytes: int | None = None
     capability_version: Literal["0.1"] = "0.1"
@@ -307,8 +337,23 @@ class WeatherPlan(Model):
             raise ValueError("Plan kind and request schema disagree")
         if len(self.outputs) > 1000 or len(self.tasks) > 2000:
             raise ValueError("Plan exceeds execution item limits")
+        output_ids = [o.id for o in self.outputs if o.id is not None]
+        if output_ids and (
+            len(output_ids) != len(self.outputs)
+            or len(output_ids) != len(set(output_ids))
+            or len({o.name for o in self.outputs}) != len(self.outputs)
+        ):
+            raise ValueError("New plans require unique output IDs and filenames")
         for candidate in raw["selected_candidates"]:
             candidate.pop("observed_at", None)
+        for output in raw["outputs"]:
+            if output.get("id") is None:
+                output.pop("id", None)
+            if output.get("index") is None:
+                output.pop("index", None)
+        sampling = raw["request"].get("sampling")
+        if isinstance(sampling, dict) and sampling.get("standard_offset") == "utc":
+            sampling.pop("standard_offset")
         hashed = digest(raw)
         if self.plan_hash and self.plan_hash != hashed:
             raise ValueError("Plan contents do not match plan_hash; create a new plan")
@@ -350,6 +395,8 @@ class ArtifactBundle(Model):
 class WeatherJob(Model):
     id: str
     plan_hash: str
+    retry_of: str | None = None
+    kind: Literal["weather", "future"] = "weather"
     state: Literal[
         "queued", "running", "completed", "partially_completed", "failed", "cancelled"
     ] = "queued"

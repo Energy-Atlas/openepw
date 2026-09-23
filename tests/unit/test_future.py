@@ -75,12 +75,44 @@ def test_local_signal_service_bundle_and_scenario_mismatch(tmp_path):
         climate_scenario="ssp245",
     )
     p = s.plan_future(r)
+    assert p.outputs[0].id
+    assert p.outputs[0].name.startswith("openepw-")
+    assert "morph" in p.outputs[0].name
+    assert "ssp245" in p.outputs[0].name
+    assert "2036-2065" in p.outputs[0].name
     b = s.execute(p)
     assert len(b.weather) == 1
     assert read_epw(s.config.data_root / b.weather[0].path).data.dry_bulb.mean() == 22
     bad = r.model_copy(update={"climate_scenario": "ssp585"})
     with pytest.raises(OpenEPWError):
         s.plan_future(bad)
+
+
+def test_future_identity_ignores_random_snapshot_handles(tmp_path):
+    import json
+
+    from openepw.config import RuntimeConfig
+    from openepw.epw import write_epw
+    from openepw.models import FutureRequest
+    from openepw.service import WeatherService
+
+    baseline = tmp_path / "baseline.epw"
+    write_epw(synthetic(2023, 8760), baseline)
+    signals = tmp_path / "signals.json"
+    signals.write_text(json.dumps([signal().model_dump(mode="json")]))
+    service = WeatherService(RuntimeConfig(data_root=tmp_path / "store"))
+    request = FutureRequest(
+        baseline=str(baseline),
+        signals=str(signals),
+        reference_period=(1985, 2014),
+        target_year=2050,
+        climate_scenario="ssp245",
+    )
+    first = service.plan_future(request)
+    second = service.plan_future(request)
+    assert first.tasks[0].id != second.tasks[0].id
+    assert first.outputs[0].id == second.outputs[0].id
+    assert first.outputs[0].name == second.outputs[0].name
 
 
 def test_morph_retains_provenance_for_unchanged_native_fields(tmp_path):
