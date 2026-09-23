@@ -56,7 +56,7 @@ def test_restart_resumes_after_verified_completed_item(tmp_path):
     raw["outputs"] = [first.model_dump()]
     raw["tasks"] = [t.model_dump() for t in plan.tasks if t.id in first.task_ids]
     prior = service.execute(WeatherPlan.model_validate(raw))
-    store.complete_item(job.id, first.name, prior)
+    store.complete_item(job.id, first.id, prior)
     job.state = "running"
     store.save(job)
     JobRunner(service, JobStore(tmp_path)).run(job.id)
@@ -132,3 +132,59 @@ def test_job_connections_close_after_transaction(tmp_path):
         assert db.execute("SELECT 1").fetchone()[0] == 1
     with pytest.raises(sqlite3.ProgrammingError, match="closed"):
         db.execute("SELECT 1")
+
+
+def test_job_items_use_output_identity_for_shared_fetch(tmp_path):
+    import json
+
+    service = WeatherService(RuntimeConfig(data_root=tmp_path), providers=[StationProvider()])
+    request = WeatherRequest(
+        locations=[Location(lat=1, lon=0), Location(lat=12, lon=0)],
+        start="2024-01-01", end="2024-01-01",
+    )
+    plan = service.plan(request)
+    assert len(plan.tasks) == 1
+    store = JobStore(tmp_path)
+    job = store.submit(plan)
+    JobRunner(service, store).run(job.id)
+    final = store.get(job.id)
+    assert final.state == "completed"
+    assert final.completed == final.total == 2
+    assert set(store.items(job.id)) == {o.id for o in plan.outputs}
+    _, manifest_path = service.artifacts.resolve(final.bundle.manifest.id)
+    outputs = json.loads(manifest_path.read_text())["outputs"]
+    assert {o["output_id"] for o in outputs} == {o.id for o in plan.outputs}
+    assert {tuple(o["requested_locations"]) for o in outputs} == {
+        (o.requested_location_id,) for o in plan.outputs
+    }
+
+
+def test_running_job_persists_completed_and_failed_counts(tmp_path):
+    from openepw.models import OpenEPWError
+
+    class SometimesFails(StationProvider):
+        def fetch(self, task, http):
+            if task.source.identity == "2":
+                raise OpenEPWError("SOURCE_FAILED", "Synthetic failure")
+            return super().fetch(task, http)
+
+    service = WeatherService(RuntimeConfig(data_root=tmp_path), providers=[SometimesFails()])
+    plan = service.plan(
+        WeatherRequest(
+            locations=[Location(lat=1, lon=0), Location(lat=2, lon=0)],
+            start="2024-01-01", end="2024-01-01",
+        )
+    )
+    store = JobStore(tmp_path)
+    job = store.submit(plan)
+    snapshots = []
+    original = store.save
+
+    def recording_save(value):
+        snapshots.append((value.state, value.completed, value.failed))
+        original(value)
+
+    store.save = recording_save
+    JobRunner(service, store).run(job.id)
+    assert ("running", 1, 1) in snapshots
+    assert snapshots[-1] == ("partially_completed", 1, 1)

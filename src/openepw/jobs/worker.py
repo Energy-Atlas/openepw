@@ -65,20 +65,20 @@ class JobRunner:
                     self.service.artifacts.resolve(ref.id)
             except OpenEPWError:
                 del completed[name]
-        outputs = list({o.name: o for o in plan.outputs}.values())
+        outputs = list({(o.id or o.name): o for o in plan.outputs}.values())
         if plan.kind == "future":
             outputs = [None]
         for output in outputs:
             if self.store.get(job_id).cancellation_requested:
                 break
-            name = output.name if output else "future"
+            name = (output.id or output.name) if output else "future"
             if name in completed:
                 continue
             try:
                 subplan = plan
                 if output:
                     raw = plan.model_dump(mode="json", exclude={"plan_hash"})
-                    raw["outputs"] = [o.model_dump() for o in plan.outputs if o.name == output.name]
+                    raw["outputs"] = [o.model_dump() for o in plan.outputs if (o.id or o.name) == name]
                     raw["tasks"] = [t.model_dump() for t in plan.tasks if t.id in output.task_ids]
                     subplan = WeatherPlan.model_validate(raw)
                 bundle = self.service.execute(
@@ -99,6 +99,7 @@ class JobRunner:
                 )
                 job.errors.append(issue)
             job.completed = sum(len(b.weather) for b in completed.values())
+            job.failed = max(0, len(completed) - job.completed)
             self.store.save(job)
         weather = []
         extra = []

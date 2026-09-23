@@ -14,6 +14,7 @@ from ..models import (
     WeatherPlan,
     digest,
 )
+from .output_identity import filename, location_label, output_id
 
 
 def snapshot(service, value, role):
@@ -146,14 +147,40 @@ def plan_future(service, request: FutureRequest):
         parameters=params,
         cache_key=key,
     )
-    outputs = [
-        OutputSpec(
-            requested_location_id=baseline.location.key,
-            task_ids=[task.id],
-            name=f"future-{key[:16]}-{i}.epw",
+    outputs = []
+    for i in range(count):
+        member = signals[i].member if request.method == "morph" and request.signals else f"member-{i + 1}"
+        identity = output_id(
+            {
+                "kind": "future",
+                "location_id": baseline.location.key,
+                "task_id": task.id,
+                "method": request.method,
+                "scenario": request.climate_scenario,
+                "profile": request.profile,
+                "window": request.climate_period,
+                "member": member,
+                "index": i,
+            }
         )
-        for i in range(count)
-    ]
+        outputs.append(
+            OutputSpec(
+                id=identity,
+                requested_location_id=baseline.location.key,
+                task_ids=[task.id],
+                name=filename(
+                    [
+                        location_label(baseline.location),
+                        request.method,
+                        request.climate_scenario,
+                        request.profile,
+                        f"{request.climate_period[0]}-{request.climate_period[1]}",
+                        member,
+                    ],
+                    identity,
+                ),
+            )
+        )
     return WeatherPlan(
         kind="future",
         request=normalized,

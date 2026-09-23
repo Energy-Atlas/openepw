@@ -75,6 +75,11 @@ def test_local_signal_service_bundle_and_scenario_mismatch(tmp_path):
         climate_scenario="ssp245",
     )
     p = s.plan_future(r)
+    assert p.outputs[0].id
+    assert p.outputs[0].name.startswith("openepw-")
+    assert "morph" in p.outputs[0].name
+    assert "ssp245" in p.outputs[0].name
+    assert "2036-2065" in p.outputs[0].name
     b = s.execute(p)
     assert len(b.weather) == 1
     assert read_epw(s.config.data_root / b.weather[0].path).data.dry_bulb.mean() == 22

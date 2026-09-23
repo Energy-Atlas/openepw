@@ -32,6 +32,7 @@ from .providers.nsrdb import NSRDBProvider
 from .providers.onebuilding import OneBuildingProvider
 from .providers.openmeteo import OpenMeteoProvider
 from .providers.pvgis import PVGISProvider
+from .planning.output_identity import filename, location_label, output_id, period_label
 from .qc import validate
 
 
@@ -159,7 +160,7 @@ class WeatherService:
         outputs = []
         selected: list[Candidate] = []
         warnings = [i.message for i in discovery.issues]
-        for loc in discovery.locations:
+        for occurrence, loc in enumerate(discovery.locations):
             candidates = [c for c in discovery.candidates if c.location_id == loc.key]
             if request.hybrid_policy.enabled:
                 if request.product not in ("historical", "amy"):
@@ -229,9 +230,40 @@ class WeatherService:
                     elif loc.key not in tasks[key].dependents:
                         tasks[key].dependents.append(loc.key)
                     ids.append(task_id)
+                identity = output_id(
+                    {
+                        "kind": "weather",
+                        "location_id": loc.key,
+                        "occurrence": occurrence,
+                        "task_ids": ids,
+                        "sources": [
+                            {
+                                "provider": c.source.provider,
+                                "dataset": c.source.dataset,
+                                "product_id": c.product_id or request.product_id,
+                            }
+                            for c in chosen
+                        ],
+                        "product": request.product,
+                        "period": [start, end],
+                    }
+                )
+                first = chosen[0]
                 outputs.append(
                     OutputSpec(
-                        requested_location_id=loc.key, task_ids=ids, name=digest(ids)[:20] + ".epw"
+                        id=identity,
+                        requested_location_id=loc.key,
+                        task_ids=ids,
+                        name=filename(
+                            [
+                                location_label(loc),
+                                first.source.provider,
+                                first.source.dataset,
+                                first.product_id or first.source.identity or request.product_id,
+                                period_label(start, end, request.product, request.product_id),
+                            ],
+                            identity,
+                        ),
                     )
                 )
         return WeatherPlan(
@@ -281,9 +313,10 @@ class WeatherService:
                 progress(task.id, exc.issue)
         written = set()
         for output in plan.outputs:
-            if output.name in written:
+            output_key = output.id or output.name
+            if output_key in written:
                 continue
-            written.add(output.name)
+            written.add(output_key)
             if not all(t in results for t in output.task_ids):
                 continue
             try:
@@ -339,10 +372,9 @@ class WeatherService:
                 manifest_outputs.append(
                     {
                         "artifact_id": ref.id,
+                        "output_id": output.id,
                         "task_ids": output.task_ids,
-                        "requested_locations": [
-                            o.requested_location_id for o in plan.outputs if o.name == output.name
-                        ],
+                        "requested_locations": [output.requested_location_id],
                         "source": parts[0].source.model_dump(mode="json"),
                         "lineage": {
                             k: v.model_dump(mode="json") for k, v in dataset.lineage.items()
@@ -355,10 +387,10 @@ class WeatherService:
                     {"artifact_id": ref.id, "issues": [i.model_dump() for i in checks]}
                 )
                 issues.extend(checks)
-                progress(output.name, None)
+                progress(output_key, None)
             except OpenEPWError as exc:
-                issues.append(exc.issue.model_copy(update={"task_id": output.name}))
-                progress(output.name, exc.issue)
+                issues.append(exc.issue.model_copy(update={"task_id": output_key}))
+                progress(output_key, exc.issue)
         return self._bundle(
             plan, bundle_id, weather, additional, issues, manifest_outputs, qc_records
         )

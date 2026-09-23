@@ -40,7 +40,7 @@ class JobStore:
             id=uuid.uuid4().hex,
             plan_hash=plan.plan_hash,
             kind=plan.kind,
-            total=max(1, len({o.name for o in plan.outputs})),
+            total=max(1, len({o.id or o.name for o in plan.outputs})),
             idempotency_key=idempotency_key,
         )
         with self.connect() as db:
