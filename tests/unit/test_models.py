@@ -78,3 +78,25 @@ def test_legacy_plan_without_skip_feb_29_replays():
     replayed = WeatherPlan.model_validate(plan)
 
     assert replayed.plan_hash == plan["plan_hash"]
+
+
+def test_longitude_sampling_changes_the_plan_hash_but_utc_keeps_legacy_hashes():
+    from openepw.models import BoundingBox, SamplingSpec
+
+    area = BoundingBox(west=-77, south=42, east=-76, north=43)
+    legacy = WeatherPlan(request=WeatherRequest(locations=area, years=[2024]))
+    explicit_utc = WeatherPlan(
+        request=WeatherRequest(
+            locations=area, years=[2024], sampling=SamplingSpec(standard_offset="utc")
+        )
+    )
+    longitude = WeatherPlan(
+        request=WeatherRequest(
+            locations=area, years=[2024], sampling=SamplingSpec(standard_offset="longitude")
+        )
+    )
+    assert legacy.plan_hash == explicit_utc.plan_hash
+    assert longitude.plan_hash != legacy.plan_hash
+    stored = legacy.model_dump(mode="json")
+    stored["request"]["sampling"].pop("standard_offset")
+    assert WeatherPlan.model_validate(stored).plan_hash == legacy.plan_hash

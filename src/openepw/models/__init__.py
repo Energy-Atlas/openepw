@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 from datetime import date, datetime, timezone
 from typing import Any, Literal
 
@@ -82,12 +83,18 @@ class PolygonQuery(Model):
         return self
 
 
+def nominal_offset_minutes(lon: float) -> int:
+    """Approximate fixed standard time from longitude, not a legal time zone."""
+    return math.floor(lon / 15 + 0.5) * 60
+
+
 class SamplingSpec(Model):
     dx_km: float = Field(default=25, gt=0)
     dy_km: float = Field(default=25, gt=0)
     offset_x_km: float = 0
     offset_y_km: float = 0
     max_locations: int = Field(default=1000, ge=1, le=10000)
+    standard_offset: Literal["utc", "longitude"] = "utc"
 
 
 class HybridPolicy(Model):
@@ -247,6 +254,8 @@ class DiscoveryResult(Model):
     locations: list[Location]
     candidates: list[Candidate]
     selected_candidate_ids: list[str] = Field(default_factory=list)
+    # Location key -> candidate ids, best first, by the same rule as selected_candidate_ids.
+    ranked_candidate_ids: dict[str, list[str]] = Field(default_factory=dict)
     issues: list[Issue] = Field(default_factory=list)
     observed_at: str = Field(default_factory=utcnow)
 
@@ -309,6 +318,9 @@ class WeatherPlan(Model):
             raise ValueError("Plan exceeds execution item limits")
         for candidate in raw["selected_candidates"]:
             candidate.pop("observed_at", None)
+        sampling = raw["request"].get("sampling")
+        if isinstance(sampling, dict) and sampling.get("standard_offset") == "utc":
+            sampling.pop("standard_offset")
         hashed = digest(raw)
         if self.plan_hash and self.plan_hash != hashed:
             raise ValueError("Plan contents do not match plan_hash; create a new plan")

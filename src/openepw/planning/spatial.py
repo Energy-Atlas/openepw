@@ -1,6 +1,6 @@
 import math
 
-from ..models import BoundingBox, Location, OpenEPWError, PolygonQuery, SamplingSpec
+from ..models import BoundingBox, Location, OpenEPWError, PolygonQuery, SamplingSpec, nominal_offset_minutes
 
 
 def cross(a, b, c):
@@ -90,7 +90,8 @@ def sample(query: BoundingBox | PolygonQuery, spec: SamplingSpec) -> list[Locati
                 or any(inside(point, hole) for hole in polygon.coordinates[1:])
             ):
                 continue
-            points.append(Location(lat=lat, lon=lon))
+            offset = nominal_offset_minutes(lon) if spec.standard_offset == "longitude" else 0
+            points.append(Location(lat=lat, lon=lon, standard_offset_minutes=offset))
     if not points:
         raise OpenEPWError("INVALID_GEOMETRY", "Sampling produces no locations")
     return points

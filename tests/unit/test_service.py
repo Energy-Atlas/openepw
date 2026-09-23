@@ -163,6 +163,35 @@ def test_discovery_does_not_wait_for_nsrdb_rate_limit(tmp_path):
     assert sleeps == []
 
 
+def test_discovery_exposes_ranked_candidates_per_location(tmp_path):
+    from openepw.models import Candidate
+    from test_batch import StationProvider
+
+    class Choices(StationProvider):
+        def discover(self, request, location, http):
+            best = super().discover(request, location, http)[0]
+            weaker = Candidate(
+                id=f"weaker-{location.key}",
+                location_id=location.key,
+                source=best.source,
+                missing_fields=["dry_bulb"],
+            )
+            return [weaker, best]
+
+    service = WeatherService(RuntimeConfig(data_root=tmp_path), providers=[Choices()])
+    result = service.discover(
+        WeatherRequest(
+            locations=[Location(lat=1, lon=0), Location(lat=2, lon=0)],
+            start="2024-01-01",
+            end="2024-01-01",
+        )
+    )
+    for location in result.locations:
+        ranking = result.ranked_candidate_ids[location.key]
+        assert ranking == [f"station{location.key}", f"weaker-{location.key}"]
+        assert ranking[0] in result.selected_candidate_ids
+
+
 def test_empty_weather_does_not_succeed(tmp_path):
     h = HttpClient(
         RuntimeConfig(data_root=tmp_path),
