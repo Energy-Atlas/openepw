@@ -8,6 +8,8 @@ from openepw.config import RuntimeConfig
 from openepw.epw import read_epw
 from openepw.models import Location, OpenEPWError, WeatherRequest
 from openepw.providers.http import HttpClient
+from openepw.providers.nsrdb import NSRDBProvider
+from openepw.providers.openmeteo import OpenMeteoProvider
 from openepw.qc import validate
 from openepw.service import WeatherService
 
@@ -135,6 +137,30 @@ def test_retry_bounds_and_error_does_not_leak_key(tmp_path):
         h.get("https://example.org/api", params={"api_key": "test-secret-value"})
     assert len(attempts) == 3
     assert "test-secret-value" not in str(exc.value)
+
+
+def test_discovery_does_not_wait_for_nsrdb_rate_limit(tmp_path):
+    attempts = []
+    sleeps = []
+
+    def handler(request):
+        attempts.append(request)
+        return httpx.Response(429, headers={"Retry-After": "54000"})
+
+    config = RuntimeConfig(data_root=tmp_path, retries=2)
+    service = WeatherService(
+        config,
+        http=HttpClient(config, transport=httpx.MockTransport(handler), sleep=sleeps.append),
+        providers=[OpenMeteoProvider(), NSRDBProvider()],
+    )
+    request = WeatherRequest(locations=Location(lat=42.44, lon=-76.5), product="amy", years=[2024])
+
+    result = service.discover(request)
+
+    assert {candidate.source.provider for candidate in result.candidates} == {"openmeteo"}
+    assert [issue.code for issue in result.issues] == ["RATE_LIMITED"]
+    assert len(attempts) == 1
+    assert sleeps == []
 
 
 def test_empty_weather_does_not_succeed(tmp_path):

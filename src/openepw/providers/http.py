@@ -51,8 +51,19 @@ class HttpClient:
             headers={"User-Agent": "openepw/0.1"},
         )
 
-    def request(self, method, url, *, params=None, headers=None, json_body=None, limit=None):
-        for attempt in range(self.config.retries + 1):
+    def request(
+        self,
+        method,
+        url,
+        *,
+        params=None,
+        headers=None,
+        json_body=None,
+        limit=None,
+        max_retries=None,
+    ):
+        retry_limit = self.config.retries if max_retries is None else max_retries
+        for attempt in range(retry_limit + 1):
             try:
                 with self.client.stream(
                     method, url, params=params, headers=headers, json=json_body
@@ -70,8 +81,8 @@ class HttpClient:
                             raise OpenEPWError(
                                 "PROVIDER_UNAVAILABLE", "Unapproved provider redirect"
                             )
-                        return self.request("GET", target, limit=limit)
-                    if status in (429, 500, 502, 503, 504) and attempt < self.config.retries:
+                        return self.request("GET", target, limit=limit, max_retries=retry_limit)
+                    if status in (429, 500, 502, 503, 504) and attempt < retry_limit:
                         retry = response.headers.get("Retry-After", "")
                         self.sleep(min(float(retry) if retry.isdigit() else 2**attempt, 30))
                         continue
@@ -101,7 +112,7 @@ class HttpClient:
                         chunks.append(chunk)
                     return b"".join(chunks), dict(response.headers), status
             except httpx.HTTPError:
-                if attempt == self.config.retries:
+                if attempt == retry_limit:
                     raise OpenEPWError(
                         "PROVIDER_UNAVAILABLE",
                         "Provider transport failed; credentials and request URL suppressed",

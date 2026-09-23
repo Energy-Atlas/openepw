@@ -70,6 +70,7 @@ class NSRDBProvider:
         key = http.config.nlr_api_key
         data = http.get_json(
             "https://developer.nlr.gov/api/solar/nsrdb_data_query.json",
+            max_retries=0,
             params={
                 "api_key": key.get_secret_value() if key else "DEMO_KEY",
                 "wkt": f"POINT({location.lon} {location.lat})",
