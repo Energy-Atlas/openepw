@@ -14,6 +14,7 @@ import { run } from '../../app/actions'
 import { rankWeatherArtifacts } from '../../app/artifacts'
 import { followOffset } from '../../app/timezone'
 import { useApp } from '../../app/store'
+import { candidateDatasetSelection } from '../../app/workflow'
 import type { Appearance } from '../../shell/appearances'
 import { CoverageControl, type CoverageSetting } from './CoverageControl'
 import { coverageBeforeIds, datasetColor } from './datasetColor'
@@ -634,11 +635,10 @@ type PointContext = {
 export function buildPointContext(state: PointState): PointContext {
   const candidates = new Map<string, { candidate: Candidate; index: number }>()
   state.discovery?.candidates.forEach((candidate, index) => {
-    const key = pointKey(candidate.location_id ?? '*', {
-      provider: candidate.source.provider,
-      dataset: candidate.source.dataset,
-      product_id: candidate.product_id,
-    })
+    const key = pointKey(
+      candidate.location_id ?? '*',
+      candidateDatasetSelection(candidate, state.draft?.product),
+    )
     if (!candidates.has(key)) candidates.set(key, { candidate, index })
   })
   const outputs = state.weatherPlan?.outputs ?? []

@@ -76,3 +76,26 @@ it('keeps bundle order for jobs from another plan and for projections', () => {
   expect(preferredWeatherArtifact(state, job(bundle, { kind: 'future' }))?.id).toBe('B-om.epw')
   expect(preferredWeatherArtifact(state, job([]))).toBeUndefined()
 })
+
+it('ranks station-specific candidates under the selected AMY dataset', () => {
+  const stationState = {
+    ...state,
+    selectedDatasets: [om, cds],
+    discovery: {
+      candidates: [
+        { ...candidate('a-station', 'A', om), product_id: 'station-123' },
+        candidate('a-cds', 'A', cds),
+      ],
+      ranked_candidate_ids: { A: ['a-station', 'a-cds'] },
+    },
+    weatherPlan: {
+      ...state.weatherPlan,
+      kind: 'weather',
+      request: { product: 'amy' },
+      outputs: [output('A-station.epw', 'A', om), output('A-cds.epw', 'A', cds)],
+    },
+  }
+  expect(rankWeatherArtifacts(stationState, job(['A-cds.epw', 'A-station.epw']))[0].id).toBe(
+    'A-station.epw',
+  )
+})

@@ -3,6 +3,21 @@ import type { Artifact, Job, Plan, Schemas } from '../api/client'
 export type Stage = 'explore' | 'download' | 'project'
 export type DatasetSelection = Schemas['DatasetSelection']
 
+export function candidateDatasetSelection(
+  candidate: Schemas['Candidate'],
+  product: Schemas['WeatherRequest-Input']['product'] | undefined,
+): DatasetSelection {
+  return {
+    provider: candidate.source.provider,
+    dataset: candidate.source.dataset,
+    // AMY and historical product IDs identify local stations, not dataset variants.
+    product_id:
+      product === 'tmy' || product === 'tmyx' || product === 'published'
+        ? candidate.product_id
+        : null,
+  }
+}
+
 export type WorkflowInput = {
   stage: Stage
   requestVersion: number

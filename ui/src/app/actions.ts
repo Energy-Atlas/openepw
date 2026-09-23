@@ -3,7 +3,13 @@ import { rememberedIntent, rememberIntent } from './intent'
 import { useApp, validAppearance, type State } from './store'
 import type { AppearancePreference } from '../shell/appearances'
 import { clampPanelSize, type ResizablePanel } from '../shell/panels'
-import { canNavigate, deriveWorkflow, type DatasetSelection, type Stage } from './workflow'
+import {
+  canNavigate,
+  candidateDatasetSelection,
+  deriveWorkflow,
+  type DatasetSelection,
+  type Stage,
+} from './workflow'
 
 export const ACTION_REGISTRY = {
   editQuery: { confirmation: 'downstream-invalidation', reversible: true },
@@ -135,15 +141,14 @@ function exploreRequest(draft: WeatherRequest): WeatherRequest {
   return { ...draft, dataset_selections: [] }
 }
 
-function recommendedSelections(discovery: Awaited<ReturnType<typeof api.discover>>) {
+function recommendedSelections(
+  discovery: Awaited<ReturnType<typeof api.discover>>,
+  product: WeatherRequest['product'],
+) {
   const selected = new Set(discovery.selected_candidate_ids)
   const identities = discovery.candidates
     .filter((candidate) => selected.has(candidate.id))
-    .map((candidate) => ({
-      provider: candidate.source.provider,
-      dataset: candidate.source.dataset,
-      product_id: candidate.product_id,
-    }))
+    .map((candidate) => candidateDatasetSelection(candidate, product))
   return [
     ...new Map(identities.map((selection) => [JSON.stringify(selection), selection])).values(),
   ]
@@ -246,7 +251,7 @@ export async function dispatch(action: AppAction): Promise<unknown> {
       controller.signal.throwIfAborted()
       result = discovery
       if (useApp.getState().requestVersion === requestVersion) {
-        const selectedDatasets = recommendedSelections(discovery)
+        const selectedDatasets = recommendedSelections(discovery, state.draft.product)
         useApp.setState((current) => ({
           spatialPreview: preview,
           spatialPreviewVersion: requestVersion,

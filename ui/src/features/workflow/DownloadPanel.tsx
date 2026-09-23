@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from 'react'
 import { run } from '../../app/actions'
 import { useApp } from '../../app/store'
-import type { DatasetSelection } from '../../app/workflow'
+import { candidateDatasetSelection, type DatasetSelection } from '../../app/workflow'
 import { PlanReview } from '../request/PlanReview'
 import { JobProgress } from './JobProgress'
 
@@ -62,18 +62,14 @@ export function DownloadPanel() {
       { selection: DatasetSelection; candidates: NonNullable<typeof state.discovery>['candidates'] }
     >()
     for (const candidate of state.discovery?.candidates ?? []) {
-      const selection = {
-        provider: candidate.source.provider,
-        dataset: candidate.source.dataset,
-        product_id: candidate.product_id,
-      }
+      const selection = candidateDatasetSelection(candidate, state.draft.product)
       const id = key(selection)
       const group = grouped.get(id) ?? { selection, candidates: [] }
       group.candidates.push(candidate)
       grouped.set(id, group)
     }
     return [...grouped.values()]
-  }, [state.discovery])
+  }, [state.discovery, state.draft.product])
   const selected = new Set(state.selectedDatasets.map(key))
   const planCurrent =
     state.weatherPlanRequestVersion === state.requestVersion &&

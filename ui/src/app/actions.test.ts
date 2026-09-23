@@ -175,6 +175,23 @@ it('runs Explore through authoritative sampling and discovery before advancing',
   expect(useApp.getState().discoveryVersion).toBe(useApp.getState().requestVersion)
 })
 
+it('selects a station dataset once across sampled points with different station IDs', async () => {
+  vi.spyOn(api, 'spatialPreview').mockResolvedValue({ executable: true } as any)
+  vi.spyOn(api, 'discover').mockResolvedValue({
+    candidates: [
+      { id: 'west', source: { provider: 'noaa', dataset: 'isd' }, product_id: 'station-west' },
+      { id: 'east', source: { provider: 'noaa', dataset: 'isd' }, product_id: 'station-east' },
+    ],
+    selected_candidate_ids: ['west', 'east'],
+  } as any)
+
+  await dispatch({ type: 'discover' })
+
+  expect(useApp.getState().selectedDatasets).toEqual([
+    { provider: 'noaa', dataset: 'isd', product_id: null },
+  ])
+})
+
 it('loads full visualization and opens the inspector when weather is selected', async () => {
   const visualization = { total_rows: 8760, series: {} } as any
   vi.spyOn(api, 'visualization').mockResolvedValue(visualization)

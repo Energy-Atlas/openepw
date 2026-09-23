@@ -213,6 +213,31 @@ it('marks stale discovery as unknown and unplanned points as incompatible', asyn
   expect(status.color).toBe(datasetColor('p', 'd', APPEARANCES.light))
 })
 
+it('matches an AMY station candidate to its dataset choice at the sampled point', () => {
+  const location = { id: 'point', lat: 42, lon: -76, standard_offset_minutes: 0 }
+  const state = {
+    draft: { product: 'amy' },
+    requestVersion: 1,
+    discoveryVersion: 1,
+    selectionVersion: 1,
+    selectedDatasets: [{ provider: 'noaa', dataset: 'isd', product_id: null }],
+    discovery: {
+      candidates: [
+        {
+          id: 'station',
+          location_id: 'point',
+          source: { provider: 'noaa', dataset: 'isd' },
+          product_id: 'station-123',
+        },
+      ],
+    },
+    weatherPlan: null,
+    downloadJobs: [],
+  } as any
+
+  expect(pointStatuses(state, location as any, APPEARANCES.light)[0].state).toBe('selected')
+})
+
 it('keeps legacy outputs without dataset attribution off the point glyph', () => {
   const state = {
     discovery: { candidates: [] },

@@ -1,5 +1,19 @@
 import { describe, expect, it } from 'vitest'
-import { canNavigate, deriveWorkflow, type WorkflowInput } from './workflow'
+import {
+  canNavigate,
+  candidateDatasetSelection,
+  deriveWorkflow,
+  type WorkflowInput,
+} from './workflow'
+
+it('uses station IDs only for published product variants, not AMY dataset identity', () => {
+  const candidate = {
+    source: { provider: 'noaa', dataset: 'isd' },
+    product_id: 'station-123',
+  } as any
+  expect(candidateDatasetSelection(candidate, 'amy').product_id).toBeNull()
+  expect(candidateDatasetSelection(candidate, 'published').product_id).toBe('station-123')
+})
 
 const artifact = (id: string, role = 'weather') =>
   ({ id, role, media_type: 'application/vnd.energyplus.epw', path: `${id}.epw` }) as any

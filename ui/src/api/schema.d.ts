@@ -603,6 +603,10 @@ export interface components {
     Issue: {
       /** Code */
       code: string
+      /** Dataset Selection */
+      dataset_selection?: {
+        [key: string]: string | null
+      } | null
       /** Field */
       field?: string | null
       /** Location Id */
@@ -726,6 +730,10 @@ export interface components {
     /** OutputSpec */
     OutputSpec: {
       dataset_selection?: components['schemas']['DatasetSelection'] | null
+      /** Id */
+      id?: string | null
+      /** Index */
+      index?: number | null
       /** Name */
       name: string
       /** Requested Location Id */

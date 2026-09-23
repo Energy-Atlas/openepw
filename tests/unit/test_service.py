@@ -163,6 +163,150 @@ def test_discovery_does_not_wait_for_nsrdb_rate_limit(tmp_path):
     assert sleeps == []
 
 
+def test_discovery_exposes_ranked_candidates_per_location(tmp_path):
+    from test_batch import StationProvider
+
+    from openepw.models import Candidate
+
+    class Choices(StationProvider):
+        def discover(self, request, location, http):
+            best = super().discover(request, location, http)[0]
+            weaker = Candidate(
+                id=f"weaker-{location.key}",
+                location_id=location.key,
+                source=best.source,
+                missing_fields=["dry_bulb"],
+            )
+            return [weaker, best]
+
+    service = WeatherService(RuntimeConfig(data_root=tmp_path), providers=[Choices()])
+    result = service.discover(
+        WeatherRequest(
+            locations=[Location(lat=1, lon=0), Location(lat=2, lon=0)],
+            start="2024-01-01",
+            end="2024-01-01",
+        )
+    )
+    for location in result.locations:
+        ranking = result.ranked_candidate_ids[location.key]
+        assert ranking == [f"station{location.key}", f"weaker-{location.key}"]
+        assert ranking[0] in result.selected_candidate_ids
+
+
+def test_dataset_choices_resolve_local_station_per_point(tmp_path):
+    from test_batch import StationProvider
+
+    class LocalStations(StationProvider):
+        def discover(self, request, location, http):
+            candidate = super().discover(request, location, http)[0]
+            candidate.product_id = f"station-{int(location.lat)}"
+            return [candidate]
+
+    grid = StationProvider()
+    grid.name = "grid"
+    service = WeatherService(RuntimeConfig(data_root=tmp_path), providers=[LocalStations(), grid])
+    request = WeatherRequest(
+        locations=[Location(lat=1, lon=0), Location(lat=2, lon=0)],
+        start="2024-01-01",
+        end="2024-01-01",
+        dataset_selections=[
+            {"provider": "station", "dataset": "synthetic"},
+            {"provider": "grid", "dataset": "synthetic"},
+        ],
+    )
+    plan = service.plan(request)
+    assert len(plan.outputs) == 4
+    assert len({o.id for o in plan.outputs}) == 4
+    assert [(o.requested_location_id, o.dataset_selection.provider) for o in plan.outputs] == [
+        (request.locations[0].key, "station"),
+        (request.locations[0].key, "grid"),
+        (request.locations[1].key, "station"),
+        (request.locations[1].key, "grid"),
+    ]
+    station_outputs = [o for o in plan.outputs if o.dataset_selection.provider == "station"]
+    assert "station-1" in station_outputs[0].name
+    assert "station-2" in station_outputs[1].name
+    assert not plan.issues
+
+
+def test_unavailable_dataset_is_reported_per_point_without_substitution(tmp_path):
+    from test_batch import StationProvider
+
+    service = WeatherService(RuntimeConfig(data_root=tmp_path), providers=[StationProvider()])
+    request = WeatherRequest(
+        locations=[Location(lat=1, lon=0), Location(lat=2, lon=0)],
+        start="2024-01-01",
+        end="2024-01-01",
+        dataset_selections=[
+            {"provider": "station", "dataset": "synthetic"},
+            {"provider": "missing", "dataset": "unknown"},
+        ],
+    )
+    plan = service.plan(request)
+    assert len(plan.outputs) == 2
+    assert len(plan.issues) == 2
+    assert {issue.location_id for issue in plan.issues} == {p.key for p in request.locations}
+    assert all(
+        issue.dataset_selection == {"provider": "missing", "dataset": "unknown", "product_id": None}
+        for issue in plan.issues
+    )
+
+
+def test_selected_openmeteo_datasets_are_both_discovered(tmp_path):
+    from openepw.providers.openmeteo import OpenMeteoProvider
+
+    service = WeatherService(RuntimeConfig(data_root=tmp_path), providers=[OpenMeteoProvider()])
+    request = WeatherRequest(
+        locations=Location(lat=42.44, lon=-76.5),
+        start="2024-01-01",
+        end="2024-01-01",
+        dataset_selections=[
+            {"provider": "openmeteo", "dataset": "era5"},
+            {"provider": "openmeteo", "dataset": "era5_land"},
+        ],
+    )
+    discovery = service.discover(request)
+    assert {c.source.dataset for c in discovery.candidates} == {"era5", "era5_land"}
+    plan = service.plan(request, discovery=discovery)
+    assert {o.dataset_selection.dataset for o in plan.outputs} == {"era5", "era5_land"}
+
+
+def test_leap_transform_changes_output_identity(tmp_path):
+    from test_batch import StationProvider
+
+    service = WeatherService(RuntimeConfig(data_root=tmp_path), providers=[StationProvider()])
+    base = WeatherRequest(locations=Location(lat=1, lon=0), years=[2024])
+    retained = service.plan(base)
+    omitted = service.plan(base.model_copy(update={"skip_feb_29": True}))
+    assert retained.outputs[0].id != omitted.outputs[0].id
+    assert retained.outputs[0].name != omitted.outputs[0].name
+
+
+def test_long_location_keeps_source_and_period_in_filename(tmp_path):
+    from test_batch import StationProvider
+
+    service = WeatherService(RuntimeConfig(data_root=tmp_path), providers=[StationProvider()])
+    plan = service.plan(
+        WeatherRequest(
+            locations=Location(lat=1, lon=0, name="A very long neighborhood name " * 8),
+            years=[2024],
+        )
+    )
+    name = plan.outputs[0].name
+    assert len(name) <= 100
+    assert "station" in name and "synthetic" in name and "2024" in name
+    assert "n1p000-e0p000" in name
+
+
+def test_published_filename_uses_product_instead_of_missing_date(tmp_path):
+    from test_batch import StationProvider
+
+    service = WeatherService(RuntimeConfig(data_root=tmp_path), providers=[StationProvider()])
+    plan = service.plan(WeatherRequest(locations=Location(lat=1, lon=0), product="tmy"))
+    assert "tmy" in plan.outputs[0].name
+    assert "none" not in plan.outputs[0].name.lower()
+
+
 def test_empty_weather_does_not_succeed(tmp_path):
     h = HttpClient(
         RuntimeConfig(data_root=tmp_path),

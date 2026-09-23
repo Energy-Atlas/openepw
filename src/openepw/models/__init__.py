@@ -33,6 +33,7 @@ class Issue(Model):
     location_id: str | None = None
     task_id: str | None = None
     retryable: bool = False
+    dataset_selection: dict[str, str | None] | None = None
 
 
 class OpenEPWError(Exception):
@@ -348,6 +349,8 @@ class TransformStep(Model):
 
 
 class OutputSpec(Model):
+    id: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
+    index: int | None = Field(default=None, ge=0)
     requested_location_id: str
     task_ids: list[str]
     name: str = Field(pattern=r"^[A-Za-z0-9_-]{1,100}\.epw$")
@@ -383,10 +386,22 @@ class WeatherPlan(Model):
             raise ValueError("Plan kind and request schema disagree")
         if len(self.outputs) > 1000 or len(self.tasks) > 2000:
             raise ValueError("Plan exceeds execution item limits")
+        output_ids = [o.id for o in self.outputs if o.id is not None]
+        if output_ids and (
+            len(output_ids) != len(self.outputs)
+            or len(output_ids) != len(set(output_ids))
+            or len({o.name for o in self.outputs}) != len(self.outputs)
+        ):
+            raise ValueError("New plans require unique output IDs and filenames")
         for candidate in raw["selected_candidates"]:
             candidate.pop("observed_at", None)
         # Fields added after plans were first stored are hashed only when non-default, so
         # existing stored plans keep validating against their recorded hashes.
+        for output in raw["outputs"]:
+            if output.get("id") is None:
+                output.pop("id", None)
+            if output.get("index") is None:
+                output.pop("index", None)
         sampling = raw["request"].get("sampling")
         if isinstance(sampling, dict) and sampling.get("standard_offset") == "utc":
             sampling.pop("standard_offset")

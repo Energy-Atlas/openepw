@@ -41,6 +41,13 @@ rings are rejected (split polygons first); dateline-crossing boxes are supported
 The bounding sampling grid must fit max_locations, even if a small polygon covers
 only part of it.
 
+To request more than one dataset for every point, use `dataset_selections` with
+provider/dataset pairs. Omit `product_id` to resolve each point's locally ranked
+station; a supplied product ID constrains the variant. A missing combination is
+reported as `DATASET_UNAVAILABLE` in the plan rather than replaced. Each output
+has its own stable `id`; the descriptive EPW `name` is for display/download only.
+Without selections, the original single-source or explicit-hybrid behavior remains.
+
 Explicit hybrid example:
 
 ```python
@@ -79,8 +86,9 @@ Poll until a terminal state, then read `bundle`. Use POST `/v1/jobs/{id}/cancel`
 for cooperative cancellation; an in-flight external request may finish first.
 POST `/v1/jobs/{id}/retry` (optional `idempotency_key`) starts a new job for only the
 outputs a finished job did not produce; it returns `NOTHING_TO_RETRY` when every output
-exists. Jobs report `kind` (`weather` or `future`) and update `completed`/`failed` as
-each output finishes, so clients can show progress.
+exists. `retry_of` links it to the unchanged original job and its successful artifacts.
+Jobs report `kind` (`weather` or `future`) and update `completed`/`failed` as
+outputs finish, so clients can show progress.
 GET `/v1/artifacts/{id}` downloads a verified artifact. POST `/v1/artifacts` accepts
 multipart EPW upload and returns the baseline ID for future requests. No request
 accepts API keys; configure server runtime credentials. A repeated idempotency key

@@ -769,6 +769,27 @@
             "title": "Code",
             "type": "string"
           },
+          "dataset_selection": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dataset Selection"
+          },
           "field": {
             "anyOf": [
               {
@@ -1141,6 +1162,30 @@
                 "type": "null"
               }
             ]
+          },
+          "id": {
+            "anyOf": [
+              {
+                "pattern": "^[a-f0-9]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "index": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Index"
           },
           "name": {
             "pattern": "^[A-Za-z0-9_-]{1,100}\\.epw$",

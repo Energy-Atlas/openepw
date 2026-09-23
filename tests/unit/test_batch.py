@@ -68,8 +68,43 @@ def test_73_requests_reuse_11_verified_sources(tmp_path):
     assert len(plan.tasks) == 11
     b = s.execute(plan)
     assert p.calls == 11
-    assert len(b.weather) == 11
+    assert len(b.weather) == 73
+    assert len({o.id for o in plan.outputs}) == 73
+    assert len({o.name for o in plan.outputs}) == 73
     assert len(plan.outputs) == 73
+
+
+def test_shared_station_keeps_distinct_requested_outputs(tmp_path):
+    provider = StationProvider()
+    service = WeatherService(RuntimeConfig(data_root=tmp_path), providers=[provider])
+    request = WeatherRequest(
+        locations=[Location(lat=1, lon=0, name="Alpha"), Location(lat=12, lon=0, name="Beta")],
+        start="2024-01-01",
+        end="2024-01-01",
+    )
+    plan = service.plan(request)
+    assert len(plan.tasks) == 1
+    assert len({o.id for o in plan.outputs}) == 2
+    assert len({o.name for o in plan.outputs}) == 2
+    assert all(o.name.startswith("openepw-") and "station" in o.name for o in plan.outputs)
+    assert [o.id for o in service.plan(request).outputs] == [o.id for o in plan.outputs]
+    bundle = service.execute(plan)
+    assert provider.calls == 1
+    assert len(bundle.weather) == 2
+
+
+def test_identical_requested_point_occurrences_remain_distinct(tmp_path):
+    service = WeatherService(RuntimeConfig(data_root=tmp_path), providers=[StationProvider()])
+    request = WeatherRequest(
+        locations=[Location(lat=1, lon=0), Location(lat=1, lon=0)],
+        start="2024-01-01",
+        end="2024-01-01",
+    )
+    plan = service.plan(request)
+    assert len(plan.tasks) == 1
+    assert len({o.id for o in plan.outputs}) == 2
+    assert len({o.name for o in plan.outputs}) == 2
+    assert len(service.execute(plan).weather) == 2
 
 
 def test_explicit_hybrid_uses_assigned_source(tmp_path):

@@ -1,4 +1,5 @@
 import type { Artifact, Job, Schemas } from '../api/client'
+import { candidateDatasetSelection } from './workflow'
 
 type RankingState = {
   weatherPlan: Schemas['WeatherPlan-Output'] | null
@@ -33,7 +34,12 @@ export function rankWeatherArtifacts(state: RankingState, job: Job): Artifact[] 
     ranked.forEach((id, index) => {
       const candidate = candidateById.get(id)
       if (!candidate) return
-      const key = datasetKey({ ...candidate.source, product_id: candidate.product_id })
+      const key = datasetKey(
+        candidateDatasetSelection(
+          candidate,
+          plan.request && 'product' in plan.request ? plan.request.product : undefined,
+        ),
+      )
       if (!ranks.has(key)) ranks.set(key, index)
     })
     ranksByLocation.set(locationId, ranks)
