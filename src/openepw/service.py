@@ -103,17 +103,39 @@ class WeatherService:
         locations = self.locations(request)
         candidates: list[Candidate] = []
         issues = []
-        for name in request.providers:
-            if name not in self.providers:
-                issues.append(
-                    Issue(code="PROVIDER_UNAVAILABLE", message=f"Unknown provider: {name}")
-                )
+        if not request.dataset_selections:
+            for name in request.providers:
+                if name not in self.providers:
+                    issues.append(
+                        Issue(code="PROVIDER_UNAVAILABLE", message=f"Unknown provider: {name}")
+                    )
         for loc in locations:
-            for name, p in self.providers.items():
-                if request.providers and name not in request.providers:
+            queries = (
+                [
+                    (
+                        selection.provider,
+                        request.model_copy(
+                            update={
+                                "dataset": selection.dataset,
+                                "product_id": selection.product_id or request.product_id,
+                            }
+                        ),
+                    )
+                    for selection in request.dataset_selections
+                ]
+                if request.dataset_selections
+                else [
+                    (name, request)
+                    for name in self.providers
+                    if not request.providers or name in request.providers
+                ]
+            )
+            for name, query in queries:
+                p = self.providers.get(name)
+                if p is None:
                     continue
                 try:
-                    candidates.extend(p.discover(request, loc, self.http))
+                    candidates.extend(p.discover(query, loc, self.http))
                 except OpenEPWError as exc:
                     issues.append(exc.issue)
         selected = []
@@ -303,6 +325,9 @@ class WeatherService:
                             else None,
                             "product": request.product,
                             "period": [start, end],
+                            "skip_feb_29": request.skip_feb_29,
+                            "hybrid_assignments": request.hybrid_policy.assignments,
+                            "missing_policy": request.missing_policy,
                         }
                     )
                     first = output_candidates[0]

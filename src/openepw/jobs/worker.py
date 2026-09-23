@@ -16,8 +16,10 @@ def subplan(plan, outputs):
     task_ids = {task_id for output in outputs for task_id in output.task_ids}
     raw = plan.model_dump(mode="json", exclude={"plan_hash"})
     raw["outputs"] = [
-        output.model_dump(mode="json")
-        for output in plan.outputs
+        output.model_copy(update={"index": i}).model_dump(mode="json")
+        if plan.kind == "future" and output.index is None
+        else output.model_dump(mode="json")
+        for i, output in enumerate(plan.outputs)
         if (output.id or output.name) in keys
     ]
     raw["tasks"] = [task.model_dump(mode="json") for task in plan.tasks if task.id in task_ids]
@@ -48,21 +50,42 @@ class JobRunner:
         plan = self.store.plan(job_id)
         produced: set[str] = set()
         for key, bundle in self.store.items(job_id).items():
-            try:
-                if plan.kind == "future":
-                    for ref in bundle.weather:
+            if plan.kind == "future":
+                try:
+                    _, manifest_path = self.service.artifacts.resolve(bundle.manifest.id)
+                    manifest_outputs = json.loads(manifest_path.read_text())["outputs"]
+                except (OpenEPWError, KeyError, ValueError):
+                    manifest_outputs = []
+                output_by_artifact = {
+                    entry["artifact_id"]: entry.get("output_id")
+                    for entry in manifest_outputs
+                    if "artifact_id" in entry
+                }
+                for ref in bundle.weather:
+                    try:
                         self.service.artifacts.resolve(ref.id)
+                    except OpenEPWError:
+                        continue
+                    if plan.outputs[0].id is not None:
+                        identity = output_by_artifact.get(ref.id)
+                        if isinstance(identity, str) and identity in {
+                            output.id for output in plan.outputs
+                        }:
+                            produced.add(identity)
+                    else:
                         produced.update(
                             output.id or output.name
                             for output in plan.outputs
                             if output.name == Path(ref.path).name
                         )
-                elif bundle.weather and all(
-                    self.service.artifacts.resolve(ref.id) for ref in bundle.weather
-                ):
-                    produced.add(key)
-            except OpenEPWError:
-                pass
+            else:
+                try:
+                    if bundle.weather and all(
+                        self.service.artifacts.resolve(ref.id) for ref in bundle.weather
+                    ):
+                        produced.add(key)
+                except OpenEPWError:
+                    pass
         missing = [o for o in plan.outputs if (o.id or o.name) not in produced]
         if not missing:
             raise OpenEPWError("NOTHING_TO_RETRY", "Every planned output was produced")
@@ -146,7 +169,7 @@ class JobRunner:
             self.store.save(job)
         weather = []
         extra = []
-        errors = list(job.errors)
+        errors = [*plan.issues, *job.errors]
         manifests = []
         qc = []
         for bundle in completed.values():

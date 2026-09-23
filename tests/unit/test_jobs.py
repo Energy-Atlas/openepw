@@ -1,3 +1,4 @@
+import pytest
 from test_batch import StationProvider
 
 from openepw.config import RuntimeConfig
@@ -274,7 +275,8 @@ def test_retry_failed_uses_only_missing_output_identities(tmp_path):
         runner.retry_failed(retry.id)
 
 
-def test_future_retry_emits_only_missing_member(tmp_path):
+@pytest.mark.parametrize("legacy", [False, True])
+def test_future_retry_emits_only_missing_member(tmp_path, legacy):
     import json
 
     from test_epw import synthetic
@@ -282,6 +284,82 @@ def test_future_retry_emits_only_missing_member(tmp_path):
 
     from openepw.epw import write_epw
     from openepw.jobs.worker import subplan
+    from openepw.models import FutureRequest, WeatherPlan
+
+    base = tmp_path / "baseline.epw"
+    write_epw(synthetic(2023, 8760), base)
+    signals = tmp_path / "signals.json"
+    signals.write_text(
+        json.dumps(
+            [
+                signal().model_dump(mode="json"),
+                signal().model_copy(update={"member": "r2"}).model_dump(mode="json"),
+            ]
+        )
+    )
+    service = WeatherService(RuntimeConfig(data_root=tmp_path / "data"))
+    plan = service.plan_future(
+        FutureRequest(
+            baseline=str(base),
+            signals=str(signals),
+            reference_period=(1985, 2014),
+            target_year=2050,
+            climate_scenario="ssp245",
+            profile="ensemble",
+        )
+    )
+    if legacy:
+        raw = plan.model_dump(mode="json", exclude={"plan_hash"})
+        for output in raw["outputs"]:
+            output.pop("id", None)
+            output.pop("index", None)
+        plan = WeatherPlan.model_validate(raw)
+    first = service.execute(subplan(plan, [plan.outputs[0]]))
+    store = JobStore(service.config.data_root)
+    original = store.submit(plan)
+    store.complete_item(original.id, "future", first)
+    original.state = "partially_completed"
+    original.completed = 1
+    original.failed = 1
+    original.bundle = first
+    store.save(original)
+    runner = JobRunner(service, store)
+    runner.enqueue = lambda job_id: None
+    retry = runner.retry_failed(original.id)
+    assert [o.id for o in store.plan(retry.id).outputs] == [plan.outputs[1].id]
+    runner.run(retry.id)
+    assert store.get(retry.id).state == "completed"
+    assert len(store.get(retry.id).bundle.weather) == 1
+
+
+def test_plan_unavailability_issues_reach_final_job_bundle(tmp_path):
+    service = WeatherService(RuntimeConfig(data_root=tmp_path), providers=[StationProvider()])
+    plan = service.plan(
+        WeatherRequest(
+            locations=Location(lat=1, lon=0),
+            start="2024-01-01",
+            end="2024-01-01",
+            dataset_selections=[
+                {"provider": "station", "dataset": "synthetic"},
+                {"provider": "missing", "dataset": "unknown"},
+            ],
+        )
+    )
+    assert sum(issue.code == "DATASET_UNAVAILABLE" for issue in plan.issues) == 1
+    store = JobStore(tmp_path)
+    job = store.submit(plan)
+    JobRunner(service, store).run(job.id)
+    final = store.get(job.id)
+    assert sum(issue.code == "DATASET_UNAVAILABLE" for issue in final.bundle.issues) == 1
+
+
+def test_future_retry_keeps_verified_members_when_one_artifact_is_corrupt(tmp_path):
+    import json
+
+    from test_epw import synthetic
+    from test_future import signal
+
+    from openepw.epw import write_epw
     from openepw.models import FutureRequest
 
     base = tmp_path / "baseline.epw"
@@ -306,19 +384,16 @@ def test_future_retry_emits_only_missing_member(tmp_path):
             profile="ensemble",
         )
     )
-    first = service.execute(subplan(plan, [plan.outputs[0]]))
+    full = service.execute(plan)
     store = JobStore(service.config.data_root)
     original = store.submit(plan)
-    store.complete_item(original.id, "future", first)
-    original.state = "partially_completed"
-    original.completed = 1
-    original.failed = 1
-    original.bundle = first
+    store.complete_item(original.id, "future", full)
+    original.state = "completed"
+    original.completed = original.total
+    original.bundle = full
     store.save(original)
+    (service.config.data_root / full.weather[0].path).write_bytes(b"corrupt-test-artifact")
     runner = JobRunner(service, store)
     runner.enqueue = lambda job_id: None
     retry = runner.retry_failed(original.id)
-    assert [o.id for o in store.plan(retry.id).outputs] == [plan.outputs[1].id]
-    runner.run(retry.id)
-    assert store.get(retry.id).state == "completed"
-    assert len(store.get(retry.id).bundle.weather) == 1
+    assert [o.id for o in store.plan(retry.id).outputs] == [plan.outputs[0].id]

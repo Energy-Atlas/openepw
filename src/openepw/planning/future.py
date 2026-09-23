@@ -149,6 +149,9 @@ def plan_future(service, request: FutureRequest):
     )
     outputs = []
     assert request.climate_period is not None
+    # Storage artifact handles are random snapshots; output content identity is not.
+    scientific_request = normalized.model_dump(mode="json", exclude={"baseline", "signals"})
+    scientific_params = {k: v for k, v in params.items() if k != "baseline_manifest_id"}
     for i in range(count):
         member = (
             signals[i].member
@@ -159,7 +162,8 @@ def plan_future(service, request: FutureRequest):
             {
                 "kind": "future",
                 "location_id": baseline.location.key,
-                "task_id": task.id,
+                "request": scientific_request,
+                "parameters": scientific_params,
                 "method": request.method,
                 "scenario": request.climate_scenario,
                 "profile": request.profile,

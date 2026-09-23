@@ -252,6 +252,61 @@ def test_unavailable_dataset_is_reported_per_point_without_substitution(tmp_path
     )
 
 
+def test_selected_openmeteo_datasets_are_both_discovered(tmp_path):
+    from openepw.providers.openmeteo import OpenMeteoProvider
+
+    service = WeatherService(RuntimeConfig(data_root=tmp_path), providers=[OpenMeteoProvider()])
+    request = WeatherRequest(
+        locations=Location(lat=42.44, lon=-76.5),
+        start="2024-01-01",
+        end="2024-01-01",
+        dataset_selections=[
+            {"provider": "openmeteo", "dataset": "era5"},
+            {"provider": "openmeteo", "dataset": "era5_land"},
+        ],
+    )
+    discovery = service.discover(request)
+    assert {c.source.dataset for c in discovery.candidates} == {"era5", "era5_land"}
+    plan = service.plan(request, discovery=discovery)
+    assert {o.dataset_selection.dataset for o in plan.outputs} == {"era5", "era5_land"}
+
+
+def test_leap_transform_changes_output_identity(tmp_path):
+    from test_batch import StationProvider
+
+    service = WeatherService(RuntimeConfig(data_root=tmp_path), providers=[StationProvider()])
+    base = WeatherRequest(locations=Location(lat=1, lon=0), years=[2024])
+    retained = service.plan(base)
+    omitted = service.plan(base.model_copy(update={"skip_feb_29": True}))
+    assert retained.outputs[0].id != omitted.outputs[0].id
+    assert retained.outputs[0].name != omitted.outputs[0].name
+
+
+def test_long_location_keeps_source_and_period_in_filename(tmp_path):
+    from test_batch import StationProvider
+
+    service = WeatherService(RuntimeConfig(data_root=tmp_path), providers=[StationProvider()])
+    plan = service.plan(
+        WeatherRequest(
+            locations=Location(lat=1, lon=0, name="A very long neighborhood name " * 8),
+            years=[2024],
+        )
+    )
+    name = plan.outputs[0].name
+    assert len(name) <= 100
+    assert "station" in name and "synthetic" in name and "2024" in name
+    assert "n1p000-e0p000" in name
+
+
+def test_published_filename_uses_product_instead_of_missing_date(tmp_path):
+    from test_batch import StationProvider
+
+    service = WeatherService(RuntimeConfig(data_root=tmp_path), providers=[StationProvider()])
+    plan = service.plan(WeatherRequest(locations=Location(lat=1, lon=0), product="tmy"))
+    assert "tmy" in plan.outputs[0].name
+    assert "none" not in plan.outputs[0].name.lower()
+
+
 def test_empty_weather_does_not_succeed(tmp_path):
     h = HttpClient(
         RuntimeConfig(data_root=tmp_path),

@@ -88,6 +88,33 @@ def test_local_signal_service_bundle_and_scenario_mismatch(tmp_path):
         s.plan_future(bad)
 
 
+def test_future_identity_ignores_random_snapshot_handles(tmp_path):
+    import json
+
+    from openepw.config import RuntimeConfig
+    from openepw.epw import write_epw
+    from openepw.models import FutureRequest
+    from openepw.service import WeatherService
+
+    baseline = tmp_path / "baseline.epw"
+    write_epw(synthetic(2023, 8760), baseline)
+    signals = tmp_path / "signals.json"
+    signals.write_text(json.dumps([signal().model_dump(mode="json")]))
+    service = WeatherService(RuntimeConfig(data_root=tmp_path / "store"))
+    request = FutureRequest(
+        baseline=str(baseline),
+        signals=str(signals),
+        reference_period=(1985, 2014),
+        target_year=2050,
+        climate_scenario="ssp245",
+    )
+    first = service.plan_future(request)
+    second = service.plan_future(request)
+    assert first.tasks[0].id != second.tasks[0].id
+    assert first.outputs[0].id == second.outputs[0].id
+    assert first.outputs[0].name == second.outputs[0].name
+
+
 def test_morph_retains_provenance_for_unchanged_native_fields(tmp_path):
     from openepw.epw import read_epw, write_epw
 
