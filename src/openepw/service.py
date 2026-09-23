@@ -13,6 +13,7 @@ from .epw.writer import epw_bytes
 from .models import (
     ArtifactBundle,
     Candidate,
+    DatasetSelection,
     DiscoveryResult,
     FetchTask,
     GeocodeResult,
@@ -151,7 +152,8 @@ class WeatherService:
                 "UNSUPPORTED_TIMEZONE",
                 "Fractional-hour output requires explicit temporal interpolation; request UTC or a whole-hour fixed offset in v0.1",
             )
-        if len(locations) * max(1, len(request.years)) > 1000:
+        output_multiplier = max(1, len(request.years)) * max(1, len(request.dataset_selections))
+        if len(locations) * output_multiplier > 1000:
             raise OpenEPWError("RESOURCE_LIMIT", "Request exceeds 1000 output locations/periods")
         discovery = discovery or self.discover(request)
         if [p.key for p in discovery.locations] != [p.key for p in self.locations(request)]:
@@ -160,8 +162,10 @@ class WeatherService:
         outputs = []
         selected: list[Candidate] = []
         warnings = [i.message for i in discovery.issues]
+        issues = list(discovery.issues)
         for occurrence, loc in enumerate(discovery.locations):
             candidates = [c for c in discovery.candidates if c.location_id == loc.key]
+            chosen: list[tuple[Candidate, DatasetSelection | None]]
             if request.hybrid_policy.enabled:
                 if request.product not in ("historical", "amy"):
                     raise OpenEPWError("INVALID_ALIGNMENT", "Hybrids require actual dated series")
@@ -172,20 +176,55 @@ class WeatherService:
                         raise OpenEPWError(
                             "PROVIDER_UNAVAILABLE", "Assigned hybrid provider is unavailable"
                         )
-                    chosen.append(candidate)
+                    chosen.append((candidate, None))
+            elif request.dataset_selections:
+                chosen = []
+                ranking = discovery.ranked_candidate_ids.get(loc.key, [])
+                ordered = sorted(
+                    candidates,
+                    key=lambda candidate: ranking.index(candidate.id)
+                    if candidate.id in ranking else len(ranking),
+                )
+                for selection in request.dataset_selections:
+                    candidate = next(
+                        (
+                            c for c in ordered
+                            if c.source.provider == selection.provider
+                            and c.source.dataset == selection.dataset
+                            and (selection.product_id is None or c.product_id == selection.product_id)
+                        ),
+                        None,
+                    )
+                    if candidate is None:
+                        issues.append(
+                            Issue(
+                                code="DATASET_UNAVAILABLE",
+                                message=f"{selection.provider}/{selection.dataset} is unavailable for this location",
+                                severity="warning",
+                                field="dataset_selections",
+                                location_id=loc.key,
+                                dataset_selection=selection.model_dump(mode="json"),
+                            )
+                        )
+                        continue
+                    chosen.append((candidate, selection))
             else:
-                chosen = [c for c in candidates if c.id in discovery.selected_candidate_ids][:1]
+                chosen = [
+                    (c, None) for c in candidates if c.id in discovery.selected_candidate_ids
+                ][:1]
             if not chosen:
+                if request.dataset_selections:
+                    continue
                 raise OpenEPWError(
                     "PROVIDER_UNAVAILABLE", "No candidate supports requested product/location"
                 )
-            selected.extend(c for c in chosen if c.id not in [v.id for v in selected])
+            selected.extend(c for c, _ in chosen if c.id not in [v.id for v in selected])
             periods = [(f"{y}-01-01", f"{y}-12-31") for y in request.years] or [
                 (str(request.start), str(request.end))
             ]
             for start, end in periods:
                 ids = []
-                for candidate in chosen:
+                for candidate, _selection in chosen:
                     warnings.extend(candidate.warnings)
                     if (
                         candidate.source.resolution_km
@@ -230,48 +269,61 @@ class WeatherService:
                     elif loc.key not in tasks[key].dependents:
                         tasks[key].dependents.append(loc.key)
                     ids.append(task_id)
-                identity = output_id(
-                    {
-                        "kind": "weather",
-                        "location_id": loc.key,
-                        "occurrence": occurrence,
-                        "task_ids": ids,
-                        "sources": [
-                            {
-                                "provider": c.source.provider,
-                                "dataset": c.source.dataset,
-                                "product_id": c.product_id or request.product_id,
-                            }
-                            for c in chosen
-                        ],
-                        "product": request.product,
-                        "period": [start, end],
-                    }
+                groups = (
+                    [([task_id], [pair[0]], pair[1]) for task_id, pair in zip(ids, chosen, strict=True)]
+                    if request.dataset_selections
+                    else [(ids, [pair[0] for pair in chosen], None)]
                 )
-                first = chosen[0]
-                outputs.append(
-                    OutputSpec(
-                        id=identity,
-                        requested_location_id=loc.key,
-                        task_ids=ids,
-                        name=filename(
-                            [
-                                location_label(loc),
-                                first.source.provider,
-                                first.source.dataset,
-                                first.product_id or first.source.identity or request.product_id,
-                                period_label(start, end, request.product, request.product_id),
+                for output_task_ids, output_candidates, selection in groups:
+                    identity = output_id(
+                        {
+                            "kind": "weather",
+                            "location_id": loc.key,
+                            "occurrence": occurrence,
+                            "task_ids": output_task_ids,
+                            "sources": [
+                                {
+                                    "provider": c.source.provider,
+                                    "dataset": c.source.dataset,
+                                    "product_id": c.product_id or request.product_id,
+                                }
+                                for c in output_candidates
                             ],
-                            identity,
-                        ),
+                            "selection": selection.model_dump(mode="json") if selection else None,
+                            "product": request.product,
+                            "period": [start, end],
+                        }
                     )
-                )
+                    first = output_candidates[0]
+                    outputs.append(
+                        OutputSpec(
+                            id=identity,
+                            requested_location_id=loc.key,
+                            task_ids=output_task_ids,
+                            dataset_selection=selection,
+                            name=filename(
+                                [
+                                    location_label(loc),
+                                    first.source.provider,
+                                    first.source.dataset,
+                                    first.product_id or first.source.identity or request.product_id,
+                                    period_label(start, end, request.product, request.product_id),
+                                ],
+                                identity,
+                            ),
+                        )
+                    )
+        if not outputs:
+            raise OpenEPWError(
+                "PROVIDER_UNAVAILABLE", "No selected dataset supports any requested location"
+            )
         return WeatherPlan(
             request=request,
             selected_candidates=selected,
             tasks=list(tasks.values()),
             outputs=outputs,
             warnings=list(dict.fromkeys(warnings)),
+            issues=issues,
             estimated_calls=len(tasks),
         )
 
@@ -295,7 +347,7 @@ class WeatherService:
                 )
             Location.model_validate(task.parameters.get("location"))
         bundle_id = uuid.uuid4().hex
-        weather, additional, issues, manifest_outputs, qc_records = [], [], [], [], []
+        weather, additional, issues, manifest_outputs, qc_records = [], [], list(plan.issues), [], []
         results = {}
         for task in plan.tasks:
             if cancelled():
