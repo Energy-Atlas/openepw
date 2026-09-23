@@ -16,6 +16,23 @@ plan were completed. Owner approved Stage 2 on 2026-09-20.
 - [x] MCP, CLI and examples over the canonical service.
 - [x] Final acceptance record, documentation and regression checks.
 
+## Production MCP — design in progress
+
+Local use will roll out and be tested before self-hosted team deployment.
+[ADR 0003](docs/decisions/0003-mcp-availability-and-batches.md) records the accepted
+availability-investigation scope and batch behavior. The
+[staged design](docs/superpowers/specs/2026-09-23-mcp-stages.md) proposes subsequent
+shared-service, local MCP, pilot and team-deployment stages; it is not an approved
+implementation plan. Its stage numbers are separate from v0.1 above.
+
+MCP Stage 1 uses authoritative footprints, station/site inventories, temporal ranges
+and future scenario/windows, with strategic bounded probes instead of exhaustive
+API queries. Previous successful runs and QC summaries are excluded from this stage.
+
+Future advanced feature: index previous verified runs/artifacts and QC summaries
+to accelerate subsequent matching requests. Existing raw caching and job recovery
+remain supported; this additional feature is deferred beyond initial local delivery.
+
 ## Follow-ups after v0.1
 
 - Run configured Linux/macOS CI and an EnergyPlus consumption smoke check.
