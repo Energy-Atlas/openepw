@@ -1,6 +1,6 @@
 # Core Integration and Output Identity Design
 
-**Status:** Proposed for owner review on 2026-09-23.
+**Status:** Owner approved on 2026-09-23.
 
 ## Purpose
 
@@ -68,7 +68,9 @@ digest of the complete output mapping:
 - ordered task IDs;
 - selected provider, dataset and product when applicable;
 - requested period; and
-- output transformation/profile identity where applicable.
+- output transformation/profile identity where applicable; and
+- the requested occurrence index when identical location entries would otherwise
+  have the same mapping.
 
 The field is optional only for persisted legacy plans. Legacy plans continue to use
 their filename as their internal job-item key so their existing hashes validate and
