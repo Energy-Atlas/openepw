@@ -26,6 +26,7 @@ from .models import (
     digest,
     utcnow,
 )
+from .planning.output_identity import filename, location_label, output_id, period_label
 from .providers.era5 import CDSProvider
 from .providers.http import HttpClient
 from .providers.noaa_isd import NOAAProvider
@@ -33,7 +34,6 @@ from .providers.nsrdb import NSRDBProvider
 from .providers.onebuilding import OneBuildingProvider
 from .providers.openmeteo import OpenMeteoProvider
 from .providers.pvgis import PVGISProvider
-from .planning.output_identity import filename, location_label, output_id, period_label
 from .qc import validate
 
 
@@ -182,16 +182,20 @@ class WeatherService:
                 ranking = discovery.ranked_candidate_ids.get(loc.key, [])
                 ordered = sorted(
                     candidates,
-                    key=lambda candidate: ranking.index(candidate.id)
-                    if candidate.id in ranking else len(ranking),
+                    key=lambda candidate: (
+                        ranking.index(candidate.id) if candidate.id in ranking else len(ranking)
+                    ),
                 )
                 for selection in request.dataset_selections:
                     candidate = next(
                         (
-                            c for c in ordered
+                            c
+                            for c in ordered
                             if c.source.provider == selection.provider
                             and c.source.dataset == selection.dataset
-                            and (selection.product_id is None or c.product_id == selection.product_id)
+                            and (
+                                selection.product_id is None or c.product_id == selection.product_id
+                            )
                         ),
                         None,
                     )
@@ -209,9 +213,11 @@ class WeatherService:
                         continue
                     chosen.append((candidate, selection))
             else:
-                chosen = [
+                chosen = []
+                chosen.extend(
                     (c, None) for c in candidates if c.id in discovery.selected_candidate_ids
-                ][:1]
+                )
+                chosen = chosen[:1]
             if not chosen:
                 if request.dataset_selections:
                     continue
@@ -269,12 +275,15 @@ class WeatherService:
                     elif loc.key not in tasks[key].dependents:
                         tasks[key].dependents.append(loc.key)
                     ids.append(task_id)
-                groups = (
-                    [([task_id], [pair[0]], pair[1]) for task_id, pair in zip(ids, chosen, strict=True)]
+                groups: list[tuple[list[str], list[Candidate], DatasetSelection | None]] = (
+                    [
+                        ([task_id], [pair[0]], pair[1])
+                        for task_id, pair in zip(ids, chosen, strict=True)
+                    ]
                     if request.dataset_selections
                     else [(ids, [pair[0] for pair in chosen], None)]
                 )
-                for output_task_ids, output_candidates, selection in groups:
+                for output_task_ids, output_candidates, output_selection in groups:
                     identity = output_id(
                         {
                             "kind": "weather",
@@ -289,7 +298,9 @@ class WeatherService:
                                 }
                                 for c in output_candidates
                             ],
-                            "selection": selection.model_dump(mode="json") if selection else None,
+                            "selection": output_selection.model_dump(mode="json")
+                            if output_selection
+                            else None,
                             "product": request.product,
                             "period": [start, end],
                         }
@@ -300,7 +311,7 @@ class WeatherService:
                             id=identity,
                             requested_location_id=loc.key,
                             task_ids=output_task_ids,
-                            dataset_selection=selection,
+                            dataset_selection=output_selection,
                             name=filename(
                                 [
                                     location_label(loc),
@@ -347,7 +358,13 @@ class WeatherService:
                 )
             Location.model_validate(task.parameters.get("location"))
         bundle_id = uuid.uuid4().hex
-        weather, additional, issues, manifest_outputs, qc_records = [], [], list(plan.issues), [], []
+        weather, additional, issues, manifest_outputs, qc_records = (
+            [],
+            [],
+            list(plan.issues),
+            [],
+            [],
+        )
         results = {}
         for task in plan.tasks:
             if cancelled():
@@ -465,9 +482,7 @@ class WeatherService:
             "issues": [i.model_dump() for i in issues],
             "timezone_policy": "fixed local standard time; default UTC when not supplied",
             "leap_policy": (
-                plan.request.leap_policy
-                if isinstance(plan.request, WeatherRequest)
-                else "preserve"
+                plan.request.leap_policy if isinstance(plan.request, WeatherRequest) else "preserve"
             ),
             "simulation_ready": False,
         }

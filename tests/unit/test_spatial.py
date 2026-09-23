@@ -35,7 +35,12 @@ def test_sampled_points_can_use_longitude_based_standard_time():
     from openepw.models import nominal_offset_minutes
 
     assert [nominal_offset_minutes(lon) for lon in (-76.5, -7.5, 7.5, 0, 179.9, -179.9)] == [
-        -300, 0, 60, 0, 720, -720,
+        -300,
+        0,
+        60,
+        0,
+        720,
+        -720,
     ]
     box = BoundingBox(west=-77, south=42, east=-76, north=43)
     utc = sample(box, SamplingSpec(dx_km=50, dy_km=50))

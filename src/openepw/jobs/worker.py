@@ -2,9 +2,27 @@ import json
 import threading
 import uuid
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 
 from ..models import Issue, OpenEPWError, WeatherPlan, utcnow
 from .store import JobStore
+
+TERMINAL = ("completed", "partially_completed", "failed", "cancelled")
+
+
+def subplan(plan, outputs):
+    """Restrict a plan to output identities and their required fetch tasks."""
+    keys = {output.id or output.name for output in outputs}
+    task_ids = {task_id for output in outputs for task_id in output.task_ids}
+    raw = plan.model_dump(mode="json", exclude={"plan_hash"})
+    raw["outputs"] = [
+        output.model_dump(mode="json")
+        for output in plan.outputs
+        if (output.id or output.name) in keys
+    ]
+    raw["tasks"] = [task.model_dump(mode="json") for task in plan.tasks if task.id in task_ids]
+    raw["issues"] = []
+    return WeatherPlan.model_validate(raw)
 
 
 class JobRunner:
@@ -17,10 +35,38 @@ class JobRunner:
         self.lock = threading.Lock()
         self.active = set()
 
-    def submit(self, plan, idempotency_key=None):
-        job = self.store.submit(plan, idempotency_key)
+    def submit(self, plan, idempotency_key=None, retry_of=None):
+        job = self.store.submit(plan, idempotency_key, retry_of=retry_of)
         self.enqueue(job.id)
         return job
+
+    def retry_failed(self, job_id, idempotency_key=None):
+        """Submit only output identities that have no verified successful artifact."""
+        job = self.store.get(job_id)
+        if job.state not in TERMINAL:
+            raise OpenEPWError("INVALID_REQUEST", "Only a finished job can be retried")
+        plan = self.store.plan(job_id)
+        produced: set[str] = set()
+        for key, bundle in self.store.items(job_id).items():
+            try:
+                if plan.kind == "future":
+                    for ref in bundle.weather:
+                        self.service.artifacts.resolve(ref.id)
+                        produced.update(
+                            output.id or output.name
+                            for output in plan.outputs
+                            if output.name == Path(ref.path).name
+                        )
+                elif bundle.weather and all(
+                    self.service.artifacts.resolve(ref.id) for ref in bundle.weather
+                ):
+                    produced.add(key)
+            except OpenEPWError:
+                pass
+        missing = [o for o in plan.outputs if (o.id or o.name) not in produced]
+        if not missing:
+            raise OpenEPWError("NOTHING_TO_RETRY", "Every planned output was produced")
+        return self.submit(subplan(plan, missing), idempotency_key, retry_of=job_id)
 
     def enqueue(self, job_id):
         with self.lock:
@@ -68,6 +114,7 @@ class JobRunner:
         outputs = list({(o.id or o.name): o for o in plan.outputs}.values())
         if plan.kind == "future":
             outputs = [None]
+        attempted = len(completed)
         for output in outputs:
             if self.store.get(job_id).cancellation_requested:
                 break
@@ -75,14 +122,9 @@ class JobRunner:
             if name in completed:
                 continue
             try:
-                subplan = plan
-                if output:
-                    raw = plan.model_dump(mode="json", exclude={"plan_hash"})
-                    raw["outputs"] = [o.model_dump() for o in plan.outputs if (o.id or o.name) == name]
-                    raw["tasks"] = [t.model_dump() for t in plan.tasks if t.id in output.task_ids]
-                    subplan = WeatherPlan.model_validate(raw)
+                execution_plan = subplan(plan, [output]) if output else plan
                 bundle = self.service.execute(
-                    subplan, cancelled=lambda: self.store.get(job_id).cancellation_requested
+                    execution_plan, cancelled=lambda: self.store.get(job_id).cancellation_requested
                 )
                 self.store.complete_item(job_id, name, bundle)
                 completed[name] = bundle
@@ -98,8 +140,9 @@ class JobRunner:
                     )
                 )
                 job.errors.append(issue)
+            attempted += 1
             job.completed = sum(len(b.weather) for b in completed.values())
-            job.failed = max(0, len(completed) - job.completed)
+            job.failed = max(0, attempted - job.completed)
             self.store.save(job)
         weather = []
         extra = []

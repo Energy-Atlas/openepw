@@ -301,6 +301,7 @@ class TransformStep(Model):
 
 class OutputSpec(Model):
     id: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
+    index: int | None = Field(default=None, ge=0)
     requested_location_id: str
     task_ids: list[str]
     name: str = Field(pattern=r"^[A-Za-z0-9_-]{1,100}\.epw$")
@@ -348,6 +349,8 @@ class WeatherPlan(Model):
         for output in raw["outputs"]:
             if output.get("id") is None:
                 output.pop("id", None)
+            if output.get("index") is None:
+                output.pop("index", None)
         sampling = raw["request"].get("sampling")
         if isinstance(sampling, dict) and sampling.get("standard_offset") == "utc":
             sampling.pop("standard_offset")
@@ -392,6 +395,7 @@ class ArtifactBundle(Model):
 class WeatherJob(Model):
     id: str
     plan_hash: str
+    retry_of: str | None = None
     kind: Literal["weather", "future"] = "weather"
     state: Literal[
         "queued", "running", "completed", "partially_completed", "failed", "cancelled"

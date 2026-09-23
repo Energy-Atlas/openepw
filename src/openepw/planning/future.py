@@ -148,8 +148,13 @@ def plan_future(service, request: FutureRequest):
         cache_key=key,
     )
     outputs = []
+    assert request.climate_period is not None
     for i in range(count):
-        member = signals[i].member if request.method == "morph" and request.signals else f"member-{i + 1}"
+        member = (
+            signals[i].member
+            if request.method == "morph" and request.signals
+            else f"member-{i + 1}"
+        )
         identity = output_id(
             {
                 "kind": "future",
@@ -166,6 +171,7 @@ def plan_future(service, request: FutureRequest):
         outputs.append(
             OutputSpec(
                 id=identity,
+                index=i,
                 requested_location_id=baseline.location.key,
                 task_ids=[task.id],
                 name=filename(
@@ -251,16 +257,22 @@ def execute_future(service, plan, *, cancelled, progress):
         from ..generation.hourly_archive import HourlyArchive
 
         datasets = HourlyArchive(service.http).generate(request, params, baseline)
-    if len(datasets) != len(plan.outputs):
+    if any(output.index is None for output in plan.outputs) and len(datasets) != len(plan.outputs):
         raise OpenEPWError(
             "INVALID_REQUEST", "Future output count does not match coherent source profiles"
         )
+    indices = [
+        output.index if output.index is not None else i for i, output in enumerate(plan.outputs)
+    ]
+    if len(set(indices)) != len(indices) or any(i >= len(datasets) for i in indices):
+        raise OpenEPWError("INVALID_REQUEST", "Future output index is invalid")
     bundle_id = uuid.uuid4().hex
     weather = []
     manifests = []
     issues = []
     qc = []
-    for i, data in enumerate(datasets):
+    for output, index in zip(plan.outputs, indices, strict=True):
+        data = datasets[index]
         if cancelled():
             issues.append(
                 Issue(
@@ -275,7 +287,7 @@ def execute_future(service, plan, *, cancelled, progress):
             raise OpenEPWError("EPW_CONVERSION_FAILED", "Future output failed structural annual QC")
         ref = service.artifacts.write(
             bundle_id,
-            plan.outputs[i].name,
+            output.name,
             epw_bytes(data),
             "weather",
             "application/vnd.energyplus.epw",
@@ -284,6 +296,8 @@ def execute_future(service, plan, *, cancelled, progress):
         manifests.append(
             {
                 "artifact_id": ref.id,
+                "output_id": output.id,
+                "requested_locations": [output.requested_location_id],
                 "lineage": {k: v.model_dump(mode="json") for k, v in data.lineage.items()},
                 "metadata": data.metadata,
                 "baseline_sha256": params["baseline_sha256"],
@@ -295,5 +309,5 @@ def execute_future(service, plan, *, cancelled, progress):
         )
         issues.extend(checks)
         qc.append({"artifact_id": ref.id, "issues": [x.model_dump() for x in checks]})
-        progress(ref.id, None)
+        progress(output.id or output.name, None)
     return service._bundle(plan, bundle_id, weather, [], issues, manifests, qc)

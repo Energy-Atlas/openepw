@@ -12,7 +12,9 @@ def output_id(mapping: dict) -> str:
 
 def slug(value: object) -> str:
     ascii_text = unicodedata.normalize("NFKD", str(value)).encode("ascii", "ignore").decode()
-    return re.sub(r"-+", "-", re.sub(r"[^a-z0-9]+", "-", ascii_text.lower())).strip("-") or "unknown"
+    return (
+        re.sub(r"-+", "-", re.sub(r"[^a-z0-9]+", "-", ascii_text.lower())).strip("-") or "unknown"
+    )
 
 
 def location_label(location: Location) -> str:

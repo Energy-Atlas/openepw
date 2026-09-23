@@ -1,6 +1,13 @@
 import math
 
-from ..models import BoundingBox, Location, OpenEPWError, PolygonQuery, SamplingSpec, nominal_offset_minutes
+from ..models import (
+    BoundingBox,
+    Location,
+    OpenEPWError,
+    PolygonQuery,
+    SamplingSpec,
+    nominal_offset_minutes,
+)
 
 
 def cross(a, b, c):

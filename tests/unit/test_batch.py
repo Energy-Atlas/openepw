@@ -79,7 +79,8 @@ def test_shared_station_keeps_distinct_requested_outputs(tmp_path):
     service = WeatherService(RuntimeConfig(data_root=tmp_path), providers=[provider])
     request = WeatherRequest(
         locations=[Location(lat=1, lon=0, name="Alpha"), Location(lat=12, lon=0, name="Beta")],
-        start="2024-01-01", end="2024-01-01",
+        start="2024-01-01",
+        end="2024-01-01",
     )
     plan = service.plan(request)
     assert len(plan.tasks) == 1
@@ -96,7 +97,8 @@ def test_identical_requested_point_occurrences_remain_distinct(tmp_path):
     service = WeatherService(RuntimeConfig(data_root=tmp_path), providers=[StationProvider()])
     request = WeatherRequest(
         locations=[Location(lat=1, lon=0), Location(lat=1, lon=0)],
-        start="2024-01-01", end="2024-01-01",
+        start="2024-01-01",
+        end="2024-01-01",
     )
     plan = service.plan(request)
     assert len(plan.tasks) == 1

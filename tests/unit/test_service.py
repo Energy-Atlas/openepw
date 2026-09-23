@@ -164,8 +164,9 @@ def test_discovery_does_not_wait_for_nsrdb_rate_limit(tmp_path):
 
 
 def test_discovery_exposes_ranked_candidates_per_location(tmp_path):
-    from openepw.models import Candidate
     from test_batch import StationProvider
+
+    from openepw.models import Candidate
 
     class Choices(StationProvider):
         def discover(self, request, location, http):
@@ -193,7 +194,6 @@ def test_discovery_exposes_ranked_candidates_per_location(tmp_path):
 
 
 def test_dataset_choices_resolve_local_station_per_point(tmp_path):
-    from openepw.models import Candidate
     from test_batch import StationProvider
 
     class LocalStations(StationProvider):
@@ -207,7 +207,8 @@ def test_dataset_choices_resolve_local_station_per_point(tmp_path):
     service = WeatherService(RuntimeConfig(data_root=tmp_path), providers=[LocalStations(), grid])
     request = WeatherRequest(
         locations=[Location(lat=1, lon=0), Location(lat=2, lon=0)],
-        start="2024-01-01", end="2024-01-01",
+        start="2024-01-01",
+        end="2024-01-01",
         dataset_selections=[
             {"provider": "station", "dataset": "synthetic"},
             {"provider": "grid", "dataset": "synthetic"},
@@ -234,7 +235,8 @@ def test_unavailable_dataset_is_reported_per_point_without_substitution(tmp_path
     service = WeatherService(RuntimeConfig(data_root=tmp_path), providers=[StationProvider()])
     request = WeatherRequest(
         locations=[Location(lat=1, lon=0), Location(lat=2, lon=0)],
-        start="2024-01-01", end="2024-01-01",
+        start="2024-01-01",
+        end="2024-01-01",
         dataset_selections=[
             {"provider": "station", "dataset": "synthetic"},
             {"provider": "missing", "dataset": "unknown"},
@@ -244,7 +246,10 @@ def test_unavailable_dataset_is_reported_per_point_without_substitution(tmp_path
     assert len(plan.outputs) == 2
     assert len(plan.issues) == 2
     assert {issue.location_id for issue in plan.issues} == {p.key for p in request.locations}
-    assert all(issue.dataset_selection == {"provider": "missing", "dataset": "unknown", "product_id": None} for issue in plan.issues)
+    assert all(
+        issue.dataset_selection == {"provider": "missing", "dataset": "unknown", "product_id": None}
+        for issue in plan.issues
+    )
 
 
 def test_empty_weather_does_not_succeed(tmp_path):

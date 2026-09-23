@@ -1,6 +1,6 @@
+import json
 import sqlite3
 import uuid
-import json
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -35,11 +35,12 @@ class JobStore:
         finally:
             db.close()
 
-    def submit(self, plan, idempotency_key=None):
+    def submit(self, plan, idempotency_key=None, retry_of=None):
         job = WeatherJob(
             id=uuid.uuid4().hex,
             plan_hash=plan.plan_hash,
             kind=plan.kind,
+            retry_of=retry_of,
             total=max(1, len({o.id or o.name for o in plan.outputs})),
             idempotency_key=idempotency_key,
         )

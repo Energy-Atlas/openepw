@@ -18,6 +18,10 @@ class JobSubmission(BaseModel):
     idempotency_key: str | None = None
 
 
+class RetrySubmission(BaseModel):
+    idempotency_key: str | None = None
+
+
 class GeocodeQuery(BaseModel):
     query: str
     mode: str = "point"
@@ -125,6 +129,10 @@ def create_app(service=None, *, remote=False):
     @app.get("/v1/jobs/{job_id}")
     def job(job_id: str):
         return runner.store.get(job_id)
+
+    @app.post("/v1/jobs/{job_id}/retry", status_code=202)
+    def retry(job_id: str, payload: RetrySubmission | None = None):
+        return runner.retry_failed(job_id, payload.idempotency_key if payload else None)
 
     @app.post("/v1/jobs/{job_id}/cancel")
     def cancel(job_id: str):
