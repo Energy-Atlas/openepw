@@ -8,7 +8,9 @@ simulation suitability. EnergyPlus execution is not part of ordinary tests.
 
 Meteorology may be instantaneous at interval ends while solar is interval energy.
 EPWs use fixed standard time; callers must supply the offset they intend (UTC is
-the default). Historical retrieval currently requires output offsets aligned to
+the default). Area sampling can explicitly use a longitude-derived nominal offset;
+this is not a legal time-zone lookup and can differ from local civil time.
+Historical retrieval currently requires output offsets aligned to
 whole provider hours; use UTC for fractional-hour zones pending explicit temporal
 interpolation support. No DST shifts, gap interpolation or implicit hybrid fill.
 Actual-year requests preserve leap days unless `skip_feb_29=True` is explicitly
@@ -41,6 +43,10 @@ ten temporal years. The late-century RCP4.5 source warning is retained.
 - NOAA ISD supports the surviving historical endpoint, not its GHCNh successor.
   Inventory dates are not completeness guarantees. Missing solar and station
   pressure remain missing. A hybrid can explicitly supply other variables.
+- Discovery of a station is not proof that every requested hour is complete. A
+  dataset selection resolves the locally ranked station independently at each
+  point; failed/unsupported point-dataset outputs are reported rather than silently
+  filled from other stations.
 - NSRDB supports aggregated v4 hourly historical CSV and published TMY/TDY/TGY v4
   products. Other v4 footprints and subhourly API products are not claimed. Nonzero
   output offsets can require neighboring annual downloads; unavailable edge years
@@ -56,6 +62,13 @@ server reuse completed outputs and verify their checksums. Cancellation is
 cooperative at item boundaries; it cannot interrupt every provider SDK/network
 call. Queued CDS work can outlive the client polling limit. There is no distributed
 scheduler, object-storage integration or automatic artifact retention cleanup.
+Retry creates a linked job for only missing output identities; the original job and
+successful artifacts remain unchanged. Future ensemble retries may recompute the
+coherent source profiles, but emit only missing members.
+
+Map coverage polygons are not evidence of actual temporal or station completeness.
+The UI branch's broad coverage overlays are pending replacement with documented,
+provider-specific footprints; they are not promoted to the canonical data model.
 
 Remote REST requires a bearer token and bounded requests. MCP HTTP is loopback-only;
 use stdio or authenticated REST for remote deployments. Baseline uploads accept

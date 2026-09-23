@@ -1,6 +1,6 @@
 # Features and implementation status
 
-Updated 2026-09-20. Stage 2 approved and implemented; acceptance and limitations
+Updated 2026-09-23. Stage 2 approved and implemented; acceptance and limitations
 are recorded separately. Installed source package version: 0.1.0.
 
 | Capability | Status | Important boundary |
@@ -14,16 +14,19 @@ are recorded separately. Installed source package version: 0.1.0.
 | NSRDB/NLR | Live actual 8,784 and native TMY 8,760 rows accepted | Aggregate v4 actual years; native TMY/TDY/TGY IDs from catalog; key/email required |
 | Direct CDS ERA5/Land | Both products live one-day outputs accepted | GHI only; bounded polling; terms/token and optional dependencies |
 | Spatial/batch | Tested | Point lists, bbox/dateline, polygons/holes, grid offsets, preallocation cap |
-| Source reuse | Tested 73 requests → 11 verified sources | Unresolved grids never deduplicated by guessed rounding |
+| Source reuse and output identity | Tested 73 requests → 11 verified sources → 73 EPWs | Fetch tasks deduplicate; requested outputs do not collapse |
+| Semantic EPW names | Implemented, offline tested | Location/source/period or future method/scenario/window/member with digest suffix |
+| Multi-dataset planning | Implemented, offline tested | Provider/dataset selection resolves local candidate at each point; unavailable combinations are explicit issues |
 | Explicit hybrids | Tested | Named source per variable; exact matching timelines; no missing-data fill |
 | CMIP6 monthly morph | Live full output accepted | Seven-variable coherent signals; default ACCESS-CM2 SSP245 verified |
 | Hourly climate profiles | Live typical, shock, persistence and ten-year ensemble accepted | U.S. PUMA sites, CCSM4/WRF, RCP4.5/8.5 and two exact windows |
 | Future ensembles | Implemented | Model/member outputs for morph; temporal years for hourly archive |
-| REST/jobs/artifacts | Implemented, offline tested | SQLite + filesystem; single server process; bearer auth for remote REST |
+| REST/jobs/artifacts | Implemented, offline tested | SQLite + filesystem; identity-keyed progress and failed-output retry; single server process; bearer auth for remote REST |
 | MCP and CLI | Implemented, offline tested | Stdio and loopback Streamable HTTP; compact artifact references |
 | Packaging/CI | Wheel/sdist built; local installation verified | Cross-OS runners configured; see actual run evidence |
 
 Reserved: sampled/stochastic weather, additional hourly scenarios/geographies,
 GHCNh successor adapter, automatic global OneBuilding proximity catalog, simulator
-certification. No historical TMY/XMY generator, frontend or distributed service.
+certification. No historical TMY/XMY generator or distributed service. An approved
+web UI is under development on `feature/webui`; it is not yet part of `main`.
 See [limitations](docs/limitations.md) for exact reduced capabilities and follow-ups.
