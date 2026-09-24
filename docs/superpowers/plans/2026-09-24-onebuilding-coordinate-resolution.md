@@ -390,3 +390,5 @@ Coverage: Tasks 1/5 account for unresolved products; Task 2 handles short names 
 - Tasks 1–2 complete: baseline reasons reproduced (1,572 U.S., 227 Australia); short-name and country checks passed. 44 focused tests passed; new tests were observed failing before implementation. No network used.
 
 - Task 3 complete: coordinate consensus keeps distinct IDs and unknown elevations; exact equality only, no averaging. Six new tests failed before implementation and passed afterwards. 50 focused tests passed; offline report generated.
+
+- Task 4 collection complete: three approved index attempts saved 713,654 / 284,231 / 158,499 bytes. All workbooks parsed with zero invalid rows. Exact TMY3 URL matching succeeded without rewriting TMY3a names. Extension/resume/redirect tests failed before correction and passed; missing-coordinate/formula URL tests passed. No further requests authorized.

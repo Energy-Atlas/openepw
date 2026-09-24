@@ -33,6 +33,7 @@ def main(argv=None):
                 {
                     "limits": asdict(Limits()),
                     "approved_exceptions": {
+                        "onebuilding_selected_coordinate_indexes_cumulative_attempts": 15,
                         "noaa_isd_inventory_response_bytes": 20_000_000,
                         "oedi_rcp45_and_rcp85_cumulative_bytes_each": 17_000_000,
                         "scope": "Exact source URLs only; prior charges and total ceiling retained; see research README",
