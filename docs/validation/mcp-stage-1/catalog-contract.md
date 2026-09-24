@@ -74,6 +74,10 @@ Stage 1's existing ledger budgets are not reusable runtime quotas for production
    availability. Preserve unknowns and temporal meaning in ranking/explanations.
 3. Establish a licensed, authoritative OneBuilding coordinate index before offering
    global nearest-site recommendations. Product-name matching alone is insufficient.
+   The owner accepted an identifier-first inventory match, followed by explicitly
+   approximate place geocoding for regional discovery; see the
+   [follow-up plan](../../superpowers/plans/2026-09-23-mcp-stage-1.md#accepted-onebuilding-follow-up-plan--2026-09-23).
+   Keep inferred place coordinates separate from verified source coordinates.
 4. Resolve version-specific PVGIS footprint/source-period metadata and NSRDB product
    footprints without mass queries. Keep individual probes narrowly scoped meanwhile.
 5. Validate CMIP6 windows across all required stores with bounded coordinate metadata
