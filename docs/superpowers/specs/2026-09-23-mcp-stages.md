@@ -3,11 +3,11 @@
 Date: 2026-09-23. Branch: `feature/mcp`.
 
 Status updated 2026-09-24: the owner explicitly accepted MCP Stage 1 as finished
-and agreed to advance to Stage 2. The next deliverable is the detailed Stage 2
-design and implementation plan, as discussed immediately before that acceptance.
-This authorizes the transition and planning; no detailed Stage 2 implementation
-plan or new public API has yet been approved. Stages 3–6 remain proposals. These
-MCP stages are separate from the completed v0.1 implementation stages.
+and agreed to advance to Stage 2. A detailed Stage 2 design and implementation
+plan have since been drafted for review; no new public API or Stage 2 implementation
+has been approved. The owner also inserted an agent-harnessing stage before the
+local pilot and removed self-hosted team deployment from this roadmap. Stages 3–6
+remain proposals. These MCP stages are separate from the completed v0.1 stages.
 
 Read the [Stage 2 agent handoff](../../handoffs/2026-09-24-mcp-stage-2.md),
 [accepted decisions](../../decisions/0003-mcp-availability-and-batches.md), and
@@ -18,9 +18,10 @@ case annotations are complete; production catalog integration is the next phase.
 
 An LLM client can explain suitable datasets, discover actual alternatives, plan and
 retrieve EPWs, generate future weather from local or retrieved baselines, and manage
-batches with useful partial results. Local deployment is validated first; self-hosted
-team deployment follows successful local acceptance. Scientific provenance, QC and
-limitations remain visible throughout. Python is canonical; MCP is a thin adapter.
+batches with useful partial results. A purpose-built agent harness then helps the
+client carry out and explain those workflows; a local pilot tests the result with
+users. Scientific provenance, QC and limitations remain visible throughout. Python
+is canonical; MCP is a thin adapter; the harness sits above the MCP contract.
 
 ## Stage 1 — map availability with bounded investigation (accepted scope)
 
@@ -35,6 +36,12 @@ versions; a bounded probe ledger; explicit unknowns; and a local metadata catalo
 and refresh proposal. The exit condition is enough defensible evidence to implement
 eligibility checks, with remaining uncertainty represented explicitly rather than
 an assertion of comprehensive live coverage.
+
+The accepted Stage 1 baseline is sufficient for current planning. Another agent is
+improving NSRDB and other availability evidence on a separate branch and worktree.
+Treat that as a later reviewed snapshot, not a restart of this stage or a reason to
+discard the accepted annotations and local evidence. Stage 2 can import a new
+accepted snapshot generation when that work is ready.
 
 ## Stage 2 — shared availability and recommendation services (design/planning authorized)
 
@@ -100,10 +107,32 @@ performs the selected workflows, reads structured failures and accesses artifact
 Test protocol behavior, not only direct Python tool calls. Exercise invalid input,
 path confinement, bounded output, process shutdown and credential redaction.
 
-## Stage 5 — local pilot and release acceptance (proposed)
+## Stage 5 — agent harnessing design and reference implementation (proposed)
 
-Run the selected user stories through the first target LLM client: purpose-based
-dataset guidance, native and actual-year EPWs, both baseline-to-future paths, and
+Design an agent layer that makes the MCP workflows usable from a natural-language
+request. It should choose and sequence tools, preserve the user's study intent,
+explain alternatives and uncertainty, track long-running jobs and artifacts, and
+ask for clarification when a scientific or operational choice materially changes
+the result. Keep provider and weather science in the Python service, not in prompts
+or agent-specific tools.
+
+Build a small reference harness, even if its first role is testing and evaluation.
+Evaluate a lightweight implementation against frameworks such as LangChain and
+LangGraph; LangSmith or another tracing/evaluation system may help inspect runs.
+Those are candidates, not required dependencies or settled architecture. Keep the
+harness optional so direct Python and MCP clients remain usable. Define test tasks,
+trace/redaction rules and measures for correct tool choice, explanation, recovery
+and bounded resource use before selecting a stack.
+
+Exit condition: the reference harness can drive the main local workflows through
+MCP with inspectable traces and deterministic evaluations, including ambiguity,
+unsupported locations, provider failures and QC/provenance explanations. This
+provides a concrete client for the pilot without claiming general agent reliability.
+
+## Stage 6 — local pilot and release acceptance (proposed)
+
+Run the selected user stories through the reference harness and target LLM client:
+purpose-based dataset guidance, native and actual-year EPWs, both baseline-to-future paths, and
 batches with shared sources/unsupported locations/partial failures. Check whether
 tool results let the LLM explain choices, geographical/temporal limits and QC.
 
@@ -113,26 +142,8 @@ network test. Record real client/platform/provider results and outstanding limit
 Verify package extras, startup instructions and shared-service parity.
 
 Exit condition: the agreed local workflows pass, material defects are resolved,
-and residual limitations are documented. This evidence is a prerequisite for the
-self-hosted team release; local success alone is not remote security acceptance.
-
-## Stage 6 — self-hosted team MCP (proposed, after local acceptance)
-
-Add authenticated Streamable HTTP and deployment documentation. Define team access
-to jobs/artifacts and provider credentials, transport security, request/workload
-limits, concurrency and process ownership, logging and storage/retention behavior.
-Do not assume the existing REST bearer token alone satisfies the selected MCP
-clients' authentication requirements. Verify compatibility against current official
-protocol/client documentation when this stage is designed.
-
-Prefer the existing SQLite/filesystem service within its single-process limits.
-Avoid introducing distributed services unless requirements demonstrate a need.
-Decide whether local clients connect to a shared running service to prevent multiple
-workers competing for one data root.
-
-Acceptance: selected remote clients authenticate successfully; unauthorized access
-is rejected; the agreed sharing/isolation policy is enforced; concurrent users,
-disconnects and restart recovery respect resource limits and preserve jobs.
+and residual limitations are documented. The current staged roadmap ends at local
+acceptance. A team-deployment stage would require a separate future owner decision.
 
 ## Future feature — accelerate requests using previous runs
 
@@ -145,9 +156,9 @@ before implementing it. Preserve existing raw caches and durable job recovery.
 
 - Stage 2: which study-purpose preferences should recommendations accept explicitly?
 - Stage 3: which local directories and export destinations may the MCP server access?
-- Stages 4–5: which LLM client(s) and operating systems define first acceptance?
-- Stage 6: shared trusted-team workspace, or per-user job/artifact isolation; shared
-  or per-user provider credentials; and compatible authentication approach?
+- Stage 5: which harness tasks and evaluation criteria best represent intended users,
+  and does a framework improve them enough to justify the added dependency?
+- Stage 6: which LLM client(s), users and operating systems define local acceptance?
 
 Resolve these in the stage designs before producing executable task-level plans.
 Routine implementation choices follow the repository's existing autonomy rules.

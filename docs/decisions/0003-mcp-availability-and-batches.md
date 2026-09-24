@@ -6,14 +6,19 @@ advance to Stage 2 design/planning. Detailed implementation approval remains
 pending plan review. Stage 1 research is complete with explicit limitations in the
 [findings](../validation/mcp-stage-1/README.md). The transition is documented in the [agent handoff](../handoffs/2026-09-24-mcp-stage-2.md).
 Later implementation stages remain proposals in the
-[MCP staged design](../superpowers/specs/2026-09-23-mcp-stages.md).
+[MCP staged design](../superpowers/specs/2026-09-23-mcp-stages.md). The owner's
+subsequent 2026-09-24 direction adds an agent-harnessing stage before the local
+pilot and removes team deployment from the current roadmap. An agent is extending
+NSRDB and other Stage 1 evidence on a separate branch/worktree; the accepted
+snapshot remains valid until that work is reviewed and integrated.
 
 These MCP stage numbers are separate from the completed v0.1 Stage 1/Stage 2.
 
 ## Product direction
 
-- Develop on `feature/mcp`. Local use is the first rollout and testing prerequisite
-  for a later self-hosted team release. Public multi-tenant hosting is not selected.
+- Develop on `feature/mcp` in the repository checkout. Local MCP, an agent
+  harness, and a local pilot are the current rollout path. No team-deployment stage
+  is selected now; public multi-tenant hosting is also outside this roadmap.
 - First-class workflows: dataset guidance/discovery, EPW retrieval, future-weather
   generation, and reliable batches. Standalone EPW inspection is not a priority
   user story, but workflow QC/provenance remains required.

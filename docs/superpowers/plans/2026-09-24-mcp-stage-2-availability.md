@@ -1,6 +1,6 @@
 # MCP Stage 2 Availability and Recommendation Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:executing-plans` to implement this plan task by task in the existing `feature/mcp` worktree. Inline execution is the handoff's preferred approach; finish with one independent whole-branch review. Checkboxes track work. Implementation starts only after the owner reviews this plan.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:executing-plans` to implement this plan task by task in the repository checkout on `feature/mcp`. Inline execution is the handoff's preferred approach; finish with one independent whole-branch review. Checkboxes track work. Implementation starts only after the owner reviews this plan.
 
 **Goal:** Add a local, evidence-preserving availability catalog and purpose-based recommendations shared by Python, REST and MCP, without repeating MCP Stage 1 collection.
 
@@ -13,7 +13,7 @@
 ## Global constraints
 
 - This MCP Stage 2 is distinct from the already completed v0.1 Stage 2. Record owner plan approval in this plan before implementation; no elapsed-time approval.
-- Work on `feature/mcp`, inspect status/recent commits before edits, preserve ignored `.local/mcp-availability/` wherever it exists, and never run `collect` as part of this plan. Do not move/delete another worktree or overwrite an active local catalog.
+- Work on `feature/mcp` in the repository checkout, inspect status/recent commits before edits, preserve its ignored `.local/mcp-availability/`, and never run `collect` as part of this plan. Do not move/delete another agent's worktree or overwrite an active local catalog.
 - Python service is canonical. No FastAPI/MCP/xarray imports in the availability scientific core. Keep REST/MCP as thin adapters.
 - Preserve actual-year, TMY-reference and future-window semantics; source and adapter capabilities remain distinct. `supported` means eligible to attempt retrieval, not complete weather or simulation ready.
 - Preserve the 56 reviewed OneBuilding metadata matches, three approximate localities, two name/code conflicts, original strict matches and all source checksum pins. Do not infer archive/EPW equivalence, source identity, elevation or redistribution rights.
@@ -21,6 +21,7 @@
 - No full third-party indexes or weather files in git/wheels without source-specific redistribution permission. Synthetic offline fixtures are the default.
 - Use `fix(topic): concise description` commits with configured human authorship. No `codex/` branch, agent trailer, force push, destructive reset or published-history rewrite.
 - Existing v0.1 request/plan hashes and artifact references must round-trip. Do not silently shorten requested periods, switch providers, or collapse output occurrences.
+- Another agent's NSRDB and availability follow-up on a separate branch is independent. Incorporate its evidence only after review as a new catalog generation; do not block on it or discard the accepted Stage 1 baseline.
 
 ## Review focus
 
@@ -63,7 +64,7 @@ class WeatherService:
     def assess_availability(self, query: AvailabilityQuery) -> AvailabilityResult: ...
 ```
 
-`CatalogBundle` has `schema_version: Literal["1"]`, `evidence: list[EvidenceRef]`, `products: list[ProductRecord]`, `sites: list[SiteRecord]`, `entries: list[AvailabilityEntry]` and `reviews: list[ReviewAnnotation]`. `CatalogView` is a read-only transaction pinned to one active generation; it closes after the assessment. The `AvailabilityResult` has `options: list[SuitabilityOption]`, `recommended_option_ids: list[str] = []`, `issues: list[Issue] = []` and `snapshots: list[CatalogSnapshotRef] = []`. Exact enum values and semantic rules are in the spec. Make the type names importable from `openepw.availability` and expose only `assess_availability` at the top-level Python convenience API. The current `feature/mcp` worktree has no `.venv`; Task 1 creates it before the commands below.
+`CatalogBundle` has `schema_version: Literal["1"]`, `evidence: list[EvidenceRef]`, `products: list[ProductRecord]`, `sites: list[SiteRecord]`, `entries: list[AvailabilityEntry]` and `reviews: list[ReviewAnnotation]`. `CatalogView` is a read-only transaction pinned to one active generation; it closes after the assessment. The `AvailabilityResult` has `options: list[SuitabilityOption]`, `recommended_option_ids: list[str] = []`, `issues: list[Issue] = []` and `snapshots: list[CatalogSnapshotRef] = []`. Exact enum values and semantic rules are in the spec. Make the type names importable from `openepw.availability` and expose only `assess_availability` at the top-level Python convenience API. The repository checkout currently has `.venv/Scripts/python.exe` and the original ignored Stage 1 snapshots; verify both before execution and preserve the snapshots.
 
 ---
 
@@ -85,7 +86,7 @@ class WeatherService:
           ActualScope.model_validate(scope.model_dump())
   ```
 
-- [ ] Create the worktree-local environment: `py -3.11 -m venv .venv`, then `.venv/Scripts/python.exe -m pip install -e '.[dev,api,mcp,climate,cds]'`. Keep `.venv` ignored. Confirm `.venv/Scripts/python.exe --version` reports Python 3.11 or newer.
+- [ ] Verify the existing repository environment with `.venv/Scripts/python.exe --version` and `.venv/Scripts/python.exe -m pip show openepw`; if missing, create it with `py -3.11 -m venv .venv` and `.venv/Scripts/python.exe -m pip install -e '.[dev,api,mcp,climate,cds]'`. Keep `.venv` ignored.
 - [ ] Run `.venv/Scripts/python.exe -m pytest tests/unit/test_availability_models.py -q`; expect import/model failures.
 - [ ] Implement records with field bounds, `extra="forbid"`, discriminators, exact stable product/site IDs, source/adapter variable separation, `retrieved_at` separate from `published_at`, checksum syntax and explicit nullable coordinates/elevation. `EligibilityDecision` must carry access and health independently. The new catalog schema version starts at `1`; do not change `WeatherRequest.schema_version="0.1"`.
 - [ ] Run the focused tests, `ruff check src/openepw/availability tests/unit/test_availability_models.py`, and `mypy src/openepw/availability`; expect pass. Commit `fix(availability): define typed evidence and eligibility contracts`.

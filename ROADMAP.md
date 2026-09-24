@@ -16,13 +16,15 @@ plan were completed. Owner approved Stage 2 on 2026-09-20.
 - [x] MCP, CLI and examples over the canonical service.
 - [x] Final acceptance record, documentation and regression checks.
 
-## Production MCP — Stage 1 accepted; Stage 2 planning next
+## Production MCP — Stage 1 accepted; Stage 2 planning under review
 
-Local use will roll out and be tested before self-hosted team deployment.
+The current goal is a validated local MCP experience with an agent harnessing
+layer. The staged roadmap ends at the local pilot; team deployment is outside
+the current plan.
 [ADR 0003](docs/decisions/0003-mcp-availability-and-batches.md) records the accepted
 availability-investigation scope and batch behavior. The
 [staged design](docs/superpowers/specs/2026-09-23-mcp-stages.md) proposes subsequent
-shared-service, local MCP, pilot and team-deployment stages; it is not an approved
+shared-service, local MCP, agent-harnessing and pilot stages; it is not an approved
 implementation plan. Its stage numbers are separate from v0.1 above.
 
 MCP Stage 1 uses authoritative footprints, station/site inventories, temporal ranges
@@ -48,6 +50,17 @@ products from 1,799 to 61 (all U.S.), preserving station/elevation ambiguity.
 Unmatched coordinates and index reuse terms remain
 explicit; no production integration or weather-quality acceptance is implied.
 
+Another agent is extending Stage 1 availability evidence, including NSRDB, on a
+separate branch and worktree. The accepted Stage 1 snapshot remains the planning
+baseline. Review and import later findings as a new evidence generation without
+restarting the completed investigation or overwriting accepted annotations.
+
+Current sequence after Stage 1: Stage 2 shared availability and recommendations;
+Stage 3 complete planning, batch and artifact workflows; Stage 4 local MCP contract;
+Stage 5 agent harness and evaluations; Stage 6 local client pilot and
+release acceptance. The harness may use LangChain, LangGraph, LangSmith or a smaller
+stack after its design evaluates the trade-offs; none is a mandatory core dependency.
+
 Future advanced feature: index previous verified runs/artifacts and QC summaries
 to accelerate subsequent matching requests. Existing raw caching and job recovery
 remain supported; this additional feature is deferred beyond initial local delivery.
@@ -60,8 +73,8 @@ remain supported; this additional feature is deferred beyond initial local deliv
   redistribution permissions. Do not mirror downloaded weather without permission.
 - Additional NSRDB products/intervals, CDS DNI/DHI derivation, more climate models
   and datasets with small point-access chunks.
-- Authenticated remote Streamable MCP, more detailed job retention/cleanup policy,
-  and provider rate-limit scheduling for large deployments.
+- More detailed job retention/cleanup policy and provider rate-limit scheduling
+  if local pilot evidence shows a need.
 - Sampled future generators only with defensible temporal/covariance validation.
 
 Publication, ownership changes and paid services remain separate owner actions.
