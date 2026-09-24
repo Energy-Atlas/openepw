@@ -171,9 +171,9 @@ threshold or substitute for later study-purpose ranking.
 
 ## Verification and conclusion
 
-The full offline suite after the follow-ups passed: **161 passed, 14 opt-in live tests skipped**, with
+The full offline suite after the follow-ups passed: **165 passed, 14 opt-in live tests skipped**, with
 two dependency deprecation warnings from FastAPI/Starlette. The research module
-now has **60 offline safeguard/parser tests**. The NOAA follow-up adds five
+now has **64 offline safeguard/parser tests**. The NOAA follow-up adds five
 regressions for the scoped allowance, sparse month counts, conflicting rows,
 alphanumeric station IDs and nonzero CLI status on analysis failures. Focused Ruff
 checks pass. Follow-up tests cover scoped OEDI resume, conservative
@@ -198,4 +198,4 @@ examples. Minor deferred reporting enhancement: primary unresolved reasons are
 classified; lists of independently applicable secondary reasons are not yet
 exhaustive. Full raw candidate evidence remains available locally.
 
-An [individual case review](onebuilding-manual-review.md) subsequently found that all 56 Hawaiian unknown products have exact filenames in published indexes under a different WMO region directory. The automated count above is unchanged; manual metadata correspondence and the five mainland judgments are documented separately.
+An [individual case review](onebuilding-manual-review.md) subsequently found that all 56 Hawaiian unknown products have exact filenames in published indexes under a different WMO region directory. The owner accepted these judgments. Research annotations now record **56 reviewed metadata matches, three approximate localities and two name/code conflicts**, separately from the unchanged automated counts above. They are pinned to the evidence snapshots and remain unverified against EPW contents.

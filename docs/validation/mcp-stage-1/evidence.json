@@ -154,6 +154,131 @@
       ],
       "coordinates": "Per-product published-index or identifier/name/country match; unknowns retained; no EPW header verification",
       "temporal_kind": "published_product_reference_period",
+      "accepted_review_counts": {
+        "approximate_locality": 3,
+        "name_code_conflict": 2,
+        "reviewed_metadata_match": 56
+      },
+      "accepted_review_examples": [
+        {
+          "url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/CA_California/USA_CA_Mount.Shasta-Rep.AP.725957_TMY.zip",
+          "review": {
+            "status": "approximate_locality",
+            "label": "Mount Shasta station/locality",
+            "evidence_ids": [
+              "onebuilding-us-xlsx",
+              "noaa-history",
+              "onebuilding-us"
+            ],
+            "rationale": "Owner-accepted locality identification from same-name/identifier evidence. Illustrative existing-source position only; exact historical product coordinates, elevation and supplying station remain unresolved.",
+            "accepted_on": "2026-09-24",
+            "epw_coordinates_verified": false,
+            "weather_equivalence_verified": false,
+            "approximate_location": {
+              "lat": 41.317,
+              "lon": -122.317,
+              "precision": "locality_only",
+              "elevation_m": null
+            }
+          }
+        },
+        {
+          "url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/FL_Florida/USA_FL_Apalachicola.Rgnl.AP.722200_TMY.zip",
+          "review": {
+            "status": "approximate_locality",
+            "label": "Apalachicola airport locality",
+            "evidence_ids": [
+              "onebuilding-us-xlsx",
+              "noaa-history",
+              "onebuilding-us"
+            ],
+            "rationale": "Owner-accepted locality identification from same-name/identifier evidence. Illustrative existing-source position only; exact historical product coordinates, elevation and supplying station remain unresolved.",
+            "accepted_on": "2026-09-24",
+            "epw_coordinates_verified": false,
+            "weather_equivalence_verified": false,
+            "approximate_location": {
+              "lat": 29.7333,
+              "lon": -85.0333,
+              "precision": "locality_only",
+              "elevation_m": null
+            }
+          }
+        },
+        {
+          "url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/TX_Texas/USA_TX_Fort.Worth.Meacham.Intl.AP.722600_TMY.zip",
+          "review": {
+            "status": "name_code_conflict",
+            "label": "Fort Worth Meacham",
+            "conflicting_identifier_location": "Stephenville/Clark Field",
+            "evidence_ids": [
+              "onebuilding-us-xlsx",
+              "noaa-history",
+              "onebuilding-us"
+            ],
+            "rationale": "Owner-accepted intended-name identification only. Retain original catalog identifier; file identity requires EPW-header verification. Do not substitute weather from the identifier-matched location.",
+            "accepted_on": "2026-09-24",
+            "epw_coordinates_verified": false,
+            "weather_equivalence_verified": false
+          }
+        },
+        {
+          "url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/TX_Texas/USA_TX_Sherman-Dennison-North.Texas.Rgnl.AP-Perrin.Field.722541_TMY.zip",
+          "review": {
+            "status": "name_code_conflict",
+            "label": "Sherman\u2013Denison/Perrin Field",
+            "conflicting_identifier_location": "McKinney/Collin County",
+            "evidence_ids": [
+              "onebuilding-us-xlsx",
+              "noaa-history",
+              "onebuilding-us"
+            ],
+            "rationale": "Owner-accepted intended-name identification only. Retain original catalog identifier; file identity requires EPW-header verification. Do not substitute weather from the identifier-matched location.",
+            "accepted_on": "2026-09-24",
+            "epw_coordinates_verified": false,
+            "weather_equivalence_verified": false
+          }
+        },
+        {
+          "url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/HI_Hawaii/USA_HI_Bradshaw.AAF.Hawaii.911977_TMYx.2004-2018.zip",
+          "review": {
+            "status": "reviewed_metadata_match",
+            "published_url": "https://climate.onebuilding.org/WMO_Region_5_Southwest_Pacific/USA_United_States_of_America/HI_Hawaii/USA_HI_Bradshaw.AAF.Hawaii.911977_TMYx.2004-2018.zip",
+            "evidence_ids": [
+              "onebuilding-au-coordinate-xlsx",
+              "onebuilding-us"
+            ],
+            "rationale": "Owner-accepted individual review: complete product filename and remaining path agree; only WMO Region 4 versus Region 5 differs. No redirect or archive-byte equivalence asserted.",
+            "accepted_on": "2026-09-24",
+            "epw_coordinates_verified": false,
+            "weather_equivalence_verified": false,
+            "coordinates": {
+              "lat": 19.75,
+              "lon": -155.55,
+              "elevation_m": 1887.0
+            }
+          }
+        },
+        {
+          "url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/HI_Hawaii/USA_HI_Bradshaw.AAF.Hawaii.911977_TMYx.2007-2021.zip",
+          "review": {
+            "status": "reviewed_metadata_match",
+            "published_url": "https://climate.onebuilding.org/WMO_Region_5_Southwest_Pacific/USA_United_States_of_America/HI_Hawaii/USA_HI_Bradshaw.AAF.Hawaii.911977_TMYx.2007-2021.zip",
+            "evidence_ids": [
+              "onebuilding-au-coordinate-xlsx",
+              "onebuilding-us"
+            ],
+            "rationale": "Owner-accepted individual review: complete product filename and remaining path agree; only WMO Region 4 versus Region 5 differs. No redirect or archive-byte equivalence asserted.",
+            "accepted_on": "2026-09-24",
+            "epw_coordinates_verified": false,
+            "weather_equivalence_verified": false,
+            "coordinates": {
+              "lat": 19.75,
+              "lon": -155.55,
+              "elevation_m": 1887.0
+            }
+          }
+        }
+      ],
       "product_count": 16470,
       "coordinate_counts": {
         "published_product_index": 16302,
@@ -2011,6 +2136,8 @@
       ],
       "coordinates": "Per-product published-index or identifier/name/country match; unknowns retained; no EPW header verification",
       "temporal_kind": "published_product_reference_period",
+      "accepted_review_counts": {},
+      "accepted_review_examples": [],
       "product_count": 3732,
       "coordinate_counts": {
         "published_product_index": 3732,
@@ -2098,6 +2225,8 @@
       ],
       "coordinates": "Per-product published-index or identifier/name/country match; unknowns retained; no EPW header verification",
       "temporal_kind": "published_product_reference_period",
+      "accepted_review_counts": {},
+      "accepted_review_examples": [],
       "product_count": 1451,
       "coordinate_counts": {
         "published_product_index": 1451,

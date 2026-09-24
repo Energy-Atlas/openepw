@@ -416,3 +416,21 @@ Coverage: Tasks 1/5 account for unresolved products; Task 2 handles short names 
   offline reports were byte-identical, ledger unchanged, totals and relative links
   checked. Total metadata attempts 41, probes 3, charged bytes 140,069,725 of
   200,000,000; 59,930,275 bytes remain. OneBuilding allowance 15/15 used.
+
+## Accepted individual-review annotations — 2026-09-24
+
+The owner accepted the assessments in the [individual review](../../validation/mcp-stage-1/onebuilding-manual-review.md)
+and instructed their application. A separate research annotation layer now records
+56 metadata correspondences, three approximate localities and two name/code
+conflicts. The original matcher output remains auditable; no generic path-rewrite
+rule or production override was introduced. Exact catalog URLs and depended-on
+snapshot checksums bind the 61 annotations, including the original U.S. catalog.
+
+Four tests verify unchanged automatic records, checksum invalidation, missing or
+conflicting index rows, locality/conflict semantics and failed source validation.
+Independent review found that ledger hashes alone could accept an annotation after
+its snapshot failed validation. A failing synthetic regression reproduced it;
+annotation hashes now include only successfully validated/parsed inventories.
+Full suite: 165 passed, 14 skipped, two dependency deprecation warnings. Ruff passed.
+Repeated reports are identical, ledger unchanged at 41 metadata / 3 probes and
+140,069,725 bytes. No network calls were made in this annotation follow-up.

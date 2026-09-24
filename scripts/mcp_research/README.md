@@ -88,3 +88,11 @@ matcher output and source checksums for reproducible transition accounting. Reta
 it with snapshots; do not overwrite it with weather runs or newer analysis. Without
 that file current coordinates can still be analyzed, but no before/after claims
 are generated. Full unresolved rows and transition details stay local.
+
+Accepted individual judgments live in `data/onebuilding_reviews.json`. `reviews.py`
+attaches them only to explicitly listed product URLs with matching source checksums.
+The original automatic record is preserved. Reviewed metadata coordinates,
+approximate locality points and name/code conflicts are distinct statuses. No
+annotation claims verified EPW coordinates, archive-byte equivalence or permission
+to substitute weather. New/changed metadata requires renewed review, not automatic
+reuse of a previous judgment. Missing evidence leaves annotations stale/unresolved.

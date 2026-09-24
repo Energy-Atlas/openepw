@@ -1,8 +1,9 @@
 # OneBuilding individual case review — 2026-09-24
 
 This is a reasoned review of the 61 products left unresolved by the automatic
-matcher, using already captured source indexes and NOAA history. No new requests,
-weather downloads, parser changes or production overrides were made.
+matcher, using already captured source indexes and NOAA history. The owner accepted these assessments and authorized their application. No new
+requests, weather downloads or production overrides were made; research annotations
+now accompany the original automatic results.
 
 ## Principal correction
 
@@ -21,9 +22,10 @@ relationship. Do not claim an HTTP redirect, identical archive bytes or verified
 EPW-header coordinates: none was tested. Use each product's own indexed coordinates,
 not one modern station coordinate for every historical period.
 
-The automatic count remains 61 until a separate implementation applies reviewed
-relationships. This review identifies 56 at the product-metadata level and gives
-qualified judgments for the remaining five mainland products.
+The original strict matcher still reports 61 unknowns, preserved for audit. A
+separate accepted-review layer now identifies 56 reviewed metadata matches, three
+approximate locality identifications and two unresolved name/code conflicts. These
+are distinct evidence states, not 61 equivalent verified station locations.
 
 ## Individual judgments
 
@@ -60,7 +62,26 @@ as `.local/mcp-availability/onebuilding-manual-hawaii-correspondence.json`, reta
 both paths, source evidence IDs and per-product coordinates. Their inspection
 confirmed only the region-directory difference, without broad URL normalization.
 
-Recommended next step is to encode these reviewed relationships as explicit,
-provenance-bearing research annotations, keeping exact-index, reviewed-metadata,
-approximate-locality and conflicted-file states separate. This review does not
-introduce that mechanism or authorize more network calls.
+## Accepted annotations applied
+
+The owner approved these assessments on 2026-09-24. The research registry at
+`scripts/mcp_research/data/onebuilding_reviews.json` records the 61 explicit product
+judgments, evidence IDs, acceptance date and source SHA-256 checksums. The original
+U.S. catalog and each relied-on source snapshot are pinned. An unreviewed product
+never gains an annotation through a general filename or URL-normalization rule.
+
+Offline analysis attaches a separate `review` object to each reviewed product:
+
+- `reviewed_metadata_match` (56): both region URLs are retained and coordinates come
+  from the exact reviewed published-index row. No redirect or archive equivalence
+  is asserted.
+- `approximate_locality` (3): the illustrative location is explicitly approximate;
+  source coordinates, supplying station identity and elevation remain unverified.
+- `name_code_conflict` (2): the intended name is retained beside the conflicting
+  identifier location. Original identifiers stay unchanged, with no weather substitution.
+
+Missing/changed source checksums produce `stale_evidence`. Missing/conflicting
+reviewed index rows produce `unresolved_evidence`. These states do not expose an
+accepted coordinate result. The original automatic coordinates and evidence remain
+unchanged alongside the annotation. Full product annotations are local analysis;
+tracked reports contain status counts and bounded examples.

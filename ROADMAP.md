@@ -60,3 +60,8 @@ remain supported; this additional feature is deferred beyond initial local deliv
 
 Publication, ownership changes and paid services remain separate owner actions.
 The current feature branch is preserved; no force push or history rewrite.
+
+The subsequent accepted individual review is applied as research annotations:
+56 Hawaiian metadata correspondences, three approximate mainland localities and
+two unresolved name/code conflicts. Source-checksum changes invalidate acceptance;
+production discovery and weather-equivalence behavior remain unchanged.

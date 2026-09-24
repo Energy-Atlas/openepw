@@ -121,3 +121,13 @@ elevation remains unknown even if latitude/longitude agree. Exact published URL
 joins can resolve a position independently of ambiguous NOAA country codes.
 The [approved follow-up](../../superpowers/plans/2026-09-24-onebuilding-coordinate-resolution.md)
 records the bounded collection and matching rules. Production APIs remain unchanged.
+
+## Accepted case annotations
+
+The owner-approved individual review supplies a separate, explicit research layer
+for 61 products: 56 reviewed product-metadata correspondences across WMO region
+paths, three approximate localities, and two name/code conflicts. Preserve original
+matching results and product identity. Refresh must invalidate annotations whose
+source checksums change; a later implementation must not convert approximate
+localities into precise station points or use reviewed paths as proof of identical
+weather bytes. See the [case decisions](onebuilding-manual-review.md).
