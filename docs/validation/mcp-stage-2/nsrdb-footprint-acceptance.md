@@ -11,7 +11,7 @@ The [source review](nsrdb-footprint-source-review.md) identified NLR's public `G
 | Evidence item | Observed value |
 | --- | --- |
 | Public object size | 928,896,650,902 bytes; not downloaded whole |
-| Object ETag | `"1fdb2bec54c98aa65406e35d53068ccf-6921` (multipart identity, not SHA-256) |
+| Object ETag | `"1fdb2bec54c98aa65406e35d53068ccf-6921"` (multipart identity, not SHA-256) |
 | Source modified | 2024-09-16 20:14:37 UTC |
 | Bulk path version / internal model attribute | `v4.0.0` / `4.0.1`; both are shown in the map evidence |
 | `meta` transfer | 4 HTTP requests including HEAD; 264,471,862 bytes (252.22 MiB), below the 12-request/256-MiB cap |
@@ -29,7 +29,7 @@ python -m scripts.mcp_availability_map.acquire_nsrdb_meta nsrdb-GOES-tmy-v4-0-0 
 python -m scripts.mcp_availability_map.build --snapshot-root C:\github\Energy-Atlas\openepw\.local\mcp-availability --topology .local\mcp-availability\world-topology.json
 ```
 
-The build command writes `.local/mcp-availability/maps/availability-map.html` in this worktree. This run's file is 720,741 bytes, SHA-256 `2ac4bbeb02f287f4218138e9a259953ddcd3b7c8233beeb376467f0e33a6b338`. The local base map came from `world-atlas@2/countries-110m.json`, SHA-256 `8479d201eb95559d4c5da965f979b37b541cf402091969e89a12e65913e12098`, stored ignored beside the snapshots. The generated payload retains 15,476 mapped NOAA stations, 21,651 mapped OneBuilding products, 2,368 OEDI sites, the two NSRDB point probes and the new `tdy-2023` grid occupancy layer. It contains no API key, email, signed URL or source-coordinate inventory.
+The build command writes `.local/mcp-availability/maps/availability-map.html` in this worktree. The deterministic file is 721,679 bytes, SHA-256 `3f0bef33fb7b92bce8835f74866472e0dcbd30644728160dfd1a107626d3a77d`; two consecutive builds produced the same hash. The local base map came from `world-atlas@2/countries-110m.json`, SHA-256 `8479d201eb95559d4c5da965f979b37b541cf402091969e89a12e65913e12098`, stored ignored beside the snapshots. The generated payload retains 15,476 mapped NOAA stations, 21,651 mapped OneBuilding products, 2,368 OEDI sites, the two NSRDB point probes and the new `tdy-2023` grid occupancy layer. It contains no API key, email, signed URL or source-coordinate inventory. Generation requires the local `meta.bin` and validates its SHA-256 alongside the mask. The acquisition command accepts only the reviewed `tdy-2023` product/object mapping until another selector receives its own source review.
 
 The NSRDB layer means **NLR source grid sites in a generalized 0.25° display cell**. It does not assert every cell is filled, an exact pixel polygon, an API download for an arbitrary point, hourly completeness, variable completeness, or simulation readiness. `tdy-2023` is a named published product, not actual-year 2023 weather. For aggregate actual years and other published names, the map continues to show the two exact point catalogs and labels regional extent unknown until matching per-selector metadata is acquired. The documented GOES east/west description is context, not a shaded definitive polygon.
 
@@ -37,9 +37,9 @@ NLR/NSRDB attribution and links to the [NLR product documentation](https://devel
 
 ## Verification and limits
 
-- `python -m pytest tests/unit/test_nsrdb_coverage_map.py -q`: **16 passed** after the last map edit.
-- `python -m pytest tests/unit -q`: **181 passed**, two existing dependency deprecation warnings, after the last map edit.
-- `python -m ruff check scripts/mcp_availability_map tests/unit/test_nsrdb_coverage_map.py`: passed; `node --check` on the generated inline script: passed.
+- `python -m pytest tests/unit/test_nsrdb_coverage_map.py -q`: **18 passed** after the final map edit.
+- `python -m pytest tests/unit -q`: **183 passed**, two existing dependency deprecation warnings, after the final map edit.
+- `python -m ruff check scripts/mcp_availability_map tests/unit/test_nsrdb_coverage_map.py`: passed; `node --check` on the generated inline script: passed. A synthetic Node check confirmed that a cell present only in the second year cites that year's file and checksum.
 - Generated payload inspection: schema `stage2-map-1`, one `published:tdy-2023` mask with 53,723 cells, two exact NSRDB points; no replacement characters or `api_key=` text; HTML is under 1 MiB.
 - Browser rendering was not visually verified: the app's browser security policy blocked the earlier local-file preview, and no alternate preview route was used. JavaScript syntax and generated-data checks are the available UI verification.
 
