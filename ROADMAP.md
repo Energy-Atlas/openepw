@@ -21,6 +21,9 @@ plan were completed. Owner approved Stage 2 on 2026-09-20.
 The current goal is a validated local MCP experience with an agent harnessing
 layer. The staged roadmap ends at the local pilot; team deployment is outside
 the current plan.
+[The production MCP program plan](docs/plans/2026-09-24-production-mcp-program.md)
+allocates features, work areas and deliverables across all six stages. It is a
+draft for discussion; the Stage 2 implementation plan remains a separate review.
 [ADR 0003](docs/decisions/0003-mcp-availability-and-batches.md) records the accepted
 availability-investigation scope and batch behavior. The
 [staged design](docs/superpowers/specs/2026-09-23-mcp-stages.md) proposes subsequent

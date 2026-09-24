@@ -13,6 +13,8 @@ Read the [Stage 2 agent handoff](../../handoffs/2026-09-24-mcp-stage-2.md),
 [accepted decisions](../../decisions/0003-mcp-availability-and-batches.md), and
 [Stage 1 findings](../../validation/mcp-stage-1/README.md). Research and accepted
 case annotations are complete; production catalog integration is the next phase.
+The [program plan](../../plans/2026-09-24-production-mcp-program.md) is the current
+cross-stage allocation draft; this document retains the earlier stage discussion.
 
 ## Intended outcome
 
