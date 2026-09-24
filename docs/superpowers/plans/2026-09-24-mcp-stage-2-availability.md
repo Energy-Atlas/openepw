@@ -10,6 +10,8 @@
 
 **Spec:** [MCP Stage 2 design](../specs/2026-09-24-mcp-stage-2-availability-design.md). Also read [accepted ADR 0003](../../decisions/0003-mcp-availability-and-batches.md), [Stage 1 findings](../../validation/mcp-stage-1/README.md), [catalog proposal](../../validation/mcp-stage-1/catalog-contract.md), [accepted case review](../../validation/mcp-stage-1/onebuilding-manual-review.md) and [agent handoff](../../handoffs/2026-09-24-mcp-stage-2.md).
 
+The focused [NSRDB geospatial map plan](2026-09-24-nsrdb-geospatial-availability.md) is a proposed prerequisite for a richer local NSRDB visualization. It runs on `feature/data-avail` and records whether a v4 product/version-matched footprint can be supported. Import its accepted evidence contract in Task 4 only after that outcome is reviewed; retain the point-only Stage 1 fallback meanwhile.
+
 ## Global constraints
 
 - This MCP Stage 2 is distinct from the already completed v0.1 Stage 2. Record owner plan approval in this plan before implementation; no elapsed-time approval.
@@ -156,6 +158,7 @@ class WeatherService:
   ```
 
 - [ ] Run focused pytest; expect failures. Implement imports retaining raw source values, native longitude convention, precise applicability of probes and source licenses. OEDI directory membership requires matching archive ETag and does not assert the baseline archive. CMIP6 intersection does not promote all 636 combinations to license/window-supported; preserve original and effective WCRP license evidence independently.
+- [ ] If the focused NSRDB map plan has produced an accepted version-matched footprint manifest, import its per-product `actual_year`/`published_name` spatial evidence and checksum as an optional local source. If it has not, retain the two exact point probes and `unknown` regional extent. A general GOES description or display mask must not become a positive point eligibility record.
 - [ ] Extend the opt-in local import check to OEDI 2,368 sites × 20 listed future years per scenario and CMIP6 636 coherent combinations, without requiring weather chunks or a new network request. Run focused tests/static checks and commit `fix(availability): import source contracts and future membership`.
 
 ### Task 5: Three-valued eligibility and explained recommendations
@@ -176,6 +179,7 @@ class WeatherService:
   ```
 
 - [ ] Run focused pytest; expect failures. Implement rule functions by temporal tag and spatial kind. A fresh, applicable positive catalog membership can support an attempt; stale or incomplete absence is unknown; adapter incompatibility is excluded independently of catalog freshness. Do not infer station-hour completeness from counts or native weather coordinates from a reviewed index. Include evidence IDs and reason codes in every decision.
+- [ ] Test that an NSRDB generalized grid display mask cannot by itself yield `supported` for an unprobed coordinate, that a missing selected year stays `unknown`, and that `tdy-2023` is a published-name selector rather than actual 2023. A proven exhaustive exact-version grid may only justify a spatial exclusion when its source semantics warrant one.
 - [ ] Write failing ranking tests for the three initial purposes, explicit variables/limits, user provider order, deterministic ties, no recommendation when all unknown/excluded and unknown alternatives retained. Example:
 
   ```python

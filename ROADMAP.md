@@ -39,6 +39,10 @@ Stage 2 planning is authorized; production catalog integration is not yet
 implemented. The [proposed Stage 2 design](docs/superpowers/specs/2026-09-24-mcp-stage-2-availability-design.md)
 and [implementation plan](docs/superpowers/plans/2026-09-24-mcp-stage-2-availability.md)
 are ready for owner review; neither is implementation approval.
+The [NSRDB geospatial design](docs/superpowers/specs/2026-09-24-nsrdb-geospatial-availability-design.md)
+and [focused map plan](docs/superpowers/plans/2026-09-24-nsrdb-geospatial-availability.md)
+propose a product- and selector-specific footprint follow-up before showing regional
+NSRDB availability. Its current map evidence remains the two Stage 1 point catalogs.
 An owner-authorized NOAA follow-up retrieved the larger station/month inventory
 in one additional call; its normalized local index is ready for Stage 2 integration.
 The approved follow-up also resolved both OEDI scenario directories and matched
