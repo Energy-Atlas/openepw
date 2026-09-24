@@ -179,5 +179,95 @@
     "limit": 20000000,
     "revision_of": "noaa-inventory",
     "correction": "Owner explicitly authorized further NOAA inventory investigation on 2026-09-23; exact-file allowance 20 MB within existing 200 MB total"
+  },
+  {
+    "id": "oedi-45-revised-directory",
+    "provider": "oedi",
+    "url": "https://data.openei.org/files/5974/RCP4.5_v1.1.zip",
+    "kind": "metadata",
+    "purpose": "List site/year member names without reading weather",
+    "headers": {
+      "Range": "bytes=9073507189-9080247933",
+      "If-Match": "\"21d3996e0-630170274ff78\""
+    },
+    "limit": 6740745,
+    "allowed_hosts": [],
+    "archive": "rcp45",
+    "parent": null,
+    "depth": 0,
+    "revision_of": "oedi-45-directory",
+    "correction": "Owner approved 7 MB additional cumulative allowance per scenario archive; corrected collector cap; one directory-only revision with saved If-Match"
+  },
+  {
+    "id": "oedi-85-revised-directory",
+    "provider": "oedi",
+    "url": "https://data.openei.org/files/5974/RCP8.5_v1.1.zip",
+    "kind": "metadata",
+    "purpose": "List site/year member names without reading weather",
+    "headers": {
+      "Range": "bytes=9079016884-9085757892",
+      "If-Match": "\"21d8daa27-63016697ed730\""
+    },
+    "limit": 6741009,
+    "allowed_hosts": [],
+    "archive": "rcp85",
+    "parent": null,
+    "depth": 0,
+    "revision_of": "oedi-85-directory",
+    "correction": "Owner approved 7 MB additional cumulative allowance per scenario archive; corrected collector cap; one directory-only revision with saved If-Match"
+  },
+  {
+    "id": "onebuilding-us-kml",
+    "provider": "onebuilding",
+    "url": "https://climate.onebuilding.org/sources/Region4_USA_TMYx_EPW_Processing_locations.kml",
+    "kind": "inventory",
+    "purpose": "Published source coordinates and product links, avoiding approximate place geocoding; selected region metadata only",
+    "limit": 5000000,
+    "parent": "onebuilding-sources",
+    "depth": 1
+  },
+  {
+    "id": "onebuilding-au-kml",
+    "provider": "onebuilding",
+    "url": "https://climate.onebuilding.org/sources/Region5_Southwest_Pacific_TMYx_EPW_Processing_locations.kml",
+    "kind": "inventory",
+    "purpose": "Published source coordinates and product links, avoiding approximate place geocoding; selected region metadata only",
+    "limit": 5000000,
+    "parent": "onebuilding-sources",
+    "depth": 1
+  },
+  {
+    "id": "onebuilding-uk-kml",
+    "provider": "onebuilding",
+    "url": "https://climate.onebuilding.org/sources/Region6_Europe_TMYx_EPW_Processing_locations.kml",
+    "kind": "inventory",
+    "purpose": "Published source coordinates and product links, avoiding approximate place geocoding; selected region metadata only",
+    "limit": 5000000,
+    "parent": "onebuilding-sources",
+    "depth": 1
+  },
+  {
+    "id": "onebuilding-us-xlsx",
+    "provider": "onebuilding",
+    "url": "https://climate.onebuilding.org/sources/Region4_USA_TMYx_EPW_Processing_locations.xlsx",
+    "kind": "inventory",
+    "purpose": "Published source coordinates and product links, avoiding approximate place geocoding; selected region metadata only",
+    "limit": 5000000,
+    "parent": "onebuilding-sources",
+    "depth": 1,
+    "revision_of": "onebuilding-us-kml",
+    "correction": "KML rejected at declared size before body download; source page links compact spreadsheet coordinate inventory for the same region"
+  },
+  {
+    "id": "onebuilding-uk-xlsx",
+    "provider": "onebuilding",
+    "url": "https://climate.onebuilding.org/sources/Region6_Europe_TMYx_EPW_Processing_locations.xlsx",
+    "kind": "inventory",
+    "purpose": "Published source coordinates and product links, avoiding approximate place geocoding; selected region metadata only",
+    "limit": 5000000,
+    "parent": "onebuilding-sources",
+    "depth": 1,
+    "revision_of": "onebuilding-uk-kml",
+    "correction": "KML rejected at declared size before body download; source page links compact spreadsheet coordinate inventory for the same region"
   }
 ]

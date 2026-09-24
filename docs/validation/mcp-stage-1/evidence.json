@@ -40,7 +40,9 @@
         "onebuilding-region-5",
         "onebuilding-region-6",
         "onebuilding-au",
-        "onebuilding-uk"
+        "onebuilding-uk",
+        "onebuilding-us-xlsx",
+        "onebuilding-uk-xlsx"
       ],
       "meaning": "No location/period query evaluated at provider level"
     },
@@ -116,7 +118,9 @@
         "oedi-doc",
         "oedi-sites",
         "oedi-45-tail",
-        "oedi-85-tail"
+        "oedi-85-tail",
+        "oedi-45-revised-directory",
+        "oedi-85-revised-directory"
       ],
       "meaning": "No location/period query evaluated at provider level"
     }
@@ -145,8 +149,104 @@
         "2009-2023",
         "2011-2025"
       ],
-      "coordinates": "unknown; selected HTML catalogs expose product names/links",
-      "temporal_kind": "published_product_reference_period"
+      "coordinates": "Per-product published-index or identifier/name/country match; unknowns retained; no EPW header verification",
+      "temporal_kind": "published_product_reference_period",
+      "coordinate_counts": {
+        "published_product_index": 13355,
+        "station_identifier_and_name": 1543,
+        "unknown": 1572
+      },
+      "products_with_coordinate_disagreement": 10693,
+      "coordinate_examples": [
+        {
+          "url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/NY_New_York/USA_NY_Ithaca.Tompkins.Rgnl.AP.725155_TMYx.2004-2018.zip",
+          "country": "USA",
+          "state": "NY",
+          "name": "Ithaca.Tompkins.Rgnl.AP",
+          "station_id": "725155",
+          "product": "TMYx.2004-2018",
+          "period": "2004-2018",
+          "lat": 42.491,
+          "lon": -76.467,
+          "elevation_m": 335.0,
+          "coordinate_basis": "published_product_index",
+          "epw_coordinates_verified": false,
+          "evidence_ids": [
+            "onebuilding-us-xlsx",
+            "noaa-history"
+          ],
+          "reason": "exact_product_url",
+          "noaa_candidates": [
+            {
+              "id": "72515594761",
+              "name": "ITHACA TOMPKINS REGIONAL AIRPORT",
+              "lat": 42.483,
+              "lon": -76.467,
+              "elevation_m": 335.0
+            },
+            {
+              "id": "72515599999",
+              "name": "ITHACA TOMPKINS RGNL",
+              "lat": 42.491,
+              "lon": -76.467,
+              "elevation_m": 335.0
+            }
+          ],
+          "published_candidates": [
+            {
+              "lat": 42.491,
+              "lon": -76.467,
+              "elevation_m": 335.0,
+              "evidence_id": "onebuilding-us-xlsx"
+            }
+          ],
+          "coordinate_disagreement": true
+        },
+        {
+          "url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/AZ_Arizona/USA_AZ_Phoenix-Deer.Valley.Muni.AP.722784_TMYx.2004-2018.zip",
+          "country": "USA",
+          "state": "AZ",
+          "name": "Phoenix-Deer.Valley.Muni.AP",
+          "station_id": "722784",
+          "product": "TMYx.2004-2018",
+          "period": "2004-2018",
+          "lat": 33.688,
+          "lon": -112.082,
+          "elevation_m": 450.0,
+          "coordinate_basis": "published_product_index",
+          "epw_coordinates_verified": false,
+          "evidence_ids": [
+            "onebuilding-us-xlsx",
+            "noaa-history"
+          ],
+          "reason": "exact_product_url",
+          "noaa_candidates": [
+            {
+              "id": "72278403184",
+              "name": "PHOENIX DEER VALLEY ARPT",
+              "lat": 33.69,
+              "lon": -112.066,
+              "elevation_m": 453.4
+            },
+            {
+              "id": "72278499999",
+              "name": "PHOENIX DEER VALLEY",
+              "lat": 33.688,
+              "lon": -112.083,
+              "elevation_m": 450.0
+            }
+          ],
+          "published_candidates": [
+            {
+              "lat": 33.688,
+              "lon": -112.082,
+              "elevation_m": 450.0,
+              "evidence_id": "onebuilding-us-xlsx"
+            }
+          ],
+          "coordinate_disagreement": true
+        }
+      ]
     },
     "noaa-history": {
       "count": 28474
@@ -1801,8 +1901,46 @@
         "2009-2023",
         "2011-2025"
       ],
-      "coordinates": "unknown; selected HTML catalogs expose product names/links",
-      "temporal_kind": "published_product_reference_period"
+      "coordinates": "Per-product published-index or identifier/name/country match; unknowns retained; no EPW header verification",
+      "temporal_kind": "published_product_reference_period",
+      "coordinate_counts": {
+        "published_product_index": 0,
+        "station_identifier_and_name": 3505,
+        "unknown": 227
+      },
+      "products_with_coordinate_disagreement": 0,
+      "coordinate_examples": [
+        {
+          "url": "https://climate.onebuilding.org/WMO_Region_5_Southwest_Pacific/AUS_Australia/NSW_New_South_Wales/AUS_NSW_Mascot.AP-Sydney.Intl.AP.947670_TMYx.2004-2018.zip",
+          "country": "AUS",
+          "state": "NSW",
+          "name": "Mascot.AP-Sydney.Intl.AP",
+          "station_id": "947670",
+          "product": "TMYx.2004-2018",
+          "period": "2004-2018",
+          "lat": -33.946,
+          "lon": 151.177,
+          "elevation_m": 6.4,
+          "coordinate_basis": "station_identifier_and_name",
+          "epw_coordinates_verified": false,
+          "evidence_ids": [
+            "noaa-history"
+          ],
+          "reason": "unique_identifier_with_country_and_name_agreement",
+          "noaa_candidates": [
+            {
+              "id": "94767099999",
+              "name": "SYDNEY INTL",
+              "lat": -33.946,
+              "lon": 151.177,
+              "elevation_m": 6.4
+            }
+          ],
+          "published_candidates": [],
+          "coordinate_disagreement": false,
+          "source_station_id": "94767099999"
+        }
+      ]
     },
     "onebuilding-uk": {
       "count": 1457,
@@ -1813,8 +1951,53 @@
         "2009-2023",
         "2011-2025"
       ],
-      "coordinates": "unknown; selected HTML catalogs expose product names/links",
-      "temporal_kind": "published_product_reference_period"
+      "coordinates": "Per-product published-index or identifier/name/country match; unknowns retained; no EPW header verification",
+      "temporal_kind": "published_product_reference_period",
+      "coordinate_counts": {
+        "published_product_index": 1451,
+        "station_identifier_and_name": 0,
+        "unknown": 0
+      },
+      "products_with_coordinate_disagreement": 542,
+      "coordinate_examples": [
+        {
+          "url": "https://climate.onebuilding.org/WMO_Region_6_Europe/GBR_United_Kingdom/ENG_England/GBR_ENG_London-Biggin.Hill.AP.037663_TMYx.2004-2018.zip",
+          "country": "GBR",
+          "state": "ENG",
+          "name": "London-Biggin.Hill.AP",
+          "station_id": "037663",
+          "product": "TMYx.2004-2018",
+          "period": "2004-2018",
+          "lat": 51.331,
+          "lon": 0.033,
+          "elevation_m": 182.3,
+          "coordinate_basis": "published_product_index",
+          "epw_coordinates_verified": false,
+          "evidence_ids": [
+            "onebuilding-uk-xlsx",
+            "noaa-history"
+          ],
+          "reason": "exact_product_url",
+          "noaa_candidates": [
+            {
+              "id": "03766399999",
+              "name": "BIGGIN HILL",
+              "lat": 51.331,
+              "lon": 0.033,
+              "elevation_m": 182.3
+            }
+          ],
+          "published_candidates": [
+            {
+              "lat": 51.331,
+              "lon": 0.033,
+              "elevation_m": 182.3,
+              "evidence_id": "onebuilding-uk-xlsx"
+            }
+          ],
+          "coordinate_disagreement": false
+        }
+      ]
     },
     "pvgis-london": {
       "meteo_data": {
@@ -2065,6 +2248,92 @@
           381
         ]
       }
+    },
+    "oedi-45-revised-directory": {
+      "member_count": 47361,
+      "site_count": 2368,
+      "completeness": "unknown",
+      "meaning": "Archive-listed membership only; no EPW content retrieved",
+      "scenario": "RCP4.5",
+      "expected_years": [
+        2045,
+        2046,
+        2047,
+        2048,
+        2049,
+        2050,
+        2051,
+        2052,
+        2053,
+        2054,
+        2085,
+        2086,
+        2087,
+        2088,
+        2089,
+        2090,
+        2091,
+        2092,
+        2093,
+        2094
+      ],
+      "epw_member_count": 47360,
+      "duplicate_member_names": 0,
+      "unparsed_epw_members": 0,
+      "sites_with_all_expected_years": 2368,
+      "sites_without_location_record": 0,
+      "locations_without_members": 0,
+      "unexpected_scenarios": [],
+      "weather_completeness": "unknown"
+    },
+    "oedi-85-revised-directory": {
+      "member_count": 47361,
+      "site_count": 2368,
+      "completeness": "unknown",
+      "meaning": "Archive-listed membership only; no EPW content retrieved",
+      "scenario": "RCP8.5",
+      "expected_years": [
+        2045,
+        2046,
+        2047,
+        2048,
+        2049,
+        2050,
+        2051,
+        2052,
+        2053,
+        2054,
+        2085,
+        2086,
+        2087,
+        2088,
+        2089,
+        2090,
+        2091,
+        2092,
+        2093,
+        2094
+      ],
+      "epw_member_count": 47360,
+      "duplicate_member_names": 0,
+      "unparsed_epw_members": 0,
+      "sites_with_all_expected_years": 2368,
+      "sites_without_location_record": 0,
+      "locations_without_members": 0,
+      "unexpected_scenarios": [],
+      "weather_completeness": "unknown"
+    },
+    "onebuilding-us-xlsx": {
+      "count": 13355,
+      "invalid_rows": 0,
+      "coordinate_basis": "published_product_index",
+      "epw_coordinates_verified": false
+    },
+    "onebuilding-uk-xlsx": {
+      "count": 16286,
+      "invalid_rows": 0,
+      "coordinate_basis": "published_product_index",
+      "epw_coordinates_verified": false
     }
   },
   "errors": [],
@@ -2148,21 +2417,21 @@
       "ordinary_bytes": 5000000
     },
     "counts": {
-      "metadata": 31,
+      "metadata": 38,
       "probe": 3
     },
-    "charged_bytes": 121729766,
+    "charged_bytes": 138913341,
     "blocked_providers": [],
     "last_host_attempt": {
       "open-meteo.com": 1790206377.6687288,
       "joint-research-centre.ec.europa.eu": 1790206377.9105642,
-      "climate.onebuilding.org": 1790206502.0191605,
+      "climate.onebuilding.org": 1790214784.2551327,
       "www.ncei.noaa.gov": 1790207685.9600372,
       "developer.nlr.gov": 1790206467.692868,
       "cds.climate.copernicus.eu": 1790206393.8819795,
       "pangeo-data.github.io": 1790206394.3331637,
       "raw.githubusercontent.com": 1790206394.4231312,
-      "data.openei.org": 1790206504.180632,
+      "data.openei.org": 1790214732.7392378,
       "storage.googleapis.com": 1790206463.1612446,
       "re.jrc.ec.europa.eu": 1790206638.075223
     },
@@ -3412,11 +3681,266 @@
         "sha256": "6cf9dc6438fcc3d889642685dead4e506b06a84d7b91939786c9cb44617d34c8",
         "snapshot": "raw/noaa-inventory-authorized.body",
         "finished_at": "2026-09-23T23:54:48.307319+00:00"
+      },
+      {
+        "id": "oedi-45-revised-directory",
+        "provider": "oedi",
+        "url": "https://data.openei.org/files/5974/RCP4.5_v1.1.zip",
+        "kind": "metadata",
+        "purpose": "List site/year member names without reading weather",
+        "parameters": {},
+        "range": "bytes=9073507189-9080247933",
+        "limit": 6740745,
+        "archive": "rcp45",
+        "parent": null,
+        "depth": 0,
+        "revision_of": "oedi-45-directory",
+        "correction": "Owner approved 7 MB additional cumulative allowance per scenario archive; corrected collector cap; one directory-only revision with saved If-Match",
+        "identity": "ec57bdd5fa9e6bc0825421532c83f4a0c3aa8d0caf744775e63b61cd538f0c1f",
+        "started_at": "2026-09-24T01:52:10.408366+00:00",
+        "outcome": "saved",
+        "bytes_read": 6740745,
+        "charged_bytes": 6740745,
+        "hops": [
+          {
+            "url": "https://data.openei.org/files/5974/RCP4.5_v1.1.zip",
+            "reserved_bytes": 6740745,
+            "bytes_read": 6740745,
+            "status": 206
+          }
+        ],
+        "status": 206,
+        "headers": {
+          "content-type": "application/octet-stream",
+          "last-modified": "Tue, 11 Mar 2025 20:34:03 GMT",
+          "etag": "\"21d3996e0-630170274ff78\"",
+          "content-range": "bytes 9073507189-9080247933/9080248032"
+        },
+        "sha256": "7982e192877afaaa77fefe292d5175cac9ed9f04fd3af8fca173ef9f2e387c0a",
+        "snapshot": "raw/oedi-45-revised-directory.body",
+        "finished_at": "2026-09-24T01:52:12.735725+00:00"
+      },
+      {
+        "id": "oedi-85-revised-directory",
+        "provider": "oedi",
+        "url": "https://data.openei.org/files/5974/RCP8.5_v1.1.zip",
+        "kind": "metadata",
+        "purpose": "List site/year member names without reading weather",
+        "parameters": {},
+        "range": "bytes=9079016884-9085757892",
+        "limit": 6741009,
+        "archive": "rcp85",
+        "parent": null,
+        "depth": 0,
+        "revision_of": "oedi-85-directory",
+        "correction": "Owner approved 7 MB additional cumulative allowance per scenario archive; corrected collector cap; one directory-only revision with saved If-Match",
+        "identity": "9efb1606503f2b3e739f55726065ee354feb7a2bd9a6273e8bf2291e6d277006",
+        "started_at": "2026-09-24T01:52:12.738376+00:00",
+        "outcome": "saved",
+        "bytes_read": 6741009,
+        "charged_bytes": 6741009,
+        "hops": [
+          {
+            "url": "https://data.openei.org/files/5974/RCP8.5_v1.1.zip",
+            "reserved_bytes": 6741009,
+            "bytes_read": 6741009,
+            "status": 206
+          }
+        ],
+        "status": 206,
+        "headers": {
+          "content-type": "application/octet-stream",
+          "last-modified": "Tue, 11 Mar 2025 19:51:17 GMT",
+          "etag": "\"21d8daa27-63016697ed730\"",
+          "content-range": "bytes 9079016884-9085757892/9085757991"
+        },
+        "sha256": "fce7c2759aa0db3db197f22868e6683b7cbb1f2983cddcff4b5d137a19653886",
+        "snapshot": "raw/oedi-85-revised-directory.body",
+        "finished_at": "2026-09-24T01:52:14.996384+00:00"
+      },
+      {
+        "id": "onebuilding-us-kml",
+        "provider": "onebuilding",
+        "url": "https://climate.onebuilding.org/sources/Region4_USA_TMYx_EPW_Processing_locations.kml",
+        "kind": "inventory",
+        "purpose": "Published source coordinates and product links, avoiding approximate place geocoding; selected region metadata only",
+        "parameters": {},
+        "range": null,
+        "limit": 5000000,
+        "archive": null,
+        "parent": "onebuilding-sources",
+        "depth": 1,
+        "revision_of": null,
+        "correction": null,
+        "identity": "afd27e24adb0fef72522c79bf06653158025cec2ce3496a9b1ad44b4814e5d11",
+        "started_at": "2026-09-24T01:52:14.998958+00:00",
+        "outcome": "byte_limit",
+        "bytes_read": 0,
+        "charged_bytes": 0,
+        "hops": [
+          {
+            "url": "https://climate.onebuilding.org/sources/Region4_USA_TMYx_EPW_Processing_locations.kml",
+            "reserved_bytes": 5000000,
+            "bytes_read": 0,
+            "status": 200
+          }
+        ],
+        "status": 200,
+        "headers": {
+          "content-type": "application/vnd.google-earth.kml+xml",
+          "last-modified": "Fri, 11 Sep 2026 20:02:24 GMT",
+          "etag": "\"fb0301-65b3a90183400\""
+        },
+        "finished_at": "2026-09-24T01:52:15.111817+00:00"
+      },
+      {
+        "id": "onebuilding-au-kml",
+        "provider": "onebuilding",
+        "url": "https://climate.onebuilding.org/sources/Region5_Southwest_Pacific_TMYx_EPW_Processing_locations.kml",
+        "kind": "inventory",
+        "purpose": "Published source coordinates and product links, avoiding approximate place geocoding; selected region metadata only",
+        "parameters": {},
+        "range": null,
+        "limit": 5000000,
+        "archive": null,
+        "parent": "onebuilding-sources",
+        "depth": 1,
+        "revision_of": null,
+        "correction": null,
+        "identity": "ffb0550f7265bd894c02c00cb6f2d38f2e0b057390f020ca62094311275466b6",
+        "started_at": "2026-09-24T01:52:15.113756+00:00",
+        "outcome": "byte_limit",
+        "bytes_read": 0,
+        "charged_bytes": 0,
+        "hops": [
+          {
+            "url": "https://climate.onebuilding.org/sources/Region5_Southwest_Pacific_TMYx_EPW_Processing_locations.kml",
+            "reserved_bytes": 5000000,
+            "bytes_read": 0,
+            "status": 200
+          }
+        ],
+        "status": 200,
+        "headers": {
+          "content-type": "application/vnd.google-earth.kml+xml",
+          "last-modified": "Sat, 14 Mar 2026 17:03:19 GMT",
+          "etag": "\"6c064a-64cfef65da3c0\""
+        },
+        "finished_at": "2026-09-24T01:52:17.070689+00:00"
+      },
+      {
+        "id": "onebuilding-uk-kml",
+        "provider": "onebuilding",
+        "url": "https://climate.onebuilding.org/sources/Region6_Europe_TMYx_EPW_Processing_locations.kml",
+        "kind": "inventory",
+        "purpose": "Published source coordinates and product links, avoiding approximate place geocoding; selected region metadata only",
+        "parameters": {},
+        "range": null,
+        "limit": 5000000,
+        "archive": null,
+        "parent": "onebuilding-sources",
+        "depth": 1,
+        "revision_of": null,
+        "correction": null,
+        "identity": "40bc0642b6ab4753cfe321e59619ec35d712d2503a034161948cf088dc47eda2",
+        "started_at": "2026-09-24T01:52:17.072749+00:00",
+        "outcome": "byte_limit",
+        "bytes_read": 0,
+        "charged_bytes": 0,
+        "hops": [
+          {
+            "url": "https://climate.onebuilding.org/sources/Region6_Europe_TMYx_EPW_Processing_locations.kml",
+            "reserved_bytes": 5000000,
+            "bytes_read": 0,
+            "status": 200
+          }
+        ],
+        "status": 200,
+        "headers": {
+          "content-type": "application/vnd.google-earth.kml+xml",
+          "last-modified": "Sun, 15 Mar 2026 17:43:39 GMT",
+          "etag": "\"123b762-64d13a47348c0\""
+        },
+        "finished_at": "2026-09-24T01:52:19.088375+00:00"
+      },
+      {
+        "id": "onebuilding-us-xlsx",
+        "provider": "onebuilding",
+        "url": "https://climate.onebuilding.org/sources/Region4_USA_TMYx_EPW_Processing_locations.xlsx",
+        "kind": "inventory",
+        "purpose": "Published source coordinates and product links, avoiding approximate place geocoding; selected region metadata only",
+        "parameters": {},
+        "range": null,
+        "limit": 5000000,
+        "archive": null,
+        "parent": "onebuilding-sources",
+        "depth": 1,
+        "revision_of": "onebuilding-us-kml",
+        "correction": "KML rejected at declared size before body download; source page links compact spreadsheet coordinate inventory for the same region",
+        "identity": "631c45c15d17ca568b6c981a24329ca19292efb94e5fcbbd0d65a4c69cf30648",
+        "started_at": "2026-09-24T01:53:02.236773+00:00",
+        "outcome": "saved",
+        "bytes_read": 1639889,
+        "charged_bytes": 1639889,
+        "hops": [
+          {
+            "url": "https://climate.onebuilding.org/sources/Region4_USA_TMYx_EPW_Processing_locations.xlsx",
+            "reserved_bytes": 5000000,
+            "bytes_read": 1639889,
+            "status": 200
+          }
+        ],
+        "status": 200,
+        "headers": {
+          "content-type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          "last-modified": "Tue, 22 Sep 2026 19:31:29 GMT",
+          "etag": "\"1905d1-65c1769c84640\""
+        },
+        "sha256": "cc336b22990f2d7937a3af0a578d475559f7a8ca79ae20d3bd1692afecfdfb93",
+        "snapshot": "raw/onebuilding-us-xlsx.body",
+        "finished_at": "2026-09-24T01:53:02.468731+00:00"
+      },
+      {
+        "id": "onebuilding-uk-xlsx",
+        "provider": "onebuilding",
+        "url": "https://climate.onebuilding.org/sources/Region6_Europe_TMYx_EPW_Processing_locations.xlsx",
+        "kind": "inventory",
+        "purpose": "Published source coordinates and product links, avoiding approximate place geocoding; selected region metadata only",
+        "parameters": {},
+        "range": null,
+        "limit": 5000000,
+        "archive": null,
+        "parent": "onebuilding-sources",
+        "depth": 1,
+        "revision_of": "onebuilding-uk-kml",
+        "correction": "KML rejected at declared size before body download; source page links compact spreadsheet coordinate inventory for the same region",
+        "identity": "1d470298a8075617144db453ea858557c424ba50cbb1bdd956a35c86f9d8f848",
+        "started_at": "2026-09-24T01:53:02.470949+00:00",
+        "outcome": "saved",
+        "bytes_read": 2061932,
+        "charged_bytes": 2061932,
+        "hops": [
+          {
+            "url": "https://climate.onebuilding.org/sources/Region6_Europe_TMYx_EPW_Processing_locations.xlsx",
+            "reserved_bytes": 5000000,
+            "bytes_read": 2061932,
+            "status": 200
+          }
+        ],
+        "status": 200,
+        "headers": {
+          "content-type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          "last-modified": "Fri, 20 Mar 2026 21:33:09 GMT",
+          "etag": "\"1f766c-64d7b6e69af40\""
+        },
+        "sha256": "4eb9131dab24ac457363d8b4cef99c35d3987d06c9773d054978def27113063f",
+        "snapshot": "raw/onebuilding-uk-xlsx.body",
+        "finished_at": "2026-09-24T01:53:04.430160+00:00"
       }
     ],
     "archive_bytes": {
-      "rcp45": 5075668,
-      "rcp85": 5075668
+      "rcp45": 11816413,
+      "rcp85": 11816677
     }
   }
 }

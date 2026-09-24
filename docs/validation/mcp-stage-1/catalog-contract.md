@@ -36,9 +36,9 @@ on refresh failure and label it stale. No mandatory external database or GIS ser
 | Local decision | Evidence needed | What remains a retrieval-time question |
 | --- | --- | --- |
 | Product/variable compatibility and obvious date exclusions | Dataset contract plus adapter capability intersection | Actual values, missing fields and complete intervals |
-| Candidate station/site mapping | Coordinates, stable IDs, operating periods and listed station/year/month counts | Actual observations, distinct valid hours, variable availability and source-specific adjustments |
+| Candidate station/site mapping | Published product coordinates or corroborated station IDs, operating periods and station/year/month counts | Native EPW coordinate verification, coordinate disagreements, actual observations and variable availability |
 | Published TMY choices | Explicit catalog product links and reference-period labels | Native EPW coordinates, fields and quality |
-| Future scenario/window compatibility | Method/source documentation plus model/site catalog | Complete model time coverage, valid signals or full trajectory content |
+| Future scenario/window compatibility | Method/source documentation plus model/site catalog; OEDI scenario directories now establish site/year filenames | CMIP6 model time coverage, valid signals or full trajectory content |
 | Shared source request grouping | Verified native identity and identical scientific options | Unknown cells/elevation-adjusted responses must not be collapsed prematurely |
 
 Do not silently rewrite the CDS bbox to match its global description. Normalize
@@ -57,7 +57,7 @@ once per batch, never once per requested point.
 | Open-Meteo/CDS documented start dates and capabilities | Review on adapter release; monthly metadata check | Mostly stable contracts; new versions can change variable behavior |
 | CDS moving end timestamp | Daily, or on-demand for a newer requested date | Catalog reports a dated moving endpoint; request-year enums alone are insufficient |
 | NOAA ISD history and station/month counts | Weekly conditional check; no repeated refresh per point | Both files are dated 2025. Join stable alphanumeric IDs, retain unmatched identities and sparse years. Refreshing cannot manufacture a GHCNh connection or newer ISD coverage |
-| OneBuilding selected country catalogs | Weekly conditional check; retain source periods verbatim | Published products are replaced/added independently; old products remain meaningful |
+| OneBuilding selected country catalogs and coordinate spreadsheets | Weekly conditional check; retain product URLs, source periods and separate snapshot versions | U.S. spreadsheet modified 2026-09-22; Europe 2026-03-20. Products/indexes can change independently. Unmatched entries and coordinate disagreements remain explicit |
 | NSRDB product/year metadata | Seven-day snapshot for resolved requests; on-demand for unknown locations/new years | Annual additions and product-specific coverage. Never extrapolate point results into an unverified spatial cache key |
 | Pangeo catalog/WCRP license registry | Weekly conditional check and version pin | Current catalog response carries a 2022 Last-Modified date; polling it cannot guarantee comprehensive newer holdings |
 | OEDI site tables and archive indexes | Pin by checksum/ETag; weekly conditional version check | Fixed published windows; a changed archive invalidates member offsets |
@@ -72,23 +72,25 @@ Stage 1's existing ledger budgets are not reusable runtime quotas for production
    per-point NOAA inventory retrieval. Keep complete requested-location mappings.
 2. Separate source-wide capabilities, current adapter support and location-specific
    availability. Preserve unknowns and temporal meaning in ranking/explanations.
-3. Establish a licensed, authoritative OneBuilding coordinate index before offering
-   global nearest-site recommendations. Product-name matching alone is insufficient.
-   The owner accepted an identifier-first inventory match, followed by explicitly
-   approximate place geocoding for regional discovery; see the
+3. Import the acquired OneBuilding published coordinate indexes and corroborated
+   NOAA matches while retaining their different evidence levels and disagreements.
+   The selected catalogs retain 1,572 U.S. and 227 Australian unresolved products;
+   all 1,451 U.K. products join to the published index. Investigate remaining products
+   and index reuse permissions before claiming global nearest-site discovery. No
+   approximate town geocoding was needed for the resolved subset. See the
    [follow-up plan](../../superpowers/plans/2026-09-23-mcp-stage-1.md#accepted-onebuilding-follow-up-plan--2026-09-23).
    Keep inferred place coordinates separate from verified source coordinates.
 4. Resolve version-specific PVGIS footprint/source-period metadata and NSRDB product
    footprints without mass queries. Keep individual probes narrowly scoped meanwhile.
 5. Validate CMIP6 windows across all required stores with bounded coordinate metadata
    access. Do not infer full intervals from array length/calendar units or four samples.
-6. Complete OEDI archive-member indexing in the owner-approved follow-up: one
-   revised directory request per scenario, with an additional 7 MB per archive
-   (17 MB cumulative allowance each) and the unchanged 200 MB overall ceiling.
-   Execution is pending; see the
+6. Import the now-complete OEDI scenario-directory indexes. The approved single
+   revised request per scenario succeeded: each lists all 2,368 sites and all 20
+   expected future years. See the
    [follow-up plan](../../superpowers/plans/2026-09-23-mcp-stage-1.md#accepted-oedi-directory-follow-up-plan--2026-09-23).
-   Preserve the 2,368 delivered-site inventory and distinguish membership from
-   usable hourly data. Failed or changed archives retain unknown membership.
+   Preserve archive ETags and distinguish membership from usable hourly data.
+   Changed archives invalidate the derived index; baseline membership is still
+   documentation-only. No further directory requests are needed for this snapshot.
 7. Import the now-acquired NOAA station/year/month index alongside history. A
    specifically owner-authorized 20 MB allowance retrieved its 14.97 MB snapshot
    in one revised call, within the unchanged overall budget. Preserve 1,034 IDs

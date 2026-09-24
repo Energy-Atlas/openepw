@@ -14,16 +14,18 @@ Artifacts: [sanitized evidence and ledger](evidence.json),
 
 | Budget | Used | Ceiling | Remaining |
 | --- | ---: | ---: | ---: |
-| Documentation/inventory/metadata HTTP attempts | 31 | 60 | 29 |
+| Documentation/inventory/metadata HTTP attempts | 38 | 60 | 22 |
 | Location-specific API probes | 3 | 12 | 9 |
-| Application response bytes, including aborted reads | 121,729,766 | 200,000,000 | 78,270,234 |
-| OneBuilding pages | 7 | 12 | 5 |
+| Application response bytes, including aborted reads | 138,913,341 | 200,000,000 | 61,086,659 |
+| OneBuilding pages/inventory requests | 12 | 12 | 0 |
 | CMIP6 selected Zarr metadata documents | 4 | 4 | 0 |
-| OEDI RCP4.5 directory-related bytes | 5,075,668 | 10,000,000 | 4,924,332 |
-| OEDI RCP8.5 directory-related bytes | 5,075,668 | 10,000,000 | 4,924,332 |
+| OEDI RCP4.5 directory-related bytes | 11,816,413 | 17,000,000 | 5,183,587 |
+| OEDI RCP8.5 directory-related bytes | 11,816,677 | 17,000,000 | 5,183,323 |
 
 Calls were serial. Three responses were aborted at the original collector's byte
-limits; 31 successful responses were retained locally. No automatic retries,
+limits and three oversized KMLs were rejected before body download; 35 successful
+responses were retained locally. OEDI allowances include the owner's additional
+7 MB per archive, with all original charges retained. No automatic retries,
 credentialed calls, queued CDS retrievals, station weather downloads, climate
 variable chunks, archive members or exhaustive location/year sweeps were used.
 
@@ -45,14 +47,14 @@ bases; none is a guarantee of complete hourly weather for another request.
 | Open-Meteo ERA5 | Documented global 0.25-degree grid; returned locations/elevation can differ from requested points | Documented hourly history from 1940 with a delayed moving end | Rule out clearly incompatible product/year requests locally. Latest date and exact resolved cell still require fresher metadata/retrieval |
 | Open-Meteo ERA5-Land | Documented 0.1-degree land reanalysis; statistical elevation adjustment is an API option | Documented history from 1950 | Current OpenEPW adapter exposes temperature, dew point, RH and pressure only. Do not infer wind/solar support from the wider API's variable list |
 | PVGIS TMY v5_3 | Documentation distinguishes radiation databases; London probe uses SARAH3 solar and ERA5 meteorology | London default reference period is 2005–2023; 12 selected source-month years differ | This is a TMY reference period, not actual-year availability. London metadata must not be generalized into a worldwide database footprint or universal period |
-| OneBuilding published EPW/TMYx | Country/region catalogs expose named product paths. Selected pages do not expose coordinates | U.S./U.K./Australia catalogs list TMYx 2004–2018, 2007–2021, 2009–2023 and 2011–2025 variants, plus products without those suffixes | Product discovery can be local. Nearest-station discovery needs a separately validated coordinate index; do not invent coordinates from names |
+| OneBuilding published EPW/TMYx | Published spreadsheets supply exact-product coordinates for selected U.S./U.K. products; corroborated NOAA identifiers supply additional candidate coordinates including Australia | U.S./U.K./Australia catalogs list TMYx 2004–2018, 2007–2021, 2009–2023 and 2011–2025 variants, plus products without those suffixes | Local candidate mapping is possible for the matched subset. Preserve index versus inferred station evidence, unresolved products and unverified EPW coordinates |
 | NOAA ISD | 28,474 station records with usable coordinates and stable USAF/WBAN IDs | Operating intervals range across the inventory from 1901-01-01 to 2025-08-28; individual station ranges vary | A locally indexed history file can resolve station candidates. It cannot prove continuous hours or current-year support. GHCNh is not this adapter |
 | NSRDB aggregate v4 | Ithaca and Phoenix location catalogs both list the aggregate product; these are point observations, not a coverage polygon | Both list actual years 1998–2025 and upstream 30/60-minute intervals | Current adapter uses hourly aggregate only. Keep these tested-point results distinct from documented regional extent and unknown points |
 | NSRDB published v4 | Both point catalogs list the published product | TMY/TDY/TGY identifiers and 2022–2025 suffix variants; hourly interval | Product labels are not calendar-year coverage. Weather retrieval requires runtime key/email; public DEMO_KEY catalog access does not establish download eligibility |
 | Direct CDS ERA5 | Collection calls itself global; its machine-readable bbox is [0,-89,360,89] | Catalog interval starts 1940-01-01 and ends 2026-09-17; request schema offers 1940–2026 | Preserve 0–360 longitude encoding and the discrepancy between global wording and bbox; don't silently exclude polar requests or promise all of 2026 |
 | Direct CDS ERA5-Land | Global land product; same returned bbox, not a land mask | Catalog interval starts 1950-01-01 and ends 2026-09-17; schema offers 1950–2026 | Land/ocean eligibility requires a suitable mask or explicit uncertainty. Current direct adapter supplies GHI but no DNI/DHI |
 | Pangeo CMIP6 monthly morph inputs | Catalog separates model/member/grid stores; four ACCESS-CM2 metadata samples describe a coarse native atmosphere grid | 636 coherent historical/scenario seven-variable combinations across 28 models; actual coordinate periods remain unverified | Catalog can eliminate absent variable combinations locally. It cannot certify climate-window coverage or numeric completeness without additional bounded metadata/data work |
-| OEDI WRF/CCSM4 | Published PUMA table contains 2,368 sites; source describes U.S. PUMA delivery excluding Hawaii, distinct from the broader model domain | Documentation specifies RCP4.5/8.5, 2045–2054 and 2085–2094; paired baseline 1995–2004 | Use table locations and exact documented windows. Archive tails were verified, but full site/year membership remains unresolved in this run |
+| OEDI WRF/CCSM4 | Published PUMA table contains 2,368 sites; both scenario directories match all site IDs | Each scenario lists all 20 years in 2045–2054 and 2085–2094 for every site; baseline 1995–2004 remains documentation-only | Local scenario/site/year membership is now established. No EPW content or baseline archive was fetched; weather quality remains unverified |
 
 ## Inventory results and consequential distinctions
 
@@ -93,6 +95,39 @@ and the U.K.; the existing U.S. country entry point was read directly. No weathe
 ZIP or guessed station coordinate was used. Redistribution of raw catalogs/weather
 is not asserted; full normalized product links stay local.
 
+Follow-up inspection found source-linked KML and spreadsheet coordinate indexes.
+The three selected KML responses exceeded 5 MB and were rejected before consuming
+their bodies. Two compact alternate spreadsheets succeeded: U.S. (1,639,889 bytes,
+13,355 product rows) and Europe (2,061,932 bytes, 16,286 product rows). Both parsed
+without invalid coordinate rows. Their URLs came from the saved source page; no
+geocoding API or weather ZIP was requested. The 12-request OneBuilding limit is now
+used, so the Australian spreadsheet and other product indexes were not fetched.
+
+| Selected catalog | Exact product URL in published coordinate index | Identifier + country + name match to NOAA | Unresolved | Total products |
+| --- | ---: | ---: | ---: | ---: |
+| U.S. | 13,355 | 1,543 | 1,572 | 16,470 |
+| U.K. | 1,451 | 0 | 0 | 1,451 |
+| Australia | 0 | 3,505 | 227 | 3,732 |
+
+These are product counts, not distinct sites. Numeric station identifiers retain
+leading zeros; NOAA country codes are interpreted as FIPS. A fallback requires
+a unique identifier candidate with country agreement and a meaningful shared name
+token. Ambiguous/name-conflicting matches remain unknown. Published exact-product
+coordinates take precedence over inferred NOAA coordinates; conflicting published
+points remain unknown. Cross-source alternatives are retained even when the exact
+published product point is preferred: 10,693 U.S. and 542 U.K. products have differing
+NOAA latitude/longitude or elevation values. This exact-value comparison includes
+rounding and elevation differences; it is not a count of bad station matches.
+Neither method verifies native coordinates in an EPW header.
+The source documents WMO-keyed files, but synthetic identifiers also exist; no
+unmatched filename number is assumed to identify a NOAA station.
+
+Approximate place geocoding remains a fallback for unresolved products, not a
+completed feature: source-published coordinates provided stronger evidence within
+the budget. No town-centre points were fabricated. Full spreadsheets and local
+joins remain ignored; the source copyright notice does not grant a blanket right
+to redistribute these indexes. Production shipping/reuse terms still need review.
+
 **CMIP6:** the downloaded Pangeo catalog's Last-Modified date is 2022-06-28.
 The coherent combination counts are SSP126: 138, SSP245: 170, SSP370: 151,
 SSP585: 177. They describe this catalog snapshot, not all CMIP6 data now available.
@@ -110,11 +145,17 @@ store text says CC BY-SA 4.0; the WCRP registry records relaxation to CC BY 4.0 
 sizes 6,740,745 and 6,741,009 bytes. These counts do not identify which site/year
 members exist. An initial collector bug applied the ordinary 5 MB limit to both
 directory reads. Both reads stopped; no successful directory snapshot or EPW member
-was retained. The bug is fixed with a synthetic regression test, but complete
-retries would exceed the remaining approved per-archive budgets. Membership remains
-unknown until a separately budgeted investigation. Do not classify the provider as
-unavailable or infer membership from the declared count. Retain the source's
-late-century RCP4.5 Great Plains warming warning.
+was retained. The bug was fixed with a synthetic regression test. The owner then
+approved another 7 MB per archive, increasing each cumulative allowance to 17 MB
+while retaining the overall 200 MB ceiling and all original charges.
+
+One revised Range request per archive succeeded with the saved If-Match version.
+Each directory contains 47,360 EPW filenames plus one directory entry. All 2,368
+sites match the published PUMA IDs, and every site lists all 20 expected years in
+the two windows for its scenario. There are no duplicate filenames, unparsed EPW
+names, unexpected scenarios or unmatched site IDs. This resolves filename
+membership, not weather validity or variable completeness. No baseline or EPW
+member was read. Retain the source's late-century RCP4.5 Great Plains warming warning.
 
 The initial byte-limit checks observed the chunk that crossed their cap. The ledger
 retains those actual counts rather than rewriting evidence. The final collector
@@ -143,17 +184,20 @@ threshold or substitute for later study-purpose ranking.
 
 ## Verification and conclusion
 
-The full offline suite after the NOAA follow-up passed: **128 passed, 14 opt-in live tests skipped**, with
+The full offline suite after the follow-ups passed: **136 passed, 14 opt-in live tests skipped**, with
 two dependency deprecation warnings from FastAPI/Starlette. The research module
-now has **27 offline safeguard/parser tests**. The NOAA follow-up adds five
+now has **35 offline safeguard/parser tests**. The NOAA follow-up adds five
 regressions for the scoped allowance, sparse month counts, conflicting rows,
 alphanumeric station IDs and nonzero CLI status on analysis failures. Focused Ruff
-checks pass. Independent
+checks pass. Eight additional follow-up tests cover scoped OEDI resume, conservative
+coordinate matches, conflicting evidence, workbook validation and incomplete directory
+membership. Independent
 read-only review findings on deadlines, headers and byte limits were reproduced
 as failing tests and fixed. No production files or public interfaces changed.
 
 Every connected source now has a documented catalog strategy or precise unknown.
-The NOAA count inventory is now resolved; the OneBuilding coordinate index, general NSRDB/
-PVGIS footprint details, CMIP6 window validation and OEDI membership are explicit
+NOAA count and OEDI scenario-member inventories are now resolved. Remaining
+OneBuilding product coordinates/reuse terms, general NSRDB/PVGIS footprint details
+and CMIP6 window validation are explicit
 Stage 2 inputs, not hidden availability claims. Previous-run/QC reuse remains a
 future advanced feature.
