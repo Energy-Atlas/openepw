@@ -10,7 +10,7 @@
 
 **Spec:** [Accepted Stage 1 follow-up decisions](2026-09-23-mcp-stage-1.md#accepted-onebuilding-follow-up-plan--2026-09-23), [availability and batch ADR](../../decisions/0003-mcp-availability-and-batches.md), and [current findings](../../validation/mcp-stage-1/README.md). This plan further specifies the owner's accepted direction after inspecting unresolved products.
 
-**Status:** Proposed for review, not executed. Approval of this full plan must explicitly include the network extension below; offline tasks can proceed independently if only those are approved. MCP Stage 2 remains outside scope.
+**Status:** Owner approved the full plan, including the three-request network extension, on 2026-09-24. Execution in progress. Approval of this full plan must explicitly include the network extension below; offline tasks can proceed independently if only those are approved. MCP Stage 2 remains outside scope.
 
 ## Global Constraints
 
@@ -65,7 +65,7 @@ OneBuilding's current 12-attempt allowance is exhausted. Recommend increasing it
 
 All three URLs are already in the saved `onebuilding-sources` link inventory. Each gets one attempt, maximum 5 MB. The provider extension is at most three HTTP attempts including redirects; redirects can consume capacity needed for another file. No revised attempt, alternate oversized KML or replacement URL is automatically authorized. Global remaining capacity before this work: 22 metadata attempts and 61,086,659 bytes. This extension can consume at most 15 MB of response bodies and does not change the global ceilings. No probe is needed.
 
-If the extension is not approved, complete Tasks 1–3 and 5–6 offline and retain Task 4 as unexecuted. Failure to obtain an index is not dataset exclusion. Broad place geocoding remains deferred.
+If the extension is not approved, complete Tasks 1â€“3 and 5â€“6 offline and retain Task 4 as unexecuted. Failure to obtain an index is not dataset exclusion. Broad place geocoding remains deferred.
 
 ## Files and responsibilities
 
@@ -107,7 +107,7 @@ Keep the existing `mcp-research-1` format for additive fields and document addit
 2. Equal horizontal coordinates with unequal/missing elevations or several WBAN IDs: preserve identity/elevation ambiguity; pin in Task 3.
 3. Short/renamed/generic airport names: admit exact distinctive short names, never fuzzy city-only or generic facility matches; pin in Task 2.
 4. Index snapshots disagree, formulas hide URLs or TMY3a links differ from TMY3: preserve conflicts and require exact product URL; pin in Task 4.
-5. Repeated analysis, partial index acquisition or resumed exhausted budgets: deterministic output and no unplanned provider call; pin in Tasks 4–5.
+5. Repeated analysis, partial index acquisition or resumed exhausted budgets: deterministic output and no unplanned provider call; pin in Tasks 4â€“5.
 
 ## Task 1: Make the unresolved inventory reproducible
 
@@ -258,7 +258,7 @@ Integrate after filtering, and add `coordinate_basis='station_coordinate_consens
 
 **Files:** Modify `collector.py`, CLI plan output, `requests.json` and collector tests; use existing `spreadsheet_rows` parser in `coordinates.py`.
 
-**Interfaces:** Collector accepts the three exact request IDs/URLs in the network table, kind `inventory`, provider `onebuilding`, `parent='onebuilding-sources'`, `depth=1`, `limit=5_000_000`. After approval, original OneBuilding requests retain their 12-attempt ceiling; only these exact additional ID/URL pairs may use attempts 13–15. Redirects count in the same aggregate. Expose this exception in `plan` output.
+**Interfaces:** Collector accepts the three exact request IDs/URLs in the network table, kind `inventory`, provider `onebuilding`, `parent='onebuilding-sources'`, `depth=1`, `limit=5_000_000`. After approval, original OneBuilding requests retain their 12-attempt ceiling; only these exact additional ID/URL pairs may use attempts 13â€“15. Redirects count in the same aggregate. Expose this exception in `plan` output.
 
 - [ ] Confirm explicit approval includes the network extension. If absent, mark this task unexecuted and continue offline publication; do not ask again during execution if approval already covers it.
 - [ ] Write a synthetic collector test seeded with 12 prior OneBuilding HTTP hops: an exact approved request saves, an unrelated URL is blocked, and a resumed collector at 15 blocks every further call. Add a redirect consuming the final attempt and assert its destination is never requested after the cap.
@@ -381,3 +381,8 @@ Expected: focused suite and lint pass; full suite passes with opt-in live tests 
 ## Plan self-review
 
 Coverage: Tasks 1/5 account for unresolved products; Task 2 handles short names and country ambiguity; Task 3 handles shared coordinates; Task 4 tests source indexes under explicit limits; Task 6 verifies and publishes. All five Review Focus inputs have an owning task and test requirement. No implementation or provider request was made while drafting this plan.
+
+## Execution ledger
+
+- Approval: full plan and network extension approved on 2026-09-24. Existing inline execution retained.
+- Pre-flight: coordinate records feed diagnostics/transition reports; the new basis must be included in all summaries. The provider allowance must be checked both before requests and on redirects.

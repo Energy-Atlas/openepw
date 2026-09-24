@@ -6,6 +6,7 @@ import io
 import json
 import math
 import re
+from collections import Counter, defaultdict
 from html.parser import HTMLParser
 from urllib.parse import urljoin, urlsplit
 
@@ -13,6 +14,43 @@ from .archives import directory_location, member_names, membership_summary, site
 from .collector import atomic_json
 from .coordinates import coordinate_matches, spreadsheet_rows
 from .sources import LOCATIONS, PROVIDERS, VARIABLES
+
+
+def coordinate_diagnostics(matches, history):
+    """Account for product rows, keeping rejected candidate evidence local."""
+    by_id = defaultdict(list)
+    for site in history:
+        by_id[site['id'][:6]].append(site)
+    unknown, reasons, families = [], Counter(), Counter()
+    for row in sorted(matches, key=lambda r: r['url']):
+        product = row.get('product', 'unknown')
+        family = next((f for f in ('US.Normals', 'TMY3', 'TMYx', 'TMY2', 'TMY')
+                       if product == f or product.startswith(f + '.')), product)
+        families[family] += 1
+        if row['coordinate_basis'] != 'unknown':
+            continue
+        raw = by_id.get(row.get('station_id'), [])
+        expected = {'USA':'US','GBR':'UK','AUS':'AS'}.get(row.get('country'))
+        if row.get('reason') == 'conflicting_published_coordinates':
+            reason = 'conflicting_published_coordinates'
+        elif not row.get('station_id'):
+            reason = 'unrecognized_product_identifier'
+        elif not raw:
+            reason = 'no_coordinate_bearing_identifier'
+        elif not any(s.get('country') == expected for s in raw):
+            reason = 'country_code_ambiguous_or_conflicting'
+        elif not row.get('noaa_candidates'):
+            reason = 'name_not_corroborated'
+        else:
+            reason = 'ambiguous_station_identity'
+        reasons[reason] += 1
+        unknown.append({**row, 'primary_reason':reason, 'unresolved_reasons':[reason],
+                        'identifier_candidates':raw})
+    return {'product_count':len(matches),
+            'coordinate_counts':dict(sorted(Counter(r['coordinate_basis'] for r in matches).items())),
+            'unresolved_reason_counts':dict(sorted(reasons.items())),
+            'product_family_counts':dict(sorted(families.items())),
+            'unresolved_products':unknown}
 
 
 def date(value):
