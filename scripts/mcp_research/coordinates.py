@@ -135,18 +135,42 @@ def product_identity(url):
     )
 
 
+GENERIC_NAMES = {
+    'AP', 'AIRPORT', 'AWS', 'INTL', 'INTERNATIONAL', 'STATION', 'MUNI',
+    'MUNICIPAL', 'RGNL', 'REGIONAL', 'COUNTY', 'FIELD', 'FLD',
+}
+
+
+def distinctive_name(name):
+    text = unicodedata.normalize('NFKD', name or '').encode('ascii', 'ignore').decode().upper()
+    return [t for t in re.findall('[A-Z]+', text) if t not in GENERIC_NAMES]
+
+
 def name_tokens(name):
-    text = unicodedata.normalize("NFKD", name or "").encode("ascii", "ignore").decode().upper()
-    return {t for t in re.findall("[A-Z]+", text) if len(t) >= 4} - {
-        "AIRPORT",
-        "INTERNATIONAL",
-        "STATION",
-        "MUNICIPAL",
-        "COUNTY",
-        "REGIONAL",
-        "FIELD",
-        "INTL",
-    }
+    return {t for t in distinctive_name(name) if len(t) >= 4}
+
+
+def name_evidence(product_name, station_name):
+    if name_tokens(product_name) & name_tokens(station_name):
+        return 'token_overlap'
+    left, right = distinctive_name(product_name), distinctive_name(station_name)
+    if left and left == right and all(len(t) >= 3 for t in left):
+        return 'exact_short_name'
+    return 'none'
+
+
+def country_evidence(country, raw_codes):
+    expected = {'USA': 'US', 'GBR': 'UK', 'AUS': 'AS'}.get(country)
+    if not expected or not raw_codes or any(not c for c in raw_codes):
+        status = 'ambiguous'
+    elif country == 'AUS' and 'AU' in raw_codes:
+        status = 'ambiguous'
+    elif all(c == expected for c in raw_codes):
+        status = 'consistent'
+    else:
+        status = 'conflicting'
+    return {'raw_codes': sorted(set(raw_codes), key=lambda c: str(c)),
+            'expected_code': expected, 'status': status}
 
 
 def coordinate_matches(urls, history, published):
@@ -156,8 +180,6 @@ def coordinate_matches(urls, history, published):
     for row in published:
         by_url[row["url"]].append(row)
     results = []
-    # NOAA history uses FIPS country codes, not ISO alpha-2.
-    countries = {"USA": "US", "GBR": "UK", "AUS": "AS"}
     for url in sorted(set(urls)):
         product = product_identity(url)
         result = dict(
@@ -173,13 +195,21 @@ def coordinate_matches(urls, history, published):
         )
         published_rows = by_url.get(url, [])
         candidates = []
-        if product and product["country"] in countries:
+        raw_candidates = by_id[product['station_id']] if product else []
+        result['country_evidence'] = country_evidence(
+            product['country'] if product else '', [s.get('country') for s in raw_candidates])
+        result['name_match_method'] = 'none'
+        if product:
             candidates = [
                 s
                 for s in by_id[product["station_id"]]
-                if s.get("country") == countries[product["country"]]
-                and name_tokens(s.get("name")) & name_tokens(product["name"])
+                if country_evidence(product['country'], [s.get('country')])['status'] == 'consistent'
+                and name_evidence(product['name'], s.get('name')) != 'none'
             ]
+        if candidates:
+            result['name_match_method'] = ('token_overlap' if any(
+                name_evidence(product['name'], s.get('name')) == 'token_overlap' for s in candidates)
+                else 'exact_short_name')
         result["noaa_candidates"] = [
             {k: s.get(k) for k in ("id", "name", "lat", "lon", "elevation_m")} for s in candidates
         ]

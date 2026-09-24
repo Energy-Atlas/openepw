@@ -27,3 +27,32 @@ def test_diagnostics_distinguish_identity_from_name():
                dict(base, url='b', noaa_candidates=[])]
     assert analysis.coordinate_diagnostics(matches, history)['unresolved_reason_counts'] == {
         'ambiguous_station_identity': 1, 'name_not_corroborated': 1}
+
+
+@pytest.mark.parametrize('left,right,expected', [
+    ('Hay.AP', 'HAY AIRPORT AWS', 'exact_short_name'),
+    ('Hay.AP', 'RAY AIRPORT AWS', 'none'),
+    ('Regional.AP', 'REGIONAL AIRPORT', 'none'),
+    ('Ithaca.Tompkins.Rgnl.AP', 'ITHACA TOMPKINS REGIONAL AIRPORT', 'token_overlap'),
+    ('Unalaska-Madsen.AP', 'DUTCH HARBOR AIRPORT', 'none'),
+])
+def test_name_evidence(left, right, expected):
+    assert coordinates.name_evidence(left, right) == expected
+
+
+def test_country_codes_remain_explicit():
+    assert coordinates.country_evidence('AUS', ['AS'])['status'] == 'consistent'
+    assert coordinates.country_evidence('AUS', ['AU'])['status'] == 'ambiguous'
+    assert coordinates.country_evidence('USA', ['CA'])['status'] == 'conflicting'
+    assert coordinates.country_evidence('AUS', [])['status'] == 'ambiguous'
+
+
+def test_hay_recovers_but_au_requires_independent_evidence():
+    url = 'https://climate.onebuilding.org/AUS_NSW_Hay.AP.947020_TMYx.zip'
+    site = dict(id='94702099999',country='AS',name='HAY AIRPORT AWS',lat=-34.533,lon=144.833)
+    result = coordinates.coordinate_matches([url],[site],[])[0]
+    assert result['lat'] == -34.533
+    assert result['name_match_method'] == 'exact_short_name'
+    result = coordinates.coordinate_matches([url],[dict(site,country='AU')],[])[0]
+    assert result['lat'] is None
+    assert result['country_evidence']['status'] == 'ambiguous'
