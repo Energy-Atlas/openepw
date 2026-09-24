@@ -82,9 +82,13 @@ Stage 1's existing ledger budgets are not reusable runtime quotas for production
    footprints without mass queries. Keep individual probes narrowly scoped meanwhile.
 5. Validate CMIP6 windows across all required stores with bounded coordinate metadata
    access. Do not infer full intervals from array length/calendar units or four samples.
-6. Complete OEDI archive-member indexing in a separately budgeted pass using the
-   corrected 10 MB-per-archive reader. Preserve the 2,368 delivered-site inventory and
-   distinguish membership from usable hourly data.
+6. Complete OEDI archive-member indexing in the owner-approved follow-up: one
+   revised directory request per scenario, with an additional 7 MB per archive
+   (17 MB cumulative allowance each) and the unchanged 200 MB overall ceiling.
+   Execution is pending; see the
+   [follow-up plan](../../superpowers/plans/2026-09-23-mcp-stage-1.md#accepted-oedi-directory-follow-up-plan--2026-09-23).
+   Preserve the 2,368 delivered-site inventory and distinguish membership from
+   usable hourly data. Failed or changed archives retain unknown membership.
 7. Import the now-acquired NOAA station/year/month index alongside history. A
    specifically owner-authorized 20 MB allowance retrieved its 14.97 MB snapshot
    in one revised call, within the unchanged overall budget. Preserve 1,034 IDs
