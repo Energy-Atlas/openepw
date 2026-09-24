@@ -36,7 +36,9 @@ is a detailed design and implementation plan. Read the
 [findings and evidence](docs/validation/mcp-stage-1/README.md) record 41 metadata
 requests and three targeted probes, reproducible tooling, and precise limitations.
 Stage 2 planning is authorized; production catalog integration is not yet
-implemented and the detailed implementation plan still requires review.
+implemented. The [proposed Stage 2 design](docs/superpowers/specs/2026-09-24-mcp-stage-2-availability-design.md)
+and [implementation plan](docs/superpowers/plans/2026-09-24-mcp-stage-2-availability.md)
+are ready for owner review; neither is implementation approval.
 An owner-authorized NOAA follow-up retrieved the larger station/month inventory
 in one additional call; its normalized local index is ready for Stage 2 integration.
 The approved follow-up also resolved both OEDI scenario directories and matched

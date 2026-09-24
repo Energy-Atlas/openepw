@@ -1,0 +1,82 @@
+# MCP Stage 2 availability and recommendation design
+
+Status: proposed for owner review, 2026-09-24. Planning is authorized; implementation and new public contracts await review. This Stage 2 follows the accepted [MCP Stage 1 handoff](../../handoffs/2026-09-24-mcp-stage-2.md), not the completed v0.1 implementation stage.
+
+## Intent and boundaries
+
+An agent or human can ask which existing weather product or future method is suitable for a specified place, time and study purpose, receive factual alternatives with reasons, and carry a chosen source into the existing plan/fetch flow. A local metadata snapshot should answer known compatibility questions without one remote call per point. A catalog hit means *eligible to try*, never complete hourly data, simulation fitness, accepted terms, or permission to redistribute source metadata.
+
+The canonical Python service owns this logic. Existing EPW, QC, plan, output identity, raw response cache, job and artifact contracts remain intact. This stage does not implement Stage 3 batch/export work, Stage 4's final MCP contract, previous-run/QC reuse, a historical TMY generator, or broad new provider collection. It retains the accepted 61 OneBuilding annotations as a separate, checksum-pinned judgment layer: 56 reviewed metadata correspondences, three approximate localities and two name/code conflicts. The original strict match results remain visible.
+
+The Stage 1 raw and normalized snapshots were reported under ignored `.local/mcp-availability/` in the originating checkout. They are absent from this worktree at design time. The tracked sanitized ledger cannot reconstruct the full NOAA, OEDI or OneBuilding indexes. Implementation must preserve and import existing local snapshots when supplied; it must never silently re-run Stage 1 collection or claim full-index acceptance from the sanitized report.
+
+## Approach chosen
+
+Use a versioned SQLite read catalog plus ignored local source files, with an immutable active snapshot manifest. Importers normalize each authoritative source separately. One evaluator applies explicit three-valued eligibility rules, and one ranker orders the resulting options for the user's purpose. Existing `WeatherService.discover` consumes these shared facts and calls a provider's current live discovery only for a bounded, decision-relevant unknown or when explicitly requested.
+
+Alternatives considered:
+
+| Approach | Advantage | Why it is not selected |
+| --- | --- | --- |
+| Embed all metadata in provider `discover()` calls | Smallest immediate diff | Repeats NOAA/catalog I/O per point and makes freshness and cross-provider explanations inconsistent. |
+| Bundle a static JSON inventory in the wheel | Simple offline startup | Full third-party index redistribution is not established; snapshots age, and large indexes would be coupled to package releases. |
+| Local versioned catalog with source-specific importers | Reuses Stage 1 evidence, supports offline decisions and atomic refresh | Requires schema and migration work, but stays within SQLite/filesystem architecture. |
+
+## Contracts
+
+Add focused Pydantic records in `src/openepw/availability/models.py`; wire records use `extra="forbid"` and a catalog schema version independent of the v0.1 `WeatherRequest`/`WeatherPlan` version. Stable product IDs are `(provider, dataset, version, access_route, native_product_id)`; stable site IDs are source IDs as strings (preserve zeros and alphanumeric NOAA USAF). A request occurrence is never a site ID.
+
+| Record | Required meaning |
+| --- | --- |
+| `EvidenceRef` | Source ID and URL or citation, SHA-256, retrieved-at, optional Last-Modified/ETag/publication date, basis `documentation`/`inventory`/`targeted_probe`, terms/attribution, and applicable geographic/product scope. No credential or signed URL. |
+| `ProductRecord` | Stable identity, spatial kind, documented footprint with original longitude convention or unknown, source and *adapter-supported* variables separately, native versus delivered resolution, access requirements, citation, and temporal kind. |
+| `SiteRecord` | Stable source identity, optional source coordinates/elevation, position status `published`/`inferred`/`consensus`/`approximate_locality`/`unknown`/`conflicted`, station identity status, all candidate station IDs, operating intervals and linked evidence. Horizontal consensus never chooses an arbitrary WBAN or invents elevation. |
+| `AvailabilityEntry` | Tagged period: sparse actual years/month counts and/or operating interval; TMY/TMYx reference period and published product label; or future scenario plus exact window, model/member/grid or PUMA site and listed source years. These forms cannot be cast into one generic year range. Entries retain exclusions and evidence IDs. |
+| `ReviewAnnotation` | Original product URL, accepted status/rationale/date, source checksum pins, alternate published URL when relevant, and `epw_coordinates_verified=false`, `weather_equivalence_verified=false`. Stale or missing evidence leaves the original match intact and removes reviewed coordinate authority. |
+| `CatalogSnapshotRef` | Schema/importer versions, source IDs/checksums, creation/activation time and active/stale state. Freshness is per source, not one global boolean. |
+| `EligibilityDecision` | `supported`/`excluded`/`unknown`, reason codes, unknowns, evidence IDs/bases, freshness and separately `access` (`ready`/`credentials_required`/`terms_required`/`unknown`) and `health` (`healthy`/`degraded`/`unknown`). Supported means eligible candidate only. |
+| `SuitabilityOption` | Candidate/product/site identity, eligibility, required-variable gaps, known distance/elevation delta, purpose fit, explanations and deterministic rank. No numeric quality score. |
+
+`AvailabilityQuery` is a tagged union of `WeatherAvailabilityQuery` (`request: WeatherRequest`) and `FutureAvailabilityQuery` (`location`, method/profile/scenario, exact climate/reference periods, optional model/member). Both carry `purpose`, optional `required_variables`, `max_distance_km`, `max_elevation_delta_m` and `refresh` (`never` or `if_needed`). Initial purposes are `building_energy`, `solar`, `thermal_extremes`; the query's explicit variables and limits take precedence. These three are a minimal design default for owner review. Purpose is guidance for ordering, not a claim that a dataset is scientifically validated for that study. `AvailabilityResult` returns every evaluated option, recommended option IDs, unresolved issues, per-source snapshot refs and a checked-at time. No recommendation is selected if every option is excluded or unknown; an explicit source choice remains inspectable but its uncertainty is not hidden.
+
+Add `WeatherService.assess_availability(query) -> AvailabilityResult`. `WeatherService.discover(request)` continues returning `DiscoveryResult` and keeps old request/plan hashes valid; an optional `availability` field on the discovery result (omitted for legacy serialization when empty) carries the same assessments. The service uses a shared evaluator/ranker, and existing REST `/v1/weather/discover` and MCP `weather_discover` serialize that one result. A focused Python method and thin `/v1/availability` and `weather_availability` adapters expose future capability queries before Stage 4 finalizes MCP tool names. They call no separate ranking code. `plan()` must reject a catalog-excluded choice, preserve explicit unknown status, and recheck dynamic constraints at execution; a plan hash is not permission to fetch.
+
+## Decision rules
+
+1. Intersect source-wide product claims with the current adapter's actual product/variable/interval support. An unsupported adapter product or required variable is a stable exclusion even when upstream claims more. Missing optional variables are suitability gaps, not fabricated output fields.
+2. For actual years, use sparse NOAA station/year membership and month report counts only as evidence of reports. An operating interval alone cannot prove listed years, contiguous hours or variable coverage. A listed year may support attempting retrieval; an unlisted year in an old or incomplete inventory is `unknown`, unless an authoritative complete exclusion applies. Inclusive date ranges crossing years check every component year and known provider edge-year needs.
+3. A TMYx `2009–2023` label is a reference period, never 15 available actual years. The exact product URL and label identify the choice. PVGIS London's 2005–2023 and selected-month years apply only to that probe. No worldwide SARAH3 footprint is inferred from London.
+4. Future OEDI RCP4.5/RCP8.5 membership is supported only for the recorded PUMA IDs and exact 2045–2054 or 2085–2094 windows; baseline 1995–2004 membership remains documentation-only. CMIP6's 636 coherent catalog combinations support model/member/grid/variable presence, while full requested window and license eligibility remain `unknown` until separately checked. SSP and RCP labels never substitute for one another.
+5. CDS's source bbox and “global” wording are both retained; longitude is normalized for comparison while original 0–360 values remain in evidence. Polar disagreement and ERA5-Land land-mask absence yield `unknown`, not a silent geographic exclusion. Two NSRDB point catalogs do not make a polygon. Source-cell identity is provisional until verified by the provider.
+6. A stale source cannot justify a new definitive absence. Stable adapter incompatibilities may still exclude. Targeted probes apply only to their exact product/location/version; they do not broaden footprints. Credentials, accepted terms, outages and provider rate limits are separate from eligibility.
+7. Match OneBuilding exact product URLs and published indexes first. Apply only explicit accepted review registry entries when *all* pinned source hashes match and parsing succeeds. Reviewed Hawaii alternate paths confer product metadata correspondence, not archive or EPW equivalence. Approximate locality points are labeled as such and cannot drive nearest precise-station selection; name/code conflicts remain unresolved. No automatic URL region rewriting.
+
+Ranking is lexicographic and explained: eligible status; requested product/scenario/window fit; required variable coverage; explicit user distance/elevation limits; known distance/elevation differences where meaningful; evidence specificity/freshness; then access friction and stable ID tie-break. There is no universal score. Unknown candidates remain displayed below supported ones, with the missing fact named. Study purposes change which variables are important: building energy favors temperature, humidity, pressure, wind and solar; solar favors GHI/DNI/DHI and source radiation meaning; thermal extremes favors actual or coherent hourly trajectories and temperature coverage. A TMY can be shown as an alternative for thermal extremes with its typical-year limitation, never silently presented as an actual extreme year. Caller provider order breaks otherwise equal choices. The existing default 100 km NOAA search limit and 150 km OEDI limit remain provider rules; no new universal radius is inferred.
+
+## Catalog lifecycle and source handling
+
+Store normalized SQLite tables under `RuntimeConfig.data_root / "catalog"`; keep raw metadata under an ignored, user-configurable local snapshot root. A read transaction pins one active generation for a whole batch/discovery call. Import to a staging database, verify raw SHA-256 and ledger IDs, parse all required sources, validate foreign keys, duplicate identities, spatial/time bounds, review pins and source-specific invariants, then atomically activate the generation. A failure leaves the prior generation usable and reports the failing source as stale/unknown. Never mutate a published generation in place. Schema/importer version mismatches require a migration or reimport, not silent interpretation.
+
+Startup first reads an existing catalog. A one-time explicit local import can consume the accepted Stage 1 snapshots and registry without any network call. If snapshots are absent, bootstrap only source contracts that are safe to distribute and label inventory-dependent answers unknown; do not download replacement inventories automatically. Runtime refresh is opt-in/configured and bounded per source, with conditional GET, response-size/time limits, one refresh per source per request batch and a lock to prevent duplicate workers. Refresh only when the result could change the current decision; a failed refresh returns the last good snapshot with stale markers. Changed OneBuilding hashes invalidate affected accepted reviews until renewed explicit review. Changed OEDI archive ETag invalidates its member index; refresh may not reuse old offsets.
+
+The following are local scheduling defaults from the Stage 1 proposal, not upstream availability guarantees. A caller can request `refresh="never"`; a configured offline environment never refreshes automatically.
+
+| Source metadata | Default check | Decision-limited behavior |
+| --- | --- | --- |
+| Open-Meteo and CDS stable capability/start-date contracts | On adapter release; monthly metadata check | A changed adapter capability requires a code release; no claim from the broader upstream variable list. |
+| CDS moving end timestamp | Daily or when a newer date is requested | The request-year enum is not a completeness statement. |
+| NOAA history and station/month counts | Weekly conditional check | Fetch each source once, join exact string IDs, retain unmatched IDs and sparse years. |
+| OneBuilding selected catalogs and coordinate indexes | Weekly conditional check | Catalogs and spreadsheets are separate versions; invalidated review pins stay stale. |
+| NSRDB point product metadata | Seven-day cache per exact point/product request; on demand for a new point/year | Never extrapolate Ithaca/Phoenix or a point response into a regional footprint. |
+| Pangeo CMIP6 catalog and WCRP license registry | Weekly conditional check | A 2022 catalog modification date does not establish current comprehensive holdings. |
+| OEDI sites and scenario archive indexes | Pin by checksum/ETag; weekly conditional version check | A changed archive invalidates directory membership and offsets until reindexed. |
+
+No full OneBuilding spreadsheet/joins, NOAA inventory, Pangeo catalog or downloaded weather data enter the wheel or git without a source-specific redistribution review. The already tracked 61-decision registry can be packaged as selected accepted annotations, with a test that its packaged copy exactly matches the research original; the actual full index remains local. Source notices and original/effective CMIP6 license records survive normalization. Local acquisition and selected-location use do not imply publishing permission.
+
+## Error handling, testing and rollout
+
+Malformed, checksum-mismatched, oversized or incomplete imports fail closed and retain the previous generation. Catalog-unavailable returns typed `unknown` options and issues, not an empty “no providers” list. A provider live response may narrow or contradict local evidence; record the conflict and provenance, do not silently overwrite the active snapshot or swap candidates. Metadata refresh never fetches weather rows, ZIP members or CMIP6 climate chunks.
+
+Deterministic synthetic fixtures test geographical boundaries, sparse NOAA years/months, station gaps and overlaps, product/reference-period distinctions, adapter variable omissions, CDS longitude/polar uncertainty, NSRDB point scope, future scenario/window rejection, OneBuilding 56/3/2 review states and checksum invalidation, stale fallback, failed refresh, batch-wide refresh coalescing, stable ranking, old plan round-trip, and Python/REST/MCP parity. A separate opt-in import test may use the original ignored snapshots when available and check source counts/checksums without publishing them. Run Ruff, mypy, offline pytest and build. Report opt-in tests as skipped when local snapshots are unavailable; never replace them with broad collection. No simulation-readiness claim follows from catalog acceptance.
+
+Stage 2 ends with a reviewable shared service and evidence-preserving local catalog. Stage 3 owns richer batch mapping/compact export; Stage 4 owns the final local MCP protocol; Stage 5 owns a real client pilot; Stage 6 owns authenticated team deployment.
