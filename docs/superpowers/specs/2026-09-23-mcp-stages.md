@@ -2,14 +2,17 @@
 
 Date: 2026-09-23. Branch: `feature/mcp`.
 
-Status: Stage 1 scope and product/batch decisions are recorded as accepted in
-[ADR 0003](../../decisions/0003-mcp-availability-and-batches.md). Stages 2–6 below
-are proposed for discussion, not an approved implementation plan or completion
-claim. These stages are separate from the completed v0.1 implementation stages.
-The owner subsequently approved the Stage 1 investigation for implementation.
-Its [execution plan](../plans/2026-09-23-mcp-stage-1.md) and
-[findings](../../validation/mcp-stage-1/README.md) record completed research and
-remaining unknowns. No later stage or production MCP behavior is implemented here.
+Status updated 2026-09-24: the owner explicitly accepted MCP Stage 1 as finished
+and agreed to advance to Stage 2. The next deliverable is the detailed Stage 2
+design and implementation plan, as discussed immediately before that acceptance.
+This authorizes the transition and planning; no detailed Stage 2 implementation
+plan or new public API has yet been approved. Stages 3–6 remain proposals. These
+MCP stages are separate from the completed v0.1 implementation stages.
+
+Read the [Stage 2 agent handoff](../../handoffs/2026-09-24-mcp-stage-2.md),
+[accepted decisions](../../decisions/0003-mcp-availability-and-batches.md), and
+[Stage 1 findings](../../validation/mcp-stage-1/README.md). Research and accepted
+case annotations are complete; production catalog integration is the next phase.
 
 ## Intended outcome
 
@@ -33,7 +36,7 @@ and refresh proposal. The exit condition is enough defensible evidence to implem
 eligibility checks, with remaining uncertainty represented explicitly rather than
 an assertion of comprehensive live coverage.
 
-## Stage 2 — implement shared availability and recommendation services (proposed)
+## Stage 2 — shared availability and recommendation services (design/planning authorized)
 
 Build the local metadata catalog and provider-specific import/refresh paths from
 Stage 1 findings. Support local filtering before remote calls, freshness reporting,

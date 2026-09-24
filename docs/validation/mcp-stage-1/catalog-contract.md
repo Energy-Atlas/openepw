@@ -1,6 +1,8 @@
 # Stage 2 handoff — proposed availability catalog contract
 
-Status: research recommendation, not an implemented or approved public API.
+Status: input to owner-authorized Stage 2 design/planning as of 2026-09-24.
+This remains a research recommendation, not an implemented or approved public API.
+Read the [agent handoff](../../handoffs/2026-09-24-mcp-stage-2.md) before beginning.
 Evidence: [Stage 1 findings](README.md), [sanitized ledger](evidence.json).
 
 ## Records and decision boundaries

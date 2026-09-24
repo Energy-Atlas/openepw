@@ -16,7 +16,7 @@ plan were completed. Owner approved Stage 2 on 2026-09-20.
 - [x] MCP, CLI and examples over the canonical service.
 - [x] Final acceptance record, documentation and regression checks.
 
-## Production MCP — design in progress
+## Production MCP — Stage 1 accepted; Stage 2 planning next
 
 Local use will roll out and be tested before self-hosted team deployment.
 [ADR 0003](docs/decisions/0003-mcp-availability-and-batches.md) records the accepted
@@ -29,10 +29,14 @@ MCP Stage 1 uses authoritative footprints, station/site inventories, temporal ra
 and future scenario/windows, with strategic bounded probes instead of exhaustive
 API queries. Previous successful runs and QC summaries are excluded from this stage.
 
-MCP Stage 1 research completed on 2026-09-23. The
+MCP Stage 1 research and follow-ups completed on 2026-09-24 and were explicitly
+accepted by the owner. The owner agreed to advance to Stage 2; its next deliverable
+is a detailed design and implementation plan. Read the
+[agent handoff](docs/handoffs/2026-09-24-mcp-stage-2.md). The
 [findings and evidence](docs/validation/mcp-stage-1/README.md) record 41 metadata
 requests and three targeted probes, reproducible tooling, and precise limitations.
-Stage 2 production catalog integration remains proposed, not implemented.
+Stage 2 planning is authorized; production catalog integration is not yet
+implemented and the detailed implementation plan still requires review.
 An owner-authorized NOAA follow-up retrieved the larger station/month inventory
 in one additional call; its normalized local index is ready for Stage 2 integration.
 The approved follow-up also resolved both OEDI scenario directories and matched

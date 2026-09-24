@@ -4,6 +4,11 @@ Investigated 2026-09-23–24 on `feature/mcp`. Stage 1 research is complete with
 specific unresolved items below. This is availability evidence, not weather-data
 acceptance, QC certification or a production MCP release.
 
+The owner accepted Stage 1 as finished on 2026-09-24 and authorized progression
+to Stage 2 design/planning. Continue from the
+[agent handoff](../../handoffs/2026-09-24-mcp-stage-2.md); remaining documented
+unknowns are Stage 2 inputs, not reasons to restart this investigation.
+
 Artifacts: [sanitized evidence and ledger](evidence.json),
 [executed follow-up requests](requests.json), [source register](sources.md),
 [Stage 2 catalog contract](catalog-contract.md),

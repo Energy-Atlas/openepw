@@ -1,8 +1,11 @@
 # ADR 0003 — MCP availability discovery and batch semantics
 
 Date: 2026-09-23. Status: owner-approved direction and MCP Stage 1 scope;
-Stage 1 implementation/research is complete with explicit limitations in the
-[findings](../validation/mcp-stage-1/README.md). Later stages remain proposals in the
+On 2026-09-24 the owner explicitly accepted Stage 1 completion and agreed to
+advance to Stage 2 design/planning. Detailed implementation approval remains
+pending plan review. Stage 1 research is complete with explicit limitations in the
+[findings](../validation/mcp-stage-1/README.md). The transition is documented in the [agent handoff](../handoffs/2026-09-24-mcp-stage-2.md).
+Later implementation stages remain proposals in the
 [MCP staged design](../superpowers/specs/2026-09-23-mcp-stages.md).
 
 These MCP stage numbers are separate from the completed v0.1 Stage 1/Stage 2.
