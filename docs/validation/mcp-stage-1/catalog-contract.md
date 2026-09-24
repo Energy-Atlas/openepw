@@ -85,7 +85,12 @@ Stage 1's existing ledger budgets are not reusable runtime quotas for production
    [follow-up plan](../../superpowers/plans/2026-09-23-mcp-stage-1.md#accepted-onebuilding-follow-up-plan--2026-09-23).
    Keep inferred place coordinates separate from verified source coordinates.
 4. Resolve version-specific PVGIS footprint/source-period metadata and NSRDB product
-   footprints without mass queries. Keep individual probes narrowly scoped meanwhile.
+   footprints without mass queries. The focused [NSRDB map acceptance](../mcp-stage-2/nsrdb-footprint-acceptance.md)
+   now provides an exact-source-identity grid-site display mask for GOES TMY v4
+   `published_name:tdy-2023`, in addition to the two Stage 1 point probes. Its
+   0.25° occupied cells are generalized display evidence, not positive arbitrary-point
+   eligibility or an actual-year 2023 footprint. Other NSRDB selectors and their
+   regional extent remain unknown; keep individual probes narrowly scoped.
 5. Validate CMIP6 windows across all required stores with bounded coordinate metadata
    access. Do not infer full intervals from array length/calendar units or four samples.
 6. Import the now-complete OEDI scenario-directory indexes. The approved single

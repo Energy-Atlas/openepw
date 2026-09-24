@@ -41,8 +41,11 @@ and [implementation plan](docs/superpowers/plans/2026-09-24-mcp-stage-2-availabi
 are ready for owner review; neither is implementation approval.
 The [NSRDB geospatial design](docs/superpowers/specs/2026-09-24-nsrdb-geospatial-availability-design.md)
 and [focused map plan](docs/superpowers/plans/2026-09-24-nsrdb-geospatial-availability.md)
-propose a product- and selector-specific footprint follow-up before showing regional
-NSRDB availability. Its current map evidence remains the two Stage 1 point catalogs.
+produced an [accepted local map evidence record](docs/validation/mcp-stage-2/nsrdb-footprint-acceptance.md)
+for the GOES TMY v4 `tdy-2023` published selector. It shows source-grid site occupancy
+in generalized 0.25° cells alongside the Stage 1 point catalogs. Other NSRDB selectors
+retain unknown regional extent; the display mask does not establish arbitrary-point
+API eligibility. The shared Stage 2 service plan remains under owner review.
 An owner-authorized NOAA follow-up retrieved the larger station/month inventory
 in one additional call; its normalized local index is ready for Stage 2 integration.
 The approved follow-up also resolved both OEDI scenario directories and matched

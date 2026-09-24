@@ -10,7 +10,7 @@
 
 **Spec:** [MCP Stage 2 design](../specs/2026-09-24-mcp-stage-2-availability-design.md). Also read [accepted ADR 0003](../../decisions/0003-mcp-availability-and-batches.md), [Stage 1 findings](../../validation/mcp-stage-1/README.md), [catalog proposal](../../validation/mcp-stage-1/catalog-contract.md), [accepted case review](../../validation/mcp-stage-1/onebuilding-manual-review.md) and [agent handoff](../../handoffs/2026-09-24-mcp-stage-2.md).
 
-The focused [NSRDB geospatial map plan](2026-09-24-nsrdb-geospatial-availability.md) is a proposed prerequisite for a richer local NSRDB visualization. It runs on `feature/data-avail` and records whether a v4 product/version-matched footprint can be supported. Import its accepted evidence contract in Task 4 only after that outcome is reviewed; retain the point-only Stage 1 fallback meanwhile.
+The focused [NSRDB geospatial map plan](2026-09-24-nsrdb-geospatial-availability.md) now has a documented [acceptance outcome](../../validation/mcp-stage-2/nsrdb-footprint-acceptance.md) on `feature/data-avail`: a locally stored, source-object-pinned grid-site mask for GOES TMY v4 `published_name:tdy-2023`. Task 4 may import that optional evidence after this Stage 2 plan is approved. The `v4.0.0` path and `4.0.1` internal model version are both retained. Other NSRDB selectors still have only the two exact Stage 1 point probes and unknown regional extent.
 
 ## Global constraints
 
@@ -65,7 +65,7 @@ class WeatherService:
     def assess_availability(self, query: AvailabilityQuery) -> AvailabilityResult: ...
 ```
 
-`CatalogBundle` has `schema_version: Literal["1"]`, `evidence: list[EvidenceRef]`, `products: list[ProductRecord]`, `sites: list[SiteRecord]`, `entries: list[AvailabilityEntry]` and `reviews: list[ReviewAnnotation]`. `CatalogView` is a read-only transaction pinned to one active generation; it closes after the assessment. The `AvailabilityResult` has `options: list[SuitabilityOption]`, `recommended_option_ids: list[str] = []`, `issues: list[Issue] = []` and `snapshots: list[CatalogSnapshotRef] = []`. Exact enum values and semantic rules are in the spec. Make the type names importable from `openepw.availability` and expose only `assess_availability` at the top-level Python convenience API. The current `feature/mcp` worktree has no `.venv`; Task 1 creates it before the commands below.
+`CatalogBundle` has `schema_version: Literal["1"]`, `evidence: list[EvidenceRef]`, `products: list[ProductRecord]`, `sites: list[SiteRecord]`, `entries: list[AvailabilityEntry]`, `footprints: list[FootprintRecord] = []` and `reviews: list[ReviewAnnotation]`. `CatalogView` is a read-only transaction pinned to one active generation; it closes after the assessment. The `AvailabilityResult` has `options: list[SuitabilityOption]`, `recommended_option_ids: list[str] = []`, `issues: list[Issue] = []` and `snapshots: list[CatalogSnapshotRef] = []`. Exact enum values and semantic rules are in the spec. Make the type names importable from `openepw.availability` and expose only `assess_availability` at the top-level Python convenience API. The current `feature/mcp` worktree has no `.venv`; Task 1 creates it before the commands below.
 
 ---
 
@@ -75,7 +75,7 @@ class WeatherService:
 
 **Interfaces:** Produces the exact models named in the file map; consumes existing `Location`, `WeatherRequest`, `Model` and `Issue`. `WeatherAvailabilityQuery` and `FutureAvailabilityQuery` use a discriminated `kind` field; `AvailabilityQuery` is their union. A `TemporalScope` union has `actual`, `tmy_reference` and `future_window` tags.
 
-- [ ] Write failing model tests for distinct temporal tags, sparse year representation, exact future windows, string station IDs, no fabricated `0` elevation, enum validation and JSON round-trip. Example:
+- [ ] Write failing model tests for distinct temporal tags, sparse year representation, exact future windows, string station IDs, no fabricated `0` elevation, enum validation, footprint product/selector binding and JSON round-trip. A footprint's `published_name:tdy-2023` must not validate as `actual_year:2023`. Example:
 
   ```python
   def test_tmy_reference_is_not_actual_years():
@@ -89,7 +89,7 @@ class WeatherService:
 
 - [ ] Create the worktree-local environment: `py -3.11 -m venv .venv`, then `.venv/Scripts/python.exe -m pip install -e '.[dev,api,mcp,climate,cds]'`. Keep `.venv` ignored. Confirm `.venv/Scripts/python.exe --version` reports Python 3.11 or newer.
 - [ ] Run `.venv/Scripts/python.exe -m pytest tests/unit/test_availability_models.py -q`; expect import/model failures.
-- [ ] Implement records with field bounds, `extra="forbid"`, discriminators, exact stable product/site IDs, source/adapter variable separation, `retrieved_at` separate from `published_at`, checksum syntax and explicit nullable coordinates/elevation. `EligibilityDecision` must carry access and health independently. The new catalog schema version starts at `1`; do not change `WeatherRequest.schema_version="0.1"`.
+- [ ] Implement records with field bounds, `extra="forbid"`, discriminators, exact stable product/site IDs, source/adapter variable separation, `retrieved_at` separate from `published_at`, checksum syntax and explicit nullable coordinates/elevation. Keep `FootprintRecord` optional and tied to a product version, tagged selector, source-object identity/ETag, metadata and display-mask checksums, and exhaustive-absence evidence flag. `EligibilityDecision` must carry access and health independently. The new catalog schema version starts at `1`; do not change `WeatherRequest.schema_version="0.1"`.
 - [ ] Run the focused tests, `ruff check src/openepw/availability tests/unit/test_availability_models.py`, and `mypy src/openepw/availability`; expect pass. Commit `fix(availability): define typed evidence and eligibility contracts`.
 
 ### Task 2: Immutable local store and refresh transaction
@@ -158,7 +158,7 @@ class WeatherService:
   ```
 
 - [ ] Run focused pytest; expect failures. Implement imports retaining raw source values, native longitude convention, precise applicability of probes and source licenses. OEDI directory membership requires matching archive ETag and does not assert the baseline archive. CMIP6 intersection does not promote all 636 combinations to license/window-supported; preserve original and effective WCRP license evidence independently.
-- [ ] If the focused NSRDB map plan has produced an accepted version-matched footprint manifest, import its per-product `actual_year`/`published_name` spatial evidence and checksum as an optional local source. If it has not, retain the two exact point probes and `unknown` regional extent. A general GOES description or display mask must not become a positive point eligibility record.
+- [ ] Import the accepted local NSRDB `published_name:tdy-2023` manifest as an optional source. Validate the exact GOES TMY v4 product ID, native selector, S3 object URL/ETag/size, both `v4.0.0` path and observed `4.0.1` internal model version, coordinate-table and mask checksums, resolution and the two point cross-checks before staging a `FootprintRecord`. Keep the large metadata table and mask ignored; store only their local checksums and bounded summary in SQLite. A missing, changed or invalid manifest falls back to the two exact point probes and `unknown` regional extent. Do not synthesize records for actual 2023 or other TMY names. Test corrupt mask, changed ETag, selector mismatch and absent manifest without a network call.
 - [ ] Extend the opt-in local import check to OEDI 2,368 sites × 20 listed future years per scenario and CMIP6 636 coherent combinations, without requiring weather chunks or a new network request. Run focused tests/static checks and commit `fix(availability): import source contracts and future membership`.
 
 ### Task 5: Three-valued eligibility and explained recommendations
@@ -179,7 +179,7 @@ class WeatherService:
   ```
 
 - [ ] Run focused pytest; expect failures. Implement rule functions by temporal tag and spatial kind. A fresh, applicable positive catalog membership can support an attempt; stale or incomplete absence is unknown; adapter incompatibility is excluded independently of catalog freshness. Do not infer station-hour completeness from counts or native weather coordinates from a reviewed index. Include evidence IDs and reason codes in every decision.
-- [ ] Test that an NSRDB generalized grid display mask cannot by itself yield `supported` for an unprobed coordinate, that a missing selected year stays `unknown`, and that `tdy-2023` is a published-name selector rather than actual 2023. A proven exhaustive exact-version grid may only justify a spatial exclusion when its source semantics warrant one.
+- [ ] Test that the accepted NSRDB `tdy-2023` generalized grid display mask cannot by itself yield `supported` for an unprobed coordinate, that actual 2023 and other unimported selectors stay `unknown` outside exact probes, and that a missing selected year stays `unknown`. A spatial exclusion requires a current, applicable, exhaustive source grid and explicit absence semantics; the occupied 0.25° display cells alone do not establish that. Preserve exact probe evidence separately.
 - [ ] Write failing ranking tests for the three initial purposes, explicit variables/limits, user provider order, deterministic ties, no recommendation when all unknown/excluded and unknown alternatives retained. Example:
 
   ```python
