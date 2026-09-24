@@ -136,14 +136,25 @@ def product_identity(url):
 
 
 GENERIC_NAMES = {
-    'AP', 'AIRPORT', 'AWS', 'INTL', 'INTERNATIONAL', 'STATION', 'MUNI',
-    'MUNICIPAL', 'RGNL', 'REGIONAL', 'COUNTY', 'FIELD', 'FLD',
+    "AP",
+    "AIRPORT",
+    "AWS",
+    "INTL",
+    "INTERNATIONAL",
+    "STATION",
+    "MUNI",
+    "MUNICIPAL",
+    "RGNL",
+    "REGIONAL",
+    "COUNTY",
+    "FIELD",
+    "FLD",
 }
 
 
 def distinctive_name(name):
-    text = unicodedata.normalize('NFKD', name or '').encode('ascii', 'ignore').decode().upper()
-    return [t for t in re.findall('[A-Z]+', text) if t not in GENERIC_NAMES]
+    text = unicodedata.normalize("NFKD", name or "").encode("ascii", "ignore").decode().upper()
+    return [t for t in re.findall("[A-Z]+", text) if t not in GENERIC_NAMES]
 
 
 def name_tokens(name):
@@ -152,41 +163,61 @@ def name_tokens(name):
 
 def name_evidence(product_name, station_name):
     if name_tokens(product_name) & name_tokens(station_name):
-        return 'token_overlap'
+        return "token_overlap"
     left, right = distinctive_name(product_name), distinctive_name(station_name)
     if left and left == right and all(len(t) >= 3 for t in left):
-        return 'exact_short_name'
-    return 'none'
+        return "exact_short_name"
+    return "none"
 
 
 def country_evidence(country, raw_codes):
-    expected = {'USA': 'US', 'GBR': 'UK', 'AUS': 'AS'}.get(country)
+    expected = {"USA": "US", "GBR": "UK", "AUS": "AS"}.get(country)
     if not expected or not raw_codes or any(not c for c in raw_codes):
-        status = 'ambiguous'
-    elif country == 'AUS' and 'AU' in raw_codes:
-        status = 'ambiguous'
+        status = "ambiguous"
+    elif country == "AUS" and "AU" in raw_codes:
+        status = "ambiguous"
     elif all(c == expected for c in raw_codes):
-        status = 'consistent'
+        status = "consistent"
     else:
-        status = 'conflicting'
-    return {'raw_codes': sorted(set(raw_codes), key=lambda c: str(c)),
-            'expected_code': expected, 'status': status}
+        status = "conflicting"
+    return {
+        "raw_codes": sorted(set(raw_codes), key=lambda c: str(c)),
+        "expected_code": expected,
+        "status": status,
+    }
 
 
 def coordinate_consensus(candidates):
-    ids = sorted({c['id'] for c in candidates})
-    result = dict(lat=None, lon=None, elevation_m=None, position_status='unknown',
-                  station_identity_status='unique_candidate' if len(ids)==1 else 'ambiguous' if ids else 'unknown',
-                  source_station_id=ids[0] if len(ids)==1 else None, source_station_ids=ids)
-    points = [(number(c.get('lat')),number(c.get('lon'))) for c in candidates]
-    if not points or any(lat is None or lon is None or not -90<=lat<=90 or not -180<=lon<=180 for lat,lon in points):
+    ids = sorted({c["id"] for c in candidates})
+    result = dict(
+        lat=None,
+        lon=None,
+        elevation_m=None,
+        position_status="unknown",
+        station_identity_status="unique_candidate"
+        if len(ids) == 1
+        else "ambiguous"
+        if ids
+        else "unknown",
+        source_station_id=ids[0] if len(ids) == 1 else None,
+        source_station_ids=ids,
+    )
+    points = [(number(c.get("lat")), number(c.get("lon"))) for c in candidates]
+    if not points or any(
+        lat is None or lon is None or not -90 <= lat <= 90 or not -180 <= lon <= 180
+        for lat, lon in points
+    ):
         return result
     if len(set(points)) != 1:
         return result
-    result.update(lat=points[0][0],lon=points[0][1],position_status='inferred' if len(ids)==1 else 'consensus')
-    elevations = {number(c.get('elevation_m')) for c in candidates}
-    if len(elevations)==1 and None not in elevations:
-        result['elevation_m'] = next(iter(elevations))
+    result.update(
+        lat=points[0][0],
+        lon=points[0][1],
+        position_status="inferred" if len(ids) == 1 else "consensus",
+    )
+    elevations = {number(c.get("elevation_m")) for c in candidates}
+    if len(elevations) == 1 and None not in elevations:
+        result["elevation_m"] = next(iter(elevations))
     return result
 
 
@@ -212,39 +243,58 @@ def coordinate_matches(urls, history, published):
         )
         published_rows = by_url.get(url, [])
         candidates = []
-        raw_candidates = by_id[product['station_id']] if product else []
-        result['country_evidence'] = country_evidence(
-            product['country'] if product else '', [s.get('country') for s in raw_candidates])
-        result['name_match_method'] = 'none'
+        raw_candidates = by_id[product["station_id"]] if product else []
+        result["country_evidence"] = country_evidence(
+            product["country"] if product else "", [s.get("country") for s in raw_candidates]
+        )
+        result["name_match_method"] = "none"
         if product:
             candidates = [
                 s
                 for s in by_id[product["station_id"]]
-                if country_evidence(product['country'], [s.get('country')])['status'] == 'consistent'
-                and name_evidence(product['name'], s.get('name')) != 'none'
+                if country_evidence(product["country"], [s.get("country")])["status"]
+                == "consistent"
+                and name_evidence(product["name"], s.get("name")) != "none"
             ]
         if candidates:
-            result['name_match_method'] = ('token_overlap' if any(
-                name_evidence(product['name'], s.get('name')) == 'token_overlap' for s in candidates)
-                else 'exact_short_name')
+            result["name_match_method"] = (
+                "token_overlap"
+                if any(
+                    name_evidence(product["name"], s.get("name")) == "token_overlap"
+                    for s in candidates
+                )
+                else "exact_short_name"
+            )
         result["noaa_candidates"] = [
             {k: s.get(k) for k in ("id", "name", "lat", "lon", "elevation_m")} for s in candidates
         ]
         consensus = coordinate_consensus(candidates)
-        result.update({k: consensus[k] for k in ('station_identity_status','source_station_id','source_station_ids')})
-        result['position_status'] = 'unknown'
+        result.update(
+            {
+                k: consensus[k]
+                for k in ("station_identity_status", "source_station_id", "source_station_ids")
+            }
+        )
+        result["position_status"] = "unknown"
         result["published_candidates"] = [
             {k: s.get(k) for k in ("lat", "lon", "elevation_m", "evidence_id")}
             for s in published_rows
         ]
         result["coordinate_disagreement"] = False
+        result["published_elevation_uncertainty"] = False
         if published_rows:
-            points = {(r["lat"], r["lon"], r.get("elevation_m")) for r in published_rows}
+            points = {(r["lat"], r["lon"]) for r in published_rows}
+            elevations = {number(r.get("elevation_m")) for r in published_rows}
+            result["published_elevation_uncertainty"] = len(elevations) != 1 or None in elevations
             result["evidence_ids"] = sorted({r["evidence_id"] for r in published_rows})
             if len(points) == 1:
-                result.update(zip(("lat", "lon", "elevation_m"), next(iter(points))))
+                result.update(zip(("lat", "lon"), next(iter(points))))
+                if not result["published_elevation_uncertainty"]:
+                    result["elevation_m"] = next(iter(elevations))
                 result.update(
-                    coordinate_basis="published_product_index", reason="exact_product_url", position_status='published'
+                    coordinate_basis="published_product_index",
+                    reason="exact_product_url",
+                    position_status="published",
                 )
             else:
                 result["reason"] = "conflicting_published_coordinates"
@@ -260,10 +310,17 @@ def coordinate_matches(urls, history, published):
                     for s in candidates
                     for r in published_rows
                 )
-        elif product and consensus['lat'] is not None:
+        elif product and consensus["lat"] is not None:
             result.update(consensus)
-            result.update(coordinate_basis='station_identifier_and_name' if consensus['position_status']=='inferred' else 'station_coordinate_consensus',
-                          evidence_ids=['noaa-history'], reason='identifier_country_name_coordinate_agreement')
-        result['unresolved_reasons'] = [result['reason']] if result['position_status']=='unknown' else []
+            result.update(
+                coordinate_basis="station_identifier_and_name"
+                if consensus["position_status"] == "inferred"
+                else "station_coordinate_consensus",
+                evidence_ids=["noaa-history"],
+                reason="identifier_country_name_coordinate_agreement",
+            )
+        result["unresolved_reasons"] = (
+            [result["reason"]] if result["position_status"] == "unknown" else []
+        )
         results.append(result)
     return results

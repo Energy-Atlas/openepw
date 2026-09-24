@@ -20,37 +20,83 @@ def coordinate_diagnostics(matches, history):
     """Account for product rows, keeping rejected candidate evidence local."""
     by_id = defaultdict(list)
     for site in history:
-        by_id[site['id'][:6]].append(site)
+        by_id[site["id"][:6]].append(site)
     unknown, reasons, families = [], Counter(), Counter()
-    for row in sorted(matches, key=lambda r: r['url']):
-        product = row.get('product', 'unknown')
-        family = next((f for f in ('US.Normals', 'TMY3', 'TMYx', 'TMY2', 'TMY')
-                       if product == f or product.startswith(f + '.')), product)
+    for row in sorted(matches, key=lambda r: r["url"]):
+        product = row.get("product", "unknown")
+        family = next(
+            (
+                f
+                for f in ("US.Normals", "TMY3", "TMYx", "TMY2", "TMY")
+                if product == f or product.startswith(f + ".")
+            ),
+            product,
+        )
         families[family] += 1
-        if row['coordinate_basis'] != 'unknown':
+        if row["coordinate_basis"] != "unknown":
             continue
-        raw = by_id.get(row.get('station_id'), [])
-        expected = {'USA':'US','GBR':'UK','AUS':'AS'}.get(row.get('country'))
-        if row.get('reason') == 'conflicting_published_coordinates':
-            reason = 'conflicting_published_coordinates'
-        elif not row.get('station_id'):
-            reason = 'unrecognized_product_identifier'
+        raw = by_id.get(row.get("station_id"), [])
+        expected = {"USA": "US", "GBR": "UK", "AUS": "AS"}.get(row.get("country"))
+        if row.get("reason") == "conflicting_published_coordinates":
+            reason = "conflicting_published_coordinates"
+        elif not row.get("station_id"):
+            reason = "unrecognized_product_identifier"
         elif not raw:
-            reason = 'no_coordinate_bearing_identifier'
-        elif not any(s.get('country') == expected for s in raw):
-            reason = 'country_code_ambiguous_or_conflicting'
-        elif not row.get('noaa_candidates'):
-            reason = 'name_not_corroborated'
+            reason = "no_coordinate_bearing_identifier"
+        elif not any(s.get("country") == expected for s in raw):
+            reason = "country_code_ambiguous_or_conflicting"
+        elif not row.get("noaa_candidates"):
+            reason = "name_not_corroborated"
         else:
-            reason = 'ambiguous_station_identity'
+            reason = "ambiguous_station_identity"
         reasons[reason] += 1
-        unknown.append({**row, 'primary_reason':reason, 'unresolved_reasons':[reason],
-                        'identifier_candidates':raw})
-    return {'product_count':len(matches),
-            'coordinate_counts':dict(sorted(Counter(r['coordinate_basis'] for r in matches).items())),
-            'unresolved_reason_counts':dict(sorted(reasons.items())),
-            'product_family_counts':dict(sorted(families.items())),
-            'unresolved_products':unknown}
+        unknown.append(
+            {
+                **row,
+                "primary_reason": reason,
+                "unresolved_reasons": [reason],
+                "identifier_candidates": raw,
+            }
+        )
+    return {
+        "product_count": len(matches),
+        "coordinate_counts": dict(sorted(Counter(r["coordinate_basis"] for r in matches).items())),
+        "unresolved_reason_counts": dict(sorted(reasons.items())),
+        "product_family_counts": dict(sorted(families.items())),
+        "unresolved_products": unknown,
+    }
+
+
+def coordinate_transitions(before, after):
+    def indexed(rows):
+        output = {}
+        for row in rows:
+            if row["url"] in output and output[row["url"]] != row:
+                raise ValueError("Conflicting product records")
+            output[row["url"]] = row
+        return output
+
+    old, new = indexed(before), indexed(after)
+    counts, changes = Counter(), []
+    for url in sorted(old.keys() & new.keys()):
+        previous, current = old[url]["coordinate_basis"], new[url]["coordinate_basis"]
+        counts[f"{previous} -> {current}"] += 1
+        if previous != current:
+            changes.append(
+                {
+                    "url": url,
+                    "previous_basis": previous,
+                    "current_basis": current,
+                    "previous_reason": old[url].get("reason"),
+                    "current_reason": new[url].get("reason"),
+                }
+            )
+    return {
+        "counts": dict(sorted(counts.items())),
+        "changes": changes,
+        "added": sorted(new.keys() - old.keys()),
+        "removed": sorted(old.keys() - new.keys()),
+    }
 
 
 def date(value):
@@ -426,6 +472,23 @@ def analyze(root):
                     if m["source_id"]
                 }
     published = [row for inv in result["inventories"].values() for row in inv.get("rows", [])]
+    baseline, baseline_sha = {}, None
+    baseline_path = root / "coordinate-baseline.json"
+    if baseline_path.exists():
+        try:
+            raw_baseline = baseline_path.read_bytes()
+            baseline_sha = hashlib.sha256(raw_baseline).hexdigest()
+            data = json.loads(raw_baseline)
+            current_checksums = {
+                r["id"]: r.get("sha256") for r in ledger["records"] if r["outcome"] == "saved"
+            }
+            if any(current_checksums.get(k) != v for k, v in data["source_checksums"].items()):
+                raise ValueError("Baseline source mismatch")
+            baseline = data["catalogs"]
+        except (ValueError, KeyError, TypeError):
+            result["errors"].append(
+                {"id": "coordinate-baseline", "outcome": "parse_or_checksum_failure"}
+            )
     for key in ("onebuilding-us", "onebuilding-uk", "onebuilding-au"):
         inventory = result["inventories"].get(key)
         if not inventory:
@@ -434,9 +497,34 @@ def analyze(root):
             [u for u in inventory["links"] if u.endswith(".zip")], history, published
         )
         inventory["coordinate_matches"] = matches
+        inventory.update(coordinate_diagnostics(matches, history))
+        if key in baseline:
+            try:
+                transitions = coordinate_transitions(baseline[key], matches)
+                inventory["coordinate_transition_details"] = transitions
+                inventory["coordinate_transition_counts"] = transitions["counts"]
+                inventory["added_product_count"] = len(transitions["added"])
+                inventory["removed_product_count"] = len(transitions["removed"])
+                inventory["coordinate_baseline_sha256"] = baseline_sha
+            except (ValueError, KeyError, TypeError):
+                result["errors"].append({"id": key, "outcome": "coordinate_baseline_conflict"})
+        # Primary reasons partition unresolved products; full candidates remain local.
+        inventory["unresolved_examples"] = []
+        for reason in inventory["unresolved_reason_counts"]:
+            inventory["unresolved_examples"].extend(
+                {k: r.get(k) for k in ("url", "name", "station_id", "product", "primary_reason")}
+                for r in [
+                    r for r in inventory["unresolved_products"] if r["primary_reason"] == reason
+                ][:2]
+            )
         inventory["coordinate_counts"] = {
             basis: sum(m["coordinate_basis"] == basis for m in matches)
-            for basis in ("published_product_index", "station_identifier_and_name", "station_coordinate_consensus", "unknown")
+            for basis in (
+                "published_product_index",
+                "station_identifier_and_name",
+                "station_coordinate_consensus",
+                "unknown",
+            )
         }
         inventory["products_with_coordinate_disagreement"] = sum(
             m["coordinate_disagreement"] for m in matches
@@ -484,6 +572,8 @@ def report(root):
                     "station_years",
                     "rows",
                     "coordinate_matches",
+                    "unresolved_products",
+                    "coordinate_transition_details",
                 )
             }
             for key, value in result["inventories"].items()

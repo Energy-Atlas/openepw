@@ -205,7 +205,11 @@ class Collector:
             count = sum(
                 len(r["hops"]) for r in self.ledger["records"] if r["provider"] == "onebuilding"
             )
-            if count >= self.onebuilding_request_limit(request) or request.depth > 2 or p.path.lower().endswith(".zip"):
+            if (
+                count >= self.onebuilding_request_limit(request)
+                or request.depth > 2
+                or p.path.lower().endswith(".zip")
+            ):
                 return self.finish(record, "provider_limit")
         if request.kind == "probe":
             caps = {"openmeteo": 3, "pvgis": 2, "noaa": 2, "nsrdb": 3}
@@ -248,13 +252,18 @@ class Collector:
     @staticmethod
     def onebuilding_request_limit(request):
         approved = {
-            'onebuilding-au-coordinate-xlsx':'Region5_Southwest_Pacific_TMYx',
-            'onebuilding-normals-coordinate-xlsx':'Normals',
-            'onebuilding-tmy3-coordinate-xlsx':'TMY3a',
+            "onebuilding-au-coordinate-xlsx": "Region5_Southwest_Pacific_TMYx",
+            "onebuilding-normals-coordinate-xlsx": "Normals",
+            "onebuilding-tmy3-coordinate-xlsx": "TMY3a",
         }
         filename = approved.get(request.id)
-        if (request.provider=='onebuilding' and request.kind=='inventory' and filename
-            and request.url==f'https://climate.onebuilding.org/sources/{filename}_EPW_Processing_locations.xlsx'):
+        if (
+            request.provider == "onebuilding"
+            and request.kind == "inventory"
+            and filename
+            and request.url
+            == f"https://climate.onebuilding.org/sources/{filename}_EPW_Processing_locations.xlsx"
+        ):
             return 15
         return 12
 
@@ -308,13 +317,9 @@ class Collector:
             if self.ledger["counts"][category] >= ceiling:
                 self.finish(record, "request_budget")
                 return
-            if (
-                request.provider == "onebuilding"
-                and sum(
-                    len(r["hops"]) for r in self.ledger["records"] if r["provider"] == "onebuilding"
-                )
-                >= self.onebuilding_request_limit(request)
-            ):
+            if request.provider == "onebuilding" and sum(
+                len(r["hops"]) for r in self.ledger["records"] if r["provider"] == "onebuilding"
+            ) >= self.onebuilding_request_limit(request):
                 self.finish(record, "provider_limit")
                 return
             host = urlsplit(url).hostname
