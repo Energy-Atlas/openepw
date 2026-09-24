@@ -13,6 +13,7 @@ from urllib.parse import urljoin, urlsplit
 from .archives import directory_location, member_names, membership_summary, site_years
 from .collector import atomic_json
 from .coordinates import coordinate_matches, spreadsheet_rows
+from .reviews import annotate, load_registry
 from .sources import LOCATIONS, PROVIDERS, VARIABLES
 
 
@@ -496,6 +497,25 @@ def analyze(root):
         matches = coordinate_matches(
             [u for u in inventory["links"] if u.endswith(".zip")], history, published
         )
+        matches = annotate(
+            matches,
+            published,
+            {
+                r["id"]: r.get("sha256")
+                for r in ledger["records"]
+                if r["outcome"] == "saved" and r["id"] in result["inventories"]
+            },
+            load_registry(),
+        )
+        inventory["accepted_review_counts"] = dict(
+            sorted(Counter(m["review"]["status"] for m in matches if "review" in m).items())
+        )
+        inventory["accepted_review_examples"] = []
+        for status in inventory["accepted_review_counts"]:
+            inventory["accepted_review_examples"].extend(
+                {"url": m["url"], "review": m["review"]}
+                for m in [m for m in matches if m.get("review", {}).get("status") == status][:2]
+            )
         inventory["coordinate_matches"] = matches
         inventory.update(coordinate_diagnostics(matches, history))
         if key in baseline:
