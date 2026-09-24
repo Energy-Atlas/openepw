@@ -173,20 +173,24 @@
   }
   function selectNsrdbMasks(keys) {
     const found = keys.map(key => masks[key]).filter(mask => mask && !mask.stale);
-    if (!found.length) return {full:[],partial:[],step:0.25,meta:null,missing:keys.length};
+    const empty = {full:[],partial:[],step:0.25,meta:null,sources:[],cellSources:{},missing:keys.length};
+    if (!found.length) return empty;
     if (new Set(found.map(mask => mask.step_degrees)).size !== 1)
-      return {full:[],partial:[],step:0.25,meta:null,missing:keys.length};
+      return empty;
     const sets = found.map(mask => new Set(mask.cells.map(cell => cell.join(','))));
     const union = new Set(sets.flatMap(set => [...set]));
     const common = found.length === keys.length ? [...sets[0]].filter(cell => sets.every(set => set.has(cell))) : [];
     const commonSet = new Set(common);
     const unpack = values => values.map(cell => cell.split(',').map(Number));
+    const cellSources = Object.fromEntries([...union].map(cell =>
+      [cell, found.filter((_,index) => sets[index].has(cell))]));
     return {full:unpack(common),partial:unpack([...union].filter(cell => !commonSet.has(cell))),
-      step:found[0].step_degrees,meta:found[0],missing:keys.length-found.length};
+      step:found[0].step_degrees,meta:found[0],sources:found,cellSources,
+      missing:keys.length-found.length};
   }
   function selectData() {
     const key = source.value, years = selectedYears();
-    visible = []; coverage = {full:[],partial:[],step:0.25,meta:null};
+    visible = []; coverage = {full:[],partial:[],step:0.25,meta:null,sources:[],cellSources:{}};
     if (key === 'noaa') {
       if (!years || years[0]<1930 || years[1]>2025) return ['Choose an inclusive range from 1930 to 2025.', ''];
       visible = noaa.filter(s => allListed(s,years));
@@ -212,7 +216,7 @@
       coverage = selectNsrdbMasks(selected.map(year => 'actual:'+year));
       const count = coverage.full.length, partial = coverage.partial.length;
       return [`NSRDB aggregate v4, actual ${years[0]}–${years[1]}: ${count.toLocaleString()} all-year grid display cells${partial?` · ${partial.toLocaleString()} some-year cells`:''}; ${visible.length} catalog-confirmed points.`,
-        coverage.meta ? `NLR source grid sites; ${coverage.step}° display cells. ${coverage.missing} selected year(s) lack grid metadata. File ${coverage.meta.source_file_id}; internal model ${coverage.meta.source_version}; modified ${coverage.meta.source_modified_at}; evidence ${coverage.meta.meta_sha256.slice(0,12)}. Grid presence is not API eligibility or complete weather.` :
+        coverage.sources.length ? `NLR source grid sites; ${coverage.step}° display cells. ${coverage.missing} selected year(s) lack grid metadata. Sources: ${coverage.sources.map(item => `${item.selector} · ${item.source_file_id} · internal ${item.source_version} · evidence ${item.meta_sha256.slice(0,12)}`).join('; ')}. Some-year cells are outlined with a diagonal. Grid presence is not API eligibility or complete weather.` :
         'NLR documents GOES east/west coverage, but an exact regional layer for this selected interval is unresolved. Ithaca/Phoenix point catalogs are separate confirmations.'];
     }
     if (key === 'nsrdb-published') {
@@ -266,7 +270,16 @@
         const lat=-90+(cell[0]+0.5)*coverage.step, lon=-180+(cell[1]+0.5)*coverage.step;
         const xy=projection([lon,lat]);if (!xy) continue;
         context.fillRect(xy[0]-cellSize/2,xy[1]-cellSize/2,cellSize,cellSize);
-        projectedCoverage.push({x:xy[0],y:xy[1],partial:cells===coverage.partial});
+        if (cells===coverage.partial) {
+          context.globalAlpha=0.85;context.strokeStyle=paint.caution;
+          context.lineWidth=Math.max(0.5,0.8/transform.k);
+          context.strokeRect(xy[0]-cellSize/2,xy[1]-cellSize/2,cellSize,cellSize);
+          context.beginPath();context.moveTo(xy[0]-cellSize/2,xy[1]+cellSize/2);
+          context.lineTo(xy[0]+cellSize/2,xy[1]-cellSize/2);context.stroke();
+          context.globalAlpha=opacity;
+        }
+        projectedCoverage.push({x:xy[0],y:xy[1],partial:cells===coverage.partial,
+          contributors:coverage.cellSources[cell.join(',')] || []});
       }
     }
     context.globalAlpha = 1; context.strokeStyle = paint.border; context.lineWidth = 0.65/transform.k; context.stroke();
@@ -306,14 +319,16 @@
       const dx=transform.applyX(item.x)-x, dy=transform.applyY(item.y)-y, distance=dx*dx+dy*dy;
       if (distance<best) {best=distance;nearest=item.point;}
     }
-    if (!nearest && coverage.meta) {
+    if (!nearest && coverage.sources.length) {
       let cellNearby=false,bestCell=100;
       for (const item of projectedCoverage) {
         const dx=transform.applyX(item.x)-x,dy=transform.applyY(item.y)-y,d=dx*dx+dy*dy;
         if (d<bestCell) {bestCell=d;cellNearby=item;}
       }
       if (cellNearby) {
-        detail.textContent=`${coverage.meta.product_id} · ${coverage.meta.selector} · ${cellNearby.partial?'some selected years':'selected product'} source grid display cell · ${coverage.meta.source_file_id} · evidence ${coverage.meta.meta_sha256.slice(0,12)} · ${coverage.step}° summary, not a weather-quality check`;
+        const attribution=cellNearby.contributors.map(item =>
+          `${item.selector} · ${item.source_file_id} · evidence ${item.meta_sha256.slice(0,12)}`).join('; ');
+        detail.textContent=`${cellNearby.partial?'Some selected years':'Selected product'} source grid display cell · ${attribution} · ${coverage.step}° summary, not a weather-quality check`;
         detail.hidden=false;return;
       }
     }

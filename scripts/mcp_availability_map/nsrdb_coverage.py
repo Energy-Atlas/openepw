@@ -15,6 +15,9 @@ from pathlib import Path
 
 AGGREGATE_ID = "nsrdb-GOES-aggregated-v4-0-0"
 TMY_ID = "nsrdb-GOES-tmy-v4-0-0"
+REVIEWED_SOURCE = (TMY_ID, "published_name", "tdy-2023")
+REVIEWED_OBJECT_KEY = "GOES/tmy/v4.0.0/nsrdb_tdy-2023.h5"
+REVIEWED_MODEL_VERSION = "4.0.1"
 
 
 @dataclass(frozen=True)
@@ -28,6 +31,7 @@ class CoverageEntry:
     retrieved_at: str
     source_modified_at: str
     object_etag: str
+    object_size: int
     meta_sha256: str
     mask_sha256: str
     coordinate_count: int
@@ -106,16 +110,15 @@ def load_coverage_manifest(path: Path) -> CoverageManifest:
         product = row.get("product_id")
         kind = row.get("selector_kind")
         selector = row.get("selector")
-        if product == AGGREGATE_ID:
-            valid = kind == "actual_year" and isinstance(selector, str) and re.fullmatch(r"\d{4}", selector)
-        elif product == TMY_ID:
-            valid = kind == "published_name" and isinstance(selector, str) and re.fullmatch(
-                r"(?:tmy|tdy|tgy)-\d{4}", selector
-            )
-        else:
-            valid = False
-        if not valid:
-            raise ValueError("invalid product selector")
+        if (product, kind, selector) != REVIEWED_SOURCE:
+            raise ValueError("unreviewed product selector")
+        if (row.get("source_file_id") != REVIEWED_OBJECT_KEY
+                or row.get("source_version") != REVIEWED_MODEL_VERSION):
+            raise ValueError("source object disagrees with reviewed selector")
+        if not isinstance(row.get("object_etag"), str) or not row["object_etag"]:
+            raise ValueError("missing source ETag")
+        if not isinstance(row.get("object_size"), int) or row["object_size"] <= 0:
+            raise ValueError("invalid source object size")
         identity = (product, kind, selector)
         if identity in identities:
             raise ValueError("duplicate product selector")
@@ -136,6 +139,7 @@ def load_coverage_manifest(path: Path) -> CoverageManifest:
                 retrieved_at=row["retrieved_at"],
                 source_modified_at=row["source_modified_at"],
                 object_etag=row["object_etag"],
+                object_size=row["object_size"],
                 meta_sha256=row["meta_sha256"],
                 mask_sha256=row["mask_sha256"],
                 coordinate_count=row["coordinate_count"],

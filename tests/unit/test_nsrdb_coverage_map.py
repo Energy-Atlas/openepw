@@ -6,6 +6,7 @@ import hashlib
 import io
 import json
 import re
+from dataclasses import replace
 
 import h5py
 import numpy as np
@@ -17,7 +18,9 @@ from scripts.mcp_availability_map.build import build_map
 from scripts.mcp_availability_map.build import main as build_main
 from scripts.mcp_availability_map.nsrdb_coverage import (
     AGGREGATE_ID,
+    REVIEWED_OBJECT_KEY,
     TMY_ID,
+    CoverageManifest,
     classify_coverage,
     load_coverage_manifest,
     load_point_catalogs,
@@ -34,7 +37,7 @@ def _manifest(tmp_path, specs):
         entries.append(
             {
                 "product_id": product,
-                "source_file_id": f"GOES/{'tmy' if product == TMY_ID else 'aggregated'}/v4.0.0/example.h5",
+                "source_file_id": REVIEWED_OBJECT_KEY,
                 "source_version": "4.0.1",
                 "selector_kind": kind,
                 "selector": selector,
@@ -42,7 +45,8 @@ def _manifest(tmp_path, specs):
                 "retrieved_at": "2026-09-24T12:00:00Z",
                 "source_modified_at": "2024-09-16T20:14:37Z",
                 "object_etag": '"example-2"',
-                "meta_sha256": "a" * 64,
+                "object_size": 123,
+                "meta_sha256": hashlib.sha256(b"synthetic meta").hexdigest(),
                 "mask_sha256": hashlib.sha256(raw).hexdigest(),
                 "mask_path": name,
                 "coordinate_count": 100,
@@ -53,18 +57,21 @@ def _manifest(tmp_path, specs):
         )
     path = tmp_path / "manifest.json"
     path.write_text(json.dumps({"schema_version": 1, "entries": entries}), encoding="utf-8")
+    (tmp_path / "meta.bin").write_bytes(b"synthetic meta")
     return path
 
 
 def test_actual_year_interval_separates_all_and_some_years(tmp_path):
-    path = _manifest(
-        tmp_path,
-        [
-            (AGGREGATE_ID, "actual_year", "2023", [[1, 1], [2, 2]], False),
-            (AGGREGATE_ID, "actual_year", "2024", [[2, 2], [3, 3]], False),
-        ],
-    )
-    result = classify_coverage(AGGREGATE_ID, ("2023", "2024"), load_coverage_manifest(path))
+    base = load_coverage_manifest(_manifest(
+        tmp_path, [(TMY_ID, "published_name", "tdy-2023", [[1, 1]], False)]
+    )).entries[0]
+    manifest = CoverageManifest((
+        replace(base, product_id=AGGREGATE_ID, selector_kind="actual_year", selector="2023",
+                cells=frozenset({(1, 1), (2, 2)})),
+        replace(base, product_id=AGGREGATE_ID, selector_kind="actual_year", selector="2024",
+                cells=frozenset({(2, 2), (3, 3)})),
+    ))
+    result = classify_coverage(AGGREGATE_ID, ("2023", "2024"), manifest)
     assert result.selector_kind == "actual_year"
     assert result.confirmed_all == frozenset({(2, 2)})
     assert result.confirmed_some == frozenset({(1, 1), (3, 3)})
@@ -72,10 +79,12 @@ def test_actual_year_interval_separates_all_and_some_years(tmp_path):
 
 
 def test_missing_year_does_not_shade_all_years(tmp_path):
-    path = _manifest(
-        tmp_path, [(AGGREGATE_ID, "actual_year", "2023", [[1, 1]], False)]
-    )
-    result = classify_coverage(AGGREGATE_ID, ("2023", "2024"), load_coverage_manifest(path))
+    base = load_coverage_manifest(_manifest(
+        tmp_path, [(TMY_ID, "published_name", "tdy-2023", [[1, 1]], False)]
+    )).entries[0]
+    manifest = CoverageManifest((replace(base, product_id=AGGREGATE_ID,
+                                         selector_kind="actual_year", selector="2023"),))
+    result = classify_coverage(AGGREGATE_ID, ("2023", "2024"), manifest)
     assert result.confirmed_all == frozenset()
     assert result.confirmed_some == frozenset({(1, 1)})
     assert result.unknown is True
@@ -115,6 +124,38 @@ def test_mask_checksum_and_path_are_validated(tmp_path):
     path.write_text(json.dumps(document), encoding="utf-8")
     with pytest.raises(ValueError, match="mask path"):
         load_coverage_manifest(path)
+
+
+def test_manifest_requires_reviewed_source_identity(tmp_path):
+    path = _manifest(tmp_path, [(TMY_ID, "published_name", "tdy-2023", [[10, 20]], False)])
+    document = json.loads(path.read_text(encoding="utf-8"))
+    document["entries"][0]["source_file_id"] = "GOES/tmy/v4.0.0/nsrdb_tgy-2023.h5"
+    path.write_text(json.dumps(document), encoding="utf-8")
+    with pytest.raises(ValueError, match="source object"):
+        load_coverage_manifest(path)
+    document["entries"][0]["source_file_id"] = REVIEWED_OBJECT_KEY
+    document["entries"][0]["source_version"] = "4.0.0"
+    path.write_text(json.dumps(document), encoding="utf-8")
+    with pytest.raises(ValueError, match="source object"):
+        load_coverage_manifest(path)
+    document["entries"][0]["source_version"] = "4.0.1"
+    document["entries"][0]["selector"] = "tgy-2023"
+    path.write_text(json.dumps(document), encoding="utf-8")
+    with pytest.raises(ValueError, match="unreviewed"):
+        load_coverage_manifest(path)
+
+
+def test_build_map_requires_source_metadata_bytes(tmp_path):
+    snapshot = _map_snapshot(tmp_path)
+    footprint_root = tmp_path / "footprints" / TMY_ID / "tdy-2023"
+    footprint_root.mkdir(parents=True)
+    _manifest(footprint_root, [(TMY_ID, "published_name", "tdy-2023", [[529, 414]], False)])
+    (footprint_root / "meta.bin").unlink()
+    topology = tmp_path / "world.json"
+    topology.write_text('{"type":"Topology","objects":{"countries":{}},"arcs":[]}',
+                        encoding="utf-8")
+    with pytest.raises(ValueError, match="source meta bytes missing"):
+        build_map(snapshot, tmp_path / "output", footprint_root.parent.parent, topology)
 
 
 def test_occupied_cells_preserves_holes_and_dateline():
@@ -233,6 +274,10 @@ def test_acquire_meta_rejects_bad_source_or_coordinates(tmp_path):
         source_spec(TMY_ID, "2023")
     with pytest.raises(ValueError, match="selector"):
         source_spec(AGGREGATE_ID, "../2023")
+    with pytest.raises(ValueError, match="selector"):
+        source_spec(AGGREGATE_ID, "2023")
+    with pytest.raises(ValueError, match="selector"):
+        source_spec(TMY_ID, "tgy-2023")
     for points, expected in [
         ([(42.44, -76.5), (42.44, -76.5)], "duplicate"),
         ([(float("nan"), -76.5)], "coordinate"),
@@ -292,6 +337,7 @@ def test_build_map_embeds_exact_nsrdb_evidence_without_credentials(tmp_path):
     html = html_path.read_text(encoding="utf-8")
     encoded = re.search(r'<script type="text/plain" id="oepw-payload">([^<]+)</script>', html)
     assert encoded
+    assert int.from_bytes(base64.b64decode(encoded.group(1))[4:8], "little") == 0
     payload = json.loads(gzip.decompress(base64.b64decode(encoded.group(1))))
     assert payload["nsrdb"]["points"] == [
         ["Ithaca", 42440, -76500, ["2023", "2024"], ["tdy-2023"]],

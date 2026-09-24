@@ -8,7 +8,6 @@ import io
 import json
 import math
 import os
-import re
 import tempfile
 import urllib.error
 import urllib.request
@@ -20,7 +19,12 @@ from typing import BinaryIO, Protocol
 import h5py
 import numpy as np
 
-from .nsrdb_coverage import AGGREGATE_ID, TMY_ID, load_coverage_manifest
+from .nsrdb_coverage import (
+    REVIEWED_MODEL_VERSION,
+    REVIEWED_OBJECT_KEY,
+    TMY_ID,
+    load_coverage_manifest,
+)
 
 BUCKET = "https://nrel-pds-nsrdb.s3.us-west-2.amazonaws.com/"
 DEFAULT_MAX_BYTES = 256 * 1024 * 1024
@@ -40,15 +44,9 @@ class SourceSpec:
 
 
 def source_spec(product_id: str, selector: str) -> SourceSpec:
-    """Resolve only the two supported API products to their v4 bulk domains."""
-    if product_id == AGGREGATE_ID and re.fullmatch(r"(?:19\d{2}|20\d{2})", selector):
-        year = int(selector)
-        if 1998 <= year <= 2025:
-            return SourceSpec(product_id, "actual_year", selector,
-                              f"GOES/aggregated/v4.0.0/nsrdb_{selector}.h5")
-    if product_id == TMY_ID and re.fullmatch(r"(?:tmy|tdy|tgy)-20\d{2}", selector):
-        return SourceSpec(product_id, "published_name", selector,
-                          f"GOES/tmy/v4.0.0/nsrdb_{selector}.h5")
+    """Resolve only the reviewed API/selector/object correspondence."""
+    if product_id == TMY_ID and selector == "tdy-2023":
+        return SourceSpec(product_id, "published_name", selector, REVIEWED_OBJECT_KEY)
     raise ValueError("unsupported NSRDB product selector")
 
 
@@ -266,8 +264,8 @@ def acquire_meta(
     reader = _RangeReader(transport, spec, size, etag, budget, block_bytes)
     with h5py.File(reader, "r") as source:
         model_version = str(source.attrs["version"])
-        if not re.fullmatch(r"4\.0\.\d+", model_version):
-            raise ValueError("source model version disagrees with v4 domain")
+        if model_version != REVIEWED_MODEL_VERSION:
+            raise ValueError("source model version disagrees with reviewed object")
         meta = source["meta"]
         if meta.ndim != 1 or meta.chunks is not None or meta.id.get_offset() is None:
             raise ValueError("unsupported source meta layout")
@@ -329,8 +327,8 @@ def acquire_meta(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("product_id", choices=[AGGREGATE_ID, TMY_ID])
-    parser.add_argument("selector", help="Actual year or concrete TMY/TDY/TGY published name")
+    parser.add_argument("product_id", choices=[TMY_ID])
+    parser.add_argument("selector", help="Reviewed native selector (currently tdy-2023)")
     parser.add_argument("--output-root", type=Path, default=Path(".local/mcp-availability/nsrdb-footprints"))
     args = parser.parse_args()
     if not args.output_root.resolve().is_relative_to((Path.cwd() / ".local").resolve()):

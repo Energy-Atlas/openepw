@@ -71,10 +71,11 @@ def _masks(footprints_root: Path) -> dict[str, dict[str, object]]:
             if key in result:
                 raise ValueError("duplicate NSRDB footprint selector")
             meta_path = manifest_path.parent / "meta.bin"
-            if meta_path.exists():
-                digest = hashlib.sha256(meta_path.read_bytes()).hexdigest()
-                if digest != entry.meta_sha256:
-                    raise ValueError("source meta checksum mismatch")
+            if not meta_path.exists():
+                raise ValueError("source meta bytes missing")
+            digest = hashlib.sha256(meta_path.read_bytes()).hexdigest()
+            if digest != entry.meta_sha256:
+                raise ValueError("source meta checksum mismatch")
             result[key] = {
                 "cells": [list(cell) for cell in sorted(entry.cells)],
                 "step_degrees": entry.step_degrees,
@@ -82,6 +83,8 @@ def _masks(footprints_root: Path) -> dict[str, dict[str, object]]:
                 "product_id": entry.product_id,
                 "source_file_id": entry.source_file_id,
                 "source_version": entry.source_version,
+                "object_etag": entry.object_etag,
+                "object_size": entry.object_size,
                 "selector_kind": entry.selector_kind,
                 "selector": entry.selector,
                 "retrieved_at": entry.retrieved_at,
@@ -180,7 +183,7 @@ def build_map(
     template = (Path(__file__).parent / "map.html").read_text(encoding="utf-8")
     encoded = base64.b64encode(gzip.compress(json.dumps(
         payload, separators=(",", ":"), ensure_ascii=False
-    ).encode("utf-8"), compresslevel=9)).decode("ascii")
+    ).encode("utf-8"), compresslevel=9, mtime=0)).decode("ascii")
     html = template.replace("__TOPOLOGY__", json.dumps(topology, separators=(",", ":")))
     html = html.replace("__PAYLOAD__", encoded)
     if "__TOPOLOGY__" in html or "__PAYLOAD__" in html:
