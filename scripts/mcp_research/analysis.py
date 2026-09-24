@@ -9,8 +9,9 @@ import re
 from html.parser import HTMLParser
 from urllib.parse import urljoin, urlsplit
 
-from .archives import directory_location, member_names, site_years
+from .archives import directory_location, member_names, membership_summary, site_years
 from .collector import atomic_json
+from .coordinates import coordinate_matches, spreadsheet_rows
 from .sources import LOCATIONS, PROVIDERS, VARIABLES
 
 
@@ -37,6 +38,7 @@ def station_history(raw):
             {
                 "id": r["USAF"] + r["WBAN"],
                 "name": r.get("STATION NAME"),
+                "country": r.get("CTRY"),
                 "lat": lat,
                 "lon": lon,
                 "elevation_m": number(r.get("ELEV(M)")),
@@ -268,6 +270,14 @@ def analyze(root):
                     "site_years": membership,
                     "completeness": "unknown",
                     "meaning": "Archive-listed membership only; no EPW content retrieved",
+                    **membership_summary(
+                        names,
+                        {
+                            s["id"]
+                            for s in result["inventories"].get("oedi-sites", {}).get("sites", [])
+                        },
+                        "RCP4.5" if r["archive"] == "rcp45" else "RCP8.5",
+                    ),
                 }
             elif r["provider"] == "oedi" and r["id"].endswith("-tail"):
                 total = int(r["headers"]["content-range"].split("/")[-1])
@@ -276,6 +286,8 @@ def analyze(root):
                     "archive_bytes": total,
                     "membership": "unknown until complete directory parsed",
                 }
+            elif r["provider"] == "onebuilding" and r["url"].endswith(".xlsx"):
+                result["inventories"][r["id"]] = spreadsheet_rows(raw, r["id"])
             elif r["provider"] == "onebuilding":
                 urls = links(raw, r["url"])
                 result["inventories"][r["id"]] = {
@@ -375,6 +387,42 @@ def analyze(root):
                     for m in result.get("batch_example", {}).get("mappings", [])
                     if m["source_id"]
                 }
+    published = [row for inv in result["inventories"].values() for row in inv.get("rows", [])]
+    for key in ("onebuilding-us", "onebuilding-uk", "onebuilding-au"):
+        inventory = result["inventories"].get(key)
+        if not inventory:
+            continue
+        matches = coordinate_matches(
+            [u for u in inventory["links"] if u.endswith(".zip")], history, published
+        )
+        inventory["coordinate_matches"] = matches
+        inventory["coordinate_counts"] = {
+            basis: sum(m["coordinate_basis"] == basis for m in matches)
+            for basis in ("published_product_index", "station_identifier_and_name", "unknown")
+        }
+        inventory["products_with_coordinate_disagreement"] = sum(
+            m["coordinate_disagreement"] for m in matches
+        )
+        inventory["coordinates"] = (
+            "Per-product published-index or identifier/name/country match; unknowns retained; no EPW header verification"
+        )
+        sample_names = {
+            "onebuilding-us": ("Ithaca", "Phoenix"),
+            "onebuilding-uk": ("London",),
+            "onebuilding-au": ("Sydney",),
+        }
+        inventory["coordinate_examples"] = [
+            next(
+                (
+                    m
+                    for m in matches
+                    if name.lower() in m.get("name", "").lower() and m["lat"] is not None
+                ),
+                None,
+            )
+            for name in sample_names[key]
+        ]
+        inventory["coordinate_examples"] = [m for m in inventory["coordinate_examples"] if m]
     atomic_json(root / "analysis.json", result)
     return result
 
@@ -389,7 +437,16 @@ def report(root):
             key: {
                 k: v
                 for k, v in value.items()
-                if k not in ("sites", "combinations", "links", "site_years", "station_years")
+                if k
+                not in (
+                    "sites",
+                    "combinations",
+                    "links",
+                    "site_years",
+                    "station_years",
+                    "rows",
+                    "coordinate_matches",
+                )
             }
             for key, value in result["inventories"].items()
         },

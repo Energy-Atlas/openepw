@@ -161,6 +161,7 @@ def test_inventory_identifiers_and_periods_do_not_claim_completeness():
         {
             "id": "00123400001",
             "name": "Site",
+            "country": None,
             "lat": 42.0,
             "lon": -76.0,
             "elevation_m": 120.0,
@@ -492,3 +493,171 @@ def test_failed_inventory_analysis_returns_nonzero_status(tmp_path):
     cli = importlib.import_module("probe_mcp_availability")
     for command in ("analyze", "report"):
         assert cli.main([command, "--root", str(tmp_path)]) == 1
+
+
+def test_authorized_oedi_budget_retains_charges_and_survives_resume(tmp_path):
+    m = research()
+    payload = b"x" * 6_740_745
+    transport = httpx.MockTransport(
+        lambda r: httpx.Response(
+            206,
+            content=payload,
+            headers={
+                "Content-Range": "bytes 100-6740844/9000000",
+                "ETag": '"v1"',
+            },
+        )
+    )
+    request = m.Request(
+        "authorized-directory",
+        "oedi",
+        "https://data.openei.org/files/5974/RCP4.5_v1.1.zip",
+        "metadata",
+        "Approved bounded follow-up",
+        archive="rcp45",
+        limit=len(payload),
+        headers={"Range": "bytes=100-6740844", "If-Match": '"v1"'},
+    )
+    with m.Collector(tmp_path, transport=transport, spacing=0) as c:
+        c.ledger["archive_bytes"]["rcp45"] = 5_075_668
+        c.ledger["charged_bytes"] = 5_075_668
+        c.save()
+        assert c.collect(request)["outcome"] == "saved"
+    with m.Collector(tmp_path, transport=transport, spacing=0) as c:
+        assert c.ledger["archive_bytes"]["rcp45"] == 11_816_413
+        assert c.collect(request)["outcome"] == "saved"
+        assert c.ledger["counts"]["metadata"] == 1
+        assert (
+            c.collect(
+                m.Request(
+                    "second-directory",
+                    "oedi",
+                    request.url,
+                    "metadata",
+                    "Must not exceed cumulative allowance",
+                    archive="rcp45",
+                    limit=len(payload),
+                    headers=request.headers,
+                )
+            )["outcome"]
+            == "byte_limit"
+        )
+
+
+def test_onebuilding_matches_require_country_name_and_unambiguous_id():
+    a = importlib.import_module("mcp_research.analysis")
+    assert hasattr(a, "coordinate_matches")
+    url = "https://climate.onebuilding.org/AUS_NSW_Sydney.AP.947670_TMYx.2011-2025.zip"
+    site = dict(id="94767099999", country="AS", name="SYDNEY AIRPORT", lat=-33.9, lon=151.2)
+    result = a.coordinate_matches([url], [site], [])
+    assert result[0]["coordinate_basis"] == "station_identifier_and_name"
+    assert result[0]["period"] == "2011-2025"
+    assert result[0]["epw_coordinates_verified"] is False
+    assert a.coordinate_matches([url], [dict(site, country="US")], [])[0]["lat"] is None
+    assert a.coordinate_matches([url], [dict(site, name="UNRELATED")], [])[0]["lat"] is None
+    other = dict(site, id="94767012345", lat=-35)
+    assert a.coordinate_matches([url], [site, other], [])[0]["coordinate_basis"] == "unknown"
+    assert a.coordinate_matches([url.replace("947670", "123")], [site], [])[0]["lat"] is None
+
+
+def test_onebuilding_published_coordinates_preserve_conflicts():
+    a = importlib.import_module("mcp_research.analysis")
+    assert hasattr(a, "coordinate_matches")
+    url = "https://climate.onebuilding.org/USA_NY_Ithaca.AP.725155_TMYx.zip"
+    row = dict(url=url, lat=42.5, lon=-76.5, elevation_m=100, evidence_id="map")
+    result = a.coordinate_matches([url], [], [row])[0]
+    assert result["coordinate_basis"] == "published_product_index"
+    assert result["evidence_ids"] == ["map"]
+    result = a.coordinate_matches([url], [], [row, dict(row, lat=40)])[0]
+    assert result["coordinate_basis"] == "unknown"
+    assert result["reason"] == "conflicting_published_coordinates"
+
+
+def test_onebuilding_retains_cross_source_coordinate_disagreement():
+    a = importlib.import_module("mcp_research.analysis")
+    url = "https://climate.onebuilding.org/USA_NY_Ithaca.AP.725155_TMYx.zip"
+    published = dict(url=url, lat=42.5, lon=-76.5, elevation_m=100, evidence_id="map")
+    noaa = dict(id="72515594761", country="US", name="ITHACA AIRPORT", lat=43, lon=-77)
+    result = a.coordinate_matches([url], [noaa], [published])[0]
+    assert result["coordinate_disagreement"] is True
+    assert result["noaa_candidates"][0]["lat"] == 43
+    assert result["lat"] == 42.5
+    assert set(result["evidence_ids"]) == {"map", "noaa-history"}
+
+
+@pytest.mark.parametrize("cell", ['<c r="A1" t="inlineStr"/>', '<c r="A1" t="s"><v>-1</v></c>'])
+def test_malformed_coordinate_cells_fail_safely(cell):
+    a = importlib.import_module("mcp_research.coordinates")
+    ns = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        z.writestr(
+            "xl/worksheets/sheet1.xml",
+            f'<worksheet xmlns="{ns}"><sheetData><row>{cell}</row></sheetData></worksheet>',
+        )
+        z.writestr("xl/sharedStrings.xml", f'<sst xmlns="{ns}"><si><t>Country</t></si></sst>')
+    with pytest.raises(ValueError, match="Invalid (inline|shared) string"):
+        a.spreadsheet_rows(buf.getvalue(), "synthetic")
+
+
+def test_oedi_summary_does_not_hide_missing_years_or_unmatched_sites():
+    a = importlib.import_module("mcp_research.archives")
+    assert hasattr(a, "membership_summary")
+    names = [
+        "RCP4.5/",
+        "RCP4.5/G1_RCP4.5_2045_lat1_long2.epw",
+        "RCP4.5/G2_RCP4.5_2046_lat1_long2.epw",
+        "RCP4.5/mystery.epw",
+    ]
+    result = a.membership_summary(names, {"G1"}, "RCP4.5")
+    assert result["sites_with_all_expected_years"] == 0
+    assert result["sites_without_location_record"] == 1
+    assert result["unparsed_epw_members"] == 1
+    assert result["weather_completeness"] == "unknown"
+
+
+def test_coordinate_spreadsheet_preserves_ids_and_rejects_invalid_points():
+    import xml.etree.ElementTree as E
+
+    a = importlib.import_module("mcp_research.coordinates")
+    ns = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+    root = E.Element("worksheet", xmlns=ns)
+    data = E.SubElement(root, "sheetData")
+    header = [
+        "Country",
+        "City/Station",
+        "WMO",
+        "Latitude (N+/S-)",
+        "Longitude (E+/W-)",
+        "Elevation (m)",
+        "URL",
+    ]
+    url = "https://climate.onebuilding.org/GBR_ENG_London.037720_TMYx.zip"
+    for index, values in enumerate(
+        [
+            header,
+            [
+                "GBR",
+                "London",
+                "037720",
+                "51.5",
+                "-0.1",
+                "",
+                "https://climate.onebuilding.org/GBR_ENG_London.037720_TMYx.zip",
+            ],
+            ["GBR", "Bad", "000001", "999", "0", "0", url],
+        ],
+        1,
+    ):
+        row = E.SubElement(data, "row", r=str(index))
+        for col, value in enumerate(values):
+            cell = E.SubElement(row, "c", r=f"{chr(65 + col)}{index}", t="inlineStr")
+            E.SubElement(E.SubElement(cell, "is"), "t").text = value
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        z.writestr("xl/worksheets/sheet1.xml", E.tostring(root))
+    result = a.spreadsheet_rows(buf.getvalue(), "synthetic")
+    assert result["rows"][0]["station_id"] == "037720"
+    assert result["rows"][0]["elevation_m"] is None
+    assert len(result["rows"]) == 1
+    assert result["invalid_rows"] == 1

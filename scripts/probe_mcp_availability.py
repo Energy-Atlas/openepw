@@ -30,7 +30,16 @@ def main(argv=None):
     if args.command == "plan":
         print(
             json.dumps(
-                {"limits": asdict(Limits()), "requests": [r.public() for r in selected]}, indent=2
+                {
+                    "limits": asdict(Limits()),
+                    "approved_exceptions": {
+                        "noaa_isd_inventory_response_bytes": 20_000_000,
+                        "oedi_rcp45_and_rcp85_cumulative_bytes_each": 17_000_000,
+                        "scope": "Exact source URLs only; prior charges and total ceiling retained; see research README",
+                    },
+                    "requests": [r.public() for r in selected],
+                },
+                indent=2,
             )
         )
     elif args.command == "collect":

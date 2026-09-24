@@ -54,3 +54,26 @@ def site_years(names):
         site: {scenario: sorted(years) for scenario, years in scenarios.items()}
         for site, scenarios in sorted(sites.items())
     }
+
+
+def membership_summary(names, location_ids, scenario):
+    membership = site_years(names)
+    expected = set(range(2045, 2055)) | set(range(2085, 2095))
+    epws = [n for n in names if n.lower().endswith(".epw")]
+    parsed = sum(bool(site_years([n])) for n in epws)
+    return {
+        "scenario": scenario,
+        "expected_years": sorted(expected),
+        "epw_member_count": len(epws),
+        "duplicate_member_names": len(names) - len(set(names)),
+        "unparsed_epw_members": len(epws) - parsed,
+        "sites_with_all_expected_years": sum(
+            set(v.get(scenario, [])) == expected for v in membership.values()
+        ),
+        "sites_without_location_record": len(set(membership) - location_ids),
+        "locations_without_members": len(location_ids - set(membership)),
+        "unexpected_scenarios": sorted(
+            {s for v in membership.values() for s in v if s != scenario}
+        ),
+        "weather_completeness": "unknown",
+    }

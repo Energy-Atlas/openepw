@@ -228,7 +228,7 @@ class Collector:
         if request.provider == "cmip6" and p.path == "/cmip6/pangeo-cmip6.csv":
             cap = 100_000_000
         if request.archive:
-            cap = 10_000_000 - self.ledger["archive_bytes"].get(request.archive, 0)
+            cap = self.archive_limit(request) - self.ledger["archive_bytes"].get(request.archive, 0)
         cap = min(cap, request.limit, self.limits.total_bytes - self.ledger["charged_bytes"])
         if cap <= 0:
             return self.finish(record, "byte_budget")
@@ -244,6 +244,17 @@ class Collector:
         record.update(outcome=outcome, finished_at=now())
         self.save()
         return record
+
+    @staticmethod
+    def archive_limit(request):
+        """Owner-approved follow-up only for the two existing scenario archives."""
+        approved = {
+            "rcp45": "https://data.openei.org/files/5974/RCP4.5_v1.1.zip",
+            "rcp85": "https://data.openei.org/files/5974/RCP8.5_v1.1.zip",
+        }
+        if request.provider == "oedi" and approved.get(request.archive) == request.url:
+            return 17_000_000
+        return 10_000_000
 
     async def fetch(self, request, record, cap):
         started = time.monotonic()
@@ -303,7 +314,11 @@ class Collector:
             await asyncio.sleep(wait)
             cap = min(cap, self.limits.total_bytes - self.ledger["charged_bytes"])
             if request.archive:
-                cap = min(cap, 10_000_000 - self.ledger["archive_bytes"].get(request.archive, 0))
+                cap = min(
+                    cap,
+                    self.archive_limit(request)
+                    - self.ledger["archive_bytes"].get(request.archive, 0),
+                )
             if cap <= 0:
                 self.finish(record, "byte_budget")
                 return

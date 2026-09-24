@@ -39,6 +39,17 @@ individual HTTP operations also have a 30-second timeout. Rate limits persist as
 provider blocks, with numeric Retry-After retained when supplied. Exceptions and
 HTTP error bodies are not persisted. Only bounded successful bodies are snapshots.
 
+The owner also approved a 7 MB cumulative extension for each exact OEDI scenario
+archive URL (RCP4.5_v1.1.zip / RCP8.5_v1.1.zip at data.openei.org/files/5974), giving
+17 MB per archive including earlier failed transfers. Other archives keep 10 MB;
+the overall 200 MB limit is unchanged. Revised requests retain If-Match/Range checks.
+
+Coordinate research parses the source's linked XLSX first sheet using the standard
+library with a 40 MB expanded-workbook bound. It never executes formulas or follows
+external relationships. Exact product URL matches use published index coordinates;
+NOAA fallback matches require station identifier, country and name agreement.
+Ambiguities remain unknown. No EPW header verification or place geocoding is implied.
+
 Byte budgets measure application-consumed response bytes, not TCP/TLS overhead or
 transport prefetch. Unknown-length responses exactly at the allowance are rejected
 conservatively rather than reading beyond the cap to distinguish EOF. Interrupted
