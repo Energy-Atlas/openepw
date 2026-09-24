@@ -197,3 +197,5 @@ reuse. The published report contains only aggregate transitions and bounded
 examples. Minor deferred reporting enhancement: primary unresolved reasons are
 classified; lists of independently applicable secondary reasons are not yet
 exhaustive. Full raw candidate evidence remains available locally.
+
+An [individual case review](onebuilding-manual-review.md) subsequently found that all 56 Hawaiian unknown products have exact filenames in published indexes under a different WMO region directory. The automated count above is unchanged; manual metadata correspondence and the five mainland judgments are documented separately.
