@@ -1,10 +1,14 @@
 """Offline contracts for the research-only NSRDB coverage map."""
 
 import hashlib
+import io
 import json
 
+import h5py
+import numpy as np
 import pytest
 
+from scripts.mcp_availability_map.acquire_nsrdb_meta import acquire_meta, source_spec
 from scripts.mcp_availability_map.nsrdb_coverage import (
     AGGREGATE_ID,
     TMY_ID,
@@ -128,3 +132,113 @@ def test_point_catalogs_verify_original_raw_checksums(tmp_path):
     (tmp_path / "raw" / "nsrdb-phoenix.body").write_text("{}", encoding="utf-8")
     with pytest.raises(ValueError, match="raw checksum"):
         load_point_catalogs(tmp_path)
+
+
+class _RangeBody(io.BytesIO):
+    status = 206
+
+
+class _LocalTransport:
+    def __init__(self, path):
+        self.data = path.read_bytes()
+        self.etag = '"source-1"'
+        self.partial = False
+        self.fail = False
+        self.requests = []
+
+    def head(self, url, if_none_match=None):
+        if if_none_match == self.etag:
+            return None
+        return {"size": len(self.data), "etag": self.etag, "modified": "2024-09-16T20:14:37Z"}
+
+    def open_range(self, url, start, end, etag):
+        assert etag == self.etag
+        self.requests.append((start, end))
+        if self.fail:
+            raise OSError("simulated source failure")
+        data = self.data[start : end + 1]
+        if self.partial and len(data) > 100:
+            data = data[:-1]
+        return _RangeBody(data)
+
+
+def _h5_fixture(path, points, version="4.0.1"):
+    dtype = np.dtype([("latitude", "<f4"), ("longitude", "<f4"), ("country", "S4")])
+    rows = np.zeros(len(points), dtype=dtype)
+    for index, (lat, lon) in enumerate(points):
+        rows[index] = (lat, lon, b"USA")
+    with h5py.File(path, "w") as file:
+        file.attrs["version"] = version
+        file.create_dataset("meta", data=rows)
+        file.create_dataset("ghi", data=np.ones((2, len(points)), dtype="u2"))
+    return path
+
+
+def test_acquire_meta_reads_only_grid_metadata_and_pins_source(tmp_path):
+    source = _h5_fixture(tmp_path / "source.h5", [(42.44, -76.5), (33.45, -112.07)])
+    transport = _LocalTransport(source)
+    spec = source_spec(TMY_ID, "tdy-2023")
+    manifest_path = acquire_meta(
+        spec, tmp_path / "output", transport,
+        probes=((42.44, -76.5), (33.45, -112.07)), block_bytes=1024,
+    )
+    manifest = load_coverage_manifest(manifest_path)
+    assert manifest.entries[0].source_version == "4.0.1"
+    assert manifest.entries[0].coordinate_count == 2
+    assert manifest.entries[0].selector == "tdy-2023"
+    assert manifest.entries[0].cells == occupied_cells(
+        [(42.44, -76.5), (33.45, -112.07)], 0.25
+    )
+    assert all((end - start + 1) < len(transport.data) for start, end in transport.requests)
+    assert acquire_meta(spec, tmp_path / "output", transport,
+                        probes=((42.44, -76.5), (33.45, -112.07)), block_bytes=1024) == manifest_path
+
+
+def test_acquire_meta_rejects_partial_or_oversize_transfer(tmp_path):
+    source = _h5_fixture(tmp_path / "source.h5", [(42.44, -76.5)])
+    transport = _LocalTransport(source)
+    spec = source_spec(TMY_ID, "tdy-2023")
+    transport.partial = True
+    with pytest.raises(ValueError, match="incomplete range"):
+        acquire_meta(spec, tmp_path / "partial", transport, probes=((42.44, -76.5),),
+                     block_bytes=1024)
+    transport.partial = False
+    with pytest.raises(ValueError, match="byte cap"):
+        acquire_meta(spec, tmp_path / "oversize", transport, probes=((42.44, -76.5),),
+                     max_bytes=64, block_bytes=1024)
+
+
+def test_acquire_meta_stales_prior_mask_on_changed_object(tmp_path):
+    source = _h5_fixture(tmp_path / "source.h5", [(42.44, -76.5)])
+    transport = _LocalTransport(source)
+    spec = source_spec(TMY_ID, "tdy-2023")
+    path = acquire_meta(spec, tmp_path / "output", transport, probes=((42.44, -76.5),),
+                        block_bytes=1024)
+    transport.etag = '"source-2"'
+    transport.fail = True
+    with pytest.raises(OSError, match="source failure"):
+        acquire_meta(spec, tmp_path / "output", transport, probes=((42.44, -76.5),),
+                     block_bytes=1024)
+    assert load_coverage_manifest(path).entries[0].stale is True
+
+
+def test_acquire_meta_rejects_bad_source_or_coordinates(tmp_path):
+    with pytest.raises(ValueError, match="selector"):
+        source_spec(TMY_ID, "2023")
+    with pytest.raises(ValueError, match="selector"):
+        source_spec(AGGREGATE_ID, "../2023")
+    for points, expected in [
+        ([(42.44, -76.5), (42.44, -76.5)], "duplicate"),
+        ([(float("nan"), -76.5)], "coordinate"),
+    ]:
+        source = _h5_fixture(tmp_path / "source.h5", points)
+        with pytest.raises(ValueError, match=expected):
+            acquire_meta(source_spec(TMY_ID, "tdy-2023"), tmp_path / "output",
+                         _LocalTransport(source), probes=(), block_bytes=1024)
+
+
+def test_acquire_meta_rejects_grid_that_disagrees_with_point_catalog(tmp_path):
+    source = _h5_fixture(tmp_path / "source.h5", [(42.44, -76.5)])
+    with pytest.raises(ValueError, match="point probe"):
+        acquire_meta(source_spec(TMY_ID, "tdy-2023"), tmp_path / "output",
+                     _LocalTransport(source), probes=((0.0, 0.0),), block_bytes=1024)
