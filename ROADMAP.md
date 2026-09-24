@@ -30,9 +30,11 @@ and future scenario/windows, with strategic bounded probes instead of exhaustive
 API queries. Previous successful runs and QC summaries are excluded from this stage.
 
 MCP Stage 1 research completed on 2026-09-23. The
-[findings and evidence](docs/validation/mcp-stage-1/README.md) record 30 metadata
+[findings and evidence](docs/validation/mcp-stage-1/README.md) record 31 metadata
 requests and three targeted probes, reproducible tooling, and precise limitations.
 Stage 2 production catalog integration remains proposed, not implemented.
+An owner-authorized NOAA follow-up retrieved the larger station/month inventory
+in one additional call; its normalized local index is ready for Stage 2 integration.
 
 Future advanced feature: index previous verified runs/artifacts and QC summaries
 to accelerate subsequent matching requests. Existing raw caching and job recovery

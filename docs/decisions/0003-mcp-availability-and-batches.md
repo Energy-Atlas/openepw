@@ -53,6 +53,13 @@ Deliver a provider/product availability matrix, inventory-source register, bound
 probe log, unresolved limitations and proposed local catalog/refresh contract.
 Metadata caching is in scope; advanced reuse of previous weather runs is not.
 
+On 2026-09-23 the owner authorized further investigation of the larger NOAA
+station/year inventory. The follow-up permits a 20 MB response only for the exact
+published ISD inventory endpoint, retaining the 200 MB investigation ceiling and
+all previous charges. One revised download resolved this inventory; monthly
+report counts remain distinct from hourly or variable completeness. See the
+[execution record](../superpowers/plans/2026-09-23-mcp-stage-1.md).
+
 ## Explicitly deferred — previous-run reuse
 
 Previous successful retrievals and QC summaries are NOT inputs to Stage 1's

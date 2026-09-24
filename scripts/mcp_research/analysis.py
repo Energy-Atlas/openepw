@@ -82,6 +82,45 @@ def cmip_intersections(rows):
     return result
 
 
+def station_counts(raw):
+    """NOAA monthly report counts, not distinct hours, variable availability or QC."""
+    months = "JAN FEB MAR APR MAY JUN JUL AUG SEP OCT NOV DEC".split()
+    rows = csv.DictReader(io.StringIO(raw.decode("utf-8-sig")))
+    if not {"USAF", "WBAN", "YEAR", *months} <= set(rows.fieldnames or []):
+        raise ValueError("Missing NOAA inventory fields")
+    index, year_counts = {}, {}
+    count, zero_months = 0, 0
+    for row in rows:
+        if not re.fullmatch(r"[A-Z0-9]{6}", row["USAF"]) or not re.fullmatch(r"\d{5}", row["WBAN"]):
+            raise ValueError("Invalid NOAA station identity")
+        year = str(int(row["YEAR"]))
+        values = [int(row[m]) for m in months]
+        if not 1800 <= int(year) <= 2200 or any(v < 0 for v in values):
+            raise ValueError("Invalid NOAA year/count")
+        station = row["USAF"] + row["WBAN"]
+        years = index.setdefault(station, {})
+        if year in years:
+            if years[year] != values:
+                raise ValueError("Conflicting station/year inventory entries")
+            continue
+        years[year] = values
+        year_counts[year] = year_counts.get(year, 0) + 1
+        count += 1
+        zero_months += sum(v == 0 for v in values)
+    return {
+        "count": count,
+        "station_count": len(index),
+        "station_years": index,
+        "year_counts": dict(sorted(year_counts.items())),
+        "months": months,
+        "zero_report_months": zero_months,
+        "hourly_completeness": "unknown",
+        "variable_completeness": "unknown",
+        "evidence_basis": "inventory",
+        "meaning": "Counts of reports, not distinct valid hours; zero or absent entries are not proof of all-source unavailability",
+    }
+
+
 def distance(point, site):
     lat, lon = map(math.radians, point)
     other, olon = math.radians(site["lat"]), math.radians(site["lon"])
@@ -194,13 +233,8 @@ def analyze(root):
                     sites,
                     "2024-01-01",
                 )
-            elif r["id"] == "noaa-inventory":
-                rows = list(csv.DictReader(io.StringIO(raw.decode("utf-8-sig"))))
-                result["inventories"][r["id"]] = {
-                    "count": len(rows),
-                    "columns": list(rows[0]) if rows else [],
-                    "meaning": "Report counts are not complete hourly coverage",
-                }
+            elif r["provider"] == "noaa" and r["url"].endswith("/isd-inventory.csv"):
+                result["inventories"][r["id"]] = station_counts(raw)
             elif r["id"] == "cmip6-catalog":
                 pairs = cmip_intersections(csv.DictReader(io.StringIO(raw.decode("utf-8-sig"))))
                 result["inventories"][r["id"]] = {"count": len(pairs), "combinations": pairs}
@@ -328,6 +362,19 @@ def analyze(root):
                 }
         except (ValueError, KeyError, OSError, TypeError):
             result["errors"].append({"id": r["id"], "outcome": "parse_or_checksum_failure"})
+    history = result["inventories"].get("noaa-history", {}).get("sites", [])
+    if history:
+        coordinate_ids = {site["id"] for site in history}
+        for inventory in result["inventories"].values():
+            if "station_years" in inventory:
+                ids = set(inventory["station_years"])
+                inventory["stations_with_history_coordinates"] = len(ids & coordinate_ids)
+                inventory["stations_without_history_coordinates"] = len(ids - coordinate_ids)
+                inventory["selected_2024_counts"] = {
+                    m["source_id"]: inventory["station_years"].get(m["source_id"], {}).get("2024")
+                    for m in result.get("batch_example", {}).get("mappings", [])
+                    if m["source_id"]
+                }
     atomic_json(root / "analysis.json", result)
     return result
 
@@ -342,7 +389,7 @@ def report(root):
             key: {
                 k: v
                 for k, v in value.items()
-                if k not in ("sites", "combinations", "links", "site_years")
+                if k not in ("sites", "combinations", "links", "site_years", "station_years")
             }
             for key, value in result["inventories"].items()
         },

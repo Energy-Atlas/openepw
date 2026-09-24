@@ -14,16 +14,16 @@ Artifacts: [sanitized evidence and ledger](evidence.json),
 
 | Budget | Used | Ceiling | Remaining |
 | --- | ---: | ---: | ---: |
-| Documentation/inventory/metadata HTTP attempts | 30 | 60 | 30 |
+| Documentation/inventory/metadata HTTP attempts | 31 | 60 | 29 |
 | Location-specific API probes | 3 | 12 | 9 |
-| Application response bytes, including aborted reads | 106,760,281 | 200,000,000 | 93,239,719 |
+| Application response bytes, including aborted reads | 121,729,766 | 200,000,000 | 78,270,234 |
 | OneBuilding pages | 7 | 12 | 5 |
 | CMIP6 selected Zarr metadata documents | 4 | 4 | 0 |
 | OEDI RCP4.5 directory-related bytes | 5,075,668 | 10,000,000 | 4,924,332 |
 | OEDI RCP8.5 directory-related bytes | 5,075,668 | 10,000,000 | 4,924,332 |
 
 Calls were serial. Three responses were aborted at the original collector's byte
-limits; 30 successful responses were retained locally. No automatic retries,
+limits; 31 successful responses were retained locally. No automatic retries,
 credentialed calls, queued CDS retrievals, station weather downloads, climate
 variable chunks, archive members or exhaustive location/year sweeps were used.
 
@@ -58,9 +58,32 @@ bases; none is a guarantee of complete hourly weather for another request.
 
 **NOAA:** the returned station-history file has a Last-Modified date of
 2025-08-30. Its newest station end date is 2025-08-28. This is a dated historical
-inventory, not evidence that stations stopped operating. The station/month count
-inventory exceeded the 5 MB cap and was discarded without retry. Even if acquired
-later, report counts are not unique valid hourly intervals or variable completeness.
+inventory, not evidence that stations stopped operating. The first station/month
+inventory attempt exceeded the 5 MB cap. The owner subsequently authorized further
+NOAA investigation; one revised request with a narrowly scoped 20 MB allowance
+retrieved the full **14,969,485-byte** file. The prior failed transfer remains charged
+and the 200 MB total ceiling is unchanged.
+
+The count inventory contains **154,841 station/year rows for 16,513 station IDs**,
+with listed years ranging from **1930 to 2025**. Preserve sparse listed years; do
+not expand the range into assumed availability. There are 129,601 zero-report
+months across those rows. IDs include alphanumeric USAF codes such as `A00002`;
+the parser preserves them and leading zeroes. Conflicting duplicate station/year
+rows fail analysis instead of being silently overwritten.
+
+Of those station IDs, **15,479** join to the downloaded history's coordinate-bearing
+records; **1,034** do not. Those unmatched IDs remain unresolved geographically,
+not assigned guessed coordinates. The inventory has 13,345 listed station/year
+rows for 2024 and 12,815 for 2025; the source Last-Modified is 2025-08-30, so this
+does not establish present-day availability.
+
+The four stations in the local batch example all have 2024 inventory entries.
+For example, Ithaca has 1,060 January reports, while London has 744 January and
+694 February reports. Counts can exceed or fall below the number of hours; neither
+comparison is a completeness/QC test. The full local station/year/month index can
+screen candidate periods without weather API calls, but counts do not establish
+distinct valid hours or variable availability. Published evidence contains summaries
+and selected examples; the full index and raw inventory stay local.
 
 **OneBuilding:** the selected catalogs contained 16,470 U.S., 1,451 U.K., and 3,732
 Australia ZIP links. These are product counts, not unique station counts. Australia
@@ -120,14 +143,17 @@ threshold or substitute for later study-purpose ranking.
 
 ## Verification and conclusion
 
-The full offline suite passed: **123 passed, 14 opt-in live tests skipped**, with
+The full offline suite after the NOAA follow-up passed: **128 passed, 14 opt-in live tests skipped**, with
 two dependency deprecation warnings from FastAPI/Starlette. The research module
-has **22 offline safeguard/parser tests**. Focused Ruff checks pass. Independent
+now has **27 offline safeguard/parser tests**. The NOAA follow-up adds five
+regressions for the scoped allowance, sparse month counts, conflicting rows,
+alphanumeric station IDs and nonzero CLI status on analysis failures. Focused Ruff
+checks pass. Independent
 read-only review findings on deadlines, headers and byte limits were reproduced
 as failing tests and fixed. No production files or public interfaces changed.
 
 Every connected source now has a documented catalog strategy or precise unknown.
-The unresolved NOAA count inventory, OneBuilding coordinate index, general NSRDB/
+The NOAA count inventory is now resolved; the OneBuilding coordinate index, general NSRDB/
 PVGIS footprint details, CMIP6 window validation and OEDI membership are explicit
 Stage 2 inputs, not hidden availability claims. Previous-run/QC reuse remains a
 future advanced feature.

@@ -403,3 +403,92 @@ def test_total_deadline_includes_redirect_chain(tmp_path):
     ) as c:
         assert c.collect(spec(m))["outcome"] == "deadline"
         assert c.ledger["counts"]["metadata"] <= 2
+
+
+def test_noaa_inventory_exception_is_scoped_to_exact_host_and_path(tmp_path):
+    m = research()
+    payload = b"x" * 5_000_001
+    transport = httpx.MockTransport(lambda r: httpx.Response(200, content=payload))
+    with m.Collector(tmp_path, transport=transport, spacing=0) as c:
+        allowed = m.Request(
+            "noaa-large",
+            "noaa",
+            "https://www.ncei.noaa.gov/pub/data/noaa/isd-inventory.csv",
+            "inventory",
+            "Authorized larger inventory",
+            limit=20_000_000,
+        )
+        assert c.collect(allowed)["outcome"] == "saved"
+        other = m.Request(
+            "noaa-other",
+            "noaa",
+            "https://example.org/pub/data/noaa/isd-inventory.csv",
+            "inventory",
+            "No allowance for other hosts",
+            limit=20_000_000,
+        )
+        assert c.collect(other)["outcome"] == "byte_limit"
+
+
+def test_noaa_month_counts_preserve_sparse_years_and_unknown_quality():
+    research()
+    a = importlib.import_module("mcp_research.analysis")
+    assert hasattr(a, "station_counts"), "Station/month inventory normalization missing"
+    header = "USAF,WBAN,YEAR,JAN,FEB,MAR,APR,MAY,JUN,JUL,AUG,SEP,OCT,NOV,DEC\n"
+    rows = (
+        "001234,00001,2020,744,0,1500,0,0,0,0,0,0,0,0,0\n"
+        "001234,00001,2022,1,0,0,0,0,0,0,0,0,0,0,0\n"
+    )
+    result = a.station_counts((header + rows).encode())
+    assert result["station_years"] == {
+        "00123400001": {
+            "2020": [744, 0, 1500, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            "2022": [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        }
+    }
+    assert result["year_counts"] == {"2020": 1, "2022": 1}
+    assert result["hourly_completeness"] == "unknown"
+    assert result["variable_completeness"] == "unknown"
+
+
+def test_noaa_count_conflicts_are_not_silently_overwritten():
+    research()
+    a = importlib.import_module("mcp_research.analysis")
+    assert hasattr(a, "station_counts"), "Station/month inventory normalization missing"
+    header = "USAF,WBAN,YEAR,JAN,FEB,MAR,APR,MAY,JUN,JUL,AUG,SEP,OCT,NOV,DEC\n"
+    rows = "001234,00001,2020,1,0,0,0,0,0,0,0,0,0,0,0\n001234,00001,2020,2,0,0,0,0,0,0,0,0,0,0,0\n"
+    with pytest.raises(ValueError, match="Conflicting"):
+        a.station_counts((header + rows).encode())
+
+
+def test_noaa_alphanumeric_station_identifiers_are_preserved():
+    research()
+    a = importlib.import_module("mcp_research.analysis")
+    raw = (
+        "USAF,WBAN,YEAR,JAN,FEB,MAR,APR,MAY,JUN,JUL,AUG,SEP,OCT,NOV,DEC\n"
+        "A00002,53928,2024,1,0,0,0,0,0,0,0,0,0,0,0\n"
+    ).encode()
+    assert a.station_counts(raw)["station_years"]["A0000253928"]["2024"][0] == 1
+
+
+def test_failed_inventory_analysis_returns_nonzero_status(tmp_path):
+    m = research()
+    with m.Collector(
+        tmp_path,
+        transport=httpx.MockTransport(
+            lambda r: httpx.Response(200, content=b"not a valid inventory")
+        ),
+        spacing=0,
+    ) as c:
+        c.collect(
+            m.Request(
+                "bad-noaa",
+                "noaa",
+                "https://www.ncei.noaa.gov/pub/data/noaa/isd-inventory.csv",
+                "inventory",
+                "Synthetic malformed catalog",
+            )
+        )
+    cli = importlib.import_module("probe_mcp_availability")
+    for command in ("analyze", "report"):
+        assert cli.main([command, "--root", str(tmp_path)]) == 1

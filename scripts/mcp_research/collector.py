@@ -217,6 +217,14 @@ class Collector:
             if count >= caps.get(request.provider, 0):
                 return self.finish(record, "provider_limit")
         cap = self.limits.ordinary_bytes
+        # Owner-authorized 2026-09-23 follow-up; no other NOAA/response limit changes.
+        if (
+            request.provider == "noaa"
+            and p.hostname == "www.ncei.noaa.gov"
+            and p.path == "/pub/data/noaa/isd-inventory.csv"
+            and request.kind == "inventory"
+        ):
+            cap = 20_000_000
         if request.provider == "cmip6" and p.path == "/cmip6/pangeo-cmip6.csv":
             cap = 100_000_000
         if request.archive:

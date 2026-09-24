@@ -73,6 +73,8 @@ def main(argv=None):
                 }
             )
         )
+    if args.command in ("analyze", "report") and result["errors"]:
+        return 1
     return 0
 
 

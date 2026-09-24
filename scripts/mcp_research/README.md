@@ -30,7 +30,10 @@ A crashed request retains that conservative reservation. Saved metadata can be
 reused without network I/O; analysis verifies each snapshot checksum. Do not edit
 the ledger or treat a crashed reservation as permission to start over.
 
-Limits are those in the approved Stage 1 plan. Per-provider caps include redirect
+Limits are those in the approved Stage 1 plan, plus a later owner-authorized 20 MB
+exception for the exact NOAA `www.ncei.noaa.gov/pub/data/noaa/isd-inventory.csv`
+inventory endpoint. The 200 MB overall ceiling and all prior charges remain unchanged.
+This is not a general NOAA limit increase. Per-provider caps include redirect
 hops. One timeout covers a selected request and its redirects/host-spacing waits;
 individual HTTP operations also have a 30-second timeout. Rate limits persist as
 provider blocks, with numeric Retry-After retained when supplied. Exceptions and
