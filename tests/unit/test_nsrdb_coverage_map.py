@@ -1,14 +1,20 @@
 """Offline contracts for the research-only NSRDB coverage map."""
 
+import base64
+import gzip
 import hashlib
 import io
 import json
+import re
 
 import h5py
 import numpy as np
 import pytest
 
 from scripts.mcp_availability_map.acquire_nsrdb_meta import acquire_meta, source_spec
+from scripts.mcp_availability_map.acquire_nsrdb_meta import main as acquire_main
+from scripts.mcp_availability_map.build import build_map
+from scripts.mcp_availability_map.build import main as build_main
 from scripts.mcp_availability_map.nsrdb_coverage import (
     AGGREGATE_ID,
     TMY_ID,
@@ -242,3 +248,87 @@ def test_acquire_meta_rejects_grid_that_disagrees_with_point_catalog(tmp_path):
     with pytest.raises(ValueError, match="point probe"):
         acquire_meta(source_spec(TMY_ID, "tdy-2023"), tmp_path / "output",
                      _LocalTransport(source), probes=((0.0, 0.0),), block_bytes=1024)
+
+
+def _map_snapshot(tmp_path):
+    root = tmp_path / "snapshots"
+    (root / "raw").mkdir(parents=True)
+    records = []
+    for ident, lon, lat in (("nsrdb-ithaca", -76.5, 42.44),
+                            ("nsrdb-phoenix", -112.07, 33.45)):
+        raw = json.dumps({
+            "inputs": {"query": {"wkt": f"POINT({lon} {lat})"}},
+            "outputs": [
+                {"name": AGGREGATE_ID, "availableYears": [2023, 2024]},
+                {"name": TMY_ID, "availableYears": ["tdy-2023"],
+                 "links": [{"url": "https://example.invalid/?api_key=SECRET"}]},
+            ],
+        }).encode()
+        (root / "raw" / f"{ident}.body").write_bytes(raw)
+        records.append({"id": ident, "snapshot": f"raw/{ident}.body",
+                        "sha256": hashlib.sha256(raw).hexdigest()})
+    (root / "ledger.json").write_text(json.dumps({"records": records}), encoding="utf-8")
+    (root / "analysis.json").write_text(json.dumps({"inventories": {
+        "noaa-history": {"sites": []},
+        "noaa-inventory-authorized": {"station_years": {},
+                                      "stations_without_history_coordinates": 0},
+        "onebuilding-us": {"coordinate_matches": [], "product_count": 0},
+        "onebuilding-uk": {"coordinate_matches": [], "product_count": 0},
+        "onebuilding-au": {"coordinate_matches": [], "product_count": 0},
+        "oedi-sites": {"sites": []},
+    }}), encoding="utf-8")
+    return root
+
+
+def test_build_map_embeds_exact_nsrdb_evidence_without_credentials(tmp_path):
+    snapshot = _map_snapshot(tmp_path)
+    footprint_root = tmp_path / "footprints" / TMY_ID / "tdy-2023"
+    footprint_root.mkdir(parents=True)
+    _manifest(footprint_root, [(TMY_ID, "published_name", "tdy-2023", [[529, 414]], False)])
+    topology = tmp_path / "world.json"
+    topology.write_text(json.dumps({"type": "Topology", "objects": {"countries": {
+        "type": "GeometryCollection", "geometries": []}}, "arcs": []}), encoding="utf-8")
+    html_path = build_map(snapshot, tmp_path / "output", footprint_root.parent.parent, topology)
+    html = html_path.read_text(encoding="utf-8")
+    encoded = re.search(r'<script type="text/plain" id="oepw-payload">([^<]+)</script>', html)
+    assert encoded
+    payload = json.loads(gzip.decompress(base64.b64decode(encoded.group(1))))
+    assert payload["nsrdb"]["points"] == [
+        ["Ithaca", 42440, -76500, ["2023", "2024"], ["tdy-2023"]],
+        ["Phoenix", 33450, -112070, ["2023", "2024"], ["tdy-2023"]],
+    ]
+    assert payload["nsrdb"]["masks"]["published:tdy-2023"]["cells"] == [[529, 414]]
+    assert payload["nsrdb"]["masks"]["published:tdy-2023"]["basis"] == "source_grid_sites"
+    assert "source grid sites" in html.lower()
+    assert "td y" not in html.lower()
+    assert "https://developer.nlr.gov/docs/solar/nsrdb/" in html
+    assert "CC BY 3.0 US" in html
+    assert "SECRET" not in html
+    assert "api_key=" not in html
+
+
+def test_build_map_rejects_mismatched_stage1_snapshot(tmp_path):
+    snapshot = _map_snapshot(tmp_path)
+    (snapshot / "raw" / "nsrdb-phoenix.body").write_text("{}", encoding="utf-8")
+    topology = tmp_path / "world.json"
+    topology.write_text('{"type":"Topology","objects":{"countries":{}},"arcs":[]}',
+                        encoding="utf-8")
+    with pytest.raises(ValueError, match="raw checksum"):
+        build_map(snapshot, tmp_path / "output", tmp_path / "footprints", topology)
+
+
+def test_map_cli_rejects_output_outside_ignored_local_tree(monkeypatch, tmp_path):
+    monkeypatch.setattr("sys.argv", [
+        "map", "--snapshot-root", str(tmp_path), "--topology", str(tmp_path / "world.json"),
+        "--output-root", str(tmp_path / "tracked-docs"),
+    ])
+    with pytest.raises(ValueError, match="ignored .local"):
+        build_main()
+
+
+def test_acquisition_cli_rejects_output_outside_ignored_local_tree(monkeypatch, tmp_path):
+    monkeypatch.setattr("sys.argv", [
+        "acquire", TMY_ID, "tdy-2023", "--output-root", str(tmp_path / "tracked-docs"),
+    ])
+    with pytest.raises(ValueError, match="ignored .local"):
+        acquire_main()

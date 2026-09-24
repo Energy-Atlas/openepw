@@ -1,0 +1,348 @@
+<div id="openepw-stage1-map">
+  <h2>OpenEPW availability evidence · 24 Sep 2026 snapshot</h2>
+  <div class="viz-controls" aria-label="Map filters">
+    <label class="form-label">Product or source
+      <select class="form-select" id="oepw-source">
+        <option value="noaa">NOAA ISD station reports</option>
+        <option value="onebuilding">OneBuilding published EPWs</option>
+        <option value="oedi">OEDI future PUMA files</option>
+        <option value="nsrdb-actual">NSRDB actual-year grid evidence</option>
+        <option value="nsrdb-published">NSRDB published grid evidence</option>
+        <option value="pvgis">PVGIS TMY probe</option>
+        <option value="openmeteo-era5">Open-Meteo ERA5 documented extent</option>
+        <option value="openmeteo-land">Open-Meteo ERA5-Land documented land extent</option>
+        <option value="cds-era5">CDS ERA5 documented bbox</option>
+        <option value="cds-land">CDS ERA5-Land documented bbox</option>
+        <option value="cmip6">CMIP6 catalog, spatial detail unknown</option>
+      </select>
+    </label>
+    <label class="form-label" id="oepw-year-start-wrap">Actual year from
+      <input class="form-control" id="oepw-year-start" type="number" min="1930" max="2026" value="2024">
+    </label>
+    <label class="form-label" id="oepw-year-end-wrap">through
+      <input class="form-control" id="oepw-year-end" type="number" min="1930" max="2026" value="2024">
+    </label>
+    <label class="form-label" id="oepw-period-wrap" hidden>Published reference period
+      <select class="form-select" id="oepw-period">
+        <option value="all">All labels</option>
+        <option value="1981-2010">1981–2010</option>
+        <option value="1991-2020">1991–2020</option>
+        <option value="2004-2018">2004–2018</option>
+        <option value="2006-2020">2006–2020</option>
+        <option value="2007-2021">2007–2021</option>
+        <option value="2009-2023">2009–2023</option>
+        <option value="2011-2025">2011–2025</option>
+        <option value="unlabeled">No period label</option>
+      </select>
+    </label>
+    <label class="form-label" id="oepw-family-wrap" hidden>Published family
+      <select class="form-select" id="oepw-family">
+        <option value="all">All families</option>
+        <option value="TMYx">TMYx</option>
+        <option value="TMY3">TMY3</option>
+        <option value="TMY2">TMY2</option>
+        <option value="TMY">TMY</option>
+        <option value="Normals">Normals</option>
+      </select>
+    </label>
+    <label class="form-label" id="oepw-scenario-wrap" hidden>Scenario
+      <select class="form-select" id="oepw-scenario">
+        <option value="rcp45">RCP4.5</option>
+        <option value="rcp85">RCP8.5</option>
+      </select>
+    </label>
+    <label class="form-label" id="oepw-window-wrap" hidden>Future window
+      <select class="form-select" id="oepw-window">
+        <option value="2045-2054">2045–2054</option>
+        <option value="2085-2094">2085–2094</option>
+      </select>
+    </label>
+    <label class="form-label" id="oepw-native-wrap" hidden>Native product ID
+      <select class="form-select" id="oepw-native">
+        <option value="tmy">TMY</option><option value="tdy">TDY</option><option value="tgy">TGY</option>
+        <option value="tmy-2025">TMY-2025</option><option value="tdy-2025">TDY-2025</option><option value="tgy-2025">TGY-2025</option>
+        <option value="tmy-2024">TMY-2024</option><option value="tdy-2024">TDY-2024</option><option value="tgy-2024">TGY-2024</option>
+        <option value="tmy-2023">TMY-2023</option><option value="tdy-2023">TDY-2023</option><option value="tgy-2023">TGY-2023</option>
+        <option value="tmy-2022">TMY-2022</option><option value="tdy-2022">TDY-2022</option><option value="tgy-2022">TGY-2022</option>
+      </select>
+    </label>
+  </div>
+  <div id="oepw-status" aria-live="polite" class="text-small"></div>
+  <canvas id="oepw-map" role="img" aria-label="Map of the selected source's catalog-listed locations or documented extent"></canvas>
+  <div id="oepw-legend" class="text-small"></div>
+  <div id="oepw-nsrdb-credit" class="text-small" hidden>
+    NSRDB data: National Laboratory of the Rockies.
+    <a href="https://developer.nlr.gov/docs/solar/nsrdb/" target="_blank" rel="noopener noreferrer">NLR product documentation</a> ·
+    <a href="https://registry.opendata.aws/nrel-pds-nsrdb/" target="_blank" rel="noopener noreferrer">public collection</a>
+    (CC BY 3.0 US).
+  </div>
+  <div class="card" id="oepw-detail" aria-live="polite" hidden></div>
+  <div class="sr-only" id="oepw-accessible-summary"></div>
+</div>
+<script type="application/json" id="oepw-world-data">__TOPOLOGY__</script>
+<script type="text/plain" id="oepw-payload">__PAYLOAD__</script>
+<script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/topojson-client@3.1.0/dist/topojson-client.min.js"></script>
+<style>
+  #openepw-stage1-map { width: 100%; color: var(--foreground); }
+  #openepw-stage1-map [hidden] { display: none !important; }
+  #openepw-stage1-map h2 { margin: 0 0 10px; }
+  #openepw-stage1-map .viz-controls { margin-bottom: 8px; }
+  #openepw-stage1-map .form-label { min-width: 120px; }
+  #openepw-stage1-map #oepw-status { min-height: 20px; margin: 6px 0; color: var(--foreground); }
+  #openepw-stage1-map #oepw-map { display: block; width: 100%; height: 430px; border: 1px solid var(--border); touch-action: none; }
+  #openepw-stage1-map #oepw-legend { margin-top: 7px; color: var(--muted-foreground); }
+  #openepw-stage1-map #oepw-detail { margin-top: 10px; }
+  @media (max-width: 520px) { #openepw-stage1-map #oepw-map { height: 340px; } }
+</style>
+<script>
+(async function () {
+  const root = document.getElementById('openepw-stage1-map');
+  const $ = id => root.querySelector('#' + id);
+  const source = $('oepw-source'), start = $('oepw-year-start'), end = $('oepw-year-end');
+  const period = $('oepw-period'), family = $('oepw-family'), scenario = $('oepw-scenario');
+  const windowChoice = $('oepw-window'), native = $('oepw-native');
+  const status = $('oepw-status'), legend = $('oepw-legend'), detail = $('oepw-detail');
+  const canvas = $('oepw-map'), context = canvas.getContext('2d');
+  const topology = JSON.parse(document.getElementById('oepw-world-data').textContent);
+  const countries = topojson.feature(topology, topology.objects.countries);
+  const b64 = document.getElementById('oepw-payload').textContent.trim();
+  const zipped = Uint8Array.from(atob(b64), ch => ch.charCodeAt(0));
+  const payload = await new Response(new Blob([zipped]).stream().pipeThrough(new DecompressionStream('gzip'))).json();
+  const colors = () => {
+    const css = getComputedStyle(root);
+    return {land:css.getPropertyValue('--muted').trim(), border:css.getPropertyValue('--border').trim(),
+      ink:css.getPropertyValue('--foreground').trim(), mark:css.getPropertyValue('--viz-series-1').trim(),
+      caution:css.getPropertyValue('--viz-series-2').trim()};
+  };
+  const saved = window.openai?.widgetState?.modelContent || {};
+  const state = {source:saved.source || 'nsrdb-published', start:saved.start || 2024, end:saved.end || 2024,
+    period:saved.period || 'all', family:saved.family || 'all', scenario:saved.scenario || 'rcp45',
+    window:saved.window || '2045-2054', native:saved.native || 'tdy-2023'};
+  source.value = state.source; start.value = state.start; end.value = state.end;
+  period.value = state.period; family.value = state.family; scenario.value = state.scenario;
+  windowChoice.value = state.window; native.value = state.native;
+  let projection, transform = d3.zoomIdentity, visible = [], projected = [];
+  let coverage = {full:[],partial:[],step:0.25,meta:null}, projectedCoverage = [];
+  let width = 700, height = 430;
+  const noaa = payload.noaa.map(row => ({id:row[0],lat:row[1]/1000,lon:row[2]/1000,
+    begin:row[3],finish:row[4],bits:Uint8Array.from(atob(row[5]), ch=>ch.charCodeAt(0))}));
+  const onebuilding = payload.onebuilding.map(row => ({id:row[0],lat:row[1]/1000,lon:row[2]/1000,
+    product:row[3],period:row[4],position:row[5]}));
+  const oedi = payload.oedi.map(row => ({id:row[0],lat:row[1]/1000,lon:row[2]/1000}));
+  const nsrdbPoints = payload.nsrdb.points.map(row => ({id:row[0],lat:row[1]/1000,
+    lon:row[2]/1000,years:row[3],names:row[4]}));
+  const masks = payload.nsrdb.masks;
+  const probes = {pvgis:[{id:'London',lat:51.507,lon:-0.128}]};
+  function listedYear(station, year) {
+    if (year < 1930 || year > 2025) return false;
+    const offset = year - 1930;
+    return !!(station.bits[offset >> 3] & (1 << (offset & 7)));
+  }
+  function selectedYears() {
+    const a = Number(start.value), b = Number(end.value);
+    return Number.isInteger(a) && Number.isInteger(b) && a <= b ? [a,b] : null;
+  }
+  function allListed(station, years) {
+    for (let year=years[0]; year<=years[1]; year++) if (!listedYear(station,year)) return false;
+    return true;
+  }
+  function familyOf(product) {
+    if (product.startsWith('TMYx')) return 'TMYx';
+    if (product.includes('Normals')) return 'Normals';
+    if (product.startsWith('TMY3')) return 'TMY3';
+    if (product.startsWith('TMY2')) return 'TMY2';
+    if (product.startsWith('TMY')) return 'TMY';
+    return product;
+  }
+  function save() {
+    if (!window.openai?.setWidgetState) return;
+    window.openai.setWidgetState({modelContent:{source:source.value,start:Number(start.value),end:Number(end.value),
+      period:period.value,family:family.value,scenario:scenario.value,window:windowChoice.value,
+      native:native.value},privateContent:null}).catch(()=>{});
+  }
+  function controlVisibility() {
+    const actual = ['noaa','nsrdb-actual','openmeteo-era5','openmeteo-land','cds-era5','cds-land'].includes(source.value);
+    const published = source.value === 'onebuilding';
+    const future = source.value === 'oedi';
+    $('oepw-year-start-wrap').hidden = $('oepw-year-end-wrap').hidden = !actual;
+    $('oepw-period-wrap').hidden = $('oepw-family-wrap').hidden = !published;
+    $('oepw-scenario-wrap').hidden = $('oepw-window-wrap').hidden = !future;
+    $('oepw-native-wrap').hidden = source.value !== 'nsrdb-published';
+    $('oepw-nsrdb-credit').hidden = !source.value.startsWith('nsrdb-');
+  }
+  function selectNsrdbMasks(keys) {
+    const found = keys.map(key => masks[key]).filter(mask => mask && !mask.stale);
+    if (!found.length) return {full:[],partial:[],step:0.25,meta:null,missing:keys.length};
+    if (new Set(found.map(mask => mask.step_degrees)).size !== 1)
+      return {full:[],partial:[],step:0.25,meta:null,missing:keys.length};
+    const sets = found.map(mask => new Set(mask.cells.map(cell => cell.join(','))));
+    const union = new Set(sets.flatMap(set => [...set]));
+    const common = found.length === keys.length ? [...sets[0]].filter(cell => sets.every(set => set.has(cell))) : [];
+    const commonSet = new Set(common);
+    const unpack = values => values.map(cell => cell.split(',').map(Number));
+    return {full:unpack(common),partial:unpack([...union].filter(cell => !commonSet.has(cell))),
+      step:found[0].step_degrees,meta:found[0],missing:keys.length-found.length};
+  }
+  function selectData() {
+    const key = source.value, years = selectedYears();
+    visible = []; coverage = {full:[],partial:[],step:0.25,meta:null};
+    if (key === 'noaa') {
+      if (!years || years[0]<1930 || years[1]>2025) return ['Choose an inclusive range from 1930 to 2025.', ''];
+      visible = noaa.filter(s => allListed(s,years));
+      return [`${visible.length.toLocaleString()} station coordinates with reports listed in every selected year, ${years[0]}–${years[1]}.`,
+        'NOAA inventories date to 2025-08-30. Counts do not establish valid hours, variables or complete EPWs; 1,034 listed IDs lack coordinates.'];
+    }
+    if (key === 'onebuilding') {
+      visible = onebuilding.filter(p => (period.value === 'all' || (period.value === 'unlabeled' ? !p.period : p.period === period.value))
+        && (family.value === 'all' || familyOf(p.product) === family.value));
+      const approximate = visible.filter(p => p.position === 'approximate locality').length;
+      return [`${visible.length.toLocaleString()} mapped published products${period.value==='all'?'':` · reference ${period.value}`}${family.value==='all'?'':` · ${family.value}`}.`,
+        `${approximate} approximate localities shown as rings. Product coordinates are metadata, not EPW-header verification; two name/code conflicts have no map point.`];
+    }
+    if (key === 'oedi') {
+      visible = oedi;
+      return [`${visible.length.toLocaleString()} PUMA sites · ${scenario.value.toUpperCase()} · ${windowChoice.value}.`,
+        'Both scenario directories list all 20 expected site-years; file membership is not weather-content validation.'];
+    }
+    if (key === 'nsrdb-actual') {
+      if (!years || years[0]<1998 || years[1]>2025) return ['The two point catalogs list actual years 1998–2025; this interval is outside that snapshot.', ''];
+      const selected = Array.from({length:years[1]-years[0]+1},(_,index)=>String(years[0]+index));
+      visible = nsrdbPoints.filter(point => selected.every(year => point.years.includes(year)));
+      coverage = selectNsrdbMasks(selected.map(year => 'actual:'+year));
+      const count = coverage.full.length, partial = coverage.partial.length;
+      return [`NSRDB aggregate v4, actual ${years[0]}–${years[1]}: ${count.toLocaleString()} all-year grid display cells${partial?` · ${partial.toLocaleString()} some-year cells`:''}; ${visible.length} catalog-confirmed points.`,
+        coverage.meta ? `NLR source grid sites; ${coverage.step}° display cells. ${coverage.missing} selected year(s) lack grid metadata. File ${coverage.meta.source_file_id}; internal model ${coverage.meta.source_version}; modified ${coverage.meta.source_modified_at}; evidence ${coverage.meta.meta_sha256.slice(0,12)}. Grid presence is not API eligibility or complete weather.` :
+        'NLR documents GOES east/west coverage, but an exact regional layer for this selected interval is unresolved. Ithaca/Phoenix point catalogs are separate confirmations.'];
+    }
+    if (key === 'nsrdb-published') {
+      visible = nsrdbPoints.filter(point => point.names.includes(native.value));
+      coverage = selectNsrdbMasks(['published:'+native.value]);
+      return [`NSRDB ${native.value.toUpperCase()} published product: ${coverage.full.length.toLocaleString()} occupied grid display cells; ${visible.length} catalog-confirmed points.`,
+        coverage.meta ? `NLR ${coverage.meta.coordinate_count.toLocaleString()} source grid sites summarized at ${coverage.step}°. File ${coverage.meta.source_file_id}; internal model ${coverage.meta.source_version}; modified ${coverage.meta.source_modified_at}; retrieved ${coverage.meta.retrieved_at}; evidence ${coverage.meta.meta_sha256.slice(0,12)}. Product suffix is not actual-year coverage; grid presence is not API eligibility or weather completeness.` :
+        'Exact grid extent for this published name is unresolved. NLR documents the GOES-derived family; Ithaca/Phoenix are only point catalog confirmations. Product suffix is not actual-year coverage.'];
+    }
+    if (key === 'pvgis') {
+      visible = probes.pvgis;
+      return ['London probe: PVGIS v5_3 TMY, reference period 2005–2023.',
+        'Selected source-month years differ; London does not establish a global SARAH3 footprint.'];
+    }
+    if (key === 'cmip6') return ['636 coherent historical/scenario seven-variable catalog combinations.',
+      'Complete climate-window coordinates, per-model licenses and a verified geographic map layer remain unknown.'];
+    const cds = key.startsWith('cds'), land = key.endsWith('land');
+    const first = land ? 1950 : 1940;
+    if (!years || years[0] < first || years[1] >= 2026) return [
+      `The selected interval is outside the ${cds?'CDS':'Open-Meteo'} ${land?'ERA5-Land':'ERA5'} documented full-year start/end evidence.`,
+      cds ? 'CDS catalog ends 2026-09-17; a full 2026 year is not established.' : 'Current moving end and resolved cells require newer evidence.'
+    ];
+    return [`Documented ${land?'land':'global'} extent for ${cds?'CDS':'Open-Meteo'} ${land?'ERA5-Land':'ERA5'} from ${first}; requested ${years[0]}–${years[1]}.`,
+      cds ? 'CDS bbox is 0–360° longitude, ±89° latitude; polar and land-mask boundaries remain uncertain.' :
+        'Documented footprint is not a per-cell/hour completeness test; resolved source cells may differ from requested points.'];
+  }
+  function draw() {
+    const pixelRatio = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    width = Math.max(320,rect.width); height = Math.max(300,rect.height);
+    canvas.width = Math.round(width*pixelRatio); canvas.height = Math.round(height*pixelRatio);
+    context.setTransform(pixelRatio,0,0,pixelRatio,0,0);
+    context.clearRect(0,0,width,height);
+    projection = d3.geoEqualEarth().fitExtent([[12,12],[width-12,height-12]],countries);
+    const paint = colors();
+    const key = source.value;
+    context.save();
+    context.translate(transform.x,transform.y); context.scale(transform.k,transform.k);
+    if (['openmeteo-era5','cds-era5'].includes(key) && status.textContent.startsWith('Documented')) {
+      context.globalAlpha = 0.09; context.fillStyle = paint.mark; context.fillRect(0,0,width,height); context.globalAlpha = 1;
+    }
+    context.beginPath(); d3.geoPath(projection,context)(countries);
+    context.fillStyle = ['openmeteo-land','cds-land'].includes(key) && status.textContent.startsWith('Documented') ? paint.mark : paint.land;
+    context.globalAlpha = ['openmeteo-land','cds-land'].includes(key) && status.textContent.startsWith('Documented') ? 0.22 : 1;
+    context.fill(); context.globalAlpha = 1;
+    projectedCoverage = [];
+    const cellSize = Math.max(0.55,projection.scale()*Math.PI/180*coverage.step*0.8);
+    for (const [cells,color,opacity] of [[coverage.partial,paint.caution,0.38],[coverage.full,paint.mark,0.42]]) {
+      context.fillStyle=color;context.globalAlpha=opacity;
+      for (const cell of cells) {
+        const lat=-90+(cell[0]+0.5)*coverage.step, lon=-180+(cell[1]+0.5)*coverage.step;
+        const xy=projection([lon,lat]);if (!xy) continue;
+        context.fillRect(xy[0]-cellSize/2,xy[1]-cellSize/2,cellSize,cellSize);
+        projectedCoverage.push({x:xy[0],y:xy[1],partial:cells===coverage.partial});
+      }
+    }
+    context.globalAlpha = 1; context.strokeStyle = paint.border; context.lineWidth = 0.65/transform.k; context.stroke();
+    projected = [];
+    context.fillStyle = paint.mark;
+    context.globalAlpha = visible.length > 3000 ? 0.62 : 0.9;
+    for (const point of visible) {
+      const xy = projection([point.lon,point.lat]);
+      if (!xy) continue;
+      projected.push({point,x:xy[0],y:xy[1]});
+      const r = visible.length > 3000 ? 1.65/Math.sqrt(transform.k) : 3.5/Math.sqrt(transform.k);
+      context.beginPath(); context.arc(xy[0],xy[1],r,0,Math.PI*2);
+      if (point.position === 'approximate locality') {
+        context.globalAlpha=1; context.strokeStyle=paint.caution; context.lineWidth=1.8/transform.k; context.stroke();
+        context.globalAlpha=visible.length > 3000 ? 0.62 : 0.9;
+      } else context.fill();
+    }
+    context.globalAlpha = 1;
+    context.restore();
+  }
+  function update(persist=true) {
+    controlVisibility();
+    const [line,note] = selectData();
+    status.textContent = line;
+    legend.textContent = note;
+    $('oepw-accessible-summary').textContent = line + ' ' + note;
+    detail.hidden = true;
+    draw();
+    if (persist) save();
+  }
+  const zoom = d3.zoom().scaleExtent([1,16]).on('zoom', event => {transform=event.transform;draw();});
+  d3.select(canvas).call(zoom);
+  canvas.addEventListener('click', event => {
+    const box=canvas.getBoundingClientRect(), x=event.clientX-box.left, y=event.clientY-box.top;
+    let nearest=null, best=144;
+    for (const item of projected) {
+      const dx=transform.applyX(item.x)-x, dy=transform.applyY(item.y)-y, distance=dx*dx+dy*dy;
+      if (distance<best) {best=distance;nearest=item.point;}
+    }
+    if (!nearest && coverage.meta) {
+      let cellNearby=false,bestCell=100;
+      for (const item of projectedCoverage) {
+        const dx=transform.applyX(item.x)-x,dy=transform.applyY(item.y)-y,d=dx*dx+dy*dy;
+        if (d<bestCell) {bestCell=d;cellNearby=item;}
+      }
+      if (cellNearby) {
+        detail.textContent=`${coverage.meta.product_id} · ${coverage.meta.selector} · ${cellNearby.partial?'some selected years':'selected product'} source grid display cell · ${coverage.meta.source_file_id} · evidence ${coverage.meta.meta_sha256.slice(0,12)} · ${coverage.step}° summary, not a weather-quality check`;
+        detail.hidden=false;return;
+      }
+    }
+    if (!nearest) {detail.hidden=true;return;}
+    const key=source.value;
+    let text = `${nearest.id} · ${nearest.lat.toFixed(3)}°, ${nearest.lon.toFixed(3)}°`;
+    if (key==='noaa') text += ` · listed reports in each selected year; operating interval ${nearest.begin}–${nearest.finish}`;
+    if (key==='onebuilding') text += ` · ${nearest.product}${nearest.period?` · reference ${nearest.period}`:''} · ${nearest.position}`;
+    if (key==='oedi') text += ` · ${scenario.value.toUpperCase()} ${windowChoice.value} directory member listed`;
+    if (key==='nsrdb-actual') text += ' · aggregate v4 point catalog';
+    if (key==='nsrdb-published') text += ` · ${native.value.toUpperCase()} native product listed`;
+    if (key==='pvgis') text += ' · selected London TMY probe';
+    detail.textContent=text; detail.hidden=false;
+  });
+  for (const input of [source,start,end,period,family,scenario,windowChoice,native]) input.addEventListener('change', () => {
+    if (input===source) {transform=d3.zoomIdentity;d3.select(canvas).call(zoom.transform,d3.zoomIdentity);}
+    update();
+  });
+  window.addEventListener('openai:set_globals', event => {
+    const next=event.detail?.globals?.widgetState?.modelContent;
+    if (!next || !next.source) return;
+    for (const [input,key] of [[source,'source'],[start,'start'],[end,'end'],[period,'period'],[family,'family'],
+      [scenario,'scenario'],[windowChoice,'window'],[native,'native']]) if (next[key] != null) input.value=next[key];
+    update(false);
+  });
+  new ResizeObserver(() => draw()).observe(canvas);
+  update(false);
+})().catch(error => {
+  const root = document.getElementById('openepw-stage1-map');
+  root.querySelector('#oepw-status').textContent='Map could not load: '+error.message;
+});
+</script>

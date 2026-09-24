@@ -333,6 +333,8 @@ def main() -> None:
     parser.add_argument("selector", help="Actual year or concrete TMY/TDY/TGY published name")
     parser.add_argument("--output-root", type=Path, default=Path(".local/mcp-availability/nsrdb-footprints"))
     args = parser.parse_args()
+    if not args.output_root.resolve().is_relative_to((Path.cwd() / ".local").resolve()):
+        raise ValueError("metadata output must stay under the ignored .local tree")
     path = acquire_meta(source_spec(args.product_id, args.selector), args.output_root,
                         HttpTransport(), probes=((42.44, -76.5), (33.45, -112.07)))
     entry = load_coverage_manifest(path).entries[0]
