@@ -436,7 +436,7 @@ def analyze(root):
         inventory["coordinate_matches"] = matches
         inventory["coordinate_counts"] = {
             basis: sum(m["coordinate_basis"] == basis for m in matches)
-            for basis in ("published_product_index", "station_identifier_and_name", "unknown")
+            for basis in ("published_product_index", "station_identifier_and_name", "station_coordinate_consensus", "unknown")
         }
         inventory["products_with_coordinate_disagreement"] = sum(
             m["coordinate_disagreement"] for m in matches

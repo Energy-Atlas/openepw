@@ -173,6 +173,23 @@ def country_evidence(country, raw_codes):
             'expected_code': expected, 'status': status}
 
 
+def coordinate_consensus(candidates):
+    ids = sorted({c['id'] for c in candidates})
+    result = dict(lat=None, lon=None, elevation_m=None, position_status='unknown',
+                  station_identity_status='unique_candidate' if len(ids)==1 else 'ambiguous' if ids else 'unknown',
+                  source_station_id=ids[0] if len(ids)==1 else None, source_station_ids=ids)
+    points = [(number(c.get('lat')),number(c.get('lon'))) for c in candidates]
+    if not points or any(lat is None or lon is None or not -90<=lat<=90 or not -180<=lon<=180 for lat,lon in points):
+        return result
+    if len(set(points)) != 1:
+        return result
+    result.update(lat=points[0][0],lon=points[0][1],position_status='inferred' if len(ids)==1 else 'consensus')
+    elevations = {number(c.get('elevation_m')) for c in candidates}
+    if len(elevations)==1 and None not in elevations:
+        result['elevation_m'] = next(iter(elevations))
+    return result
+
+
 def coordinate_matches(urls, history, published):
     by_id, by_url = defaultdict(list), defaultdict(list)
     for site in history:
@@ -213,6 +230,9 @@ def coordinate_matches(urls, history, published):
         result["noaa_candidates"] = [
             {k: s.get(k) for k in ("id", "name", "lat", "lon", "elevation_m")} for s in candidates
         ]
+        consensus = coordinate_consensus(candidates)
+        result.update({k: consensus[k] for k in ('station_identity_status','source_station_id','source_station_ids')})
+        result['position_status'] = 'unknown'
         result["published_candidates"] = [
             {k: s.get(k) for k in ("lat", "lon", "elevation_m", "evidence_id")}
             for s in published_rows
@@ -224,7 +244,7 @@ def coordinate_matches(urls, history, published):
             if len(points) == 1:
                 result.update(zip(("lat", "lon", "elevation_m"), next(iter(points))))
                 result.update(
-                    coordinate_basis="published_product_index", reason="exact_product_url"
+                    coordinate_basis="published_product_index", reason="exact_product_url", position_status='published'
                 )
             else:
                 result["reason"] = "conflicting_published_coordinates"
@@ -240,17 +260,10 @@ def coordinate_matches(urls, history, published):
                     for s in candidates
                     for r in published_rows
                 )
-        elif product:
-            if len(candidates) == 1:
-                site = candidates[0]
-                result.update(
-                    lat=site["lat"],
-                    lon=site["lon"],
-                    elevation_m=site.get("elevation_m"),
-                    coordinate_basis="station_identifier_and_name",
-                    source_station_id=site["id"],
-                    evidence_ids=["noaa-history"],
-                    reason="unique_identifier_with_country_and_name_agreement",
-                )
+        elif product and consensus['lat'] is not None:
+            result.update(consensus)
+            result.update(coordinate_basis='station_identifier_and_name' if consensus['position_status']=='inferred' else 'station_coordinate_consensus',
+                          evidence_ids=['noaa-history'], reason='identifier_country_name_coordinate_agreement')
+        result['unresolved_reasons'] = [result['reason']] if result['position_status']=='unknown' else []
         results.append(result)
     return results

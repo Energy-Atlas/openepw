@@ -56,3 +56,43 @@ def test_hay_recovers_but_au_requires_independent_evidence():
     result = coordinates.coordinate_matches([url],[dict(site,country='AU')],[])[0]
     assert result['lat'] is None
     assert result['country_evidence']['status'] == 'ambiguous'
+
+
+def test_shared_position_retains_identity_and_elevation_ambiguity():
+    candidates = [dict(id='00123400001',lat=42.,lon=-76.,elevation_m=100),
+                  dict(id='00123499999',lat=42.,lon=-76.,elevation_m=110)]
+    out = coordinates.coordinate_consensus(candidates)
+    assert (out['lat'],out['lon']) == (42.,-76.)
+    assert out['elevation_m'] is None
+    assert out['position_status'] == 'consensus'
+    assert out['station_identity_status'] == 'ambiguous'
+    assert out['source_station_id'] is None
+    assert out['source_station_ids'] == ['00123400001','00123499999']
+    assert out == coordinates.coordinate_consensus(list(reversed(candidates)))
+
+
+@pytest.mark.parametrize('second', [42.0001, float('nan'), None])
+def test_coordinate_consensus_never_rounds_or_ignores_invalid_points(second):
+    out = coordinates.coordinate_consensus([dict(id='a',lat=42,lon=-76),
+                                           dict(id='b',lat=second,lon=-76)])
+    assert out['lat'] is None
+    assert out['position_status'] == 'unknown'
+
+
+def test_consensus_handles_empty_duplicates_and_zero_elevation():
+    assert coordinates.coordinate_consensus([])['source_station_ids'] == []
+    site = dict(id='a',lat=42,lon=-76,elevation_m=0)
+    out = coordinates.coordinate_consensus([site, site])
+    assert out['station_identity_status'] == 'unique_candidate'
+    assert out['elevation_m'] == 0
+    assert coordinates.coordinate_consensus([site,dict(site,id='b',elevation_m=None)])['elevation_m'] is None
+    out = coordinates.coordinate_consensus([site,dict(site,lat=43)])
+    assert out['lat'] is None
+
+
+def test_matcher_exposes_consensus_without_a_single_station_id():
+    url='https://climate.onebuilding.org/USA_NY_Testtown.001234_TMY3.zip'
+    site=dict(id='00123400001',name='TESTTOWN',country='US',lat=42,lon=-76)
+    result=coordinates.coordinate_matches([url],[site,dict(site,id='00123499999')],[])[0]
+    assert result['coordinate_basis']=='station_coordinate_consensus'
+    assert result['source_station_id'] is None

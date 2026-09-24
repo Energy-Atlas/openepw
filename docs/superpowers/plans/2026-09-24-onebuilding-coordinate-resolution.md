@@ -388,3 +388,5 @@ Coverage: Tasks 1/5 account for unresolved products; Task 2 handles short names 
 - Pre-flight: coordinate records feed diagnostics/transition reports; the new basis must be included in all summaries. The provider allowance must be checked both before requests and on redirects.
 
 - Tasks 1–2 complete: baseline reasons reproduced (1,572 U.S., 227 Australia); short-name and country checks passed. 44 focused tests passed; new tests were observed failing before implementation. No network used.
+
+- Task 3 complete: coordinate consensus keeps distinct IDs and unknown elevations; exact equality only, no averaging. Six new tests failed before implementation and passed afterwards. 50 focused tests passed; offline report generated.
