@@ -74,3 +74,17 @@ Run offline safeguards with:
 
 See the [findings](../../docs/validation/mcp-stage-1/README.md) for the actual
 investigation, limitations and Stage 2 contract.
+
+The 2026-09-24 approval permits cumulative OneBuilding attempts 13–15 only for the
+three exact coordinate-index IDs/URLs in the approved follow-up manifest. Ordinary
+responses remain 5 MB; redirects count against the same allowance. No other
+OneBuilding URL receives this extension. `plan` displays the exception.
+
+Coordinate records distinguish horizontal position, elevation and NOAA identity.
+Exact-coordinate consensus never selects an arbitrary WBAN or averages elevations.
+Raw AU codes remain ambiguous; published product URLs provide independent evidence.
+`coordinate-baseline.json` under the local research root stores the prior metadata
+matcher output and source checksums for reproducible transition accounting. Retain
+it with snapshots; do not overwrite it with weather runs or newer analysis. Without
+that file current coordinates can still be analyzed, but no before/after claims
+are generated. Full unresolved rows and transition details stay local.

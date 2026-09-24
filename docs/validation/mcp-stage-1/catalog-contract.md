@@ -74,8 +74,10 @@ Stage 1's existing ledger budgets are not reusable runtime quotas for production
    availability. Preserve unknowns and temporal meaning in ranking/explanations.
 3. Import the acquired OneBuilding published coordinate indexes and corroborated
    NOAA matches while retaining their different evidence levels and disagreements.
-   The selected catalogs retain 1,572 U.S. and 227 Australian unresolved products;
-   all 1,451 U.K. products join to the published index. Investigate remaining products
+   The selected catalogs retain 61 U.S. unresolved products; all 1,451 U.K. and
+   3,732 Australian products join to published indexes. Two U.S. products have
+   agreed NOAA horizontal positions but ambiguous station identities; retain those
+   separately from the 105 unique NOAA inferences. Investigate remaining products
    and index reuse permissions before claiming global nearest-site discovery. No
    approximate town geocoding was needed for the resolved subset. See the
    [follow-up plan](../../superpowers/plans/2026-09-23-mcp-stage-1.md#accepted-onebuilding-follow-up-plan--2026-09-23).
@@ -109,3 +111,13 @@ output identities remain the default; compact export is an explicit later option
 matching requests. That feature needs scientific identity, checksum, freshness,
 invalidation and user-visible reuse evidence. It is not part of this metadata
 catalog investigation or a prerequisite for the initial local MCP release.
+
+## Position, elevation and identity after the coordinate follow-up
+
+Research records now carry separate position status (published/inferred/consensus/
+unknown), station identity status, all candidate IDs, raw country evidence and name
+match method. A shared point cannot authorize shared weather retrieval. An unknown
+elevation remains unknown even if latitude/longitude agree. Exact published URL
+joins can resolve a position independently of ambiguous NOAA country codes.
+The [approved follow-up](../../superpowers/plans/2026-09-24-onebuilding-coordinate-resolution.md)
+records the bounded collection and matching rules. Production APIs remain unchanged.

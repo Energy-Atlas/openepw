@@ -30,14 +30,16 @@ and future scenario/windows, with strategic bounded probes instead of exhaustive
 API queries. Previous successful runs and QC summaries are excluded from this stage.
 
 MCP Stage 1 research completed on 2026-09-23. The
-[findings and evidence](docs/validation/mcp-stage-1/README.md) record 38 metadata
+[findings and evidence](docs/validation/mcp-stage-1/README.md) record 41 metadata
 requests and three targeted probes, reproducible tooling, and precise limitations.
 Stage 2 production catalog integration remains proposed, not implemented.
 An owner-authorized NOAA follow-up retrieved the larger station/month inventory
 in one additional call; its normalized local index is ready for Stage 2 integration.
 The approved follow-up also resolved both OEDI scenario directories and matched
 selected OneBuilding products through published coordinate spreadsheets or
-corroborated NOAA station IDs. Unmatched coordinates and index reuse terms remain
+corroborated NOAA station IDs. The additional coordinate follow-up reduced unknown
+products from 1,799 to 61 (all U.S.), preserving station/elevation ambiguity.
+Unmatched coordinates and index reuse terms remain
 explicit; no production integration or weather-quality acceptance is implied.
 
 Future advanced feature: index previous verified runs/artifacts and QC summaries

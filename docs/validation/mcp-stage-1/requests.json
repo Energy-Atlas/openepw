@@ -269,5 +269,35 @@
     "depth": 1,
     "revision_of": "onebuilding-uk-kml",
     "correction": "KML rejected at declared size before body download; source page links compact spreadsheet coordinate inventory for the same region"
+  },
+  {
+    "id": "onebuilding-au-coordinate-xlsx",
+    "provider": "onebuilding",
+    "url": "https://climate.onebuilding.org/sources/Region5_Southwest_Pacific_TMYx_EPW_Processing_locations.xlsx",
+    "kind": "inventory",
+    "purpose": "Owner-approved exact product coordinate index; no weather or geocoding; one attempt",
+    "parent": "onebuilding-sources",
+    "depth": 1,
+    "limit": 5000000
+  },
+  {
+    "id": "onebuilding-normals-coordinate-xlsx",
+    "provider": "onebuilding",
+    "url": "https://climate.onebuilding.org/sources/Normals_EPW_Processing_locations.xlsx",
+    "kind": "inventory",
+    "purpose": "Owner-approved exact product coordinate index; no weather or geocoding; one attempt",
+    "parent": "onebuilding-sources",
+    "depth": 1,
+    "limit": 5000000
+  },
+  {
+    "id": "onebuilding-tmy3-coordinate-xlsx",
+    "provider": "onebuilding",
+    "url": "https://climate.onebuilding.org/sources/TMY3a_EPW_Processing_locations.xlsx",
+    "kind": "inventory",
+    "purpose": "Owner-approved exact product coordinate index; no weather or geocoding; one attempt",
+    "parent": "onebuilding-sources",
+    "depth": 1,
+    "limit": 5000000
   }
 ]

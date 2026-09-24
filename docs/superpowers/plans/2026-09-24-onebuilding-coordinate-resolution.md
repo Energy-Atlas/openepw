@@ -1,6 +1,6 @@
 # OneBuilding Coordinate Resolution Follow-up Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Keep the existing inline execution approach with one final independent review. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Keep the existing inline execution approach with one final independent review. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Improve OneBuilding coordinate discovery using auditable offline matching and three bounded published-index requests, without manufacturing station identity or weather availability.
 
@@ -10,7 +10,7 @@
 
 **Spec:** [Accepted Stage 1 follow-up decisions](2026-09-23-mcp-stage-1.md#accepted-onebuilding-follow-up-plan--2026-09-23), [availability and batch ADR](../../decisions/0003-mcp-availability-and-batches.md), and [current findings](../../validation/mcp-stage-1/README.md). This plan further specifies the owner's accepted direction after inspecting unresolved products.
 
-**Status:** Owner approved the full plan, including the three-request network extension, on 2026-09-24. Execution in progress. Approval of this full plan must explicitly include the network extension below; offline tasks can proceed independently if only those are approved. MCP Stage 2 remains outside scope.
+**Status:** Owner approved the full plan, including the three-request network extension, on 2026-09-24. Execution complete; results and review disposition are below. Approval of this full plan must explicitly include the network extension below; offline tasks can proceed independently if only those are approved. MCP Stage 2 remains outside scope.
 
 ## Global Constraints
 
@@ -115,7 +115,7 @@ Keep the existing `mcp-research-1` format for additive fields and document addit
 
 **Interfaces:** Consume `coordinate_matches(urls, history, published) -> list[dict]` and normalized `noaa-history` sites. Produce `coordinate_diagnostics(matches: list[dict], history: list[dict]) -> dict` in `analysis.py`, with `product_count`, `coordinate_counts`, `unresolved_reason_counts`, `product_family_counts` and `unresolved_products` (local-only rows).
 
-- [ ] Write the failing tests using synthetic matches and NOAA sites:
+- [x] Write the failing tests using synthetic matches and NOAA sites:
 
 ```python
 def test_diagnostics_count_products_not_period_ranges():
@@ -145,8 +145,8 @@ def test_diagnostics_distinguish_identity_from_name():
     assert counts == {'ambiguous_station_identity': 1, 'name_not_corroborated': 1}
 ```
 
-- [ ] Run `.venv/Scripts/python.exe -m pytest tests/unit/test_mcp_availability_coordinates.py -q`; expect failure because `coordinate_diagnostics` is absent.
-- [ ] Implement explicit reasons, preserving all qualifying candidate identities:
+- [x] Run `.venv/Scripts/python.exe -m pytest tests/unit/test_mcp_availability_coordinates.py -q`; expect failure because `coordinate_diagnostics` is absent.
+- [x] Implement explicit reasons, preserving all qualifying candidate identities:
 
 ```python
 # Classifier precedence for unknown positions:
@@ -160,8 +160,8 @@ def test_diagnostics_distinguish_identity_from_name():
 
 Expose a mutually exclusive `primary_reason` for additive totals plus a separate list of all unresolved reasons. Include rejected raw country/name candidates in local diagnostics, not just the already-filtered `noaa_candidates`.
 
-- [ ] Run the new tests and existing 35 research tests; expect all pass. Generate the current diagnostics offline and verify 1,572 U.S. + 227 Australian unknown products before changing match behavior. Snapshot the baseline under `.local/mcp-availability/coordinate-baseline.json`, with source checksums and matcher version `1`; do not use a previous weather run.
-- [ ] Commit `fix(research): classify unresolved OneBuilding coordinate evidence`.
+- [x] Run the new tests and existing 35 research tests; expect all pass. Generate the current diagnostics offline and verify 1,572 U.S. + 227 Australian unknown products before changing match behavior. Snapshot the baseline under `.local/mcp-availability/coordinate-baseline.json`, with source checksums and matcher version `1`; do not use a previous weather run.
+- [x] Commit `fix(research): classify unresolved OneBuilding coordinate evidence`.
 
 ## Task 2: Improve names without guessing country codes or aliases
 
@@ -169,7 +169,7 @@ Expose a mutually exclusive `primary_reason` for additive totals plus a separate
 
 **Interfaces:** Add `name_evidence(product_name: str, station_name: str) -> str`, returning `token_overlap`, `exact_short_name` or `none`; add `country_evidence(country: str, raw_codes: list[str]) -> dict` with keys `raw_codes`, `expected_code`, `status` (`consistent`, `ambiguous`, `conflicting`). Keep `name_tokens` available for existing callers.
 
-- [ ] Add parameterized tests:
+- [x] Add parameterized tests:
 
 ```python
 @pytest.mark.parametrize('left,right,expected', [
@@ -188,8 +188,8 @@ def test_au_code_is_not_globally_reinterpreted():
     assert country_evidence('USA', ['CA'])['status'] == 'conflicting'
 ```
 
-- [ ] Run the new test module; expect missing helpers/incorrect short-name behavior.
-- [ ] Normalize punctuation/diacritics using the existing method. Remove explicit generic tokens `AP`, `AIRPORT`, `AWS`, `INTL`, `INTERNATIONAL`, `STATION`, `MUNI`, `MUNICIPAL`, `RGNL`, `REGIONAL`, `COUNTY`, `FIELD`, `FLD`. First retain existing distinctive token overlap of length >=4. Otherwise require equal nonempty distinctive token sequences, all tokens length >=3, for `exact_short_name`. No edit-distance matching, spelling correction, inferred aliases or substring matches.
+- [x] Run the new test module; expect missing helpers/incorrect short-name behavior.
+- [x] Normalize punctuation/diacritics using the existing method. Remove explicit generic tokens `AP`, `AIRPORT`, `AWS`, `INTL`, `INTERNATIONAL`, `STATION`, `MUNI`, `MUNICIPAL`, `RGNL`, `REGIONAL`, `COUNTY`, `FIELD`, `FLD`. First retain existing distinctive token overlap of length >=4. Otherwise require equal nonempty distinctive token sequences, all tokens length >=3, for `exact_short_name`. No edit-distance matching, spelling correction, inferred aliases or substring matches.
 
 ```python
 # Country decision remains deliberately conservative:
@@ -201,8 +201,8 @@ expected = {'USA': 'US', 'GBR': 'UK', 'AUS': 'AS'}.get(country)
 
 Integrate these helpers into NOAA candidate filtering. An ambiguous country record cannot resolve position via NOAA fallback; an exact published OneBuilding URL can resolve it independently. Do not claim the 152 country-ambiguous Australian products are fixed before obtaining that evidence.
 
-- [ ] Run both research test modules; expect pass, including cross-country and generic-name negatives. Inspect the Hay example offline and retain genuine mismatches such as Finley versus Frankston.
-- [ ] Commit `fix(research): corroborate short station names conservatively`.
+- [x] Run both research test modules; expect pass, including cross-country and generic-name negatives. Inspect the Hay example offline and retain genuine mismatches such as Finley versus Frankston.
+- [x] Commit `fix(research): corroborate short station names conservatively`.
 
 ## Task 3: Separate geographic consensus from station identity
 
@@ -210,7 +210,7 @@ Integrate these helpers into NOAA candidate filtering. An ambiguous country reco
 
 **Interfaces:** Add `coordinate_consensus(candidates: list[dict]) -> dict`, returning `lat`, `lon`, `elevation_m`, `position_status`, `station_identity_status`, `source_station_id`, `source_station_ids`. Input candidates have already passed identifier, country and name checks.
 
-- [ ] Write these failing tests:
+- [x] Write these failing tests:
 
 ```python
 def test_shared_position_does_not_merge_station_identity():
@@ -237,8 +237,8 @@ def test_nearby_is_not_identical():
 
 Add tests for missing elevation, zero elevation, one candidate, no candidates and reversed input ordering. Preserve all candidate IDs even when position is unknown.
 
-- [ ] Run the tests; expect missing helper failures.
-- [ ] Implement exact finite-coordinate agreement, no tolerances or averaging:
+- [x] Run the tests; expect missing helper failures.
+- [x] Implement exact finite-coordinate agreement, no tolerances or averaging:
 
 ```python
 positions = {(c['lat'], c['lon']) for c in candidates}
@@ -251,8 +251,8 @@ positions = {(c['lat'], c['lon']) for c in candidates}
 
 Integrate after filtering, and add `coordinate_basis='station_coordinate_consensus'`. Do not set a fabricated single `source_station_id`. If published points conflict, retain that conflict rather than fall through to a convenient NOAA consensus. Preserve published-vs-NOAA differences.
 
-- [ ] Update analysis aggregation to include the new basis explicitly. Run both research modules; expect pass. Report actual changes from the saved baseline; 197 is a baseline observation, not a required recovery target.
-- [ ] Commit `fix(research): retain station ambiguity with coordinate consensus`.
+- [x] Update analysis aggregation to include the new basis explicitly. Run both research modules; expect pass. Report actual changes from the saved baseline; 197 is a baseline observation, not a required recovery target.
+- [x] Commit `fix(research): retain station ambiguity with coordinate consensus`.
 
 ## Task 4: Acquire the three source indexes under the approved extension
 
@@ -260,8 +260,8 @@ Integrate after filtering, and add `coordinate_basis='station_coordinate_consens
 
 **Interfaces:** Collector accepts the three exact request IDs/URLs in the network table, kind `inventory`, provider `onebuilding`, `parent='onebuilding-sources'`, `depth=1`, `limit=5_000_000`. After approval, original OneBuilding requests retain their 12-attempt ceiling; only these exact additional ID/URL pairs may use attempts 13â€“15. Redirects count in the same aggregate. Expose this exception in `plan` output.
 
-- [ ] Confirm explicit approval includes the network extension. If absent, mark this task unexecuted and continue offline publication; do not ask again during execution if approval already covers it.
-- [ ] Write a synthetic collector test seeded with 12 prior OneBuilding HTTP hops: an exact approved request saves, an unrelated URL is blocked, and a resumed collector at 15 blocks every further call. Add a redirect consuming the final attempt and assert its destination is never requested after the cap.
+- [x] Confirm explicit approval includes the network extension. If absent, mark this task unexecuted and continue offline publication; do not ask again during execution if approval already covers it.
+- [x] Write a synthetic collector test seeded with 12 prior OneBuilding HTTP hops: an exact approved request saves, an unrelated URL is blocked, and a resumed collector at 15 blocks every further call. Add a redirect consuming the final attempt and assert its destination is never requested after the cap.
 
 ```python
 from mcp_research.collector import Collector, Request
@@ -309,9 +309,9 @@ metadata count is 15 and `/redirected-index.xlsx` never appears in `visits`.
 The original approved request retains its authorization through a redirect, but
 its redirects do not gain extra request capacity.
 
-- [ ] Run the collector tests; expect the approved thirteenth attempt to fail under the old ceiling. Implement one `onebuilding_request_limit(request)` helper used in both initial validation and redirect loop, matching exact IDs and URLs; never overwrite ledger counts.
-- [ ] Add parser/matching tests with synthetic workbook rows: one missing coordinate, a formula URL, conflicting duplicate points, and an index URL ending `_TMY3a.zip` versus requested `_TMY3.zip`. The latter must remain unmatched unless the exact requested URL is also listed. Preserve country/identifier discrepancies as diagnostics; no family-name URL rewriting.
-- [ ] Run focused tests; expect pass before live work. Append the three requests to the existing local follow-up manifest and publish their sanitized definitions. Run:
+- [x] Run the collector tests; expect the approved thirteenth attempt to fail under the old ceiling. Implement one `onebuilding_request_limit(request)` helper used in both initial validation and redirect loop, matching exact IDs and URLs; never overwrite ledger counts.
+- [x] Add parser/matching tests with synthetic workbook rows: one missing coordinate, a formula URL, conflicting duplicate points, and an index URL ending `_TMY3a.zip` versus requested `_TMY3.zip`. The latter must remain unmatched unless the exact requested URL is also listed. Preserve country/identifier discrepancies as diagnostics; no family-name URL rewriting.
+- [x] Run focused tests; expect pass before live work. Append the three requests to the existing local follow-up manifest and publish their sanitized definitions. Run:
 
 ```powershell
 .venv/Scripts/python.exe scripts/probe_mcp_availability.py plan --manifest .local/mcp-availability/followups.json --only onebuilding-au-coordinate-xlsx onebuilding-normals-coordinate-xlsx onebuilding-tmy3-coordinate-xlsx
@@ -320,8 +320,8 @@ its redirects do not gain extra request capacity.
 
 Expected: at most three additional HTTP attempts, at most 15 MB bodies, no weather. Saved or precisely documented blocked outcomes are acceptable. Never change manifests for already-used IDs. Existing cached successful responses should require zero new calls on rerun.
 
-- [ ] Parse saved indexes offline, joining exact URLs only. If source columns differ, write a synthetic failing parser fixture before a narrowly scoped schema adaptation; do not loosen URL/coordinate validation. Keep new metadata terms/source dates and whole workbooks local.
-- [ ] Commit tooling/manifest changes with `fix(research): inspect bounded OneBuilding product indexes`.
+- [x] Parse saved indexes offline, joining exact URLs only. If source columns differ, write a synthetic failing parser fixture before a narrowly scoped schema adaptation; do not loosen URL/coordinate validation. Keep new metadata terms/source dates and whole workbooks local.
+- [x] Commit tooling/manifest changes with `fix(research): inspect bounded OneBuilding product indexes`.
 
 ## Task 5: Publish a deterministic before/after accounting
 
@@ -329,7 +329,7 @@ Expected: at most three additional HTTP attempts, at most 15 MB bodies, no weath
 
 **Interfaces:** Add `coordinate_transitions(before: list[dict], after: list[dict]) -> dict` in `analysis.py`, keyed by exact product URL. Return aggregate `counts` keyed `old_basis -> new_basis` and local-only `changes` with product URL, previous/current basis and reasons. Do not count a retained unknown as a recovery. Preserve product periods/IDs exactly.
 
-- [ ] Write tests with one recovered product, one unchanged unknown, one change from NOAA to published evidence and one deliberately removed URL. Removed/added products must be reported separately, not disguised as coordinate improvements:
+- [x] Write tests with one recovered product, one unchanged unknown, one change from NOAA to published evidence and one deliberately removed URL. Removed/added products must be reported separately, not disguised as coordinate improvements:
 
 ```python
 before = [dict(url='a', coordinate_basis='unknown'),
@@ -342,17 +342,17 @@ assert coordinate_transitions(before, after)['counts'] == {
 }
 ```
 
-- [ ] Run tests; expect missing transition function. Implement a stable sorted URL join. Enforce duplicate URL handling explicitly: identical records deduplicate; differing records raise sanitized analysis failure rather than last-write-wins.
-- [ ] Extend report filtering to omit `unresolved_products` and transition `changes`, just as it excludes full coordinate matches and inventories today. Add tests that report generation makes no HTTP requests and excludes raw index/candidate dumps while retaining aggregate reasons, checksums and bounded selected examples.
-- [ ] Run offline analyze/report twice; expect equal JSON bytes, unchanged request/byte counters and no analysis errors. Generate a local full unresolved list and publish aggregate counts by country/product family/reason. Publish at most two illustrative examples per reason, never the full index.
-- [ ] Update the handoff: distinguish resolved position, ambiguous station identity, unknown elevation, cross-source disagreement and EPW-header verification. No record may imply that candidate coordinate agreement authorizes weather-request deduplication.
-- [ ] Commit `fix(docs): explain remaining OneBuilding coordinate uncertainty`.
+- [x] Run tests; expect missing transition function. Implement a stable sorted URL join. Enforce duplicate URL handling explicitly: identical records deduplicate; differing records raise sanitized analysis failure rather than last-write-wins.
+- [x] Extend report filtering to omit `unresolved_products` and transition `changes`, just as it excludes full coordinate matches and inventories today. Add tests that report generation makes no HTTP requests and excludes raw index/candidate dumps while retaining aggregate reasons, checksums and bounded selected examples.
+- [x] Run offline analyze/report twice; expect equal JSON bytes, unchanged request/byte counters and no analysis errors. Generate a local full unresolved list and publish aggregate counts by country/product family/reason. Publish at most two illustrative examples per reason, never the full index.
+- [x] Update the handoff: distinguish resolved position, ambiguous station identity, unknown elevation, cross-source disagreement and EPW-header verification. No record may imply that candidate coordinate agreement authorizes weather-request deduplication.
+- [x] Commit `fix(docs): explain remaining OneBuilding coordinate uncertainty`.
 
 ## Task 6: Verify, review and finish the research follow-up
 
 **Files:** This plan, research README, ROADMAP and final findings.
 
-- [ ] Run:
+- [x] Run:
 
 ```powershell
 .venv/Scripts/python.exe -m pytest tests/unit/test_mcp_availability_coordinates.py tests/unit/test_mcp_availability_research.py -q
@@ -363,10 +363,10 @@ git diff --check
 
 Expected: focused suite and lint pass; full suite passes with opt-in live tests skipped. Record actual totals rather than copying the baseline 136 passed/14 skipped.
 
-- [ ] Validate all relative documentation links, report totals (resolved + unknown = unchanged catalog product count), missing-coordinate records, candidate lists and ledger arithmetic. Confirm no production files, raw third-party indexes or credentials are staged.
-- [ ] Obtain one fresh read-only review of the full follow-up diff against this plan and its five Review Focus items. Reproduce and fix material findings with failing tests, then rerun appropriate checks. Record any deliberately deferred minor findings.
-- [ ] Update this plan's execution ledger with approvals, exact outcomes, limits used, chosen rules, review decisions and remaining unknowns. Update ROADMAP to link the findings; retain previous-run/QC reuse as future work.
-- [ ] Commit final findings with `fix(docs): record OneBuilding follow-up validation`. Leave `feature/mcp` clean and unpushed; provide commit IDs and the report link.
+- [x] Validate all relative documentation links, report totals (resolved + unknown = unchanged catalog product count), missing-coordinate records, candidate lists and ledger arithmetic. Confirm no production files, raw third-party indexes or credentials are staged.
+- [x] Obtain one fresh read-only review of the full follow-up diff against this plan and its five Review Focus items. Reproduce and fix material findings with failing tests, then rerun appropriate checks. Record any deliberately deferred minor findings.
+- [x] Update this plan's execution ledger with approvals, exact outcomes, limits used, chosen rules, review decisions and remaining unknowns. Update ROADMAP to link the findings; retain previous-run/QC reuse as future work.
+- [x] Commit final findings with `fix(docs): record OneBuilding follow-up validation`. Leave `feature/mcp` clean and unpushed; provide commit IDs and the report link.
 
 ## Completion criteria
 
@@ -392,3 +392,27 @@ Coverage: Tasks 1/5 account for unresolved products; Task 2 handles short names 
 - Task 3 complete: coordinate consensus keeps distinct IDs and unknown elevations; exact equality only, no averaging. Six new tests failed before implementation and passed afterwards. 50 focused tests passed; offline report generated.
 
 - Task 4 collection complete: three approved index attempts saved 713,654 / 284,231 / 158,499 bytes. All workbooks parsed with zero invalid rows. Exact TMY3 URL matching succeeded without rewriting TMY3a names. Extension/resume/redirect tests failed before correction and passed; missing-coordinate/formula URL tests passed. No further requests authorized.
+
+- Task 5 complete: deterministic URL-keyed transition accounting preserves unchanged,
+  improved, withdrawn and added/removed cases; full change/unresolved lists remain
+  local. All 21,653 selected catalog products retained. Previously unknown 1,739
+  products resolved; one earlier generic-name match withdrawn, yielding 61 unknowns.
+- Actual final counts: U.S. 16,302 published + 105 unique NOAA inferences + 2 coordinate
+  consensus products + 61 unknown; U.K. 1,451 published; Australia 3,732 published.
+  Remaining reasons: 37 ambiguous identities, 13 uncorroborated names, 11 missing
+  coordinate-bearing identifiers. Product families: 44 TMYx, 8 Normals, 4 TMY3,
+  4 older TMY, 1 TMY2. No approximate geocoding or weather downloads.
+- Final independent review: fixed published-index elevation conflict discarding
+  an agreed horizontal position. Two regression cases (different/missing elevation)
+  failed first, then passed; published elevation uncertainty is explicit.
+- Final minor deferred: secondary reason lists are not exhaustive; primary reason
+  classification and complete local candidate evidence remain available. This
+  does not affect additive totals or the conservative eligibility decisions.
+- Ruling: retain the deliberately stricter name result for Sherman–Dennison/Perrin
+  Field older TMY rather than restore a generic-token match to improve recovery
+  counts. Cost: this product stays unknown pending stronger identity evidence.
+- Task 6 verification: 60 focused tests passed; full suite 161 passed, 14 opt-in
+  live tests skipped, two dependency deprecation warnings. Ruff passed. Repeated
+  offline reports were byte-identical, ledger unchanged, totals and relative links
+  checked. Total metadata attempts 41, probes 3, charged bytes 140,069,725 of
+  200,000,000; 59,930,275 bytes remain. OneBuilding allowance 15/15 used.

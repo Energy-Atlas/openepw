@@ -1,6 +1,6 @@
 # MCP Stage 1 — availability findings
 
-Investigated 2026-09-23 on `feature/mcp`. Stage 1 research is complete with the
+Investigated 2026-09-23–24 on `feature/mcp`. Stage 1 research is complete with the
 specific unresolved items below. This is availability evidence, not weather-data
 acceptance, QC certification or a production MCP release.
 
@@ -14,16 +14,16 @@ Artifacts: [sanitized evidence and ledger](evidence.json),
 
 | Budget | Used | Ceiling | Remaining |
 | --- | ---: | ---: | ---: |
-| Documentation/inventory/metadata HTTP attempts | 38 | 60 | 22 |
+| Documentation/inventory/metadata HTTP attempts | 41 | 60 | 19 |
 | Location-specific API probes | 3 | 12 | 9 |
-| Application response bytes, including aborted reads | 138,913,341 | 200,000,000 | 61,086,659 |
-| OneBuilding pages/inventory requests | 12 | 12 | 0 |
+| Application response bytes, including aborted reads | 140,069,725 | 200,000,000 | 59,930,275 |
+| OneBuilding pages/inventory requests | 15 | 15 | 0 |
 | CMIP6 selected Zarr metadata documents | 4 | 4 | 0 |
 | OEDI RCP4.5 directory-related bytes | 11,816,413 | 17,000,000 | 5,183,587 |
 | OEDI RCP8.5 directory-related bytes | 11,816,677 | 17,000,000 | 5,183,323 |
 
 Calls were serial. Three responses were aborted at the original collector's byte
-limits and three oversized KMLs were rejected before body download; 35 successful
+limits and three oversized KMLs were rejected before body download; 38 successful
 responses were retained locally. OEDI allowances include the owner's additional
 7 MB per archive, with all original charges retained. No automatic retries,
 credentialed calls, queued CDS retrievals, station weather downloads, climate
@@ -88,39 +88,26 @@ distinct valid hours or variable availability. Published evidence contains summa
 and selected examples; the full index and raw inventory stay local.
 
 **OneBuilding:** the selected catalogs contained 16,470 U.S., 1,451 U.K., and 3,732
-Australia ZIP links. These are product counts, not unique station counts. Australia
-also has a separately linked RMY catalog, which was deliberately not crawled.
-The bounded root/region/country traversal remained within two levels for Australia
-and the U.K.; the existing U.S. country entry point was read directly. No weather
-ZIP or guessed station coordinate was used. Redistribution of raw catalogs/weather
-is not asserted; full normalized product links stay local.
+Australia ZIP links. These are product counts, not distinct sites. Identifiers retain leading zeros.
+The NOAA snapshot contains ambiguous country-code conventions: `AU` is not globally
+reinterpreted as Australia. The Australian published product index now independently
+resolves its product positions. Short names such as Hay require exact distinctive
+name agreement after generic facility terms are removed; aliases are not guessed.
 
-Follow-up inspection found source-linked KML and spreadsheet coordinate indexes.
-The three selected KML responses exceeded 5 MB and were rejected before consuming
-their bodies. Two compact alternate spreadsheets succeeded: U.S. (1,639,889 bytes,
-13,355 product rows) and Europe (2,061,932 bytes, 16,286 product rows). Both parsed
-without invalid coordinate rows. Their URLs came from the saved source page; no
-geocoding API or weather ZIP was requested. The 12-request OneBuilding limit is now
-used, so the Australian spreadsheet and other product indexes were not fetched.
+NOAA candidates sharing exactly the same latitude/longitude can establish a
+horizontal position while retaining distinct WBAN identities. No rounding or
+averaging is used. Two final products use this evidence: Denver–Stapleton older TMY
+(elevation remains unknown) and Port Allen TMYx. Elevation is retained only if all
+candidates supply the same finite value. Published indexes similarly retain an
+agreed horizontal position when elevation differs or is missing, with uncertainty
+explicitly flagged. No arbitrary station ID is chosen for a consensus position.
 
-| Selected catalog | Exact product URL in published coordinate index | Identifier + country + name match to NOAA | Unresolved | Total products |
-| --- | ---: | ---: | ---: | ---: |
-| U.S. | 13,355 | 1,543 | 1,572 | 16,470 |
-| U.K. | 1,451 | 0 | 0 | 1,451 |
-| Australia | 0 | 3,505 | 227 | 3,732 |
-
-These are product counts, not distinct sites. Numeric station identifiers retain
-leading zeros; NOAA country codes are interpreted as FIPS. A fallback requires
-a unique identifier candidate with country agreement and a meaningful shared name
-token. Ambiguous/name-conflicting matches remain unknown. Published exact-product
-coordinates take precedence over inferred NOAA coordinates; conflicting published
-points remain unknown. Cross-source alternatives are retained even when the exact
-published product point is preferred: 10,693 U.S. and 542 U.K. products have differing
-NOAA latitude/longitude or elevation values. This exact-value comparison includes
-rounding and elevation differences; it is not a count of bad station matches.
-Neither method verifies native coordinates in an EPW header.
-The source documents WMO-keyed files, but synthetic identifiers also exist; no
-unmatched filename number is assumed to identify a NOAA station.
+Published exact-product positions remain preferred, with all competing evidence
+retained. Numerical NOAA/index disagreements affect 13,352 U.S., 542 U.K. and 1,927
+Australian products; the exact-value comparison includes rounding and elevation
+differences and is not a count of bad matches. Conflicting horizontal points remain
+unknown. None of these methods verifies native coordinates in an EPW header or
+establishes weather equivalence for batch deduplication.
 
 Approximate place geocoding remains a fallback for unresolved products, not a
 completed feature: source-published coordinates provided stronger evidence within
@@ -184,14 +171,15 @@ threshold or substitute for later study-purpose ranking.
 
 ## Verification and conclusion
 
-The full offline suite after the follow-ups passed: **136 passed, 14 opt-in live tests skipped**, with
+The full offline suite after the follow-ups passed: **161 passed, 14 opt-in live tests skipped**, with
 two dependency deprecation warnings from FastAPI/Starlette. The research module
-now has **35 offline safeguard/parser tests**. The NOAA follow-up adds five
+now has **60 offline safeguard/parser tests**. The NOAA follow-up adds five
 regressions for the scoped allowance, sparse month counts, conflicting rows,
 alphanumeric station IDs and nonzero CLI status on analysis failures. Focused Ruff
-checks pass. Eight additional follow-up tests cover scoped OEDI resume, conservative
+checks pass. Follow-up tests cover scoped OEDI resume, conservative
 coordinate matches, conflicting evidence, workbook validation and incomplete directory
-membership. Independent
+membership, conservative short names, country ambiguity, coordinate/elevation
+consensus, exact product URLs, budget extensions and offline before/after accounting. Independent
 read-only review findings on deadlines, headers and byte limits were reproduced
 as failing tests and fixed. No production files or public interfaces changed.
 
@@ -201,3 +189,11 @@ OneBuilding product coordinates/reuse terms, general NSRDB/PVGIS footprint detai
 and CMIP6 window validation are explicit
 Stage 2 inputs, not hidden availability claims. Previous-run/QC reuse remains a
 future advanced feature.
+
+The local `coordinate-baseline.json` preserves the earlier matcher output and
+source checksums. Repeated offline analysis produces identical evidence bytes and
+unchanged network charges. It is a research metadata baseline, not prior weather/QC
+reuse. The published report contains only aggregate transitions and bounded
+examples. Minor deferred reporting enhancement: primary unresolved reasons are
+classified; lists of independently applicable secondary reasons are not yet
+exhaustive. Full raw candidate evidence remains available locally.
