@@ -10,7 +10,13 @@ The canonical Python service owns this logic. Existing EPW, QC, plan, output ide
 
 The Stage 1 raw and normalized snapshots are present under ignored `.local/mcp-availability/` in the repository checkout; the former Codex worktree used to draft this design did not contain them. Preserve the local raw files, analysis, ledger and coordinate baseline in place. The tracked sanitized ledger alone cannot reconstruct the full NOAA, OEDI or OneBuilding indexes. Implementation must validate and import these existing snapshots; it must never silently re-run Stage 1 collection or claim full-index acceptance from the sanitized report.
 
-Another agent is extending NSRDB and other Stage 1 evidence on a separate branch and worktree. The accepted snapshot remains the starting point; a reviewed follow-up can enter as a new catalog generation without rewriting existing evidence or annotations.
+The later `feature/data-avail` follow-up was merged after Stage 2 acceptance.
+Its NSRDB published `tdy-2023` grid, PVGIS map approximation and CMIP6
+license-scope join are separate research evidence. They do not retroactively
+change this implemented service contract or the active catalog. The accepted
+snapshot remains the service baseline; a reviewed follow-up can enter as a new
+generation without rewriting existing evidence or annotations. See the
+[remaining-stage handoff](../plans/2026-09-25-mcp-remaining-stages.md).
 
 ## Approach chosen
 

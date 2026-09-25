@@ -186,6 +186,9 @@ installed package. Its bounded collector and offline inventory analysis feed the
 recommendation service are implemented, with direct Python/REST/CLI access. The
 existing MCP `weather_discover` serializes enriched shared results; Stage 4 owns
 the final MCP tool contract.
+The local availability map builder lives under `scripts/mcp_availability_map/` and
+reads ignored snapshots; it is a research visualization, not a production service
+or a source of eligibility decisions.
 
 Configuration precedence: programmatic overrides → environment → explicitly loaded
 local dotenv → ignored local TOML. Credentials are SecretStr runtime fields and

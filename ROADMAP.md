@@ -55,10 +55,17 @@ products from 1,799 to 61 (all U.S.), preserving station/elevation ambiguity.
 Unmatched coordinates and index reuse terms remain
 explicit; no production integration or weather-quality acceptance is implied.
 
-Another agent is extending Stage 1 availability evidence, including NSRDB, on a
-separate branch and worktree. The accepted Stage 1 snapshot remains the planning
-baseline. Review and import later findings as a new evidence generation without
-restarting the completed investigation or overwriting accepted annotations.
+The merged Stage 1 follow-up adds a local NSRDB map for the published
+`tdy-2023` grid, an approximate PVGIS SARAH3 source-region layer, and pinned
+CMIP6 model-license counts. The [NSRDB evidence](docs/validation/mcp-stage-2/nsrdb-footprint-acceptance.md)
+generalizes occupied grid sites into 0.25° display cells; it does not establish
+arbitrary-point API eligibility. Other NSRDB selectors retain unknown regional
+extent outside exact probes. [PVGIS map evidence](docs/validation/mcp-stage-2/pvgis-map-evidence.md)
+and the [CMIP6 license-scope addendum](docs/validation/mcp-stage-1/cmip6-license-scope.md)
+have their own limits. The accepted Stage 1 snapshot remains the service baseline;
+the new research artifacts have not been imported into its active catalog. Any
+applicable follow-up enters as a reviewed new generation without recollection or
+overwriting accepted annotations.
 
 Current sequence after Stage 1: Stage 2 shared availability and recommendations;
 Stage 3a weather-fetch planning, batches and artifacts; Stage 3b future weather

@@ -67,10 +67,14 @@ directory names. It never reads or decompresses an EPW member. Use the tail's ET
 in the explicit directory request's `If-Match`; reject ignored or changed ranges.
 
 The default analysis computes seven-variable coherent CMIP6 intersections for the
-four SSP scenarios accepted by the current adapter. It does not verify actual time
-coordinates, numeric data, license eligibility for every combination, or all
-upstream experiments. Normalized inventories remain local; `report` emits counts,
-selected metadata and a sanitized ledger without station dumps/hourly tables.
+four SSP scenarios accepted by the current adapter. It also joins the saved WCRP
+registry by model once and records effective-license allow-list status for every
+listed combination. A missing or unrecognized registry license stays unknown.
+This does not verify original terms in unsampled stores, actual time coordinates,
+numeric data, or all upstream experiments. See the [offline license-scope
+addendum](../../docs/validation/mcp-stage-1/cmip6-license-scope.md). Normalized
+inventories remain local; `report` emits counts, selected metadata and a
+sanitized ledger without station dumps/hourly tables.
 
 Run offline safeguards with:
 

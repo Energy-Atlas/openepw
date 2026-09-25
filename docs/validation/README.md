@@ -2,9 +2,31 @@
 
 Latest: [v0.1 acceptance](v0.1-acceptance.md) and [execution ledger](stage-2-ledger.md).
 
-MCP follow-up: [Stage 1 availability investigation](mcp-stage-1/README.md), completed
-2026-09-23 with bounded metadata collection, three targeted probes and offline
-research-tool tests. This does not replace the v0.1 weather acceptance evidence.
+MCP follow-up: [Stage 1 availability investigation](mcp-stage-1/README.md),
+accepted 2026-09-24 after bounded metadata collection, three targeted probes
+and offline research-tool tests. The [catalog contract](mcp-stage-1/catalog-contract.md)
+and [CMIP6 model-license join](mcp-stage-1/cmip6-license-scope.md) are distinct
+research inputs. The [shared availability service](mcp-stage-2-acceptance.md)
+was approved and implemented on `feature/mcp`; the later map and license-scope
+addenda have not been imported into its active catalog. None of these records
+replace the v0.1 weather acceptance evidence.
+
+The local availability map has separate, source-limited records for the
+[PVGIS SARAH3 approximation](mcp-stage-2/pvgis-map-evidence.md),
+[NSRDB `tdy-2023` published grid](mcp-stage-2/nsrdb-footprint-acceptance.md),
+and [CMIP6 scenario/license counts](mcp-stage-2/cmip6-license-map.md).
+The PVGIS polygon approximates a provider figure, the NSRDB cells show one
+published product's grid occupancy, and CMIP6 has no verified geographic layer.
+These map views are local research artifacts, not production eligibility or
+weather-quality results. Stage 1 collection was not restarted for the map or
+offline license join.
+
+Remaining shared-metadata questions are CMIP6 requested-window and per-model
+geographic coverage, OEDI paired-baseline archive membership, OneBuilding
+full-index redistribution terms, and NSRDB selectors beyond `tdy-2023`.
+NOAA monthly report counts are an initial period screen, not proof of valid
+hourly weather; retrieval and EPW QC must check that later. These are recorded
+unknowns, not reasons to reopen the accepted Stage 1 collection.
 
 # Stage 1 evidence
 

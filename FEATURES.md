@@ -27,6 +27,7 @@ are recorded separately. Installed source package version: 0.1.0.
 | Shared availability catalog | MCP Stage 2 implemented, offline tested | Explicit local import validates analysis input fingerprints; bundled safe contracts when inventories are absent; immutable generations, sparse years, future membership, stale fallback |
 | Eligibility and recommendations | MCP Stage 2 implemented, offline tested | Per-occurrence reasons and unknowns; supported means retrieval eligible, not weather complete |
 | Availability interfaces | Python, REST and CLI implemented | Existing MCP discovery includes shared facts; final MCP tool design remains Stage 4 |
+| Local availability map | Research artifact, outside installed package | [PVGIS source-region approximation, NSRDB published grid, CMIP6 license counts](docs/validation/README.md); layers have different evidence bases and do not certify request eligibility |
 | Packaging/CI | Wheel/sdist built; local installation verified | Cross-OS runners configured; see actual run evidence |
 
 Reserved: sampled/stochastic weather, additional hourly scenarios/geographies,

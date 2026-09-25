@@ -12,6 +12,15 @@ Status: approved for autonomous implementation by the owner on 2026-09-24 and im
 
 **Spec:** [MCP Stage 2 design](../specs/2026-09-24-mcp-stage-2-availability-design.md). Also read [accepted ADR 0003](../../decisions/0003-mcp-availability-and-batches.md), [Stage 1 findings](../../validation/mcp-stage-1/README.md), [catalog proposal](../../validation/mcp-stage-1/catalog-contract.md), [accepted case review](../../validation/mcp-stage-1/onebuilding-manual-review.md) and [agent handoff](../../handoffs/2026-09-24-mcp-stage-2.md).
 
+Post-acceptance evidence: the [NSRDB `tdy-2023` display-grid record](../../validation/mcp-stage-2/nsrdb-footprint-acceptance.md)
+and [CMIP6 license-scope addendum](../../validation/mcp-stage-1/cmip6-license-scope.md)
+were merged after this Stage 2 service was implemented. The display mask is
+not in the active catalog and cannot establish arbitrary-point eligibility.
+The derived license-scope field is not consumed by the implemented importer;
+its original WCRP registry license fields remain available. The coordinated
+[remaining-stage plan](2026-09-25-mcp-remaining-stages.md) allocates any
+follow-up integration without reopening this completed plan.
+
 ## Global constraints
 
 - This MCP Stage 2 is distinct from the already completed v0.1 Stage 2. Record owner plan approval in this plan before implementation; no elapsed-time approval.
