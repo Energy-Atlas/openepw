@@ -6,6 +6,11 @@ The local importer preserves the dated 2025-08-30 ISD history and 154,841 sparse
 station/year inventory rows, including alphanumeric and zero-padded IDs. A listed
 year indicates reports exist, while an unlisted year inside a station operating
 span remains unknown. Monthly counts do not prove hourly or variable completeness.
+During retrieval, an hour without a qualifying report remains missing. The EPW
+writer uses the field's numeric missing sentinel, QC reports the affected critical
+variable, and every bundle remains marked `simulation_ready=false`. The default
+warning policy permits an inspectable partial EPW; `missing_policy="error"`
+rejects output when a requested required variable is missing.
 The GHCNh successor is not inferred from this ISD catalog. See the
 [Stage 1 findings](../validation/mcp-stage-1/README.md) for evidence and limits.
 

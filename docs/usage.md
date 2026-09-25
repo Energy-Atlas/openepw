@@ -41,6 +41,15 @@ periods. Published TMY products cannot also specify actual years. Provider order
 is explicit (`providers=["nsrdb", "openmeteo"]`); discovery retains alternatives,
 but execution never silently reselects a different provider after failure.
 
+For sparse observations such as NOAA ISD, `missing_policy="warn"` (the default)
+may emit an EPW with standard numeric missing-value sentinels. QC names each
+critical variable with missing values, and the manifest has
+`simulation_ready=false`. Hours without a qualifying source report and absent
+fields are not silently filled. Use
+`missing_policy="error"` and set `required_variables` to reject an output when
+any required field has a missing value. A noncontiguous hourly timeline is a
+structural QC error and is rejected under either policy.
+
 Actual-year requests preserve February 29 by default. Set `skip_feb_29=True` when
 the consuming software requires a 365-day array for every year:
 
