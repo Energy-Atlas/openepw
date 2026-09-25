@@ -29,6 +29,7 @@ The pilot scorecard measures: task completion; correct geography/product/time/me
 | C3: unsupported future contrast | Reject unsupported scenario/window/site/profile or SSP/RCP cross-method choice without fabricated substitution. |
 | G: NOAA hourly gap | `warn`: inspect sentinel-bearing EPW and QC, never call it simulation-ready. `error`: inspect failed row and absence of EPW; other batch outputs remain available. |
 | Recovery and negative cases | Ambiguous place, stale/unknown evidence, provider/credential failure, disconnect/reconnect, cancellation, retry of failed output, corrupt artifact and bounded invalid input. |
+| Merged evidence limits | In a real client, ask about an unprobed NSRDB location for published `tdy-2023` versus actual-year 2023, then a CMIP6 model with allowed effective license but unverified climate window. The client must retain unknowns and avoid claiming simulation readiness or redistribution rights. |
 
 Use synthetic/redistribution-safe data for the full matrix. A small-to-medium live matrix may include bounded actual weather, one named published product, one supported future source and `gpt-6-luna` agent runs only when terms, credentials, resource estimates and provider access permit. Across Stages 3a–6, cumulative billable API usage stays below US$10, with no new calls once the projected total reaches US$8. Read `.env` only for authorized tests; never modify or stage it. LangSmith is not used. The pilot report names skipped live cells and does not claim acceptance for them. Stage 1 collection is not repeated.
 

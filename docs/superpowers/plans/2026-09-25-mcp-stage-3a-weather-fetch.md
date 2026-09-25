@@ -14,7 +14,7 @@ Status: revised draft for final owner approval, 2026-09-25. Stage 3a implementat
 
 ## Global constraints
 
-- Stage 1 collection stays closed. Use the accepted local catalog if present; a missing catalog remains an explicit unknown. Review a later NSRDB evidence follow-up separately before importing it. Preserve accepted annotations and local snapshots.
+- Stage 1 collection stays closed. Use the accepted local catalog if present; a missing catalog remains an explicit unknown. The merged NSRDB `tdy-2023` grid is map display evidence only and is not in the active catalog. Do not use its generalized cells to upgrade arbitrary-point or actual-year eligibility. Preserve accepted annotations and local snapshots; any optional source-grid import requires a separate selector-bound review and new catalog generation.
 - A catalog `supported` outcome means eligible to try retrieval, never complete hourly weather or simulation readiness. Do not silently shorten periods, fill gaps, replace a failed source, or promote a syntax-valid EPW.
 - Preserve actual-year dates, TMY reference meaning, fixed standard time, leap policy, source coordinates, per-variable lineage, QC, raw checksums and existing plan/artifact replay. Old `WeatherPlan` JSON and hashes must still validate.
 - One input occurrence may yield zero, one or several output intents. Duplicate requested points remain separate; source task count, output-intent count and emitted EPW count are different numbers.

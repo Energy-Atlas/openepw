@@ -20,6 +20,7 @@ Status: revised draft for final owner approval, 2026-09-25. Begin implementation
 - Future target year is shorthand for a climate window, not a single-year forecast. Retain actual baseline date semantics, TMY source/reference meaning, original source calendar and per-variable lineage. Never silently change geography, truncate periods or insert a leap day.
 - Existing v0.1 future plan JSON/hashes, direct Python local-path convenience and current successful outputs remain readable. Prefer additive optional fields and migration-free artifact linkage.
 - A fetched OpenEPW weather artifact ID is used directly as one baseline path. A user-provided EPW is uploaded or registered as a checksummed artifact before planning. Trusted Python/CLI may accept a local path; REST accepts bounded upload; Stage 4 defines bounded MCP upload and optional allowlisted-path registration. Future planning/execution on REST/MCP uses opaque artifact IDs, never an arbitrary raw path. Avoid path traversal or credential-bearing paths in results.
+- The merged CMIP6 license-scope analysis screens 636 pinned catalog combinations against the effective WCRP model-license registry, but does not establish requested-window coverage, geographic footprint or original-store redistribution rights. The current Stage 2 importer uses registry license fields and does not consume derived `license_scope`. At preflight, use the derived local field only when present with valid accepted inputs; otherwise use independently available accepted registry evidence or return `unknown`. Keep original store license text separate and do not regenerate Stage 1 snapshots implicitly.
 
 ## Files and interfaces
 
@@ -48,7 +49,7 @@ The anchor is one study location with two baseline paths: (i) a synthetic comple
 
 **Files:** Modify `planning/future.py`, Stage 3a `planning/store.py`, `service.py`; add `tests/unit/test_stage3b_plans.py`.
 
-- [ ] Write failing tests for equivalent local/fetched baseline identity, stored future plan retrieval by hash, old future plan replay, explicit reference/target windows, target-year shorthand, climate scenario and model/member selectors. Verify plan warnings and resource estimates survive serialization; unsupported combinations are rejected before job submission.
+- [ ] Write failing tests for equivalent local/fetched baseline identity, stored future plan retrieval by hash, old future plan replay, explicit reference/target windows, target-year shorthand, climate scenario and model/member selectors. Include a pinned allowed CMIP6 model license with an unverified climate window, missing/stale model-license evidence, and an original store term that differs from the effective registry license. Verify plan warnings and resource estimates survive serialization; unsupported combinations are rejected before job submission.
 - [ ] Extend the Stage 3a plan store to future plans using the same `plan_hash` integrity rules. Keep registered baseline/signal snapshot IDs in executable plans, while output identity is based on stable input checksums and scientific choices. Record method-specific eligibility and uncertainty without promising the source archive contains complete hours merely because metadata lists it.
 - [ ] Run focused tests plus `tests/unit/test_future.py tests/unit/test_hourly_future.py`; commit `fix(planning): persist inspectable future plans`.
 

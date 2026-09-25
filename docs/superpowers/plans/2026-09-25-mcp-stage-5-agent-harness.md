@@ -25,6 +25,11 @@ Status: revised draft for final owner approval, 2026-09-25. Implement after the 
 
 Use stories A, B, C and G from the coordinated plan as gold tasks. Add ambiguous place names, stale/unknown availability, provider outage/credential gate, retry after partial success, invalid baseline, unsupported SSP/RCP cross-method choice, cancelled job and corrupted artifact. Synthetic MCP transcripts and a deterministic model stub cover every required branch offline. A small-to-medium opt-in `gpt-6-luna` run checks natural-language quality without making nondeterministic output a required CI gate. Read `.env` only into test-process memory, never change it, and keep model/provider billable usage under the coordinated US$10 cumulative cap.
 
+Add two uncertainty evaluations from the merged Stage 1 follow-up: a
+`tdy-2023` map cell must not answer an unprobed actual-year 2023 request, and
+an allowed CMIP6 model license must not imply a verified climate window or
+geographic footprint. Score the agent's explanation as well as its tool choice.
+
 Score each task on: required tool calls and order; scientific choices and explicit clarification; plan hash submitted unchanged; correct per-occurrence/job/artifact accounting; explicit uncertainty/QC/provenance in the final explanation; recovery without duplicate work; bounded calls/tokens/elapsed time; and redaction. Block acceptance on critical failures: wrong geography without clarification, fabricated availability, silent source switch, unsupported future method, treating a sentinel EPW as simulation-ready, or leaking a credential. Numeric thresholds for the rest are defined in the checked-in rubric before harness tuning, then held fixed for comparison.
 
 | File/area | Planned role |

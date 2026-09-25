@@ -34,6 +34,7 @@ The two required baseline journeys are (1) direct reuse of an OpenEPW weather ar
 ## Shared guardrails
 
 - Carry duplicate requested occurrences and their supported/unknown/unsupported/failure states, exact source task sharing, per-output QC and missing policy unchanged from Stage 3a. A catalog `supported` outcome is only retrieval eligibility.
+- Keep the merged NSRDB published `tdy-2023` map layer and PVGIS approximation outside service eligibility responses. Do not translate a CMIP6 effective model-license pass into verified climate-window or geographic coverage. Preserve the source selector and reason codes in compact results.
 - Future tools retain registered baseline identity, method/scenario/reference and climate windows, and method-specific site/variable limits from Stage 3b. `future_submit` executes an inspected plan, not an LLM-reconstructed plan.
 - Stdio stdout contains protocol messages only; diagnostics go to stderr with redaction. Startup recovers jobs, shutdown closes the runner, and client disconnect leaves durable jobs inspectable on reconnect.
 - Restrict resource and tool payloads, input sizes, job polling and bounded geocode/discovery result counts. IDs are validated and file reads are confined to the data root. Preserve the existing single-process-per-data-root model.

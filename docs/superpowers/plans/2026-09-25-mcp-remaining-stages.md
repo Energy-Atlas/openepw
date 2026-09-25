@@ -1,6 +1,6 @@
 # Production MCP: coordinated plan for Stages 3a–6
 
-Status: revised draft for final owner approval, 2026-09-25. This coordinates the remaining work; the owner's clarification answers set boundaries for future tests but do not authorize implementation now. Stage 1 is accepted and Stage 2 is complete. Work remains on `feature/mcp` in the current checkout; a contributor's separate evidence branch is reviewed independently.
+Status: revised draft for final owner approval, 2026-09-25. This coordinates the remaining work; the owner's clarification answers set boundaries for future tests but do not authorize implementation now. Stage 1 is accepted and Stage 2 is complete. Work remains on `feature/mcp` in the current checkout. The `feature/data-avail` Stage 1 follow-up was reviewed and merged at `0f79ab3`; its ignored local source files were not moved into this checkout.
 
 **Goal:** Deliver a validated local MCP weather workflow, including a reference agent, without losing scientific meaning or request-to-artifact traceability between stages.
 
@@ -9,6 +9,36 @@ Status: revised draft for final owner approval, 2026-09-25. This coordinates the
 **Tech stack:** Existing Python 3.11+, Pydantic, SQLite/filesystem, pytest and the optional MCP SDK. Agent framework choice remains a Stage 5 evidence-based decision. No mandatory distributed service.
 
 **Sources of truth:** [Owner-reviewed program allocation](../../plans/2026-09-24-production-mcp-program.md), [ADR 0003](../../decisions/0003-mcp-availability-and-batches.md), [Stage 2 acceptance](../../validation/mcp-stage-2-acceptance.md) and [future-method contract](../../methods/future-weather.md). The stage-specific plans below control implementation after owner review.
+
+## Merged availability evidence and work allocation
+
+The accepted Stage 1 snapshot and 61 reviewed OneBuilding annotations remain
+the service baseline. The merged branch adds a local research map and an offline
+CMIP6 license-scope derivation. Neither was imported into the active Stage 2
+catalog. The map's NSRDB layer represents 2,018,267 grid sites for the exact
+GOES TMY v4 `published_name:tdy-2023` selector, generalized to 53,723 display
+cells. Its `v4.0.0` object path and internal `4.0.1` model attribute both remain
+in provenance. It cannot establish eligibility at an unprobed point, actual-year
+2023 availability, complete hourly data or simulation readiness. PVGIS SARAH3
+is an approximate source-region drawing, and the CMIP6 map has no geographic
+footprint. See the [NSRDB source review](../../validation/mcp-stage-2/nsrdb-footprint-source-review.md),
+[map acceptance record](../../validation/mcp-stage-2/nsrdb-footprint-acceptance.md),
+[PVGIS evidence](../../validation/mcp-stage-2/pvgis-map-evidence.md) and
+[CMIP6 license-scope addendum](../../validation/mcp-stage-1/cmip6-license-scope.md).
+
+| Stage | Allocated follow-up |
+| --- | --- |
+| 3a | Preserve selector, evidence generation and `unknown` distinctions while planning/fetching. Keep the map separate from retrieval eligibility; no NSRDB footprint import is required for batch acceptance. |
+| 3b | Review the pinned CMIP6 catalog/WCRP model-license join at future preflight. Use available local `analysis.json` only if its accepted inputs are valid; otherwise use independently available accepted registry evidence or return a typed unknown. Keep original store terms, window coverage and geographic coverage separate. |
+| 4 | Expose service evidence and QC through MCP without promoting map display cells or license counts into a positive availability claim. |
+| 5 | Evaluate the agent on the published-name versus actual-year distinction, uncertain geography and model-license versus climate-window distinction. |
+| 6 | Include a real-client negative case for an unprobed NSRDB selector/location and a CMIP6 model with allowed license but unverified window; record the resulting explanation. |
+
+The source-coordinate `meta.bin`, map output and derived `analysis.json` remain
+ignored local artifacts. An optional later NSRDB service import needs a separate
+selector-bound contract, validated local source identity and a new catalog
+generation; it does not restart Stage 1 collection. No generated manifest is
+tracked in Git or assumed present in this checkout.
 
 ## Sequence and interfaces
 
@@ -49,7 +79,7 @@ Use synthetic or redistribution-safe offline fixtures for deterministic breadth.
 1. **Identity:** Keep requested occurrence, selected dataset/product, native fetch task, output intent, emitted artifact and job as different IDs. An exact shared native fetch may produce separate per-occurrence EPWs. Persisted plan hashes remain integrity references, not authorization.
 2. **Baseline:** Stage 3b resolves a user-uploaded EPW or a Stage 3a weather artifact ID to an immutable checksummed baseline. The future manifest links the exact baseline artifact and, when present, its source manifest/QC; it never infers provider identity from an EPW header. Stage 4 accepts a bounded local upload and artifact-ID reuse, with an allowlisted-path convenience route under explicit local file-access rules.
 3. **Climate meaning:** Actual year, published TMY source years, reference climate period, future climate period, target-year shorthand, SSP/RCP scenario and profile remain separate. Monthly morphing transforms the baseline; hourly climate-profile selection uses coherent trajectories and the input baseline as a comparison identity. Unsupported combinations fail explicitly.
-4. **Evidence and quality:** Stage 1 accepted annotations and local snapshots are preserved. Later evidence changes are separately reviewed generations. `analysis.json` remains local and fingerprint-checked if used; absence falls back to bundled contracts with typed unknowns. QC, missing-data policy, per-variable provenance and `simulation_ready=false` remain visible through MCP and the agent.
+4. **Evidence and quality:** Stage 1 accepted annotations and local snapshots are preserved. Later evidence changes are separately reviewed generations. `analysis.json` remains local and fingerprint-checked if used; absence falls back to bundled contracts with typed unknowns. The merged map and derived license counts are not active service evidence by themselves. QC, missing-data policy, per-variable provenance and `simulation_ready=false` remain visible through MCP and the agent.
 5. **Artifact access:** Normal tool results contain summaries, IDs and bounded links, not hourly tables or raw inventories. Every referenced artifact is checksum-checked and confined to the configured data root. Explicit compact export does not establish redistribution rights.
 6. **Durability:** Long work returns a job ID. Client disconnect does not cancel it; inspect, cancel and explicit retry use canonical job state. Reuse is limited to verified within-job native fetches and existing raw cache; previous-run weather/QC reuse stays outside this program.
 
@@ -62,4 +92,4 @@ Use synthetic or redistribution-safe offline fixtures for deterministic breadth.
 
 ## Deferred work
 
-Team deployment, authentication/isolation for self-hosting, PyPI publication, prior-run weather/QC reuse, a new frontend, sampled future weather and historical TMY/XMY generation are outside this local program. The separate evidence follow-up may join as a new accepted catalog generation; Stage 1 collection does not restart.
+Team deployment, authentication/isolation for self-hosting, PyPI publication, prior-run weather/QC reuse, a new frontend, sampled future weather and historical TMY/XMY generation are outside this local program. The merged research evidence may enter a future catalog generation only after source-specific review; Stage 1 collection does not restart.
