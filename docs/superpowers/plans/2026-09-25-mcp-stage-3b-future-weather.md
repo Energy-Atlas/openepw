@@ -37,6 +37,14 @@ The typed baseline reference carries artifact ID, SHA-256, origin (`user_provide
 
 The anchor is one study location with two baseline paths: (i) a synthetic complete annual EPW uploaded as a user file and (ii) Stage 3a anchor A's fetched weather artifact selected by ID, both with explicit reliable reference-period information. Run supported `morph` SSP245 2036–2065 with synthetic coherent monthly signals through both paths. Independently run a supported `climate_profile` RCP8.5 2045–2054 PUMA case with a bounded synthetic archive; do not imply both methods have the same geographic footprint. Contrast SSP245 on `climate_profile`, RCP8.5 on `morph`, an unsupported site/window and a gapped NOAA baseline. Offline synthetic fixtures provide deterministic acceptance; bounded live smoke follows the coordinated budget and never modifies `.env`.
 
+**Stage 3a handoff adjustment (2026-09-25):** The executed Stage 3a actual-year
+anchor verified 8,784 intervals and mapping with a deliberately sparse two-variable
+synthetic provider. Its resulting EPW is a QC-limited negative baseline case. For
+the positive fetched-artifact-ID path in this stage, run the same Stage 3a
+plan → job → artifact flow with a complete annual synthetic provider at the study
+location. This preserves the accepted Stage 3a result while testing the stricter
+future preflight; do not treat 8,784 rows alone as sufficient baseline quality.
+
 ### Task 1: Baseline registration and scientific preflight
 
 **Files:** Modify `artifacts/store.py`, `planning/future.py`, `models/__init__.py`; add `tests/unit/test_stage3b_baselines.py`.
