@@ -59,8 +59,9 @@ baseline. Review and import later findings as a new evidence generation without
 restarting the completed investigation or overwriting accepted annotations.
 
 Current sequence after Stage 1: Stage 2 shared availability and recommendations;
-Stage 3 complete planning, batch and artifact workflows; Stage 4 local MCP contract;
-Stage 5 agent harness and evaluations; Stage 6 local client pilot and
+Stage 3a weather-fetch planning, batches and artifacts; Stage 3b future weather
+from user-provided or fetched EPWs; Stage 4 local MCP contract with geography
+interpretation; Stage 5 agent harness and evaluations; Stage 6 local client pilot and
 release acceptance. The harness may use LangChain, LangGraph, LangSmith or a smaller
 stack after its design evaluates the trade-offs; none is a mandatory core dependency.
 

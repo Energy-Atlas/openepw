@@ -58,6 +58,9 @@ compatible products/variables, source resolution/distance, exclusions, uncertain
 access requirements and recommendation reasons. The LLM explains these facts in
 the context of the user's purpose; it does not invent availability or a universal
 quality score. Future method capabilities belong in the same discovery workflow.
+Evaluate geographic and temporal coverage together. Show when multiple input
+locations may resolve to one station/source, but leave scientific retrieval
+equivalence and output mapping to Stage 3a.
 
 Primary areas: a focused availability package, provider discovery, domain models,
 WeatherService and provider/method documentation. Avoid a broad service refactor.
@@ -67,31 +70,49 @@ station date gaps/overlaps, stale catalogs, variable omissions and unsupported
 future combinations. Fresh local metadata avoids unnecessary provider calls;
 unknown cases remain visible. Python and adapter callers receive the same facts.
 
-## Stage 3 — complete planning, batch and artifact workflows (proposed)
+## Stage 3a — complete weather-fetch planning, batch and artifact workflows (proposed)
 
-Resolve all requested sites, preserve the full request-to-source mapping, group
+Use the program plan's two weather-fetch anchor requests, each using one or a few
+sources, to exercise product, geography, temporal and batch differences. Track
+which combinations they cover; use offline variants for additional cases rather
+than an exhaustive live matrix. Resolve all requested sites, preserve the full
+request-to-source mapping, group
 scientifically equivalent retrievals, and continue supported locations. Report
 unsupported, shared-source, failed and successful results distinctly. Preserve
 per-location output identities and add explicit compact export with a mapping table.
 Do not silently truncate periods or relocate native station metadata.
 
-Complete baseline ingestion for local EPWs and retrieved artifacts, using bounded
-file access and the shared artifact store. Define plan references so clients can
-execute the inspected plan without repeatedly transmitting a large plan document.
-Keep existing plan integrity, durable jobs, cancellation and failed-output retry.
+Define plan references so clients can execute the inspected plan without repeatedly
+transmitting a large plan document. Keep existing plan integrity, durable jobs,
+cancellation and failed-output retry.
 
 Primary areas: planning, service, artifacts, jobs and shared wire contracts.
 
 Acceptance: many sites sharing a source retrieve it once when equivalence is known;
 every input occurrence remains traceable. Different adjustments do not collapse.
-Partial coverage, restart/retry and both baseline paths work with synthetic data.
-Compact export and per-site export express the same scientific mappings.
+Partial coverage and restart/retry work with synthetic data. Compact export and
+per-site export express the same scientific mappings.
+
+## Stage 3b — complete future-weather workflows (proposed)
+
+Complete baseline ingestion for both a user-provided local EPW and an EPW fetched
+through OpenEPW. Carry each through inspectable future plans, execution and
+artifacts while retaining baseline identity, scenario/window meaning, provenance,
+warnings and QC. Both distinct future methods keep their source-dependent limits.
+Use the program plan's third anchor request to exercise both baseline paths and a
+supported versus unsupported scenario/window choice.
+
+Primary areas: future planning, baseline/artifact handling, service and job
+integration. Acceptance: both baseline paths produce traceable outputs; unsupported
+combinations and partial failures remain explicit. Stage 4 can expose the same
+workflows without implementing future-weather logic inside MCP.
 
 ## Stage 4 — deliver the local MCP contract (proposed)
 
 Expose the shared services with useful input/output schemas, concise descriptions,
 machine-readable errors, compact summaries and artifact references. Cover guidance,
-discovery, plan creation/execution, baseline ingestion, job inspection/cancellation/
+geography parsing/geocoding and guided discovery, plan creation/execution,
+baseline ingestion, job inspection/cancellation/
 retry and exports. Decide final tool boundaries during design; do not assume the
 existing six names or untyped dictionaries are the complete production interface.
 
@@ -130,11 +151,13 @@ Exit condition: the reference harness can drive the main local workflows through
 MCP with inspectable traces and deterministic evaluations, including ambiguity,
 unsupported locations, provider failures and QC/provenance explanations. This
 provides a concrete client for the pilot without claiming general agent reliability.
+Reuse Stage 3's representative request families as evaluation anchors.
 
 ## Stage 6 — local pilot and release acceptance (proposed)
 
-Run the selected user stories through the reference harness and target LLM client:
-purpose-based dataset guidance, native and actual-year EPWs, both baseline-to-future paths, and
+Run the Stage 3 representative requests and selected variants through the reference
+harness and target LLM client: purpose-based dataset guidance, geography interpretation,
+native and actual-year EPWs, both baseline-to-future paths, and
 batches with shared sources/unsupported locations/partial failures. Check whether
 tool results let the LLM explain choices, geographical/temporal limits and QC.
 
