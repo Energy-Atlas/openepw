@@ -1,6 +1,6 @@
 # Stage 3b implementation plan: future weather from both baseline paths
 
-Status: draft for owner review, 2026-09-25. Begin implementation after Stage 3a acceptance and owner review of the coordinated remaining-stage plans.
+Status: revised draft for final owner approval, 2026-09-25. Begin implementation after Stage 3a acceptance and final approval of the coordinated remaining-stage plans; no routine stage-by-stage review is required thereafter.
 
 > **For agentic workers:** Use `superpowers:executing-plans` task by task after approval. Write failing tests for behavior changes, verify and commit each coherent increment. The checkboxes are execution tracking, not extra human approval gates.
 
@@ -19,7 +19,7 @@ Status: draft for owner review, 2026-09-25. Begin implementation after Stage 3a 
 - `morph` is monthly CMIP6/local-signal shift/stretch of baseline hours, with SSP and explicit reference/target windows. `climate_profile` selects full hourly WRF trajectories at supported PUMA sites, with RCP and exact archive windows; its input EPW is a comparison identity, not the transformed sequence. Do not map RCP4.5 to SSP245.
 - Future target year is shorthand for a climate window, not a single-year forecast. Retain actual baseline date semantics, TMY source/reference meaning, original source calendar and per-variable lineage. Never silently change geography, truncate periods or insert a leap day.
 - Existing v0.1 future plan JSON/hashes, direct Python local-path convenience and current successful outputs remain readable. Prefer additive optional fields and migration-free artifact linkage.
-- Local EPW paths are accepted through trusted Python/CLI registration only. REST/MCP accept registered opaque artifact IDs; Stage 4 defines any bounded MCP local-file registration tool. Avoid arbitrary path traversal or credential-bearing paths in results.
+- A fetched OpenEPW weather artifact ID is used directly as one baseline path. A user-provided EPW is uploaded or registered as a checksummed artifact before planning. Trusted Python/CLI may accept a local path; REST accepts bounded upload; Stage 4 defines bounded MCP upload and optional allowlisted-path registration. Future planning/execution on REST/MCP uses opaque artifact IDs, never an arbitrary raw path. Avoid path traversal or credential-bearing paths in results.
 
 ## Files and interfaces
 
@@ -32,15 +32,15 @@ Status: draft for owner review, 2026-09-25. Begin implementation after Stage 3a 
 | `src/openepw/api/app.py`, `src/openepw/cli/main.py` | Thin registration, plan-by-hash, job and artifact access; no future science. |
 | `tests/unit/test_stage3b_*.py` | Deterministic local/fetched baselines, scenario/window/method, QC and recovery acceptance. |
 
-The typed baseline reference carries artifact ID, SHA-256, origin (`local_upload` or `weather_output`), optional source output/manifest/QC artifact IDs and input QC summary. It is an artifact relationship, not a claim that the external EPW's header identifies its provider. A future plan stores this resolved reference and method/scenario/window choices; a future manifest records the same IDs, source/calendar semantics, per-variable transformations and QC. Existing `FutureRequest.baseline` strings remain accepted and are normalized at planning.
+The typed baseline reference carries artifact ID, SHA-256, origin (`user_provided` or `weather_output`), optional registration route (`upload` or `allowlisted_path`), optional source output/manifest/QC artifact IDs and input QC summary. It is an artifact relationship, not a claim that the external EPW's header identifies its provider. A future plan stores this resolved reference and method/scenario/window choices; a future manifest records the same IDs, source/calendar semantics, per-variable transformations and QC. Existing `FutureRequest.baseline` strings remain accepted and are normalized at planning.
 
-The anchor is one study location with two baseline paths: (i) a synthetic complete local annual EPW and (ii) Stage 3a anchor A's fetched weather artifact, both with explicit reliable reference-period information. Run supported `morph` SSP245 2036–2065 with synthetic coherent monthly signals through both paths. Independently run a supported `climate_profile` RCP8.5 2045–2054 PUMA case with a bounded synthetic archive; do not imply both methods have the same geographic footprint. Contrast SSP245 on `climate_profile`, RCP8.5 on `morph`, an unsupported site/window and a gapped NOAA baseline. Offline synthetic fixtures provide deterministic acceptance; any live smoke is separately opt-in.
+The anchor is one study location with two baseline paths: (i) a synthetic complete annual EPW uploaded as a user file and (ii) Stage 3a anchor A's fetched weather artifact selected by ID, both with explicit reliable reference-period information. Run supported `morph` SSP245 2036–2065 with synthetic coherent monthly signals through both paths. Independently run a supported `climate_profile` RCP8.5 2045–2054 PUMA case with a bounded synthetic archive; do not imply both methods have the same geographic footprint. Contrast SSP245 on `climate_profile`, RCP8.5 on `morph`, an unsupported site/window and a gapped NOAA baseline. Offline synthetic fixtures provide deterministic acceptance; bounded live smoke follows the coordinated budget and never modifies `.env`.
 
 ### Task 1: Baseline registration and scientific preflight
 
 **Files:** Modify `artifacts/store.py`, `planning/future.py`, `models/__init__.py`; add `tests/unit/test_stage3b_baselines.py`.
 
-- [ ] Write failing tests for local EPW registration, fetched weather artifact resolution, checksum mutation, mismatched source manifest link, duplicate registration, annual gap/critical-variable failure, an external EPW with unknown provider, and a Stage 3a NOAA sentinel output. Assert source coordinates and per-variable lineage from a fetched baseline are retained without replacing requested location.
+- [ ] Write failing tests for user EPW upload and local-path registration, fetched weather artifact ID resolution, checksum mutation, mismatched source manifest link, duplicate registration, annual gap/critical-variable failure, an external EPW with unknown provider, and a Stage 3a NOAA sentinel output. Assert source coordinates and per-variable lineage from a fetched baseline are retained without replacing requested location.
 - [ ] Implement a service-level resolver that uses artifact IDs for untrusted adapters and safely snapshots trusted local paths for Python/CLI. Pin input bytes/QC and linked fetched provenance in the future plan; verify all linked checksums again at execution. Preflight completeness/variables and return typed `INVALID_BASELINE` or `MISSING_CRITICAL_VARIABLE` with QC details instead of proceeding silently.
 - [ ] Run focused tests plus `tests/unit/test_future.py`; commit `fix(future): register and validate baseline artifacts`.
 
@@ -64,7 +64,7 @@ The anchor is one study location with two baseline paths: (i) a synthetic comple
 
 **Files:** Modify `api/app.py`, `cli/main.py`; add focused adapter tests; create `docs/validation/mcp-stage-3b-acceptance.md`; update `ARCHITECTURE.md`, `FEATURES.md`, `ROADMAP.md`, `docs/limitations.md`, `docs/methods/future-weather.md`.
 
-- [ ] Write failing REST/CLI tests for registering a bounded local baseline, planning by artifact ID, submitting a stored future plan, inspecting member-level job/QC/artifact results and refusing raw paths in remote requests. Check that sensitive paths/tokens and hourly arrays do not appear in ordinary JSON.
+- [ ] Write failing REST/CLI tests for uploading a bounded user EPW, registering a trusted local-path baseline, reusing a fetched artifact ID, planning by artifact ID, submitting a stored future plan, inspecting member-level job/QC/artifact results and refusing raw paths in remote requests. Check that sensitive paths/tokens and hourly arrays do not appear in ordinary JSON.
 - [ ] Add thin adapter routing only. Run the anchor matrix with synthetic CMIP6 signals and WRF archive responses, including both baseline paths, method/scenario contrast and the NOAA gap; record which cases are offline versus opt-in live.
 - [ ] Run `.venv/Scripts/python.exe -m pytest tests/unit -q`, Ruff, mypy and wheel/sdist build; document actual results and source-dependent limitations. Review the branch against this plan and fix material findings; commit `fix(docs): record Stage 3b acceptance`.
 

@@ -2,6 +2,12 @@
 
 Date: 2026-09-23. Branch: `feature/mcp`.
 
+Historical design discussion. Its earlier Stage 2 approval wording and proposed
+real-user/LangSmith pilot details are superseded by the [owner-clarified coordinated
+plan for Stages 3a–6](../plans/2026-09-25-mcp-remaining-stages.md). Stage 2 has been
+implemented; the remaining plans await one final approval. This document is
+retained as design history, not as the current execution contract.
+
 Status updated 2026-09-24: the owner explicitly accepted MCP Stage 1 as finished
 and agreed to advance to Stage 2. A detailed Stage 2 design and implementation
 plan have since been drafted for review; no new public API or Stage 2 implementation

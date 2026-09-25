@@ -1,6 +1,6 @@
 # Production MCP: coordinated plan for Stages 3a–6
 
-Status: draft for owner review, 2026-09-25. This coordinates the remaining work; it does not authorize implementation. Stage 1 is accepted and Stage 2 is complete. Work remains on `feature/mcp` in the current checkout; a contributor's separate evidence branch is reviewed independently.
+Status: revised draft for final owner approval, 2026-09-25. This coordinates the remaining work; the owner's clarification answers set boundaries for future tests but do not authorize implementation now. Stage 1 is accepted and Stage 2 is complete. Work remains on `feature/mcp` in the current checkout; a contributor's separate evidence branch is reviewed independently.
 
 **Goal:** Deliver a validated local MCP weather workflow, including a reference agent, without losing scientific meaning or request-to-artifact traceability between stages.
 
@@ -18,17 +18,28 @@ Status: draft for owner review, 2026-09-25. This coordinates the remaining work;
 | [3b: future weather](2026-09-25-mcp-stage-3b-future-weather.md) | Both baseline paths and both distinct future methods through jobs/artifacts | Typed baseline reference; source lineage and QC; explicit method, scenario and climate windows; future plan/job IDs |
 | [4: local MCP](2026-09-25-mcp-stage-4-local-mcp.md) | Stable local stdio tools/resources/errors and real-session tests | Bounded schemas and resource URIs that expose the same service identities |
 | [5: harness and evaluation](2026-09-25-mcp-stage-5-agent-harness.md) | Optional runnable reference agent and reproducible evaluations | Tested agent tasks, redacted traces and known failure modes |
-| [6: local pilot](2026-09-25-mcp-stage-6-local-pilot.md) | Real client/user acceptance and release evidence | Local release report and explicit residual limits |
+| [6: local pilot](2026-09-25-mcp-stage-6-local-pilot.md) | Reference agent and real MCP client acceptance, with a limited live matrix | Local release report and explicit residual limits |
 
-Implement in that order. Stage 3b design fixtures, Stage 4 contract examples and Stage 5 evaluation tasks can be prepared while earlier work proceeds; production wiring waits for the preceding interface to pass acceptance. Stage 6 pilot recruitment/client selection and its scorecard can begin early; actual pilot runs wait for Stages 4–5. Cross-stage fixture names and intended assertions are stable, while tests are updated to the implemented wire schema rather than duplicating science in adapters.
+After final owner approval, implement in that order without routine stage-by-stage approval gates. Stage 3b design fixtures, Stage 4 contract examples and Stage 5 evaluation tasks can be prepared while earlier work proceeds; production wiring waits for the preceding interface to pass acceptance. Stage 6 client setup and its scorecard can begin early; integrated pilot runs wait for Stages 4–5. Cross-stage fixture names and intended assertions are stable, while tests are updated to the implemented wire schema rather than duplicating science in adapters.
+
+## Owner clarifications for final review
+
+The owner answered the cross-stage questions on 2026-09-25:
+
+1. Return the revised plans for **final approval** before starting Stage 3a. Once approved, execute Stages 3a–6 autonomously on this branch, with the repository's exceptional escalation boundaries and no routine intermediate approval gate.
+2. `.env` is immutable unless the owner later instructs otherwise. Approved live tests may read it; never edit, overwrite, move, copy into artifacts, display values or stage it. Offline tests remain credential-free. Stage-specific test runners explicitly load only the needed values into process memory.
+3. Future baseline workflows must cover a recently fetched OpenEPW artifact **by ID** and a **user-provided EPW upload**. Stage 4 also offers bounded local file registration under configured allowed roots; upload and ID reuse are the required end-to-end stories.
+4. Opt-in agent tests use OpenAI `gpt-6-luna` as the lower-cost primary model, subject to account availability and current API terms. The [official model page](https://developers.openai.com/api/docs/models/gpt-6-luna) lists the API ID and pricing. The deterministic harness stays model-free; LangSmith is not called and no traces leave the machine in this program.
+5. Stage 6 acceptance requires reference-agent **and real MCP client** end-to-end runs on the current Windows setup. Human participant sessions and a separate desktop host are useful later evidence, but are not required for this local release. The report must not claim real-user usability was tested.
+6. Small-to-medium, bounded live smoke tests are authorized after final plan approval. Keep cumulative billable API usage for Stages 3a–6 **below US$10**. Estimate before calls, track observed usage/cost locally without keys, and stop new billable calls at an US$8 projected total to leave margin. Unknown-price or new paid terms/accounts are outside this authorization. Record skipped cases instead of exceeding the cap.
 
 ## Shared acceptance stories
 
 | Story | 3a | 3b | 4 | 5 | 6 |
 | --- | --- | --- | --- | --- | --- |
-| A: full actual-year Ithaca point with explicit alternative | plan → EPW/QC | fetched baseline | MCP discovery → job → artifact | agent choice/explanation | target client/user task |
-| B: published OneBuilding multi-location TMYx, shared exact URL, duplicate and unsupported occurrence | mapping, partial job, compact export | optional fetched baseline | MCP batch inspection/export | agent handles partial result | target client/user task |
-| C: one local and one fetched baseline at the same study location for morphing; a separate supported PUMA case for hourly profiles; unsupported contrasts | fetched inputs | both methods on their own footprints; scenario/window/QC | MCP baseline/future tools | agent clarifies and explains | target client/user task |
+| A: full actual-year Ithaca point with explicit alternative | plan → EPW/QC | fetched baseline | MCP discovery → job → artifact | agent choice/explanation | agent/client task |
+| B: published OneBuilding multi-location TMYx, shared exact URL, duplicate and unsupported occurrence | mapping, partial job, compact export | optional fetched baseline | MCP batch inspection/export | agent handles partial result | agent/client task |
+| C: user-uploaded and fetched-artifact-ID baselines at the same study location for morphing; a separate supported PUMA case for hourly profiles; unsupported contrasts | fetched inputs | both methods on their own footprints; scenario/window/QC | MCP upload/ID/future tools | agent clarifies and explains | agent/client task |
 | G: NOAA hourly gap, `warn` and `error` policies | sentinel/QC or failed output | reject incomplete baseline for methods that require completeness | resource and error truthfulness | never call sentinel EPW simulation-ready | end-to-end user-visible regression |
 
 Use synthetic or redistribution-safe offline fixtures for deterministic breadth. Live checks are small, opt-in and never replace offline evidence. A supported catalog result means eligible to attempt retrieval, not complete hours or a simulation-ready EPW. Unknown, unsupported, access blocked, retrieval failed and QC limited retain distinct meanings through every surface.
@@ -36,7 +47,7 @@ Use synthetic or redistribution-safe offline fixtures for deterministic breadth.
 ## Contracts that must stay aligned
 
 1. **Identity:** Keep requested occurrence, selected dataset/product, native fetch task, output intent, emitted artifact and job as different IDs. An exact shared native fetch may produce separate per-occurrence EPWs. Persisted plan hashes remain integrity references, not authorization.
-2. **Baseline:** Stage 3b resolves a registered local EPW or a Stage 3a weather artifact to an immutable checksummed baseline. The future manifest links the exact baseline artifact and, when present, its source manifest/QC; it never infers provider identity from an EPW header. Stage 4 registers or references baselines under explicit local file-access rules.
+2. **Baseline:** Stage 3b resolves a user-uploaded EPW or a Stage 3a weather artifact ID to an immutable checksummed baseline. The future manifest links the exact baseline artifact and, when present, its source manifest/QC; it never infers provider identity from an EPW header. Stage 4 accepts a bounded local upload and artifact-ID reuse, with an allowlisted-path convenience route under explicit local file-access rules.
 3. **Climate meaning:** Actual year, published TMY source years, reference climate period, future climate period, target-year shorthand, SSP/RCP scenario and profile remain separate. Monthly morphing transforms the baseline; hourly climate-profile selection uses coherent trajectories and the input baseline as a comparison identity. Unsupported combinations fail explicitly.
 4. **Evidence and quality:** Stage 1 accepted annotations and local snapshots are preserved. Later evidence changes are separately reviewed generations. `analysis.json` remains local and fingerprint-checked if used; absence falls back to bundled contracts with typed unknowns. QC, missing-data policy, per-variable provenance and `simulation_ready=false` remain visible through MCP and the agent.
 5. **Artifact access:** Normal tool results contain summaries, IDs and bounded links, not hourly tables or raw inventories. Every referenced artifact is checksum-checked and confined to the configured data root. Explicit compact export does not establish redistribution rights.
@@ -44,7 +55,7 @@ Use synthetic or redistribution-safe offline fixtures for deterministic breadth.
 
 ## Review and execution checkpoints
 
-- Review these five linked plans together, especially the baseline registration boundary, plan/job wire identities, MCP tool names, harness evaluation rubric and pilot client/users. Record any owner changes in the affected plan before implementation. Planning alone is authorized; no remaining-stage implementation is inferred from this draft.
+- Review these five linked plans together, especially the upload/ID baseline boundary, plan/job wire identities, MCP tool names, harness evaluation rubric, US$10 cumulative cap and agent/client pilot. Return for the owner's explicit final approval before implementation. Do not infer it from these clarification answers or elapsed time.
 - At each stage start, compare the preceding stage's actual acceptance record with this plan. If its interface differs, amend downstream plans before writing code. Routine implementation choices after the relevant plan approval remain autonomous under `AGENTS.md`.
 - At each stage exit, run focused and regression checks, publish an acceptance record with actual results/limits, update architecture/features/roadmap/provider notes as appropriate, and commit at feature/test/docs boundaries using `fix(topic): concise description`.
 - Stop only for the repository's human-intervention boundaries. A blocked provider is reproduced, classified and given a practical fallback; it does not hold the whole program hostage or receive a false live-acceptance claim.

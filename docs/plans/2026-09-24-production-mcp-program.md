@@ -1,6 +1,6 @@
 # Production MCP program plan
 
-Status: owner-reviewed program allocation, 2026-09-24. Stage 2 was separately approved and implemented; later stages remain proposed. This allocates features, work areas and deliverables across the production MCP stages and is distinct from the completed v0.1 stages.
+Status: owner-reviewed program allocation, 2026-09-24; revised with owner clarifications on 2026-09-25. Stage 2 was separately approved and implemented; later stages await final approval. This allocates features, work areas and deliverables across the production MCP stages and is distinct from the completed v0.1 stages.
 
 ## Program outcome
 
@@ -33,7 +33,7 @@ A local user can ask for suitable weather data, understand the alternatives and 
 
 ### Stage 3b — complete future-weather workflows (proposed)
 
-- **Work area:** Carry both baseline paths through future-weather planning and execution: a user-provided local EPW, and an EPW fetched through OpenEPW.
+- **Work area:** Carry both baseline paths through future-weather planning and execution: a user-uploaded EPW, and a recently fetched OpenEPW weather artifact selected by ID.
 - **Representative workload:** Add a third anchor request that generates future weather for the same study location through both baseline paths, with an explicit supported scenario/window and an unsupported contrast.
 - **Features:** Preserve baseline identity and provenance, scenario/window/method choices, QC and warnings from planning through generated outputs. Keep the two genuinely distinct future methods and their source-dependent limits visible.
 - **Deliverables:** End-to-end outputs and artifact bundles for both baseline paths, with tests of unsupported combinations, partial failures and reproducible provenance.
@@ -42,7 +42,7 @@ A local user can ask for suitable weather data, understand the alternatives and 
 ### Stage 4 — local MCP contract (proposed)
 
 - **Work area:** Present the Stage 2–3 services to a local MCP client through understandable tools, resources and errors.
-- **Features:** Expose place-name interpretation and geocoding candidates alongside explicit point/area inputs, with geographic ambiguity visible to the caller. Guided dataset discovery, planning, execution, future generation and job/artifact inspection have compact, typed results; long-running work remains inspectable after a client disconnects.
+- **Features:** Expose place-name interpretation and geocoding candidates alongside explicit point/area inputs, with geographic ambiguity visible to the caller. Support user EPW upload, fetched-artifact-ID reuse and optional allowlisted local-path registration. Guided dataset discovery, planning, execution, future generation and job/artifact inspection have compact, typed results; long-running work remains inspectable after a client disconnects.
 - **Deliverables:** A local stdio MCP server contract, client setup examples, protocol-level tests and a documented list of supported workflows and limits. This stage decides final tool boundaries and names.
 - **Case carried forward:** The MCP client can inspect the sparse-NOAA artifact and QC warning, or the strict-policy failure, without the catalog's retrieval eligibility being presented as weather quality.
 - **Handoff to Stage 5:** A real MCP client can run the core workflows and retrieve artifacts without receiving bulk hourly data in ordinary tool responses.
@@ -51,22 +51,22 @@ A local user can ask for suitable weather data, understand the alternatives and 
 
 - **Work area:** Design an agent layer above MCP that turns user intent into sensible tool sequences and explains choices, uncertainty, failures and QC.
 - **Features:** A reference agent handles clarification, plan review, job progress, artifact follow-up and recovery across representative workflows. It does not reimplement provider selection or weather science.
-- **Deliverables:** Harness design, a runnable reference agent, representative evaluation tasks, redacted traces and a short stack decision. Compare a small direct implementation with LangChain/LangGraph; consider LangSmith or another evaluation tool only if it improves the work. None is a required core dependency by default.
+- **Deliverables:** Harness design, a runnable reference agent, representative evaluation tasks, local redacted run records and a short stack decision. Compare a small direct implementation with LangChain/LangGraph. Opt-in live tests use OpenAI `gpt-6-luna` within the shared billable budget; LangSmith and hosted tracing are excluded for this program. No agent stack is a required core dependency by default.
 - **Evaluation case:** Check that the agent reports the sparse-NOAA gap and avoids recommending its sentinel-bearing EPW as ready for simulation.
 - **Handoff to Stage 6:** The reference agent reliably completes the selected local tasks under deterministic evaluation and exposes its decisions for review. Direct Python and MCP use remain available without it.
 
 ### Stage 6 — local pilot and release acceptance (proposed)
 
-- **Work area:** Exercise the integrated product with the target LLM client, reference harness and representative users on realistic local tasks.
-- **Features:** Center pilot cases on Stage 3a's two weather-fetch anchors and Stage 3b's future-weather anchor. Include dataset guidance, geography interpretation, actual and published EPWs, both future-baseline paths, shared sources, unsupported locations and partial failures. Check whether users can understand provenance, uncertainty and QC from the returned evidence.
+- **Work area:** Exercise the integrated product with the reference harness and a real local stdio MCP client on the current Windows setup using representative user tasks. Human participant sessions and a separate desktop host are deferred.
+- **Features:** Center pilot cases on Stage 3a's two weather-fetch anchors and Stage 3b's future-weather anchor. Include dataset guidance, geography interpretation, actual and published EPWs, uploaded and fetched-ID baseline paths, shared sources, unsupported locations and partial failures. Check that the agent explains provenance, uncertainty and QC from the returned evidence.
 - **End-to-end case:** Reuse the deterministic sparse-NOAA request to verify what the user sees from discovery through artifact inspection, including the distinction between eligible retrieval and incomplete weather. Any opt-in live example supplements this case rather than replacing it.
 - **Deliverables:** Recorded client/platform/provider results, a small opt-in live acceptance matrix, resolved material defects, installation guidance and an honest limitations/release report.
-- **Completion:** The agreed local stories work end to end and remaining limitations are documented. No remote team-service acceptance is implied.
+- **Completion:** The agreed agent-and-client local stories work end to end and remaining limitations are documented. No real-user usability, other-host or remote team-service acceptance is implied.
 
 ## Workload boundaries and sequence
 
-The main path is **evidence → shared guidance → weather fetching (3a) → future weather (3b) → MCP interface → agent harness → local pilot**. Stage 1's separate evidence follow-up may proceed alongside later stages; it joins only after review and should not cause broad recollection or overwrite accepted annotations. Stages 2–3 carry the main Python service and workflow workload. Stage 4 concentrates on protocol and client usability, Stage 5 on agent behavior and evaluation, and Stage 6 on user acceptance and documentation. The small representative request set carries through Stages 3–6; broader offline cases check combinations it does not exercise live. The [coordinated remaining-stage plan](../superpowers/plans/2026-09-25-mcp-remaining-stages.md) and its linked stage plans now specify interfaces, tasks and checks for joint review; this program document still allocates features and workload rather than choosing implementation strategies.
+The main path is **evidence → shared guidance → weather fetching (3a) → future weather (3b) → MCP interface → agent harness → local pilot**. Stage 1's separate evidence follow-up may proceed alongside later stages; it joins only after review and should not cause broad recollection or overwrite accepted annotations. Stages 2–3 carry the main Python service and workflow workload. Stage 4 concentrates on protocol and client usability, Stage 5 on agent behavior and evaluation, and Stage 6 on agent/client acceptance and documentation. The small representative request set carries through Stages 3–6; broader offline cases check combinations it does not exercise live. The [coordinated remaining-stage plan](../superpowers/plans/2026-09-25-mcp-remaining-stages.md) and its linked stage plans now specify interfaces, tasks and checks for joint review; this program document still allocates features and workload rather than choosing implementation strategies.
 
 Across stages, the Python package remains canonical, and MCP and the harness consume its facts. Preserve actual-year, TMY-reference and future-window meanings, per-variable provenance, requested-location identity, source coordinates and visible uncertainty. Do not silently switch providers, shorten periods, claim that availability proves weather quality, or promote a syntax-valid EPW to simulation-ready.
 
-Stage 2 was implemented after its separate owner approval. Detailed plans for Stages 3a–6 are drafted for review together. Their implementation has not been approved.
+Stage 2 was implemented after its separate owner approval. Detailed plans for Stages 3a–6 incorporate the owner's 2026-09-25 clarification answers and await one final approval. After that approval, routine stages may proceed autonomously without intermediate plan gates. The `.env` file remains read-only; bounded live tests share a cumulative billable API cap below US$10, with new calls stopped at US$8 projected spend.

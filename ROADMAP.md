@@ -43,8 +43,9 @@ with offline validation; see [acceptance](docs/validation/mcp-stage-2-acceptance
 The [Stage 2 design](docs/superpowers/specs/2026-09-24-mcp-stage-2-availability-design.md)
 and [implementation plan](docs/superpowers/plans/2026-09-24-mcp-stage-2-availability.md)
 record the approved work. The [coordinated remaining-stage plan](docs/superpowers/plans/2026-09-25-mcp-remaining-stages.md)
-links detailed plans for Stages 3a, 3b, 4, 5 and 6. They are drafted for joint
-owner review; implementation of these remaining stages has not begun.
+links detailed plans for Stages 3a, 3b, 4, 5 and 6. They incorporate the owner's
+2026-09-25 clarification answers and await one final approval; implementation of
+these remaining stages has not begun.
 An owner-authorized NOAA follow-up retrieved the larger station/month inventory
 in one additional call; its normalized local index was imported for Stage 2.
 The approved follow-up also resolved both OEDI scenario directories and matched
@@ -61,10 +62,12 @@ restarting the completed investigation or overwriting accepted annotations.
 
 Current sequence after Stage 1: Stage 2 shared availability and recommendations;
 Stage 3a weather-fetch planning, batches and artifacts; Stage 3b future weather
-from user-provided or fetched EPWs; Stage 4 local MCP contract with geography
-interpretation; Stage 5 agent harness and evaluations; Stage 6 local client pilot and
-release acceptance. The harness may use LangChain, LangGraph, LangSmith or a smaller
-stack after its design evaluates the trade-offs; none is a mandatory core dependency.
+from uploaded or fetched-artifact-ID EPWs; Stage 4 local MCP contract with geography
+interpretation; Stage 5 agent harness and evaluations; Stage 6 agent-and-real-client
+local pilot and release acceptance. Human participant sessions are deferred. The
+harness compares direct Python with LangChain/LangGraph; opt-in live model checks
+use `gpt-6-luna`, with only local run records and no LangSmith calls. The existing
+`.env` is read-only, and billable API smoke tests share a cumulative cap below US$10.
 
 Future advanced feature: index previous verified runs/artifacts and QC summaries
 to accelerate subsequent matching requests. Existing raw caching and job recovery

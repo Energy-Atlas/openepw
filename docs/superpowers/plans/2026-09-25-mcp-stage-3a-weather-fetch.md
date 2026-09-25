@@ -1,6 +1,6 @@
 # MCP Stage 3a Weather Fetch, Batches and Artifacts Implementation Plan
 
-Status: draft for owner review, 2026-09-25. Stage 3a implementation is not yet approved. The earlier autonomous approval covered Stage 2 only. Work in the checked-out `feature/mcp` repository branch after this plan is reviewed; preserve the other contributor's separate worktree and branch.
+Status: revised draft for final owner approval, 2026-09-25. Stage 3a implementation is not yet approved. The earlier autonomous approval covered Stage 2 only. After final approval of the coordinated Stages 3a–6 plan, work in the checked-out `feature/mcp` repository branch without routine stage gates; preserve the other contributor's separate worktree and branch.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:executing-plans` to implement this plan task by task in the repository checkout, with failing tests before code and a whole-branch review at the end. Checkboxes track execution. Do not begin until the owner approves this plan.
 
@@ -22,6 +22,7 @@ Status: draft for owner review, 2026-09-25. Stage 3a implementation is not yet a
 - The default continues to emit a distinct EPW artifact for each successful requested output. Compact export is explicit and local; it does not establish redistribution rights. Never include full third-party inventories or weather fixtures in Git or the wheel.
 - Preserve one-process-per-data-root job semantics and existing raw HTTP cache. A job-local shared-task memo is allowed; previous-run weather/QC reuse remains deferred.
 - Use `fix(topic): concise description` commits with configured human authorship. No force push, destructive history rewrite, new worktree, or new approval gate after Stage 3a approval for routine choices.
+- `.env` is read-only and may be loaded into process memory for an approved bounded live smoke; never modify or stage it. Keep cumulative billable API usage below US$10 across Stages 3a–6 and stop new calls at a US$8 projected total, as recorded in the coordinated plan. Offline acceptance does not use credentials.
 
 ## Review focus
 

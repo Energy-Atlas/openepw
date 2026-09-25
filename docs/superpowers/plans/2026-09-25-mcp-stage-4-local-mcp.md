@@ -1,6 +1,6 @@
 # Stage 4 implementation plan: local MCP contract
 
-Status: draft for owner review, 2026-09-25. Implement after Stage 3a/3b service acceptance and review of the coordinated plan.
+Status: revised draft for final owner approval, 2026-09-25. Implement after Stage 3a/3b service acceptance and final approval of the coordinated plan; no routine stage-by-stage approval gate follows.
 
 > **For agentic workers:** Use `superpowers:executing-plans` after approval; test the actual protocol session, then implement and commit coherent increments. Checkboxes are execution tracking, not new human gates.
 
@@ -19,7 +19,9 @@ Status: draft for owner review, 2026-09-25. Implement after Stage 3a/3b service 
 | Interpret a place | `weather_geocode` | Candidate points/areas, ambiguity, source and selected coordinates; never silently choose an ambiguous name |
 | Compare choices | `weather_assess` / `weather_discover` | Per-occurrence supported/unsupported/unknown, alternatives, source health/access, evidence date and reason |
 | Inspect weather or future work | `weather_plan` / `future_plan` | Stored `plan_hash`, selected/alternative choices, batch rows or baseline reference, warnings, estimates |
-| Register a local baseline | `baseline_register` | Bounded allowed local path → checksummed artifact ID plus input QC, or explicit path/access error |
+| Reuse a fetched baseline | `future_plan` with `baseline_artifact_id` | Resolve a recently produced weather artifact ID and its manifest/QC; no re-upload or provider inference |
+| Upload a user EPW | `baseline_upload` | Bounded encoded EPW bytes → checksummed artifact ID and input QC; the client sends bytes directly, never through model context |
+| Register a local file by path | `baseline_register_path` | Bounded allowed local path → the same checksummed user-baseline artifact; explicit path/access error |
 | Start work | `weather_submit` / `future_submit` | Existing `plan_hash` + optional idempotency key → durable job ID/state; no implicit provider switch |
 | Continue work | `job_inspect`, `job_cancel`, `job_retry_failed` | Counts, per-output/batch outcomes, error codes and artifact IDs; preserve completed work |
 | Inspect/export result | `artifact_inspect`, `weather_export_compact` | Role/media type/size/checksum/resource URI, QC and mapping summaries or ZIP artifact ID |
@@ -27,7 +29,7 @@ Status: draft for owner review, 2026-09-25. Implement after Stage 3a/3b service 
 
 These names are the proposed public contract; confirm them with a real client session and document any rename before Stage 5 builds against them. Keep existing six v0.1 tools as aliases for a documented transition if renaming is feasible without ambiguous semantics; do not claim an approved stable API can be broken routinely. Tool descriptions must state what is evidence, what triggers network retrieval, when an output may have gaps and how to inspect QC. Return service error `code`, safe message, relevant occurrence/output/job IDs and retryability. Follow protocol error versus tool execution error semantics supported by installed SDK; never serialize credential-bearing exceptions.
 
-For local baselines, require a configured allowlist of filesystem roots and a byte cap; canonicalize before reading and register a snapshot in the artifact store. If the host cannot grant such a root, guide the user to Python/CLI or REST upload and then use the artifact ID. Ordinary MCP calls never accept arbitrary raw file paths for execution. Artifact resource reads may exceed a host's budget; normal tool responses return metadata and a URI, and acceptance tests document which clients can read the binary/text resource. Keep EPW hourly data out of ordinary JSON results.
+The two required baseline journeys are (1) direct reuse of an OpenEPW weather artifact ID and (2) upload of a user-provided EPW into a new registered artifact. `baseline_upload` accepts bounded base64 content (maximum 5 MB decoded), with an optional display filename; the local client handles file bytes outside the LLM prompt and receives only the artifact ID/QC. REST multipart upload and CLI import provide equivalent user-file routes. An additional `baseline_register_path` accepts only canonicalized paths under configured allowed roots and the same byte cap. Neither route accepts arbitrary raw paths for future execution. If a target host cannot send bytes or authorize a path, use REST/CLI upload followed by the artifact ID and document the limitation. Artifact resource reads may exceed a host's budget; normal tool responses return metadata and a URI, and acceptance tests document which clients can read the binary/text resource. Keep EPW hourly data out of ordinary JSON results.
 
 ## Shared guardrails
 
@@ -36,6 +38,7 @@ For local baselines, require a configured allowlist of filesystem roots and a by
 - Stdio stdout contains protocol messages only; diagnostics go to stderr with redaction. Startup recovers jobs, shutdown closes the runner, and client disconnect leaves durable jobs inspectable on reconnect.
 - Restrict resource and tool payloads, input sizes, job polling and bounded geocode/discovery result counts. IDs are validated and file reads are confined to the data root. Preserve the existing single-process-per-data-root model.
 - No mandatory hosted service, authentication rollout, or public remote MCP deployment in this stage.
+- `.env` remains read-only. Bounded live calls may load only required values after final plan approval; never expose them in tool schemas, arguments, errors or traces. The cumulative billable API cap is set in the coordinated plan.
 
 ### Task 1: Protocol fixture and schema snapshot
 
@@ -57,8 +60,8 @@ For local baselines, require a configured allowlist of filesystem roots and a by
 
 **Files:** Modify `mcp/server.py`, CLI/config only where needed; add `tests/mcp/test_jobs.py`.
 
-- [ ] Write failing client-session tests for allowed/disallowed local baseline registration, weather/future submit by `plan_hash`, idempotency, disconnect/reconnect, inspect/cancel/retry and a mixed batch with a shared source and rejected occurrence. Assert job and artifact IDs match the Python service.
-- [ ] Implement thin calls to baseline registration, `PlanStore` and `JobRunner`; expose per-output statuses and issue codes. Avoid an implicit execution step in `weather_plan`/`future_plan`. Invalid IDs and access errors return safe structured results.
+- [ ] Write failing client-session tests for a fetched EPW referenced by artifact ID, user EPW upload (including invalid base64, oversize and malformed EPW), allowed/disallowed local-path registration, weather/future submit by `plan_hash`, idempotency, disconnect/reconnect, inspect/cancel/retry and a mixed batch with a shared source and rejected occurrence. Assert job and artifact IDs match the Python service, and upload bytes never appear in ordinary results/traces.
+- [ ] Implement thin calls to the shared baseline importer, `PlanStore` and `JobRunner`; expose per-output statuses and issue codes. Keep user-file bytes out of model context. Avoid an implicit execution step in `weather_plan`/`future_plan`. Invalid IDs and access errors return safe structured results.
 - [ ] Run focused tests and restart/retry regressions; commit `fix(mcp): manage local weather jobs`.
 
 ### Task 4: Artifact inspection, resources and export
@@ -73,7 +76,7 @@ For local baselines, require a configured allowlist of filesystem roots and a by
 
 **Files:** Create `docs/validation/mcp-stage-4-acceptance.md`, client setup examples under `docs/mcp/`; update `ARCHITECTURE.md`, `FEATURES.md`, `ROADMAP.md`, `docs/limitations.md` and relevant CLI help.
 
-- [ ] Exercise stories A, B, C and G from the coordinated plan through a launched stdio client, including invalid schemas, disconnect/reconnect, shutdown, output limits and redaction. Add a small opt-in live smoke only if permitted; record what was actually run.
+- [ ] Exercise stories A, B, C and G from the coordinated plan through a launched stdio client, including fetched-artifact-ID reuse, user EPW upload, invalid schemas, disconnect/reconnect, shutdown, output limits and redaction. Run bounded live smoke within the coordinated US$10 cap after final approval; record what was actually run.
 - [ ] Run full unit/MCP tests, Ruff, mypy and build. Compare generated tool schemas with documentation, record installed SDK/protocol version and client resource limits. Review the whole branch and resolve material findings.
 - [ ] Commit `fix(docs): record Stage 4 MCP acceptance`.
 
