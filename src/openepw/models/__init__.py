@@ -342,6 +342,17 @@ class BatchRow(Model):
         return self
 
 
+class BaselineRef(Model):
+    artifact_id: str = Field(pattern=r"^[a-f0-9]{32}$")
+    sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    origin: Literal["user_provided", "weather_output"]
+    registration_route: Literal["upload", "allowlisted_path"] | None = None
+    source_output_id: str | None = None
+    source_manifest_id: str | None = None
+    source_qc_id: str | None = None
+    input_qc: list[Issue] = Field(default_factory=list)
+
+
 class WeatherPlan(Model):
     schema_version: Literal["0.1"] = "0.1"
     kind: Literal["weather", "future"] = "weather"
@@ -352,6 +363,8 @@ class WeatherPlan(Model):
     outputs: list[OutputSpec] = Field(default_factory=list)
     batch_rows: list[BatchRow] = Field(default_factory=list,
                                        exclude_if=lambda value: not value)
+    baseline_ref: BaselineRef | None = Field(default=None,
+                                             exclude_if=lambda value: value is None)
     warnings: list[str] = Field(default_factory=list)
     issues: list[Issue] = Field(default_factory=list, exclude_if=lambda value: not value)
     estimated_calls: int = 0
@@ -425,6 +438,8 @@ class ArtifactRef(Model):
     bytes: int
     sha256: str
     role: str
+    registration_route: Literal["upload", "allowlisted_path"] | None = Field(
+        default=None, exclude_if=lambda value: value is None)
 
 
 class ArtifactBundle(Model):

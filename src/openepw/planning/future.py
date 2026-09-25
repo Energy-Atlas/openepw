@@ -4,6 +4,7 @@ from pathlib import Path
 
 from ..epw import read_epw
 from ..models import (
+    BaselineRef,
     FetchTask,
     FutureRequest,
     Issue,
@@ -14,6 +15,7 @@ from ..models import (
     WeatherPlan,
     digest,
 )
+from ..qc import validate
 from .output_identity import filename, location_label, output_id
 
 
@@ -34,6 +36,50 @@ def snapshot(service, value, role):
     return ref, service.config.data_root / ref.path
 
 
+def resolve_baseline(service, value):
+    ref, path = snapshot(service, value, "baseline")
+    if ref.role not in ("baseline", "weather"):
+        raise OpenEPWError("INVALID_BASELINE", "Artifact is not a weather baseline")
+    try:
+        baseline = read_epw(path)
+    except OpenEPWError:
+        raise OpenEPWError("INVALID_BASELINE", "Baseline EPW is not readable") from None
+    checks = validate(baseline, "annual")
+    missing = sorted({issue.field or "unknown" for issue in checks
+                      if issue.code == "MISSING_CRITICAL_VARIABLE"})
+    if missing:
+        raise OpenEPWError("MISSING_CRITICAL_VARIABLE",
+                           "Baseline lacks required hourly values: " + ", ".join(missing))
+    if any(issue.severity == "error" for issue in checks):
+        codes = sorted({issue.code for issue in checks if issue.severity == "error"})
+        raise OpenEPWError("INVALID_BASELINE", "Baseline annual QC failed: " +
+                           ", ".join(codes))
+    related = BaselineRef(artifact_id=ref.id, sha256=ref.sha256,
+                          origin="weather_output" if ref.role == "weather"
+                          else "user_provided", input_qc=checks,
+                          registration_route=ref.registration_route)
+    params = {"baseline_sha256": ref.sha256}
+    if ref.role == "weather":
+        manifest_ref = service.artifacts.sibling(ref, "manifest.json", "manifest")
+        qc_ref = service.artifacts.sibling(ref, "qc.json", "qc")
+        _, manifest_path = service.artifacts.resolve(manifest_ref.id)
+        try:
+            prior = json.loads(manifest_path.read_bytes())
+        except ValueError:
+            raise OpenEPWError("INVALID_BASELINE", "Input manifest is malformed") from None
+        linked = next((item for item in prior.get("outputs", [])
+                       if item.get("artifact_id") == ref.id), None)
+        if linked is None:
+            raise OpenEPWError("INVALID_BASELINE", "Input manifest does not describe baseline")
+        related.source_output_id = linked.get("output_id")
+        related.source_manifest_id = manifest_ref.id
+        related.source_qc_id = qc_ref.id
+        params.update(baseline_manifest_id=manifest_ref.id,
+                      baseline_manifest_sha256=manifest_ref.sha256,
+                      baseline_qc_id=qc_ref.id, baseline_qc_sha256=qc_ref.sha256)
+    return ref, path, baseline, related, params
+
+
 def plan_future(service, request: FutureRequest):
     from ..generation.cmip6 import CMIP6Backend
     from ..generation.morph import MonthlySignal
@@ -43,23 +89,10 @@ def plan_future(service, request: FutureRequest):
             "UNSUPPORTED_FUTURE_METHOD",
             "Sampled weather is reserved experimental capability in v0.1",
         )
-    baseline_ref, path = snapshot(service, request.baseline, "baseline")
-    baseline = read_epw(path)
+    baseline_ref, path, baseline, baseline_link, params = resolve_baseline(
+        service, request.baseline)
     raw_request = request.model_dump(mode="json")
     raw_request["baseline"] = baseline_ref.id
-    params = {"baseline_sha256": baseline_ref.sha256}
-    prior_manifest = path.parent / "manifest.json"
-    if baseline_ref.role == "weather" and prior_manifest.is_file():
-        manifest_body = prior_manifest.read_bytes()
-        # Snapshot the linked provenance alongside the input EPW; never infer provider identity.
-        prior = json.loads(manifest_body)
-        linked = [o for o in prior.get("outputs", []) if o.get("artifact_id") == baseline_ref.id]
-        if linked:
-            manifest_ref = service.artifacts.write(
-                uuid.uuid4().hex, "input-manifest.json", manifest_body, "baseline_manifest"
-            )
-            params["baseline_manifest_id"] = manifest_ref.id
-            params["baseline_manifest_sha256"] = manifest_ref.sha256
     warnings = [
         "Future outputs represent climate windows, not forecasts",
         "Review QC before simulation; unchanged variables remain explicit",
@@ -151,7 +184,8 @@ def plan_future(service, request: FutureRequest):
     assert request.climate_period is not None
     # Storage artifact handles are random snapshots; output content identity is not.
     scientific_request = normalized.model_dump(mode="json", exclude={"baseline", "signals"})
-    scientific_params = {k: v for k, v in params.items() if k != "baseline_manifest_id"}
+    scientific_params = {k: v for k, v in params.items()
+                         if k not in ("baseline_manifest_id", "baseline_qc_id")}
     for i in range(count):
         member = (
             signals[i].member
@@ -196,6 +230,7 @@ def plan_future(service, request: FutureRequest):
         request=normalized,
         tasks=[task],
         outputs=outputs,
+        baseline_ref=baseline_link,
         warnings=warnings,
         estimated_calls=0 if request.signals else 14 * count if request.method == "morph" else 25,
         estimated_bytes=estimate,
@@ -219,6 +254,21 @@ def execute_future(service, plan, *, cancelled, progress):
     if ref.sha256 != params["baseline_sha256"]:
         raise OpenEPWError("PLAN_STALE", "Baseline changed since planning")
     baseline = read_epw(path)
+    if plan.baseline_ref is not None:
+        if (plan.baseline_ref.artifact_id != ref.id or
+                plan.baseline_ref.sha256 != ref.sha256):
+            raise OpenEPWError("PLAN_STALE", "Baseline reference changed since planning")
+        preflight = validate(baseline, "annual")
+        missing = sorted({issue.field or "unknown" for issue in preflight
+                          if issue.code == "MISSING_CRITICAL_VARIABLE"})
+        if missing:
+            raise OpenEPWError("MISSING_CRITICAL_VARIABLE",
+                               "Baseline lacks required hourly values: " +
+                               ", ".join(missing))
+        if any(issue.severity == "error" for issue in preflight):
+            codes = sorted({issue.code for issue in preflight if issue.severity == "error"})
+            raise OpenEPWError("INVALID_BASELINE", "Baseline annual QC failed: " +
+                               ", ".join(codes))
     if params.get("baseline_manifest_id"):
         manifest_ref, manifest_path = service.artifacts.resolve(params["baseline_manifest_id"])
         if manifest_ref.sha256 != params["baseline_manifest_sha256"]:
@@ -230,6 +280,10 @@ def execute_future(service, plan, *, cancelled, progress):
         baseline.lineage.update(
             {k: VariableLineage.model_validate(v) for k, v in linked.get("lineage", {}).items()}
         )
+    if params.get("baseline_qc_id"):
+        qc_ref, _ = service.artifacts.resolve(params["baseline_qc_id"])
+        if qc_ref.sha256 != params["baseline_qc_sha256"]:
+            raise OpenEPWError("PLAN_STALE", "Baseline QC changed")
     if cancelled():
         raise OpenEPWError("CANCELLED", "Future execution cancelled")
     if request.method == "morph":

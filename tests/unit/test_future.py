@@ -198,6 +198,7 @@ def test_known_baseline_artifact_keeps_original_variable_sources(tmp_path):
         },
         "manifest",
     )
+    s.artifacts.json("a" * 32, "qc.json", [], "qc")
     signals = tmp_path / "signals.json"
     signals.write_text(json.dumps([signal().model_dump(mode="json")]))
     p = s.plan_future(

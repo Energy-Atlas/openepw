@@ -59,6 +59,41 @@ class ArtifactStore:
             bundle_id, name, json.dumps(value, indent=2, allow_nan=False).encode(), role
         )
 
+    def register_baseline_bytes(self, body: bytes,
+                                registration_route: str | None = None) -> ArtifactRef:
+        """Store a bounded user EPW once by content, without assigning provider identity."""
+        if not body or len(body) > 5_000_000:
+            raise OpenEPWError("INVALID_BASELINE", "Baseline EPW exceeds the local size limit")
+        sha = hashlib.sha256(body).hexdigest()
+        artifact_id = hashlib.sha256(f"openepw-baseline-v1:{sha}".encode()).hexdigest()[:32]
+        record = self.root / "artifacts" / f"{artifact_id}.json"
+        if record.exists():
+            ref, _ = self.resolve(artifact_id)
+            if ref.sha256 != sha or ref.role != "baseline":
+                raise OpenEPWError("INVALID_ARTIFACT", "Baseline registration conflicts")
+            return ref
+        relative = Path("jobs") / artifact_id / "baseline.epw"
+        atomic_write(self.root / relative, body)
+        ref = ArtifactRef(id=artifact_id, path=relative.as_posix(),
+                          media_type="application/vnd.energyplus.epw", bytes=len(body),
+                          sha256=sha, role="baseline",
+                          registration_route=registration_route)
+        atomic_write(record, ref.model_dump_json().encode())
+        return ref
+
+    def sibling(self, artifact: ArtifactRef, name: str, role: str) -> ArtifactRef:
+        """Find and checksum-verify a registered companion in the same bundle."""
+        target = (Path(artifact.path).parent / name).as_posix()
+        for record in (self.root / "artifacts").glob("*.json"):
+            try:
+                raw = json.loads(record.read_text())
+            except (OSError, ValueError):
+                continue
+            if raw.get("path") == target and raw.get("role") == role:
+                ref, _ = self.resolve(raw["id"])
+                return ref
+        raise OpenEPWError("INVALID_BASELINE", "Linked baseline provenance is missing")
+
     def register_file(self, bundle_id: str, name: str, source: Path, role: str,
                       media_type: str, artifact_id: str) -> ArtifactRef:
         """Atomically register a streamed local artifact under a stable identifier."""

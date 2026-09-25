@@ -929,6 +929,18 @@ class WeatherService:
 
         return plan_future(self, request)
 
+    def register_baseline(self, value):
+        """Register a trusted local EPW path or bounded upload bytes."""
+        if isinstance(value, (str, Path)):
+            path = Path(value)
+            if not path.is_file() or path.stat().st_size > 5_000_000:
+                raise OpenEPWError("INVALID_BASELINE", "Baseline file exceeds local size limit")
+            body = path.read_bytes()
+        else:
+            body = value
+        return self.artifacts.register_baseline_bytes(
+            body, "allowlisted_path" if isinstance(value, (str, Path)) else "upload")
+
     def _execute_future(self, plan, **kwargs):
         from .planning.future import execute_future
 
