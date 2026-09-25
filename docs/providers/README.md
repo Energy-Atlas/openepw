@@ -20,6 +20,12 @@ All six access providers returned data through the implemented service on
 2026-09-20. Credentials stayed local. This demonstrates the tested requests,
 not universal geographic/year coverage or simulation fitness.
 
+The [2026-09-25 Stage 6 local MCP pilot](../validation/mcp-stage-6-acceptance.md)
+retrieved one full 2024 Open-Meteo ERA5 EPW and one explicitly named
+OneBuilding Ithaca TMYx EPW through a real stdio client. Both completed with
+`simulation_ready=false`; the native OneBuilding file reported
+`NATIVE_MINUTE_ZERO`. These were local downloads, not redistributed fixtures.
+
 | Provider | Adapter acceptance | Principal boundary |
 | --- | --- | --- |
 | [Open-Meteo](openmeteo.md) | ERA5 full 2024 local-standard year, 8,784 hours | Explicit model; no inferred grid deduplication |

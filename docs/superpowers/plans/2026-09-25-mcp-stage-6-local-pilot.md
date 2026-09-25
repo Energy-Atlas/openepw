@@ -1,6 +1,6 @@
 # Stage 6 implementation plan: local pilot and release acceptance
 
-Status: owner approved autonomous Stages 3a–6 implementation on 2026-09-25. Pilot execution follows Stage 4/5 acceptance. Client setup and a scorecard may be prepared earlier.
+Status: completed and locally accepted on 2026-09-25 after owner-approved autonomous Stages 3a–6 implementation. The [Stage 6 acceptance](../../validation/mcp-stage-6-acceptance.md) records actual results and limits.
 
 > **For agentic workers:** Use `superpowers:executing-plans` after approval. Record observed agent/client results and reproduce defects with focused tests before fixing them. Checkboxes track work, not extra human approval gates.
 
@@ -37,33 +37,33 @@ Use synthetic/redistribution-safe data for the full matrix. A small-to-medium li
 
 **Files:** Create `docs/pilot/setup.md`, `docs/pilot/scorecard.md`, `tests/pilot/test_install_smoke.py`.
 
-- [ ] Record Windows/client/SDK versions and local install command. Run a clean environment install of only documented extras, launch stdio MCP, list tools/resources, and connect the reference harness. Document any host resource-size or path limitations.
-- [ ] Fix the scorecard before running pilot tasks. Keep credentials, private prompts and redistributed provider data out of Git. Record that human usability and any untested desktop host/OS remain outside this acceptance.
-- [ ] Commit `fix(docs): prepare local MCP pilot`.
+- [x] Record Windows/client/SDK versions and local install command. Run a clean environment install of only documented extras, launch stdio MCP, list tools/resources, and connect the reference harness. Document any host resource-size or path limitations.
+- [x] Fix the scorecard before running pilot tasks. Keep credentials, private prompts and redistributed provider data out of Git. Record that human usability and any untested desktop host/OS remain outside this acceptance.
+- [x] Commit `fix(docs): prepare local MCP pilot`.
 
 ### Task 2: Offline integrated journeys
 
 **Files:** Add `tests/pilot/test_journeys.py` and synthetic fixtures; update setup if a client setting is wrong.
 
-- [ ] Run A, B, C1/C2/C3, G and negative/recovery cases through actual stdio MCP sessions and the harness. Check exact plan/job/output/artifact IDs across surfaces, resource access, batch mapping, climate meanings and QC messages. Use a real client session in addition to direct service calls.
-- [ ] Turn any observed material bug into a focused failing regression in the owning layer, fix there, rerun the journey and document the correction. Keep provider science in the service; no pilot-only data fixes or prompt workaround for a core defect.
-- [ ] Commit code/test fixes at the relevant boundaries with `fix(topic): ...` messages.
+- [x] Run A, B, C1/C2/C3, G and negative/recovery cases through actual stdio MCP sessions and the harness. Check exact plan/job/output/artifact IDs across surfaces, resource access, batch mapping, climate meanings and QC messages. Use a real client session in addition to direct service calls.
+- [x] Turn any observed material bug into a focused failing regression in the owning layer, fix there, rerun the journey and document the correction. Keep provider science in the service; no pilot-only data fixes or prompt workaround for a core defect.
+- [x] Commit code/test fixes at the relevant boundaries with `fix(topic): ...` messages.
 
 ### Task 3: Agent and real-client pilot
 
 **Files:** Add results under `docs/pilot/` and `docs/validation/mcp-stage-6-acceptance.md`.
 
-- [ ] Run fixed A/B/C/G prompts through the reference agent and an actual stdio MCP client session. Capture tool choices, plan hashes, job/artifact navigation and final explanations of alternatives, partial results and QC. Record only redacted local run evidence. The user-provided EPW upload and fetched artifact ID must be separate observed paths.
-- [ ] Record client/platform version, setup time, successes, model mistakes, protocol/resource limits and repeated failures. Triage material defects into tests/fixes and rerun affected tasks. A missing desktop host or participant does not block this owner-approved agent/client scope; list each as untested.
-- [ ] Run the bounded opt-in live matrix within provider terms and the cumulative budget; record actual calls, dataset/version/date, model/token usage, cost estimate and QC outcome without credentials. A refused or unavailable provider/model is classified and documented with a practical fallback.
+- [x] Run fixed A/B/C/G prompts through the reference agent and an actual stdio MCP client session. Capture tool choices, plan hashes, job/artifact navigation and final explanations of alternatives, partial results and QC. Record only redacted local run evidence. The user-provided EPW upload and fetched artifact ID must be separate observed paths.
+- [x] Record client/platform version, setup time, successes, model mistakes, protocol/resource limits and repeated failures. Triage material defects into tests/fixes and rerun affected tasks. A missing desktop host or participant does not block this owner-approved agent/client scope; list each as untested.
+- [x] Run the bounded opt-in live matrix within provider terms and the cumulative budget; record actual calls, dataset/version/date, model/token usage, cost estimate and QC outcome without credentials. A refused or unavailable provider/model is classified and documented with a practical fallback.
 
 ### Task 4: Release acceptance and handoff
 
 **Files:** Update `README.md`, `ARCHITECTURE.md`, `FEATURES.md`, `ROADMAP.md`, `docs/limitations.md`, client setup and provider notes; complete `docs/validation/mcp-stage-6-acceptance.md`.
 
-- [ ] Run the complete deterministic suite, MCP/harness/pilot tests, Ruff, mypy and build on the target local setup. Check package extras, installation, stdio startup, reconnect, resource bounds, license/attribution in artifacts and no bundled raw inventories/secrets. Run an EnergyPlus consumption smoke only if the selected local pilot scope provides the tool; otherwise state that simulator validation was not performed.
-- [ ] Review scorecard and unresolved defects against the agreed local stories. Fix material issues, rerun affected checks and write an honest release report with tested clients/OS/providers, skipped cells, residual science/quality limits and known access barriers. Keep `simulation_ready=false` unless a separately justified certification policy exists.
-- [ ] Commit `fix(docs): record local MCP pilot acceptance`. Publication, team hosting and cross-run weather reuse remain separate future decisions.
+- [x] Run the complete deterministic suite, MCP/harness/pilot tests, Ruff, mypy and build on the target local setup. Check package extras, installation, stdio startup, reconnect, resource bounds, license/attribution in artifacts and no bundled raw inventories/secrets. Run an EnergyPlus consumption smoke only if the selected local pilot scope provides the tool; otherwise state that simulator validation was not performed.
+- [x] Review scorecard and unresolved defects against the agreed local stories. Fix material issues, rerun affected checks and write an honest release report with tested clients/OS/providers, skipped cells, residual science/quality limits and known access barriers. Keep `simulation_ready=false` unless a separately justified certification policy exists.
+- [x] Commit `fix(docs): record local MCP pilot acceptance`. Publication, team hosting and cross-run weather reuse remain separate future decisions.
 
 ## Exit condition
 

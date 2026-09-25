@@ -16,7 +16,7 @@ plan were completed. Owner approved Stage 2 on 2026-09-20.
 - [x] MCP, CLI and examples over the canonical service.
 - [x] Final acceptance record, documentation and regression checks.
 
-## Production MCP — Stage 1 accepted; Stages 2–5 implemented; Stage 6 approved
+## Production MCP — Stages 1–6 locally accepted
 
 The current goal is a validated local MCP experience with an agent harnessing
 layer. The staged roadmap ends at the local pilot; team deployment is outside
@@ -51,8 +51,10 @@ Stage 3b registered baselines, both distinct future methods, and member-level
 jobs have [offline acceptance](docs/validation/mcp-stage-3b-acceptance.md).
 Stage 4 local MCP tools, resource reads and real stdio SDK sessions have
 [offline acceptance](docs/validation/mcp-stage-4-acceptance.md).
-Stage 5's optional reference harness has [offline and bounded model acceptance](docs/validation/mcp-stage-5-acceptance.md);
-the integrated local pilot remains Stage 6.
+Stage 5's optional reference harness has [offline and bounded model acceptance](docs/validation/mcp-stage-5-acceptance.md).
+Stage 6's [local pilot acceptance](docs/validation/mcp-stage-6-acceptance.md)
+records the real SDK stdio journeys, bounded provider/model runs, defects fixed,
+and untested hosts/participants. The local production MCP program ends here.
 An owner-authorized NOAA follow-up retrieved the larger station/month inventory
 in one additional call; its normalized local index was imported for Stage 2.
 The approved follow-up also resolved both OEDI scenario directories and matched

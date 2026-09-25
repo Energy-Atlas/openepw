@@ -12,7 +12,7 @@ and [limitations](docs/limitations.md) before using generated files in simulatio
 
 ```bash
 python -m pip install .
-python -m pip install ".[api,mcp,climate,cds]"   # optional interfaces and climate access
+python -m pip install ".[api,mcp,climate,cds,harness]"   # optional interfaces and climate access
 ```
 
 Python 3.11+. Core imports do not require FastAPI, MCP or xarray. Development:
@@ -93,9 +93,13 @@ openepw mcp --transport streamable-http  # loopback HTTP, port 8001
 
 REST exposes discovery/planning, durable SQLite jobs, cancellation, bounded EPW
 uploads and verified artifact downloads. Remote REST requires `OPENEPW_BEARER_TOKEN`.
-Use one server process per data root. MCP exposes six compact weather tools and
-`weather://artifacts/{id}` resources; future tool inputs use uploaded artifact IDs.
-Streamable MCP is loopback-only in v0.1. [API and examples](docs/usage.md).
+Use one server process per data root. MCP exposes bounded availability, plan,
+job, baseline, artifact and export tools with `weather://artifacts/{id}` resources;
+future tool inputs use uploaded or fetched artifact IDs. The optional
+`openepw-agent` harness runs against these same tools. The [Windows local pilot](docs/validation/mcp-stage-6-acceptance.md)
+used the real MCP Python SDK stdio client, synthetic end-to-end journeys and
+bounded Open-Meteo/OneBuilding retrieval. Streamable MCP is loopback-only in
+v0.1. [MCP setup](docs/mcp/README.md) and [agent setup](docs/harness/README.md).
 
 ## Providers and constraints
 

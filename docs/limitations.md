@@ -33,6 +33,12 @@ template explanations and fixed rubric do not establish real-user
 comprehension. Host/model availability and natural-language interpretation
 vary. Local records omit prompts and raw weather; the model API receives
 sanitized task text when explicitly used. LangSmith tracing is disabled.
+The Stage 6 pilot used a scripted agent and MCP Python SDK stdio client on
+Windows. It did not test a human participant, another desktop MCP host,
+Linux/macOS behavior or EnergyPlus consumption. A model initially classified
+an explicitly named TMYx batch as generic published weather and capitalized
+the provider ID; refined intent guidance and provider-ID normalization passed
+a bounded rerun. No arbitrary-prompt reliability claim follows from that run.
 
 ## Scientific meaning
 

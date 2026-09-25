@@ -29,6 +29,7 @@ src/openepw/
   jobs/{store,worker}.py  SQLite item records and bounded worker threads
   api/app.py             REST adapter
   mcp/server.py          MCP adapter
+  harness/{agent,mcp_client,model,rubric}.py  optional reference MCP agent
   cli/main.py            argparse adapter
 ```
 
