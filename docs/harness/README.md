@@ -14,7 +14,8 @@ not set in the shell. It never writes the file. It opens one local stdio MCP
 session and uses `gpt-6-luna` for intent extraction. Each new weather or future
 plan executes automatically. Provider requests can fetch live data and model
 calls are billable; the harness ledger caps projected model spending at US$8
-per data root. Use a distinct `--data-root` to keep a test session separate.
+per data root. The interactive console does not inherit the single-request
+20-call smoke cap. Use a distinct `--data-root` to keep a test session separate.
 If `LANGSMITH_API_KEY` is present in the shell or existing `.env`, the console
 also sends each turn to the `openepw-local-chat` LangSmith project. Model intent
 and MCP calls appear as child steps. Traces include sanitized natural-language
@@ -27,7 +28,16 @@ failures are reported in the terminal while weather jobs continue.
 For example, ask for an actual year at a location, then ask to morph that EPW
 for a named scenario and climate window. A future request also needs a method
 and, for morphing, a reference window. The console carries only confirmed
-choices and artifact IDs between turns. If a weather request produced several
+choices, a current request draft and artifact IDs between turns. Short replies
+such as `2018` or `historical` fill the current draft. A year-specific weather
+request is interpreted as historical unless you choose another compatible
+product; the console states that interpretation. Ambiguous geocoding results
+are numbered: reply with a number or exact displayed name, or use `/reset` to
+start a new request. Ask `what do you have?` to assess read-only catalog
+eligibility. Exploration does not submit a plan and cannot prove that an EPW
+is complete or simulation-ready. TMY/TMYx/published reference products are
+assessed without treating an actual year as their source year.
+If a weather request produced several
 EPWs, select one with `/baseline <artifact_id>` before referring to “that EPW”.
 Use `/upload <path>` to register a user EPW directly through MCP; its bytes and
 local path stay outside model prompts. `/inspect last` shows artifact QC, and

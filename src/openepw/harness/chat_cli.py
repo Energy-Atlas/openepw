@@ -17,7 +17,7 @@ async def converse(args) -> None:
     root = Path(args.data_root)
     key = load_model_key(args.env_file)
     model = OpenAIIntentParser(
-        key, model=args.model,
+        key, model=args.model, max_calls=None,
         ledger_path=root / "harness" / "cost-ledger.json")
     async with StdioMCPPort(root, allowed_roots=args.allow_root) as mcp:
         trace_key = None if args.no_trace else load_trace_key(args.env_file)

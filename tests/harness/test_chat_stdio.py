@@ -53,9 +53,36 @@ def test_real_stdio_chat_weather_then_future_followup_and_save(tmp_path):
             second = await chat.handle("Use that EPW for SSP245 future morph, 2036-2065")
             assert "[completed]" in second
             assert "baseline origin weather_output" in second
-            assert prior_id in model.prompts[1]
+            assert prior_id not in model.prompts[1]
             assert "saved" in await chat.handle(f"/save last {saved}")
             assert len(read_epw(saved).data) == 8784
             assert "Historical 2024 at Ithaca" not in record.read_text()
+
+    asyncio.run(journey())
+
+
+def test_real_stdio_cambridge_choice_resumes_one_weather_job(tmp_path):
+    source = Path(__file__).parents[1] / "pilot" / "fixture_server.py"
+
+    class OneTurn:
+        def __init__(self):
+            self.calls = 0
+
+        def parse(self, prompt):
+            self.calls += 1
+            return AgentIntent(kind="weather", place="Cambridge, MA",
+                               product="historical", years=[2024])
+
+    async def journey():
+        async with StdioMCPPort(tmp_path, server_args=[
+            str(source), "--data-root", str(tmp_path), "--mode", "cambridge",
+        ]) as mcp:
+            model = OneTurn()
+            chat = ChatSession(ReferenceAgent(mcp, model), mcp, model)
+            choice = await chat.handle("Historical 2024 Cambridge MA")
+            assert "1. Cambridge, Massachusetts, United States" in choice
+            result = await chat.handle("1")
+            assert "[completed]" in result
+            assert model.calls == 1
 
     asyncio.run(journey())

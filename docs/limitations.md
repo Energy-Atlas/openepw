@@ -37,9 +37,11 @@ LangSmith tracing. The console sends bounded turn, intent and tool traces to
 LangSmith when a key is present; natural-language requests are sanitized before
 transmission, and a terminal option disables tracing. This hosted record has
 LangSmith's retention and access controls, separate from local run records.
-The interactive console carries follow-up references only within its current
-process, so a restarted chat needs explicit artifact or job IDs. It may need
-clarification for ambiguous natural language. Its weather intent uses the UTC
+The interactive console carries its request draft, geocoder choices and artifact
+references only within its current process, so a restarted chat needs a new
+request or explicit artifact/job IDs. Ambiguous natural-language choices may
+still need clarification; a catalog assessment is read-only and must not be
+mistaken for actual-year completeness. Its weather intent uses the UTC
 default; it does not expose an explicit fixed standard-time offset. Automatic
 submission can invoke live providers, but catalog eligibility remains only
 permission to try retrieval and emitted EPWs still require QC review.

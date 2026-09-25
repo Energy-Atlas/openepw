@@ -212,9 +212,12 @@ intent; the service retains scientific authority. Safe local run state stores
 opaque plan/job/artifact IDs and tool names, while the billable model ledger
 stores token counts and estimated cost. The single-request command has no hosted
 tracing.
-The optional console keeps brief confirmed choices and artifact references in
-memory for follow-up turns, reads the existing ignored `.env` only for the model
-key, and uses the same MCP planning and job operations. It reads or writes EPW
+The optional console keeps a typed in-memory draft, explicit geocoder choices
+and artifact references for follow-up turns. It parses each utterance once,
+merges explicit fields, and uses the shared agent's parsed-intent path. Read-only
+catalog exploration never creates a plan; a complete retrieval request follows
+the existing planning/job path. The console reads the existing ignored `.env`
+only for keys and uses the same MCP planning and job operations. It reads or writes EPW
 bytes directly between MCP and local files, outside model context.
 When a LangSmith key is available, the console emits a turn with child intent
 and MCP steps. Trace inputs are deliberately limited; the local MCP server and

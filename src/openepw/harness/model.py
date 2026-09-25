@@ -23,6 +23,7 @@ INTENT_SCHEMA: dict[str, Any] = {
     "type": "object",
     "properties": {
         "kind": {"type": "string", "enum": ["weather", "future", "unknown"]},
+        "action": {"type": "string", "enum": ["retrieve", "explore"]},
         "place": _nullable("string"),
         "locations": {
             "anyOf": [
@@ -69,7 +70,7 @@ INTENT_SCHEMA: dict[str, Any] = {
         },
     },
     "required": [
-        "kind", "place", "locations", "lat", "lon", "product", "years", "start", "end",
+        "kind", "action", "place", "locations", "lat", "lon", "product", "years", "start", "end",
         "provider", "product_id", "missing_policy", "baseline_artifact_id",
         "signals_artifact_id",
         "method", "climate_scenario", "climate_period", "reference_period",
@@ -88,6 +89,7 @@ class OpenAIIntentParser:
     def __init__(self, api_key: str, *, model: str = "gpt-6-luna",
                  ledger_path: str | Path | None = None,
                  max_cost_usd: float = 8.0,
+                 max_calls: int | None = 20,
                  client: httpx.Client | None = None):
         if not api_key:
             raise ModelUnavailable("OPENAI_API_KEY is required for model parsing")
@@ -95,6 +97,7 @@ class OpenAIIntentParser:
         self.model = model
         self.ledger_path = Path(ledger_path) if ledger_path else None
         self.max_cost_usd = max_cost_usd
+        self.max_calls = max_calls
         self.client = client or httpx.Client(timeout=30)
         self.last_intent: AgentIntent | None = None
         self.usage = {"calls": 0, "input_tokens": 0, "output_tokens": 0,
@@ -117,13 +120,18 @@ class OpenAIIntentParser:
                       1024 * OUTPUT_USD_PER_MILLION) / 1_000_000
         if self.usage["estimated_usd"] + projection >= self.max_cost_usd:
             raise ModelUnavailable("Projected model usage exceeds the local budget stop")
-        if self.usage["calls"] >= 20:
+        if self.max_calls is not None and self.usage["calls"] >= self.max_calls:
             raise ModelUnavailable("Model smoke call limit reached")
         payload = {
             "model": self.model,
             "input": [
                 {"role": "developer", "content": (
-                    "Extract a weather task as a JSON object. Fields may be omitted except kind. "
+                    "Extract the current utterance as a weather-task delta, not a full prior conversation. "
+                    "Populate every schema field, using null or [] for fields absent from this "
+                    "utterance. Never carry over facts from an earlier turn. "
+                    "action=explore when the user asks "
+                    "what products, sources or availability exist without asking to retrieve; "
+                    "otherwise action=retrieve. "
                     "kind is weather, future, or unknown. For weather, include product "
                     "(historical, amy, tmy, tmyx, published), explicit years/dates, "
                     "place, coordinates or an explicit locations array with id/lat/lon, "

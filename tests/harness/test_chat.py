@@ -53,8 +53,8 @@ class Agent:
         self.job_id = None
         self.calls = []
 
-    async def run(self, prompt, *, auto_submit=False, baseline_override=None):
-        intent = self.model.parse(prompt)
+    async def run_intent(self, intent, *, auto_submit=False, baseline_override=None,
+                         location_override=None):
         self.calls.append(("run", auto_submit, baseline_override, intent.kind))
         self.plan_hash = "p" * 64
         if auto_submit:
@@ -82,7 +82,7 @@ def session():
     return ChatSession(agent, port, model), agent, model, port
 
 
-def test_default_chat_auto_submits_and_followup_uses_only_confirmed_context():
+def test_default_chat_auto_submits_and_followup_uses_artifact_override():
     chat, agent, model, _ = session()
 
     async def exercise():
@@ -95,8 +95,8 @@ def test_default_chat_auto_submits_and_followup_uses_only_confirmed_context():
         second = await chat.handle("Use that EPW for SSP245 morph in 2036-2065")
         assert "completed" in second
         assert agent.calls[1][2] == "w" * 32
-        assert "Prior confirmed context" in model.prompts[1]
-        assert "w" * 32 in model.prompts[1]
+        assert "Prior confirmed context" not in model.prompts[1]
+        assert "w" * 32 not in model.prompts[1]
         assert "Get Ithaca 2024 historical weather" not in model.prompts[1]
 
     asyncio.run(exercise())

@@ -17,6 +17,7 @@ from .mcp_client import MCPToolFailure
 
 class AgentIntent(BaseModel):
     kind: Literal["weather", "future", "unknown"]
+    action: Literal["retrieve", "explore"] = "retrieve"
     place: str | None = None
     locations: list[dict[str, float | str]] | None = None
     lat: float | None = None
@@ -52,6 +53,7 @@ class AgentResult:
     plan_hash: str | None = None
     job_id: str | None = None
     artifact_ids: tuple[str, ...] = ()
+    location_choices: tuple[dict[str, Any], ...] = ()
 
 
 def safe_prompt(text: str) -> str:
@@ -116,6 +118,13 @@ class ReferenceAgent:
     async def run(self, prompt: str, *, auto_submit: bool = False,
                   baseline_override: str | None = None) -> AgentResult:
         intent = self.model.parse(safe_prompt(prompt))
+        return await self.run_intent(intent, auto_submit=auto_submit,
+                                     baseline_override=baseline_override)
+
+    async def run_intent(self, intent: AgentIntent, *, auto_submit: bool = False,
+                         baseline_override: str | None = None,
+                         location_override: dict[str, Any] | None = None) -> AgentResult:
+        intent = intent.model_copy(deep=True)
         if baseline_override:
             intent.baseline_artifact_id = baseline_override
         if intent.kind == "unknown":
@@ -123,30 +132,40 @@ class ReferenceAgent:
                                "Please specify historical/published weather or future weather.")
         try:
             if intent.kind == "weather":
-                return await self._weather(intent, auto_submit)
+                return await self._weather(intent, auto_submit, location_override)
             return await self._future(intent, auto_submit)
         except MCPToolFailure as error:
             return AgentResult("blocked", f"{error.code}: {error}",
                                self.plan_hash, self.job_id)
 
-    async def _weather(self, intent: AgentIntent, auto_submit: bool) -> AgentResult:
+    async def _weather(self, intent: AgentIntent, auto_submit: bool,
+                       location_override: dict[str, Any] | None) -> AgentResult:
         if intent.product is None:
             return AgentResult("needs_clarification", "Which weather product do you need?")
         if intent.product in ("historical", "amy") and not (intent.years or intent.start):
             return AgentResult("needs_clarification", "Which actual year or dates do you need?")
         location: Any
-        if intent.locations:
+        if location_override:
+            location = location_override
+        elif intent.locations:
             location = intent.locations
         elif intent.lat is None or intent.lon is None:
             if not intent.place:
                 return AgentResult("needs_clarification", "Which location do you mean?")
             geocode = await self._call("weather_geocode", query=intent.place)
             candidates = geocode.get("candidates", [])
-            if len(candidates) != 1:
-                names = ", ".join(c.get("name", "unnamed") for c in candidates[:5])
+            if not candidates:
                 return AgentResult("needs_clarification",
-                                   f"Choose a specific {intent.place} location: {names}")
-            location = {"lat": candidates[0]["lat"], "lon": candidates[0]["lon"]}
+                                   "No location matched. Give coordinates or a more specific place.")
+            if len(candidates) != 1:
+                shown = candidates[:10]
+                names = "; ".join(
+                    f"{index}. {candidate.get('name', 'unnamed')}"
+                    for index, candidate in enumerate(shown, start=1))
+                return AgentResult("needs_clarification",
+                                   f"Choose a specific {intent.place} location: {names}",
+                                   location_choices=tuple(shown))
+            location = candidates[0]
         else:
             location = {"lat": intent.lat, "lon": intent.lon}
         request: dict[str, Any] = {

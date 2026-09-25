@@ -46,8 +46,8 @@ class Agent:
         self.plan_hash = None
         self.job_id = None
 
-    async def run(self, prompt, *, auto_submit=False, baseline_override=None):
-        self.model.parse(prompt)
+    async def run_intent(self, intent, *, auto_submit=False, baseline_override=None,
+                         location_override=None):
         planned = await self.mcp.call(
             "weather_plan", request={"secret": "topsecret", "year": 2024})
         self.plan_hash = planned["plan_hash"]

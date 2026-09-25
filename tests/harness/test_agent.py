@@ -71,6 +71,24 @@ def test_agent_clarifies_ambiguous_place_without_plan():
     assert [name for name, _ in mcp.calls] == ["weather_geocode"]
 
 
+def test_agent_reports_no_geocode_match_without_planning():
+    mcp = StubMCP()
+    original = mcp.call
+
+    async def no_match(name, **arguments):
+        if name == "weather_geocode":
+            mcp.calls.append((name, arguments))
+            return {"candidates": []}
+        return await original(name, **arguments)
+
+    mcp.call = no_match
+    model = StubModel(AgentIntent(kind="weather", place="Missing Place",
+                                  product="historical", years=[2024]))
+    result = asyncio.run(ReferenceAgent(mcp, model).run("Missing Place 2024"))
+    assert "No location matched" in result.message
+    assert [name for name, _ in mcp.calls] == ["weather_geocode"]
+
+
 def test_agent_submits_exact_plan_hash_and_explains_gap(tmp_path):
     mcp = StubMCP(gap=True)
     model = StubModel(AgentIntent(kind="weather", lat=42, lon=-76,

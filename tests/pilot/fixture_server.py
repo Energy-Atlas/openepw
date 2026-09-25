@@ -205,7 +205,7 @@ def puma_service(root):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--data-root", type=Path, required=True)
-    parser.add_argument("--mode", choices=["general", "noaa", "puma", "slow"],
+    parser.add_argument("--mode", choices=["general", "noaa", "puma", "slow", "cambridge"],
                         default="general")
     args = parser.parse_args()
     args.data_root.mkdir(parents=True, exist_ok=True)
@@ -216,6 +216,23 @@ def main():
     elif args.mode == "slow":
         service = WeatherService(RuntimeConfig(data_root=args.data_root),
                                  providers=[SlowStation()])
+    elif args.mode == "cambridge":
+        config = RuntimeConfig(data_root=args.data_root)
+
+        def geocode(request):
+            assert "geocoding-api.open-meteo.com" in str(request.url)
+            return httpx.Response(200, json={"results": [
+                {"id": 4931, "name": "Cambridge", "admin1": "Massachusetts",
+                 "country": "United States", "latitude": 42.3751,
+                 "longitude": -71.1056, "elevation": 12.0},
+                {"id": 725, "name": "Allston", "admin1": "Massachusetts",
+                 "country": "United States", "latitude": 42.3584,
+                 "longitude": -71.1259, "elevation": 8.0},
+            ]})
+
+        service = WeatherService(
+            config, providers=[CompleteStation()],
+            http=HttpClient(config, transport=httpx.MockTransport(geocode)))
     else:
         service = WeatherService(
             RuntimeConfig(data_root=args.data_root),
