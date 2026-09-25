@@ -1,10 +1,12 @@
 import json
 import threading
 import uuid
+from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from ..models import Issue, OpenEPWError, WeatherPlan, utcnow
+from ..providers.base import ProviderResult
 from .store import JobStore
 
 TERMINAL = ("completed", "partially_completed", "failed", "cancelled")
@@ -142,6 +144,13 @@ class JobRunner:
         outputs = list({(o.id or o.name): o for o in plan.outputs}.values())
         if plan.kind == "future":
             outputs = [None]
+        pending_tasks = Counter(
+            task_id for output in outputs if output is not None and
+            (output.id or output.name) not in completed for task_id in output.task_ids
+        )
+        shared_tasks = {task.id for task in plan.tasks
+                        if pending_tasks[task.id] > 1 and not task.source.provisional}
+        task_results: dict[str, ProviderResult] = {}
         attempted = len(completed)
         for output in outputs:
             if self.store.get(job_id).cancellation_requested:
@@ -152,7 +161,9 @@ class JobRunner:
             try:
                 execution_plan = subplan(plan, [output]) if output else plan
                 bundle = self.service.execute(
-                    execution_plan, cancelled=lambda: self.store.get(job_id).cancellation_requested
+                    execution_plan, cancelled=lambda: self.store.get(job_id).cancellation_requested,
+                    **({"task_results": task_results, "cacheable_task_ids": shared_tasks}
+                       if output is not None else {}),
                 )
                 self.store.complete_item(job_id, name, bundle)
                 completed[name] = bundle
@@ -169,6 +180,11 @@ class JobRunner:
                 )
                 issue = issue.model_copy(update={"task_id": name})
                 job.errors.append(issue)
+            if output is not None:
+                for task_id in output.task_ids:
+                    pending_tasks[task_id] -= 1
+                    if pending_tasks[task_id] <= 0:
+                        task_results.pop(task_id, None)
             attempted += 1
             job.completed = sum(len(b.weather) for b in completed.values())
             job.failed = max(0, attempted - job.completed)
@@ -195,7 +211,9 @@ class JobRunner:
         if self.store.get(job_id).cancellation_requested:
             job.failed = sum(not b.weather for b in completed.values())
             job.state = "cancelled"
-        elif job.errors or job.failed:
+        elif job.errors or job.failed or any(
+            row.status != "planned" for row in plan.batch_rows
+        ):
             job.state = "partially_completed" if weather else "failed"
         else:
             job.state = "completed"

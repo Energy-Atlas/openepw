@@ -54,6 +54,7 @@ from .planning.batch import (
 )
 from .planning.output_identity import filename, location_label, output_id, period_label
 from .planning.store import PlanStore
+from .providers.base import ProviderResult
 from .providers.era5 import CDSProvider
 from .providers.http import HttpClient
 from .providers.noaa_isd import NOAAProvider
@@ -674,7 +675,9 @@ class WeatherService:
         self.plan_store.put(plan)
         return plan
 
-    def execute(self, plan: WeatherPlan, *, cancelled=lambda: False, progress=lambda *_: None):
+    def execute(self, plan: WeatherPlan, *, cancelled=lambda: False, progress=lambda *_: None,
+                task_results: dict[str, ProviderResult] | None = None,
+                cacheable_task_ids: set[str] | None = None):
         plan = WeatherPlan.model_validate_json(plan.model_dump_json())
         if not plan.tasks or not plan.outputs:
             raise OpenEPWError("NO_EXECUTABLE_OUTPUTS", "Cannot execute a plan without outputs")
@@ -712,10 +715,17 @@ class WeatherService:
                 )
                 break
             try:
-                provider = self.providers.get(task.source.provider)
-                if provider is None:
-                    raise OpenEPWError("PLAN_STALE", "Planned provider is not registered")
-                results[task.id] = self._cached_fetch(provider, task)
+                if (task_results is not None and not task.source.provisional and
+                        task.id in task_results):
+                    results[task.id] = task_results[task.id]
+                else:
+                    provider = self.providers.get(task.source.provider)
+                    if provider is None:
+                        raise OpenEPWError("PLAN_STALE", "Planned provider is not registered")
+                    results[task.id] = self._cached_fetch(provider, task)
+                    if (task_results is not None and not task.source.provisional and
+                            (cacheable_task_ids is None or task.id in cacheable_task_ids)):
+                        task_results[task.id] = results[task.id]
             except OpenEPWError as exc:
                 issues.append(exc.issue.model_copy(update={"task_id": task.id}))
                 progress(task.id, exc.issue)
@@ -737,7 +747,7 @@ class WeatherService:
                         plan.request.hybrid_policy.assignments,
                     )
                 else:
-                    dataset = parts[0].dataset
+                    dataset = copy.deepcopy(parts[0].dataset)
                 if plan.request.skip_feb_29:
                     source_checks = validate(dataset, "annual")
                     if any(i.severity == "error" for i in source_checks):
