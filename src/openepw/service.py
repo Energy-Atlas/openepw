@@ -11,18 +11,18 @@ from urllib.parse import urlparse
 from .artifacts.store import ArtifactStore, atomic_write
 from .availability import (
     AvailabilityResult,
-    EligibilityDecision,
+    CatalogSnapshotRef,
     FutureAvailabilityQuery,
-    LocationAssessment,
     ProductRecord,
     SuitabilityOption,
     WeatherAvailabilityQuery,
 )
+from .availability.bootstrap import bundled_contracts
 from .availability.evaluate import evaluate
 from .availability.importers import normalize_source
 from .availability.recommend import rank
 from .availability.refresh import refresh_if_relevant
-from .availability.store import CatalogStore
+from .availability.store import CatalogStore, CatalogView
 from .config import RuntimeConfig
 from .dataset import without_feb_29
 from .epw.writer import epw_bytes
@@ -82,30 +82,26 @@ class WeatherService:
     def assess_availability(self, query: WeatherAvailabilityQuery | FutureAvailabilityQuery) -> AvailabilityResult:
         view = self.catalog_store.active()
         if view is None:
-            locations = ([query.location] if isinstance(query, FutureAvailabilityQuery)
-                         else self.locations(query.request))
+            bundle = bundled_contracts()
             provider_names = (["cmip6" if query.method == "morph" else "oedi"]
                               if isinstance(query, FutureAvailabilityQuery) else
                               query.request.providers or list(self.providers))
-            options = []
-            for occurrence, _location in enumerate(locations):
-                for provider in provider_names:
-                    product = ProductRecord(id=f"unloaded:{provider}", provider=provider,
-                                            dataset="unloaded", temporal_kind=(
-                                                "future_window" if isinstance(query, FutureAvailabilityQuery)
-                                                else "tmy_reference" if query.request.product in
-                                                ("tmy", "tmyx", "published") else "actual"))
-                    options.append(SuitabilityOption(
-                        id=f"{occurrence}:unloaded:{provider}", occurrence_index=occurrence,
-                        product=product,
-                        eligibility=EligibilityDecision(status="unknown",
-                                                        unknowns=["CATALOG_UNAVAILABLE"])))
-            return AvailabilityResult(
-                locations=[LocationAssessment(occurrence_index=i, requested_location=loc)
-                           for i, loc in enumerate(locations)], options=options,
-                issues=[Issue(code="CATALOG_UNAVAILABLE",
-                              message="No local availability catalog is loaded")],
-                checked_at=datetime.now(timezone.utc))
+            known = {product.provider for product in bundle.products}
+            for provider in provider_names:
+                if provider in known:
+                    continue
+                bundle.products.append(ProductRecord(
+                    id=f"unloaded:{provider}", provider=provider, dataset="unloaded",
+                    temporal_kind=("future_window" if isinstance(query, FutureAvailabilityQuery)
+                                   else "tmy_reference" if query.request.product in
+                                   ("tmy", "tmyx", "published") else "actual")))
+            snapshot = CatalogSnapshotRef(generation_id="bundled-contracts-v1",
+                                          created_at=datetime(2026, 9, 24, tzinfo=timezone.utc))
+            result = rank(evaluate(query, CatalogView(snapshot, bundle)), query)
+            result.snapshots = []
+            result.issues.insert(0, Issue(code="CATALOG_UNAVAILABLE",
+                                          message="Local inventories are not loaded; bundled contracts only"))
+            return self._compact_availability(result)
         result = rank(evaluate(query, view), query)
         if query.refresh == "if_needed":
             relevant = {evidence_id for option in result.options
@@ -186,6 +182,7 @@ class WeatherService:
         locations = self.locations(request)
         candidates: dict[str, Candidate] = {}
         option_candidates: dict[str, str] = {}
+        live_resolved: set[str] = set()
         issues = list(availability.issues)
         live_cache: dict[tuple[str, str, str | None], list[Candidate]] = {}
         for option in sorted(availability.options, key=lambda item: (
@@ -193,7 +190,8 @@ class WeatherService:
             if option.eligibility.status == "excluded":
                 continue
             location = locations[option.occurrence_index]
-            candidate = self._catalog_candidate(option, location, request)
+            candidate = (self._catalog_candidate(option, location, request)
+                         if option.eligibility.status == "supported" else None)
             if candidate is not None:
                 candidates[candidate.id] = candidate
                 option_candidates[option.id] = candidate.id
@@ -211,16 +209,26 @@ class WeatherService:
                     live_cache[key] = []
             for found in live_cache[key]:
                 candidates[found.id] = found
-                option_candidates[option.id] = found.id
+            if live_cache[key]:
+                option_candidates[option.id] = live_cache[key][0].id
+                live_resolved.add(option.id)
         ranked: dict[str, list[str]] = {}
         selected: list[str] = []
         for assessment in availability.locations:
             location_key = assessment.requested_location.key
             ranked[location_key] = list(dict.fromkeys(option_candidates[option_id] for option_id in
                                              assessment.ranked_option_ids if option_id in option_candidates))
-            for option_id in assessment.recommended_option_ids:
+            preferred = list(assessment.recommended_option_ids)
+            if not preferred:
+                preferred = [option_id for option_id in assessment.ranked_option_ids
+                             if option_id in live_resolved][:1]
+            for option_id in preferred:
                 candidate_id = option_candidates.get(option_id)
                 if candidate_id and candidate_id not in selected:
+                    if option_id in live_resolved:
+                        candidates[candidate_id].selection_reasons.append(
+                            "Live provider discovery resolved a catalog unknown; "
+                            "catalog evidence remains unchanged")
                     selected.append(candidate_id)
         return DiscoveryResult(locations=locations, candidates=list(candidates.values()),
                                selected_candidate_ids=selected,

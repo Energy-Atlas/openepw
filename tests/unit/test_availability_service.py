@@ -96,6 +96,50 @@ def test_assessment_without_catalog_returns_typed_unknown(tmp_path):
     assert result.issues[0].code == "CATALOG_UNAVAILABLE"
 
 
+def test_without_local_inventory_bundled_contracts_still_screen_known_capabilities(tmp_path):
+    service = WeatherService(RuntimeConfig(data_root=tmp_path / "runtime"),
+                             http=ForbiddenHttp(), catalog_store=CatalogStore(tmp_path / "empty"))
+    query = WeatherAvailabilityQuery(request=WeatherRequest(
+        locations=Location(lat=42, lon=-76), years=[2024], providers=["openmeteo", "cds"]))
+    result = service.assess_availability(query)
+    by_product = {option.product.id: option for option in result.options}
+    assert by_product["openmeteo:era5"].eligibility.status == "supported"
+    assert by_product["cds:era5"].eligibility.status == "supported"
+    assert by_product["cds:era5"].eligibility.access == "terms_required"
+    assert result.snapshots == []
+    assert any(issue.code == "CATALOG_UNAVAILABLE" for issue in result.issues)
+
+
+def test_unknown_noaa_year_uses_bounded_live_discovery_for_plan(tmp_path):
+    store = _catalog(tmp_path)
+
+    class LiveNoaa:
+        name = "noaa"
+
+        def __init__(self):
+            self.calls = 0
+
+        def discover(self, request, location, http):
+            self.calls += 1
+            return [Candidate(id="live-noaa", location_id=location.key,
+                              product_id="A00002", source=SourceRef(
+                                  provider="noaa", dataset="ISD global-hourly",
+                                  identity="A00002", location=location),
+                              weather_types=["historical", "amy"],
+                              variables=["dry_bulb"])]
+
+    provider = LiveNoaa()
+    service = WeatherService(RuntimeConfig(data_root=tmp_path / "runtime"),
+                             http=ForbiddenHttp(), providers=[provider], catalog_store=store)
+    request = WeatherRequest(locations=Location(lat=42, lon=-76), years=[2023],
+                             providers=["noaa"])
+    discovery = service.discover(request)
+    assert provider.calls == 1
+    assert discovery.availability.options[0].eligibility.status == "unknown"
+    assert discovery.selected_candidate_ids == ["live-noaa"]
+    assert service.plan(request, discovery=discovery).tasks
+
+
 def test_future_capability_does_not_read_baseline_file(tmp_path):
     service = WeatherService(RuntimeConfig(data_root=tmp_path / "runtime"),
                              http=ForbiddenHttp(), catalog_store=CatalogStore(tmp_path / "empty"))
