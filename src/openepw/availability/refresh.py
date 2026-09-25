@@ -85,6 +85,7 @@ def refresh_if_relevant(
                     )
                     staged = store.stage(unchanged)
                     store.activate(staged.generation_id)
+                    store.clear_stale(source_id)
                     continue
                 bundle = normalizer(source_id, body, source)
                 checksum = hashlib.sha256(body).hexdigest()
@@ -100,6 +101,8 @@ def refresh_if_relevant(
                 snapshot = store.stage(merged)
                 _save_raw(store.root, body, checksum)
                 store.activate(snapshot.generation_id)
+                store.clear_stale(source_id)
             except Exception:
+                store.mark_stale(source_id)
                 issues.append(Issue(code="REFRESH_FAILED", message=f"Refresh failed for {source_id}; using last good snapshot"))
     return issues

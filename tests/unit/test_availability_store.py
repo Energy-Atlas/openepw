@@ -171,3 +171,28 @@ def test_concurrent_refresh_calls_share_one_source_check(tmp_path):
                             lambda *args: bundle()) for _ in range(2)]
         assert [job.result() for job in jobs] == [[], []]
     assert http.calls == 1
+
+
+def test_failed_refresh_marks_source_stale_and_retains_data(tmp_path):
+    from openepw.availability.refresh import refresh_if_relevant
+
+    current = bundle()
+    current.evidence[0].retrieved_at = datetime(2020, 1, 1, tzinfo=timezone.utc)
+    current.evidence[0].source_url = "https://example.org/inventory"
+    store = CatalogStore(tmp_path)
+    staged = store.stage(current)
+    store.activate(staged.generation_id)
+
+    class FailedHttp:
+        def request(self, *args, **kwargs):
+            raise RuntimeError("transport failed")
+
+    query = WeatherAvailabilityQuery(request=WeatherRequest(
+        locations=Location(lat=42, lon=-76), years=[2024]), refresh="if_needed")
+    issues = refresh_if_relevant(query, store, FailedHttp(), {"inventory"},
+                                 lambda *args: bundle())
+    assert [issue.code for issue in issues] == ["REFRESH_FAILED"]
+    active = store.active()
+    assert active.snapshot.generation_id == staged.generation_id
+    assert active.snapshot.stale_sources == ["inventory"]
+    assert active.bundle.entries[0].scope.years == [2024]

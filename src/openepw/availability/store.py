@@ -48,6 +48,7 @@ class CatalogStore:
         with self._connect() as db:
             db.execute("CREATE TABLE IF NOT EXISTS generations (id TEXT PRIMARY KEY, snapshot TEXT NOT NULL)")
             db.execute("CREATE TABLE IF NOT EXISTS active (singleton INTEGER PRIMARY KEY CHECK (singleton = 1), generation_id TEXT NOT NULL REFERENCES generations(id))")
+            db.execute("CREATE TABLE IF NOT EXISTS stale_sources (source_id TEXT PRIMARY KEY)")
             for name, _ in _TABLES:
                 db.execute(f"CREATE TABLE IF NOT EXISTS {name} (generation_id TEXT NOT NULL REFERENCES generations(id), id TEXT NOT NULL, body TEXT NOT NULL, PRIMARY KEY (generation_id, id))")
 
@@ -129,5 +130,16 @@ class CatalogStore:
                 records = db.execute(f"SELECT body FROM {name} WHERE generation_id = ? ORDER BY id",
                                      (generation_id,)).fetchall()
                 contents[name] = [kind.model_validate(json.loads(r[0])) for r in records]
-        return CatalogView(CatalogSnapshotRef.model_validate_json(raw_snapshot),
+            stale = [row[0] for row in db.execute("SELECT source_id FROM stale_sources ORDER BY source_id")]
+        snapshot = CatalogSnapshotRef.model_validate_json(raw_snapshot)
+        snapshot.stale_sources = sorted(set(snapshot.stale_sources) | set(stale))
+        return CatalogView(snapshot,
                            CatalogBundle(**contents))
+
+    def mark_stale(self, source_id: str):
+        with self._connect() as db:
+            db.execute("INSERT OR IGNORE INTO stale_sources (source_id) VALUES (?)", (source_id,))
+
+    def clear_stale(self, source_id: str):
+        with self._connect() as db:
+            db.execute("DELETE FROM stale_sources WHERE source_id = ?", (source_id,))
