@@ -195,6 +195,38 @@ def test_cmip_intersection_never_combines_members():
     assert a.cmip_intersections(rows) == []
 
 
+def test_cmip_license_scope_is_amortized_and_keeps_unknowns():
+    research()
+    a = importlib.import_module("mcp_research.analysis")
+    combinations = [
+        {"model": "M1", "scenario": "ssp126"},
+        {"model": "M1", "scenario": "ssp245"},
+        {"model": "M2", "scenario": "ssp245"},
+        {"model": "M3", "scenario": "ssp585"},
+    ]
+    scope = a.cmip_license_scope(
+        combinations,
+        {
+            "M1": {
+                "id": "CC BY 4.0",
+                "url": "https://creativecommons.org/licenses/by/4.0/",
+                "history": "relaxed from CC BY-SA 4.0",
+                "license": "Creative Commons Attribution 4.0",
+                "source_specific_info": "",
+            },
+            "M2": {"id": "unrecognized"},
+        },
+    )
+    assert scope["model_counts"] == {"allowed": 1, "unknown": 2}
+    assert scope["combination_counts"] == {"allowed": 2, "unknown": 2}
+    assert scope["models"]["M1"]["effective_license"]["history"] == (
+        "relaxed from CC BY-SA 4.0"
+    )
+    assert scope["models"]["M2"]["gate"] == "unknown"
+    assert scope["models"]["M3"]["gate"] == "unknown"
+    assert combinations[0] == {"model": "M1", "scenario": "ssp126"}
+
+
 def test_repeated_points_preserve_occurrences_and_group_verified_sources():
     research()
     a = importlib.import_module("mcp_research.analysis")

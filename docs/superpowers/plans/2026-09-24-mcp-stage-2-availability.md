@@ -10,6 +10,12 @@
 
 **Spec:** [MCP Stage 2 design](../specs/2026-09-24-mcp-stage-2-availability-design.md). Also read [accepted ADR 0003](../../decisions/0003-mcp-availability-and-batches.md), [Stage 1 findings](../../validation/mcp-stage-1/README.md), [catalog proposal](../../validation/mcp-stage-1/catalog-contract.md), [accepted case review](../../validation/mcp-stage-1/onebuilding-manual-review.md) and [agent handoff](../../handoffs/2026-09-24-mcp-stage-2.md).
 
+The [offline CMIP6 license-scope addendum](../../validation/mcp-stage-1/cmip6-license-scope.md)
+now joins the accepted catalog and WCRP registry snapshots without collection.
+Task 4 imports this amortized model-level gate; Task 5 keeps it independent of
+requested-window eligibility. The addendum's 636 passed combinations are a pinned
+allow-list result, not current store/window acceptance.
+
 The focused [NSRDB geospatial map plan](2026-09-24-nsrdb-geospatial-availability.md) now has a documented [acceptance outcome](../../validation/mcp-stage-2/nsrdb-footprint-acceptance.md) on `feature/data-avail`: a locally stored, source-object-pinned grid-site mask for GOES TMY v4 `published_name:tdy-2023`. Task 4 may import that optional evidence after this Stage 2 plan is approved. The `v4.0.0` path and `4.0.1` internal model version are both retained. Other NSRDB selectors still have only the two exact Stage 1 point probes and unknown regional extent.
 
 ## Global constraints
@@ -146,7 +152,7 @@ class WeatherService:
 
 **Interfaces:** Consumes Task 1 records; normalizes source contract metadata for Open-Meteo, PVGIS, NSRDB, CDS, CMIP6 and OEDI. `normalize_source(source, raw, evidence)` remains the only source-specific dispatch. Reuse source URLs/attribution from `docs/validation/mcp-stage-1/sources.md`, not invented metadata.
 
-- [ ] Write failing tests for Open-Meteo ERA5 versus limited ERA5-Land adapter variables; London-only PVGIS 2005–2023/selected months; NSRDB Ithaca/Phoenix point scope and actual versus TMY IDs; CDS native 0–360 bbox with polar uncertainty; CMIP6 seven-variable coherent combinations with unknown time-window/license; OEDI exact RCP/site/year membership and ETag invalidation. Example:
+- [ ] Write failing tests for Open-Meteo ERA5 versus limited ERA5-Land adapter variables; London-only PVGIS 2005–2023/selected months; NSRDB Ithaca/Phoenix point scope and actual versus TMY IDs; CDS native 0–360 bbox with polar uncertainty; CMIP6 seven-variable coherent combinations with a separately checked effective model-license gate and unknown time windows; OEDI exact RCP/site/year membership and ETag invalidation. For a synthetic CMIP6 catalog containing two combinations for one model, one registry record must classify both; a missing or unrecognized license ID must remain unknown. Example:
 
   ```python
   def test_oedi_membership_is_not_weather_quality(oedi_bundle):
@@ -157,9 +163,9 @@ class WeatherService:
       assert entry.weather_complete is None
   ```
 
-- [ ] Run focused pytest; expect failures. Implement imports retaining raw source values, native longitude convention, precise applicability of probes and source licenses. OEDI directory membership requires matching archive ETag and does not assert the baseline archive. CMIP6 intersection does not promote all 636 combinations to license/window-supported; preserve original and effective WCRP license evidence independently.
+- [ ] Run focused pytest; expect failures. Implement imports retaining raw source values, native longitude convention, precise applicability of probes and source licenses. OEDI directory membership requires matching archive ETag and does not assert the baseline archive. For CMIP6, verify the catalog and WCRP registry hashes together, materialize one effective-license record per `source_id` with ID, URL, history, license text and `source_specific_info`, then attach its allow-list gate to each combination by model key. Store sampled original `.zmetadata` license text separately; keep unsampled original terms unknown. Reject mismatched input generations and rejoin when either source changes. This gate never promotes an unverified requested window to supported.
 - [ ] Import the accepted local NSRDB `published_name:tdy-2023` manifest as an optional source. Validate the exact GOES TMY v4 product ID, native selector, S3 object URL/ETag/size, both `v4.0.0` path and observed `4.0.1` internal model version, coordinate-table and mask checksums and resolution before staging a `FootprintRecord`; retain the acquisition-time two-point cross-check documented in the [acceptance record](../../validation/mcp-stage-2/nsrdb-footprint-acceptance.md) as provenance. Keep the large metadata table and mask ignored; store only their local checksums and bounded summary in SQLite. A missing, changed or invalid manifest falls back to the two exact point probes and `unknown` regional extent. Do not synthesize records for actual 2023 or other TMY names. Test corrupt mask, changed ETag, selector mismatch and absent manifest without a network call.
-- [ ] Extend the opt-in local import check to OEDI 2,368 sites × 20 listed future years per scenario and CMIP6 636 coherent combinations, without requiring weather chunks or a new network request. Run focused tests/static checks and commit `fix(availability): import source contracts and future membership`.
+- [ ] Extend the opt-in local import check to OEDI 2,368 sites × 20 listed future years per scenario and CMIP6 636 coherent combinations with 28 model records: 596 CC BY 4.0 combinations, 40 CC0 1.0, zero missing registry models in the pinned snapshots. Assert original store terms remain unknown except sampled stores, and requested windows remain unknown. Check changed/missing registry hashes yield an unknown license gate without network or weather chunks. Run focused tests/static checks and commit `fix(availability): import source contracts and future membership`.
 
 ### Task 5: Three-valued eligibility and explained recommendations
 
@@ -179,6 +185,7 @@ class WeatherService:
   ```
 
 - [ ] Run focused pytest; expect failures. Implement rule functions by temporal tag and spatial kind. A fresh, applicable positive catalog membership can support an attempt; stale or incomplete absence is unknown; adapter incompatibility is excluded independently of catalog freshness. Do not infer station-hour completeness from counts or native weather coordinates from a reviewed index. Include evidence IDs and reason codes in every decision.
+- [ ] Add a CMIP6 eligibility case with a pinned allowed model license and unverified historical/future window; overall eligibility is `unknown` with a window reason, while the license subdecision is `allowed`. Missing or stale license evidence is `unknown` even if the catalog lists all variables. A known excluded policy remains separate from climate-window and access status.
 - [ ] Test that the accepted NSRDB `tdy-2023` generalized grid display mask cannot by itself yield `supported` for an unprobed coordinate, that actual 2023 and other unimported selectors stay `unknown` outside exact probes, and that a missing selected year stays `unknown`. A spatial exclusion requires a current, applicable, exhaustive source grid and explicit absence semantics; the occupied 0.25° display cells alone do not establish that. Preserve exact probe evidence separately.
 - [ ] Write failing ranking tests for the three initial purposes, explicit variables/limits, user provider order, deterministic ties, no recommendation when all unknown/excluded and unknown alternatives retained. Example:
 

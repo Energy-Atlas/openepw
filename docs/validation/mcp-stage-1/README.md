@@ -14,6 +14,8 @@ Artifacts: [sanitized evidence and ledger](evidence.json),
 [Stage 2 catalog contract](catalog-contract.md),
 [research tool instructions](../../../scripts/mcp_research/README.md), and
 [execution plan/ledger](../../superpowers/plans/2026-09-23-mcp-stage-1.md).
+The [offline CMIP6 license-scope addendum](cmip6-license-scope.md) joins the
+accepted catalog and WCRP registry snapshots without new collection.
 
 ## Actual network work
 
@@ -125,7 +127,11 @@ The coherent combination counts are SSP126: 138, SSP245: 170, SSP370: 151,
 SSP585: 177. They describe this catalog snapshot, not all CMIP6 data now available.
 The intersection preserves model, member and grid and requires historical plus
 scenario entries for tas/tasmin/tasmax/hurs/ps/sfcWind/rsds. License filtering is a
-separate eligibility step: the 636 combinations are not all declared usable.
+separate eligibility step. An offline model-level join of the saved catalog and
+WCRP registry finds that all 636 combinations pass the current OpenEPW effective
+license allow-list **in the pinned snapshot**: 596 are CC BY 4.0 and 40 are CC0
+1.0. This is a pre-request scope gate, not a complete usability claim; see the
+[method, hashes and limits](cmip6-license-scope.md).
 
 Four metadata documents sampled ACCESS-CM2 r1i1p1f1 historical/SSP245 tas and rsds.
 Time-array shape and units were retained, but no coordinate chunks or weather

@@ -169,6 +169,35 @@ def cmip_intersections(rows):
     return result
 
 
+def cmip_license_scope(combinations, model_licenses):
+    """Screen catalog models once against the saved WCRP effective-license registry."""
+    allowed_ids = {"CC BY 4.0", "CC BY-SA 4.0", "CC0 1.0"}
+    counts = Counter(pair["model"] for pair in combinations)
+    models = {}
+    for model, count in sorted(counts.items()):
+        record = model_licenses.get(model)
+        info = record if isinstance(record, dict) else {}
+        license_id = info.get("id")
+        models[model] = {
+            "gate": "allowed" if license_id in allowed_ids else "unknown",
+            "combination_count": count,
+            "effective_license": {
+                key: info.get(key)
+                for key in ("id", "url", "history", "license", "source_specific_info")
+            },
+        }
+    return {
+        "evidence_ids": ["cmip6-catalog", "cmip6-license"],
+        "model_counts": dict(sorted(Counter(m["gate"] for m in models.values()).items())),
+        "combination_counts": {
+            gate: sum(m["combination_count"] for m in models.values() if m["gate"] == gate)
+            for gate in ("allowed", "unknown")
+        },
+        "models": models,
+        "meaning": "Effective model-license policy screen only; original store terms and requested windows remain separate",
+    }
+
+
 def station_counts(raw):
     """NOAA monthly report counts, not distinct hours, variable availability or QC."""
     months = "JAN FEB MAR APR MAY JUN JUL AUG SEP OCT NOV DEC".split()
@@ -439,7 +468,8 @@ def analyze(root):
                 result["inventories"][r["id"]] = {
                     "licenses": {
                         model: {
-                            k: info.get("license_info", {}).get(k) for k in ("id", "url", "history")
+                            k: info.get("license_info", {}).get(k)
+                            for k in ("id", "url", "history", "license", "source_specific_info")
                         }
                         for model, info in data.items()
                     }
@@ -459,6 +489,12 @@ def analyze(root):
                 }
         except (ValueError, KeyError, OSError, TypeError):
             result["errors"].append({"id": r["id"], "outcome": "parse_or_checksum_failure"})
+    cmip_catalog = result["inventories"].get("cmip6-catalog")
+    cmip_registry = result["inventories"].get("cmip6-license")
+    if cmip_catalog and cmip_registry:
+        cmip_catalog["license_scope"] = cmip_license_scope(
+            cmip_catalog["combinations"], cmip_registry["licenses"]
+        )
     history = result["inventories"].get("noaa-history", {}).get("sites", [])
     if history:
         coordinate_ids = {site["id"] for site in history}

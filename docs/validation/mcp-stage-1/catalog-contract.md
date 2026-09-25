@@ -40,7 +40,7 @@ on refresh failure and label it stale. No mandatory external database or GIS ser
 | Product/variable compatibility and obvious date exclusions | Dataset contract plus adapter capability intersection | Actual values, missing fields and complete intervals |
 | Candidate station/site mapping | Published product coordinates or corroborated station IDs, operating periods and station/year/month counts | Native EPW coordinate verification, coordinate disagreements, actual observations and variable availability |
 | Published TMY choices | Explicit catalog product links and reference-period labels | Native EPW coordinates, fields and quality |
-| Future scenario/window compatibility | Method/source documentation plus model/site catalog; OEDI scenario directories now establish site/year filenames | CMIP6 model time coverage, valid signals or full trajectory content |
+| Future scenario/window compatibility | Method/source documentation plus model/site catalog; OEDI scenario directories establish site/year filenames; the [offline CMIP6 registry join](cmip6-license-scope.md) screens effective model licenses for all 636 pinned combinations | CMIP6 model time coverage, selected-store original terms, valid signals or full trajectory content |
 | Shared source request grouping | Verified native identity and identical scientific options | Unknown cells/elevation-adjusted responses must not be collapsed prematurely |
 
 Do not silently rewrite the CDS bbox to match its global description. Normalize
@@ -61,7 +61,7 @@ once per batch, never once per requested point.
 | NOAA ISD history and station/month counts | Weekly conditional check; no repeated refresh per point | Both files are dated 2025. Join stable alphanumeric IDs, retain unmatched identities and sparse years. Refreshing cannot manufacture a GHCNh connection or newer ISD coverage |
 | OneBuilding selected country catalogs and coordinate spreadsheets | Weekly conditional check; retain product URLs, source periods and separate snapshot versions | U.S. spreadsheet modified 2026-09-22; Europe 2026-03-20. Products/indexes can change independently. Unmatched entries and coordinate disagreements remain explicit |
 | NSRDB product/year metadata | Seven-day snapshot for resolved requests; on-demand for unknown locations/new years | Annual additions and product-specific coverage. Never extrapolate point results into an unverified spatial cache key |
-| Pangeo catalog/WCRP license registry | Weekly conditional check and version pin | Current catalog response carries a 2022 Last-Modified date; polling it cannot guarantee comprehensive newer holdings |
+| Pangeo catalog/WCRP license registry | Weekly conditional check and version pin; join once per validated catalog generation | The pinned Stage 1 join passes all 636 combinations under the current effective-license allow-list. A missing, mismatched or stale source makes the current license gate unknown. The 2022 catalog modification date does not guarantee comprehensive newer holdings |
 | OEDI site tables and archive indexes | Pin by checksum/ETag; weekly conditional version check | Fixed published windows; a changed archive invalidates member offsets |
 
 Expired or incomplete metadata yields uncertainty, not a definitive exclusion.
@@ -93,8 +93,11 @@ Stage 1's existing ledger budgets are not reusable runtime quotas for production
    0.25° occupied cells are generalized display evidence, not positive arbitrary-point
    eligibility or an actual-year 2023 footprint. Other NSRDB selectors and their
    regional extent remain unknown; keep individual probes narrowly scoped.
-5. Validate CMIP6 windows across all required stores with bounded coordinate metadata
-   access. Do not infer full intervals from array length/calendar units or four samples.
+5. Import the [pinned CMIP6 model-license join](cmip6-license-scope.md) as an
+   amortized initial gate, retaining registry history and original store terms
+   separately. Validate windows across all required stores with bounded coordinate
+   metadata access. Do not infer full intervals from array length/calendar units
+   or four samples.
 6. Import the now-complete OEDI scenario-directory indexes. The approved single
    revised request per scenario succeeded: each lists all 2,368 sites and all 20
    expected future years. See the
