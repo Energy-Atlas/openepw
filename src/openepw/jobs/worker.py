@@ -167,6 +167,7 @@ class JobRunner:
                         severity="error",
                     )
                 )
+                issue = issue.model_copy(update={"task_id": name})
                 job.errors.append(issue)
             attempted += 1
             job.completed = sum(len(b.weather) for b in completed.values())

@@ -6,7 +6,7 @@ from typing import Any, Literal
 from urllib.parse import urlparse
 
 from ..availability.models import AvailabilityResult
-from ..models import Candidate, DatasetSelection, SourceRef, digest
+from ..models import Candidate, DatasetSelection, Issue, SourceRef, WeatherPlan, digest
 
 
 def fetch_task_key(source: SourceRef, parameters: dict[str, Any]) -> str:
@@ -46,3 +46,35 @@ def missing_selection_status(
                        not option.eligibility.stale for option in options):
         return "unsupported"
     return "unresolved"
+
+
+def finalize_batch_rows(
+    plan: WeatherPlan, manifest_outputs: list[dict[str, Any]],
+    issues: list[Issue], cancelled: bool,
+) -> list[dict[str, Any]]:
+    """Account for every planned occurrence without inventing a weather artifact."""
+    produced = {entry.get("output_id"): entry for entry in manifest_outputs}
+    finalized = []
+    for row in plan.batch_rows:
+        entry = produced.get(row.output_id) if row.output_id else None
+        related = [issue for issue in issues if (
+            issue.task_id is not None and
+            (issue.task_id == row.output_id or issue.task_id in row.task_ids)
+        ) or (
+            issue.task_id is None and issue.occurrence_index == row.occurrence_index and
+            (issue.location_id is None or issue.location_id == row.requested_location_id) and
+            (issue.dataset_selection is None or
+             issue.dataset_selection == row.dataset_selection.model_dump(mode="json"))
+        )]
+        result = row.model_dump(mode="json")
+        result["issue_codes"] = list(dict.fromkeys(
+            [*row.issue_codes, *(issue.code for issue in related)]))
+        if row.status == "planned":
+            result["status"] = "succeeded" if entry else (
+                "cancelled" if cancelled and not related else "failed")
+            if entry:
+                for key in ("artifact_id", "source", "lineage", "metadata", "raw_sha256"):
+                    if key in entry:
+                        result[key] = entry[key]
+        finalized.append(result)
+    return finalized

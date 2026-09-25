@@ -51,6 +51,8 @@ def test_noaa_gap_warn_emits_sentinel_qc_and_not_simulation_ready(tmp_path):
                issue["field"] == "dry_bulb" for issue in qc[0]["issues"])
     manifest = json.loads((tmp_path / bundle.manifest.path).read_text())
     assert manifest["simulation_ready"] is False
+    assert manifest["batch_rows"][0]["status"] == "succeeded"
+    assert "MISSING_CRITICAL_VARIABLE" in manifest["batch_rows"][0]["issue_codes"]
 
 
 def test_noaa_gap_error_policy_does_not_emit_epw(tmp_path):
@@ -60,3 +62,5 @@ def test_noaa_gap_error_policy_does_not_emit_epw(tmp_path):
                issue.severity == "error" for issue in bundle.issues)
     manifest = json.loads((tmp_path / bundle.manifest.path).read_text())
     assert manifest["simulation_ready"] is False
+    assert manifest["batch_rows"][0]["status"] == "failed"
+    assert manifest["batch_rows"][0]["issue_codes"] == ["MISSING_CRITICAL_VARIABLE"]

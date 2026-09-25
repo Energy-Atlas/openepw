@@ -49,6 +49,7 @@ from .planning.batch import (
     exact_published_source,
     exact_published_url,
     fetch_task_key,
+    finalize_batch_rows,
     missing_selection_status,
 )
 from .planning.output_identity import filename, location_label, output_id, period_label
@@ -793,7 +794,7 @@ class WeatherService:
                 qc_records.append(
                     {"artifact_id": ref.id, "issues": [i.model_dump() for i in checks]}
                 )
-                issues.extend(checks)
+                issues.extend(check.model_copy(update={"task_id": output_key}) for check in checks)
                 progress(output_key, None)
             except OpenEPWError as exc:
                 issues.append(exc.issue.model_copy(update={"task_id": output_key}))
@@ -824,6 +825,14 @@ class WeatherService:
             ),
             "simulation_ready": False,
         }
+        if plan.kind == "weather" and plan.batch_rows:
+            manifest["batch_rows"] = finalize_batch_rows(
+                plan, manifest_outputs, issues,
+                cancelled=any(issue.code == "CANCELLED" for issue in issues),
+            )
+            for row in manifest["batch_rows"]:
+                if row["status"] == "succeeded":
+                    row["qc_artifact_id"] = qc_ref.id
         manifest_ref = self.artifacts.json(bundle_id, "manifest.json", manifest, "manifest")
         return ArtifactBundle(
             bundle_id=bundle_id,
