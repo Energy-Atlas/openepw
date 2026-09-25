@@ -74,4 +74,4 @@ def test_rest_weather_job_accepts_hash_or_inline_plan_but_not_both(tmp_path):
         assert client.post("/v1/weather/jobs", json={}).status_code == 422
         assert client.post("/v1/weather/jobs", json={"plan": plan,
                                                      "plan_hash": plan["plan_hash"]}).status_code == 422
-        assert client.post("/v1/future/jobs", json={"plan_hash": plan["plan_hash"]}).status_code == 422
+        assert client.post("/v1/future/jobs", json={"plan_hash": plan["plan_hash"]}).status_code == 400

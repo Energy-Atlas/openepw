@@ -24,7 +24,8 @@ def main(argv=None):
     parser.add_argument("--data-root")
     sub = parser.add_subparsers(dest="command", required=True)
     for command in ("geocode", "discover", "plan", "fetch", "execute", "future",
-                    "inspect", "availability", "export"):
+                    "future-plan", "register-baseline", "inspect", "availability",
+                    "export"):
         cmd = sub.add_parser(command)
         cmd.add_argument(
             "input", help="Location text, request/plan JSON path, or EPW/job ID"
@@ -115,6 +116,8 @@ def main(argv=None):
                 result = runner.export_compact(args.input)
             finally:
                 runner.close()
+        elif args.command == "register-baseline":
+            result = service.register_baseline(args.input)
         else:
             if args.command == "execute":
                 selected_plan = (
@@ -129,6 +132,8 @@ def main(argv=None):
                     result = service.execute(
                         service.plan_future(FutureRequest.model_validate_json(raw))
                     )
+                elif args.command == "future-plan":
+                    result = service.plan_future(FutureRequest.model_validate_json(raw))
                 elif args.command == "availability":
                     result = service.assess_availability(
                         TypeAdapter(AvailabilityQuery).validate_json(raw))

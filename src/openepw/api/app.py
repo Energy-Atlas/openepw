@@ -1,5 +1,4 @@
 import hmac
-import uuid
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, File, Header, HTTPException, UploadFile
@@ -27,8 +26,15 @@ class JobSubmission(BaseModel):
 
 
 class FutureJobSubmission(BaseModel):
-    plan: WeatherPlan
+    plan: WeatherPlan | None = None
+    plan_hash: str | None = None
     idempotency_key: str | None = None
+
+    @model_validator(mode="after")
+    def exactly_one_plan(self):
+        if (self.plan is None) == (self.plan_hash is None):
+            raise ValueError("Specify exactly one of plan or plan_hash")
+        return self
 
 
 class RetrySubmission(BaseModel):
@@ -171,9 +177,7 @@ def create_app(service=None, *, remote=False):
         if len(body) > 5_000_000:
             raise OpenEPWError("RESOURCE_LIMIT", "EPW exceeds upload limit")
         read_epw(body)
-        return service.artifacts.write(
-            uuid.uuid4().hex, "baseline.epw", body, "baseline", "application/vnd.energyplus.epw"
-        )
+        return service.register_baseline(body)
 
     @app.get("/v1/artifacts/{artifact_id}")
     def artifact(artifact_id: str):
