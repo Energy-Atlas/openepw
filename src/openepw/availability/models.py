@@ -42,6 +42,9 @@ class ProductRecord(Model):
     delivered_resolution_minutes: int | None = Field(default=None, gt=0)
     access_requirements: list[str] = Field(default_factory=list)
     citation: str | None = None
+    license_effective: str | None = None
+    license_original: str | None = None
+    license_history: str | None = None
     evidence_ids: list[str] = Field(default_factory=list)
 
 
@@ -87,8 +90,8 @@ class TMYReferenceScope(Model):
 
 class FutureWindowScope(Model):
     kind: Literal["future_window"] = "future_window"
-    start_year: int
-    end_year: int
+    start_year: int | None = None
+    end_year: int | None = None
     scenario: str
     model: str | None = None
     member: str | None = None
@@ -97,7 +100,9 @@ class FutureWindowScope(Model):
 
     @model_validator(mode="after")
     def chronological(self):
-        if self.start_year > self.end_year:
+        if (self.start_year is None) != (self.end_year is None):
+            raise ValueError("Future window must have both endpoints")
+        if self.start_year is not None and self.end_year is not None and self.start_year > self.end_year:
             raise ValueError("Future window is reversed")
         return self
 

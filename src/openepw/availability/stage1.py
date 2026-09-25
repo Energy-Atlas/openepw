@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from datetime import date, datetime, timezone
 from importlib.resources import files
 from pathlib import Path
 
+from .importers import normalize_analysis
 from .models import (
     ActualScope,
     AvailabilityEntry,
@@ -199,6 +201,15 @@ def import_stage1(root: Path, *, reviews_path: Path | None = None) -> CatalogBun
     noaa_products, noaa_sites, noaa_entries = _noaa(inventories, known)
     ob_products, ob_sites, ob_entries, reviews = _onebuilding(
         inventories, known, checksums, registry)
-    return CatalogBundle(evidence=evidence, products=noaa_products + ob_products,
-                         sites=noaa_sites + ob_sites, entries=noaa_entries + ob_entries,
+    probe_locations = {}
+    for record in ledger.get("records", []):
+        point = record.get("parameters", {}).get("wkt", "")
+        match = re.fullmatch(r"POINT\((-?\d+(?:\.\d+)?) (-?\d+(?:\.\d+)?)\)", point)
+        if match:
+            probe_locations[record["id"]] = {"lon": float(match[1]), "lat": float(match[2])}
+    remaining = normalize_analysis(inventories, evidence, probe_locations=probe_locations)
+    return CatalogBundle(evidence=evidence,
+                         products=noaa_products + ob_products + remaining.products,
+                         sites=noaa_sites + ob_sites + remaining.sites,
+                         entries=noaa_entries + ob_entries + remaining.entries,
                          reviews=reviews)

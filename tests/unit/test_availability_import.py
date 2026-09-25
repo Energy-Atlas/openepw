@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from openepw.availability.stage1 import import_stage1
-from openepw.availability.store import CatalogImportError
+from openepw.availability.store import CatalogImportError, CatalogStore
 
 
 def _snapshot(root: Path, *, changed_source: bool = False, changed_unrelated: bool = False):
@@ -106,7 +106,7 @@ def test_packaged_reviews_match_accepted_registry():
 
 @pytest.mark.skipif(os.getenv("OPENEPW_TEST_STAGE1_SNAPSHOT") != "1",
                     reason="Original ignored Stage 1 snapshot import is opt-in")
-def test_original_local_snapshot_counts():
+def test_original_local_snapshot_counts(tmp_path):
     root = Path(__file__).parents[2] / ".local/mcp-availability"
     if not root.is_dir():
         pytest.skip("Original ignored Stage 1 snapshots unavailable")
@@ -118,3 +118,12 @@ def test_original_local_snapshot_counts():
                 "reviewed_metadata_match": 56, "approximate_locality": 3,
                 "name_code_conflict": 2,
             }
+    assert sum(p.provider == "cmip6" for p in bundle.products) == 636
+    assert sum(s.product_id == "oedi:rcp45" for s in bundle.sites) == 2368
+    assert sum(s.product_id == "oedi:rcp85" for s in bundle.sites) == 2368
+    assert sum(e.product_id == "oedi:rcp45" for e in bundle.entries) == 4736
+    assert sum(e.product_id == "oedi:rcp85" for e in bundle.entries) == 4736
+    catalog = CatalogStore(tmp_path)
+    staged = catalog.stage(bundle)
+    catalog.activate(staged.generation_id)
+    assert len(catalog.active().bundle.reviews) == 61
