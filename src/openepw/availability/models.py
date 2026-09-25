@@ -71,14 +71,16 @@ class ActualScope(Model):
 
 class TMYReferenceScope(Model):
     kind: Literal["tmy_reference"] = "tmy_reference"
-    start_year: int
-    end_year: int
+    start_year: int | None = None
+    end_year: int | None = None
     product_label: str
     selected_month_years: dict[int, int] = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def chronological(self):
-        if self.start_year > self.end_year:
+        if (self.start_year is None) != (self.end_year is None):
+            raise ValueError("TMY reference period must have both endpoints")
+        if self.start_year is not None and self.end_year is not None and self.start_year > self.end_year:
             raise ValueError("TMY reference period is reversed")
         return self
 
@@ -131,6 +133,8 @@ class ReviewAnnotation(Model):
     source_checksums: dict[str, str]
     alternate_url: str | None = None
     coordinate_authority: str | None = None
+    original_position_status: str | None = None
+    original_match_reason: str | None = None
     epw_coordinates_verified: bool = False
     weather_equivalence_verified: bool = False
 

@@ -1,0 +1,638 @@
+{
+  "schema_version": "onebuilding-reviewed-1",
+  "accepted_on": "2026-09-24",
+  "decision": "docs/validation/mcp-stage-1/onebuilding-manual-review.md",
+  "source_checksums": {
+    "noaa-history": "1994747ab4af1b97e63adb434b4d0d022f2daee76f0c144ea9ab46be2d906604",
+    "onebuilding-au-coordinate-xlsx": "df29f4ae53a400ba9678cfe7705464b018bbdc963e2897f071735afa53583251",
+    "onebuilding-normals-coordinate-xlsx": "e533dda545bed72791f44d2fbd46790d437e01e8ed0bdf167edef87adaae40e4",
+    "onebuilding-tmy3-coordinate-xlsx": "24cd8f882ed04d0dc753e932203b6eadb1fbacb2c51e738183b73b1c1fd2be61",
+    "onebuilding-us-xlsx": "cc336b22990f2d7937a3af0a578d475559f7a8ca79ae20d3bd1692afecfdfb93",
+    "onebuilding-us": "7f2c7216959440084726a4b72c67b7a046426acfcc599b12d8e7b107e7a97e20"
+  },
+  "reviews": [
+    {
+      "catalog_url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/CA_California/USA_CA_Mount.Shasta-Rep.AP.725957_TMY.zip",
+      "status": "approximate_locality",
+      "label": "Mount Shasta station/locality",
+      "lat": 41.317,
+      "lon": -122.317,
+      "evidence_ids": [
+        "onebuilding-us-xlsx",
+        "noaa-history",
+        "onebuilding-us"
+      ],
+      "rationale": "Owner-accepted locality identification from same-name/identifier evidence. Illustrative existing-source position only; exact historical product coordinates, elevation and supplying station remain unresolved."
+    },
+    {
+      "catalog_url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/FL_Florida/USA_FL_Apalachicola.Rgnl.AP.722200_TMY.zip",
+      "status": "approximate_locality",
+      "label": "Apalachicola airport locality",
+      "lat": 29.7333,
+      "lon": -85.0333,
+      "evidence_ids": [
+        "onebuilding-us-xlsx",
+        "noaa-history",
+        "onebuilding-us"
+      ],
+      "rationale": "Owner-accepted locality identification from same-name/identifier evidence. Illustrative existing-source position only; exact historical product coordinates, elevation and supplying station remain unresolved."
+    },
+    {
+      "catalog_url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/HI_Hawaii/USA_HI_Bradshaw.AAF.Hawaii.911977_TMYx.2004-2018.zip",
+      "status": "reviewed_metadata_match",
+      "published_url": "https://climate.onebuilding.org/WMO_Region_5_Southwest_Pacific/USA_United_States_of_America/HI_Hawaii/USA_HI_Bradshaw.AAF.Hawaii.911977_TMYx.2004-2018.zip",
+      "evidence_ids": [
+        "onebuilding-au-coordinate-xlsx",
+        "onebuilding-us"
+      ],
+      "rationale": "Owner-accepted individual review: complete product filename and remaining path agree; only WMO Region 4 versus Region 5 differs. No redirect or archive-byte equivalence asserted."
+    },
+    {
+      "catalog_url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/HI_Hawaii/USA_HI_Bradshaw.AAF.Hawaii.911977_TMYx.2007-2021.zip",
+      "status": "reviewed_metadata_match",
+      "published_url": "https://climate.onebuilding.org/WMO_Region_5_Southwest_Pacific/USA_United_States_of_America/HI_Hawaii/USA_HI_Bradshaw.AAF.Hawaii.911977_TMYx.2007-2021.zip",
+      "evidence_ids": [
+        "onebuilding-au-coordinate-xlsx",
+        "onebuilding-us"
+      ],
+      "rationale": "Owner-accepted individual review: complete product filename and remaining path agree; only WMO Region 4 versus Region 5 differs. No redirect or archive-byte equivalence asserted."
+    },
+    {
+      "catalog_url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/HI_Hawaii/USA_HI_Bradshaw.AAF.Hawaii.911977_TMYx.2009-2023.zip",
+      "status": "reviewed_metadata_match",
+      "published_url": "https://climate.onebuilding.org/WMO_Region_5_Southwest_Pacific/USA_United_States_of_America/HI_Hawaii/USA_HI_Bradshaw.AAF.Hawaii.911977_TMYx.2009-2023.zip",
+      "evidence_ids": [
+        "onebuilding-au-coordinate-xlsx",
+        "onebuilding-us"
+      ],
+      "rationale": "Owner-accepted individual review: complete product filename and remaining path agree; only WMO Region 4 versus Region 5 differs. No redirect or archive-byte equivalence asserted."
+    },
+    {
+      "catalog_url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/HI_Hawaii/USA_HI_Bradshaw.AAF.Hawaii.911977_TMYx.2011-2025.zip",
+      "status": "reviewed_metadata_match",
+      "published_url": "https://climate.onebuilding.org/WMO_Region_5_Southwest_Pacific/USA_United_States_of_America/HI_Hawaii/USA_HI_Bradshaw.AAF.Hawaii.911977_TMYx.2011-2025.zip",
+      "evidence_ids": [
+        "onebuilding-au-coordinate-xlsx",
+        "onebuilding-us"
+      ],
+      "rationale": "Owner-accepted individual review: complete product filename and remaining path agree; only WMO Region 4 versus Region 5 differs. No redirect or archive-byte equivalence asserted."
+    },
+    {
+      "catalog_url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/HI_Hawaii/USA_HI_Bradshaw.AAF.Hawaii.911977_TMYx.zip",
+      "status": "reviewed_metadata_match",
+      "published_url": "https://climate.onebuilding.org/WMO_Region_5_Southwest_Pacific/USA_United_States_of_America/HI_Hawaii/USA_HI_Bradshaw.AAF.Hawaii.911977_TMYx.zip",
+      "evidence_ids": [
+        "onebuilding-au-coordinate-xlsx",
+        "onebuilding-us"
+      ],
+      "rationale": "Owner-accepted individual review: complete product filename and remaining path agree; only WMO Region 4 versus Region 5 differs. No redirect or archive-byte equivalence asserted."
+    },
+    {
+      "catalog_url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/HI_Hawaii/USA_HI_Hilo-Hawaii.County.912960_US.Normals.2006-2020.zip",
+      "status": "reviewed_metadata_match",
+      "published_url": "https://climate.onebuilding.org/WMO_Region_5_Southwest_Pacific/USA_United_States_of_America/HI_Hawaii/USA_HI_Hilo-Hawaii.County.912960_US.Normals.2006-2020.zip",
+      "evidence_ids": [
+        "onebuilding-normals-coordinate-xlsx",
+        "onebuilding-us"
+      ],
+      "rationale": "Owner-accepted individual review: complete product filename and remaining path agree; only WMO Region 4 versus Region 5 differs. No redirect or archive-byte equivalence asserted."
+    },
+    {
+      "catalog_url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/HI_Hawaii/USA_HI_Hilo.Hawaii.912960_TMYx.2007-2021.zip",
+      "status": "reviewed_metadata_match",
+      "published_url": "https://climate.onebuilding.org/WMO_Region_5_Southwest_Pacific/USA_United_States_of_America/HI_Hawaii/USA_HI_Hilo.Hawaii.912960_TMYx.2007-2021.zip",
+      "evidence_ids": [
+        "onebuilding-au-coordinate-xlsx",
+        "onebuilding-us"
+      ],
+      "rationale": "Owner-accepted individual review: complete product filename and remaining path agree; only WMO Region 4 versus Region 5 differs. No redirect or archive-byte equivalence asserted."
+    },
+    {
+      "catalog_url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/HI_Hawaii/USA_HI_Hilo.Hawaii.912960_TMYx.2009-2023.zip",
+      "status": "reviewed_metadata_match",
+      "published_url": "https://climate.onebuilding.org/WMO_Region_5_Southwest_Pacific/USA_United_States_of_America/HI_Hawaii/USA_HI_Hilo.Hawaii.912960_TMYx.2009-2023.zip",
+      "evidence_ids": [
+        "onebuilding-au-coordinate-xlsx",
+        "onebuilding-us"
+      ],
+      "rationale": "Owner-accepted individual review: complete product filename and remaining path agree; only WMO Region 4 versus Region 5 differs. No redirect or archive-byte equivalence asserted."
+    },
+    {
+      "catalog_url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/HI_Hawaii/USA_HI_Hilo.Hawaii.912960_TMYx.2011-2025.zip",
+      "status": "reviewed_metadata_match",
+      "published_url": "https://climate.onebuilding.org/WMO_Region_5_Southwest_Pacific/USA_United_States_of_America/HI_Hawaii/USA_HI_Hilo.Hawaii.912960_TMYx.2011-2025.zip",
+      "evidence_ids": [
+        "onebuilding-au-coordinate-xlsx",
+        "onebuilding-us"
+      ],
+      "rationale": "Owner-accepted individual review: complete product filename and remaining path agree; only WMO Region 4 versus Region 5 differs. No redirect or archive-byte equivalence asserted."
+    },
+    {
+      "catalog_url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/HI_Hawaii/USA_HI_Hilo.Hawaii.912960_TMYx.zip",
+      "status": "reviewed_metadata_match",
+      "published_url": "https://climate.onebuilding.org/WMO_Region_5_Southwest_Pacific/USA_United_States_of_America/HI_Hawaii/USA_HI_Hilo.Hawaii.912960_TMYx.zip",
+      "evidence_ids": [
+        "onebuilding-au-coordinate-xlsx",
+        "onebuilding-us"
+      ],
+      "rationale": "Owner-accepted individual review: complete product filename and remaining path agree; only WMO Region 4 versus Region 5 differs. No redirect or archive-byte equivalence asserted."
+    },
+    {
+      "catalog_url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/HI_Hawaii/USA_HI_Kalaeloa.AP-NAS.Barbers.Point.911780_TMY3.zip",
+      "status": "reviewed_metadata_match",
+      "published_url": "https://climate.onebuilding.org/WMO_Region_5_Southwest_Pacific/USA_United_States_of_America/HI_Hawaii/USA_HI_Kalaeloa.AP-NAS.Barbers.Point.911780_TMY3.zip",
+      "evidence_ids": [
+        "onebuilding-tmy3-coordinate-xlsx",
+        "onebuilding-us"
+      ],
+      "rationale": "Owner-accepted individual review: complete product filename and remaining path agree; only WMO Region 4 versus Region 5 differs. No redirect or archive-byte equivalence asserted."
+    },
+    {
+      "catalog_url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/HI_Hawaii/USA_HI_Keahole-Kona.Intl.AP.911975_TMY3.zip",
+      "status": "reviewed_metadata_match",
+      "published_url": "https://climate.onebuilding.org/WMO_Region_5_Southwest_Pacific/USA_United_States_of_America/HI_Hawaii/USA_HI_Keahole-Kona.Intl.AP.911975_TMY3.zip",
+      "evidence_ids": [
+        "onebuilding-tmy3-coordinate-xlsx",
+        "onebuilding-us"
+      ],
+      "rationale": "Owner-accepted individual review: complete product filename and remaining path agree; only WMO Region 4 versus Region 5 differs. No redirect or archive-byte equivalence asserted."
+    },
+    {
+      "catalog_url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/HI_Hawaii/USA_HI_Kona.Intl.AP.Hawaii.911975_TMYx.2004-2018.zip",
+      "status": "reviewed_metadata_match",
+      "published_url": "https://climate.onebuilding.org/WMO_Region_5_Southwest_Pacific/USA_United_States_of_America/HI_Hawaii/USA_HI_Kona.Intl.AP.Hawaii.911975_TMYx.2004-2018.zip",
+      "evidence_ids": [
+        "onebuilding-au-coordinate-xlsx",
+        "onebuilding-us"
+      ],
+      "rationale": "Owner-accepted individual review: complete product filename and remaining path agree; only WMO Region 4 versus Region 5 differs. No redirect or archive-byte equivalence asserted."
+    },
+    {
+      "catalog_url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/HI_Hawaii/USA_HI_Kona.Intl.AP.Hawaii.911975_TMYx.2007-2021.zip",
+      "status": "reviewed_metadata_match",
+      "published_url": "https://climate.onebuilding.org/WMO_Region_5_Southwest_Pacific/USA_United_States_of_America/HI_Hawaii/USA_HI_Kona.Intl.AP.Hawaii.911975_TMYx.2007-2021.zip",
+      "evidence_ids": [
+        "onebuilding-au-coordinate-xlsx",
+        "onebuilding-us"
+      ],
+      "rationale": "Owner-accepted individual review: complete product filename and remaining path agree; only WMO Region 4 versus Region 5 differs. No redirect or archive-byte equivalence asserted."
+    },
+    {
+      "catalog_url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/HI_Hawaii/USA_HI_Kona.Intl.AP.Hawaii.911975_TMYx.2009-2023.zip",
+      "status": "reviewed_metadata_match",
+      "published_url": "https://climate.onebuilding.org/WMO_Region_5_Southwest_Pacific/USA_United_States_of_America/HI_Hawaii/USA_HI_Kona.Intl.AP.Hawaii.911975_TMYx.2009-2023.zip",
+      "evidence_ids": [
+        "onebuilding-au-coordinate-xlsx",
+        "onebuilding-us"
+      ],
+      "rationale": "Owner-accepted individual review: complete product filename and remaining path agree; only WMO Region 4 versus Region 5 differs. No redirect or archive-byte equivalence asserted."
+    },
+    {
+      "catalog_url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/HI_Hawaii/USA_HI_Kona.Intl.AP.Hawaii.911975_TMYx.2011-2025.zip",
+      "status": "reviewed_metadata_match",
+      "published_url": "https://climate.onebuilding.org/WMO_Region_5_Southwest_Pacific/USA_United_States_of_America/HI_Hawaii/USA_HI_Kona.Intl.AP.Hawaii.911975_TMYx.2011-2025.zip",
+      "evidence_ids": [
+        "onebuilding-au-coordinate-xlsx",
+        "onebuilding-us"
+      ],
+      "rationale": "Owner-accepted individual review: complete product filename and remaining path agree; only WMO Region 4 versus Region 5 differs. No redirect or archive-byte equivalence asserted."
+    },
+    {
+      "catalog_url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/HI_Hawaii/USA_HI_Kona.Intl.AP.Hawaii.911975_TMYx.zip",
+      "status": "reviewed_metadata_match",
+      "published_url": "https://climate.onebuilding.org/WMO_Region_5_Southwest_Pacific/USA_United_States_of_America/HI_Hawaii/USA_HI_Kona.Intl.AP.Hawaii.911975_TMYx.zip",
+      "evidence_ids": [
+        "onebuilding-au-coordinate-xlsx",
+        "onebuilding-us"
+      ],
+      "rationale": "Owner-accepted individual review: complete product filename and remaining path agree; only WMO Region 4 versus Region 5 differs. No redirect or archive-byte equivalence asserted."
+    },
+    {
+      "catalog_url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/HI_Hawaii/USA_HI_Kona.Intl.AP.Hawaii.911975_US.Normals.2006-2020.zip",
+      "status": "reviewed_metadata_match",
+      "published_url": "https://climate.onebuilding.org/WMO_Region_5_Southwest_Pacific/USA_United_States_of_America/HI_Hawaii/USA_HI_Kona.Intl.AP.Hawaii.911975_US.Normals.2006-2020.zip",
+      "evidence_ids": [
+        "onebuilding-normals-coordinate-xlsx",
+        "onebuilding-us"
+      ],
+      "rationale": "Owner-accepted individual review: complete product filename and remaining path agree; only WMO Region 4 versus Region 5 differs. No redirect or archive-byte equivalence asserted."
+    },
+    {
+      "catalog_url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/HI_Hawaii/USA_HI_Lanai.AP.911905_TMY3.zip",
+      "status": "reviewed_metadata_match",
+      "published_url": "https://climate.onebuilding.org/WMO_Region_5_Southwest_Pacific/USA_United_States_of_America/HI_Hawaii/USA_HI_Lanai.AP.911905_TMY3.zip",
+      "evidence_ids": [
+        "onebuilding-tmy3-coordinate-xlsx",
+        "onebuilding-us"
+      ],
+      "rationale": "Owner-accepted individual review: complete product filename and remaining path agree; only WMO Region 4 versus Region 5 differs. No redirect or archive-byte equivalence asserted."
+    },
+    {
+      "catalog_url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/HI_Hawaii/USA_HI_Lanai.AP.Maui.911905_TMYx.2004-2018.zip",
+      "status": "reviewed_metadata_match",
+      "published_url": "https://climate.onebuilding.org/WMO_Region_5_Southwest_Pacific/USA_United_States_of_America/HI_Hawaii/USA_HI_Lanai.AP.Maui.911905_TMYx.2004-2018.zip",
+      "evidence_ids": [
+        "onebuilding-au-coordinate-xlsx",
+        "onebuilding-us"
+      ],
+      "rationale": "Owner-accepted individual review: complete product filename and remaining path agree; only WMO Region 4 versus Region 5 differs. No redirect or archive-byte equivalence asserted."
+    },
+    {
+      "catalog_url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/HI_Hawaii/USA_HI_Lanai.AP.Maui.911905_TMYx.2007-2021.zip",
+      "status": "reviewed_metadata_match",
+      "published_url": "https://climate.onebuilding.org/WMO_Region_5_Southwest_Pacific/USA_United_States_of_America/HI_Hawaii/USA_HI_Lanai.AP.Maui.911905_TMYx.2007-2021.zip",
+      "evidence_ids": [
+        "onebuilding-au-coordinate-xlsx",
+        "onebuilding-us"
+      ],
+      "rationale": "Owner-accepted individual review: complete product filename and remaining path agree; only WMO Region 4 versus Region 5 differs. No redirect or archive-byte equivalence asserted."
+    },
+    {
+      "catalog_url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/HI_Hawaii/USA_HI_Lanai.AP.Maui.911905_TMYx.2009-2023.zip",
+      "status": "reviewed_metadata_match",
+      "published_url": "https://climate.onebuilding.org/WMO_Region_5_Southwest_Pacific/USA_United_States_of_America/HI_Hawaii/USA_HI_Lanai.AP.Maui.911905_TMYx.2009-2023.zip",
+      "evidence_ids": [
+        "onebuilding-au-coordinate-xlsx",
+        "onebuilding-us"
+      ],
+      "rationale": "Owner-accepted individual review: complete product filename and remaining path agree; only WMO Region 4 versus Region 5 differs. No redirect or archive-byte equivalence asserted."
+    },
+    {
+      "catalog_url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/HI_Hawaii/USA_HI_Lanai.AP.Maui.911905_TMYx.2011-2025.zip",
+      "status": "reviewed_metadata_match",
+      "published_url": "https://climate.onebuilding.org/WMO_Region_5_Southwest_Pacific/USA_United_States_of_America/HI_Hawaii/USA_HI_Lanai.AP.Maui.911905_TMYx.2011-2025.zip",
+      "evidence_ids": [
+        "onebuilding-au-coordinate-xlsx",
+        "onebuilding-us"
+      ],
+      "rationale": "Owner-accepted individual review: complete product filename and remaining path agree; only WMO Region 4 versus Region 5 differs. No redirect or archive-byte equivalence asserted."
+    },
+    {
+      "catalog_url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/HI_Hawaii/USA_HI_Lanai.AP.Maui.911905_TMYx.zip",
+      "status": "reviewed_metadata_match",
+      "published_url": "https://climate.onebuilding.org/WMO_Region_5_Southwest_Pacific/USA_United_States_of_America/HI_Hawaii/USA_HI_Lanai.AP.Maui.911905_TMYx.zip",
+      "evidence_ids": [
+        "onebuilding-au-coordinate-xlsx",
+        "onebuilding-us"
+      ],
+      "rationale": "Owner-accepted individual review: complete product filename and remaining path agree; only WMO Region 4 versus Region 5 differs. No redirect or archive-byte equivalence asserted."
+    },
+    {
+      "catalog_url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/HI_Hawaii/USA_HI_Lanai.AP.Maui.911905_US.Normals.2006-2020.zip",
+      "status": "reviewed_metadata_match",
+      "published_url": "https://climate.onebuilding.org/WMO_Region_5_Southwest_Pacific/USA_United_States_of_America/HI_Hawaii/USA_HI_Lanai.AP.Maui.911905_US.Normals.2006-2020.zip",
+      "evidence_ids": [
+        "onebuilding-normals-coordinate-xlsx",
+        "onebuilding-us"
+      ],
+      "rationale": "Owner-accepted individual review: complete product filename and remaining path agree; only WMO Region 4 versus Region 5 differs. No redirect or archive-byte equivalence asserted."
+    },
+    {
+      "catalog_url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/HI_Hawaii/USA_HI_Mauna.Loa.Obs.Hawaii.912950_TMYx.2004-2018.zip",
+      "status": "reviewed_metadata_match",
+      "published_url": "https://climate.onebuilding.org/WMO_Region_5_Southwest_Pacific/USA_United_States_of_America/HI_Hawaii/USA_HI_Mauna.Loa.Obs.Hawaii.912950_TMYx.2004-2018.zip",
+      "evidence_ids": [
+        "onebuilding-au-coordinate-xlsx",
+        "onebuilding-us"
+      ],
+      "rationale": "Owner-accepted individual review: complete product filename and remaining path agree; only WMO Region 4 versus Region 5 differs. No redirect or archive-byte equivalence asserted."
+    },
+    {
+      "catalog_url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/HI_Hawaii/USA_HI_Mauna.Loa.Obs.Hawaii.912950_TMYx.2007-2021.zip",
+      "status": "reviewed_metadata_match",
+      "published_url": "https://climate.onebuilding.org/WMO_Region_5_Southwest_Pacific/USA_United_States_of_America/HI_Hawaii/USA_HI_Mauna.Loa.Obs.Hawaii.912950_TMYx.2007-2021.zip",
+      "evidence_ids": [
+        "onebuilding-au-coordinate-xlsx",
+        "onebuilding-us"
+      ],
+      "rationale": "Owner-accepted individual review: complete product filename and remaining path agree; only WMO Region 4 versus Region 5 differs. No redirect or archive-byte equivalence asserted."
+    },
+    {
+      "catalog_url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/HI_Hawaii/USA_HI_Mauna.Loa.Obs.Hawaii.912950_TMYx.2009-2023.zip",
+      "status": "reviewed_metadata_match",
+      "published_url": "https://climate.onebuilding.org/WMO_Region_5_Southwest_Pacific/USA_United_States_of_America/HI_Hawaii/USA_HI_Mauna.Loa.Obs.Hawaii.912950_TMYx.2009-2023.zip",
+      "evidence_ids": [
+        "onebuilding-au-coordinate-xlsx",
+        "onebuilding-us"
+      ],
+      "rationale": "Owner-accepted individual review: complete product filename and remaining path agree; only WMO Region 4 versus Region 5 differs. No redirect or archive-byte equivalence asserted."
+    },
+    {
+      "catalog_url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/HI_Hawaii/USA_HI_Mauna.Loa.Obs.Hawaii.912950_TMYx.2011-2025.zip",
+      "status": "reviewed_metadata_match",
+      "published_url": "https://climate.onebuilding.org/WMO_Region_5_Southwest_Pacific/USA_United_States_of_America/HI_Hawaii/USA_HI_Mauna.Loa.Obs.Hawaii.912950_TMYx.2011-2025.zip",
+      "evidence_ids": [
+        "onebuilding-au-coordinate-xlsx",
+        "onebuilding-us"
+      ],
+      "rationale": "Owner-accepted individual review: complete product filename and remaining path agree; only WMO Region 4 versus Region 5 differs. No redirect or archive-byte equivalence asserted."
+    },
+    {
+      "catalog_url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/HI_Hawaii/USA_HI_Mauna.Loa.Obs.Hawaii.912950_TMYx.zip",
+      "status": "reviewed_metadata_match",
+      "published_url": "https://climate.onebuilding.org/WMO_Region_5_Southwest_Pacific/USA_United_States_of_America/HI_Hawaii/USA_HI_Mauna.Loa.Obs.Hawaii.912950_TMYx.zip",
+      "evidence_ids": [
+        "onebuilding-au-coordinate-xlsx",
+        "onebuilding-us"
+      ],
+      "rationale": "Owner-accepted individual review: complete product filename and remaining path agree; only WMO Region 4 versus Region 5 differs. No redirect or archive-byte equivalence asserted."
+    },
+    {
+      "catalog_url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/HI_Hawaii/USA_HI_Mauna.Loa.Obs.Hawaii.912950_US.Normals.2006-2020.zip",
+      "status": "reviewed_metadata_match",
+      "published_url": "https://climate.onebuilding.org/WMO_Region_5_Southwest_Pacific/USA_United_States_of_America/HI_Hawaii/USA_HI_Mauna.Loa.Obs.Hawaii.912950_US.Normals.2006-2020.zip",
+      "evidence_ids": [
+        "onebuilding-normals-coordinate-xlsx",
+        "onebuilding-us"
+      ],
+      "rationale": "Owner-accepted individual review: complete product filename and remaining path agree; only WMO Region 4 versus Region 5 differs. No redirect or archive-byte equivalence asserted."
+    },
+    {
+      "catalog_url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/HI_Hawaii/USA_HI_Moku-o-loe.Marine.Lab.Oahu.998193_TMYx.2004-2018.zip",
+      "status": "reviewed_metadata_match",
+      "published_url": "https://climate.onebuilding.org/WMO_Region_5_Southwest_Pacific/USA_United_States_of_America/HI_Hawaii/USA_HI_Moku-o-loe.Marine.Lab.Oahu.998193_TMYx.2004-2018.zip",
+      "evidence_ids": [
+        "onebuilding-au-coordinate-xlsx",
+        "onebuilding-us"
+      ],
+      "rationale": "Owner-accepted individual review: complete product filename and remaining path agree; only WMO Region 4 versus Region 5 differs. No redirect or archive-byte equivalence asserted."
+    },
+    {
+      "catalog_url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/HI_Hawaii/USA_HI_Moku-o-loe.Marine.Lab.Oahu.998193_TMYx.2007-2021.zip",
+      "status": "reviewed_metadata_match",
+      "published_url": "https://climate.onebuilding.org/WMO_Region_5_Southwest_Pacific/USA_United_States_of_America/HI_Hawaii/USA_HI_Moku-o-loe.Marine.Lab.Oahu.998193_TMYx.2007-2021.zip",
+      "evidence_ids": [
+        "onebuilding-au-coordinate-xlsx",
+        "onebuilding-us"
+      ],
+      "rationale": "Owner-accepted individual review: complete product filename and remaining path agree; only WMO Region 4 versus Region 5 differs. No redirect or archive-byte equivalence asserted."
+    },
+    {
+      "catalog_url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/HI_Hawaii/USA_HI_Moku-o-loe.Marine.Lab.Oahu.998193_TMYx.2009-2023.zip",
+      "status": "reviewed_metadata_match",
+      "published_url": "https://climate.onebuilding.org/WMO_Region_5_Southwest_Pacific/USA_United_States_of_America/HI_Hawaii/USA_HI_Moku-o-loe.Marine.Lab.Oahu.998193_TMYx.2009-2023.zip",
+      "evidence_ids": [
+        "onebuilding-au-coordinate-xlsx",
+        "onebuilding-us"
+      ],
+      "rationale": "Owner-accepted individual review: complete product filename and remaining path agree; only WMO Region 4 versus Region 5 differs. No redirect or archive-byte equivalence asserted."
+    },
+    {
+      "catalog_url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/HI_Hawaii/USA_HI_Moku-o-loe.Marine.Lab.Oahu.998193_TMYx.2011-2025.zip",
+      "status": "reviewed_metadata_match",
+      "published_url": "https://climate.onebuilding.org/WMO_Region_5_Southwest_Pacific/USA_United_States_of_America/HI_Hawaii/USA_HI_Moku-o-loe.Marine.Lab.Oahu.998193_TMYx.2011-2025.zip",
+      "evidence_ids": [
+        "onebuilding-au-coordinate-xlsx",
+        "onebuilding-us"
+      ],
+      "rationale": "Owner-accepted individual review: complete product filename and remaining path agree; only WMO Region 4 versus Region 5 differs. No redirect or archive-byte equivalence asserted."
+    },
+    {
+      "catalog_url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/HI_Hawaii/USA_HI_Moku-o-loe.Marine.Lab.Oahu.998193_TMYx.zip",
+      "status": "reviewed_metadata_match",
+      "published_url": "https://climate.onebuilding.org/WMO_Region_5_Southwest_Pacific/USA_United_States_of_America/HI_Hawaii/USA_HI_Moku-o-loe.Marine.Lab.Oahu.998193_TMYx.zip",
+      "evidence_ids": [
+        "onebuilding-au-coordinate-xlsx",
+        "onebuilding-us"
+      ],
+      "rationale": "Owner-accepted individual review: complete product filename and remaining path agree; only WMO Region 4 versus Region 5 differs. No redirect or archive-byte equivalence asserted."
+    },
+    {
+      "catalog_url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/HI_Hawaii/USA_HI_Molokai.AP.911860_TMY3.zip",
+      "status": "reviewed_metadata_match",
+      "published_url": "https://climate.onebuilding.org/WMO_Region_5_Southwest_Pacific/USA_United_States_of_America/HI_Hawaii/USA_HI_Molokai.AP.911860_TMY3.zip",
+      "evidence_ids": [
+        "onebuilding-tmy3-coordinate-xlsx",
+        "onebuilding-us"
+      ],
+      "rationale": "Owner-accepted individual review: complete product filename and remaining path agree; only WMO Region 4 versus Region 5 differs. No redirect or archive-byte equivalence asserted."
+    },
+    {
+      "catalog_url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/HI_Hawaii/USA_HI_Molokai.AP.Molokai.911860_TMYx.2004-2018.zip",
+      "status": "reviewed_metadata_match",
+      "published_url": "https://climate.onebuilding.org/WMO_Region_5_Southwest_Pacific/USA_United_States_of_America/HI_Hawaii/USA_HI_Molokai.AP.Molokai.911860_TMYx.2004-2018.zip",
+      "evidence_ids": [
+        "onebuilding-au-coordinate-xlsx",
+        "onebuilding-us"
+      ],
+      "rationale": "Owner-accepted individual review: complete product filename and remaining path agree; only WMO Region 4 versus Region 5 differs. No redirect or archive-byte equivalence asserted."
+    },
+    {
+      "catalog_url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/HI_Hawaii/USA_HI_Molokai.AP.Molokai.911860_TMYx.2007-2021.zip",
+      "status": "reviewed_metadata_match",
+      "published_url": "https://climate.onebuilding.org/WMO_Region_5_Southwest_Pacific/USA_United_States_of_America/HI_Hawaii/USA_HI_Molokai.AP.Molokai.911860_TMYx.2007-2021.zip",
+      "evidence_ids": [
+        "onebuilding-au-coordinate-xlsx",
+        "onebuilding-us"
+      ],
+      "rationale": "Owner-accepted individual review: complete product filename and remaining path agree; only WMO Region 4 versus Region 5 differs. No redirect or archive-byte equivalence asserted."
+    },
+    {
+      "catalog_url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/HI_Hawaii/USA_HI_Molokai.AP.Molokai.911860_TMYx.2009-2023.zip",
+      "status": "reviewed_metadata_match",
+      "published_url": "https://climate.onebuilding.org/WMO_Region_5_Southwest_Pacific/USA_United_States_of_America/HI_Hawaii/USA_HI_Molokai.AP.Molokai.911860_TMYx.2009-2023.zip",
+      "evidence_ids": [
+        "onebuilding-au-coordinate-xlsx",
+        "onebuilding-us"
+      ],
+      "rationale": "Owner-accepted individual review: complete product filename and remaining path agree; only WMO Region 4 versus Region 5 differs. No redirect or archive-byte equivalence asserted."
+    },
+    {
+      "catalog_url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/HI_Hawaii/USA_HI_Molokai.AP.Molokai.911860_TMYx.2011-2025.zip",
+      "status": "reviewed_metadata_match",
+      "published_url": "https://climate.onebuilding.org/WMO_Region_5_Southwest_Pacific/USA_United_States_of_America/HI_Hawaii/USA_HI_Molokai.AP.Molokai.911860_TMYx.2011-2025.zip",
+      "evidence_ids": [
+        "onebuilding-au-coordinate-xlsx",
+        "onebuilding-us"
+      ],
+      "rationale": "Owner-accepted individual review: complete product filename and remaining path agree; only WMO Region 4 versus Region 5 differs. No redirect or archive-byte equivalence asserted."
+    },
+    {
+      "catalog_url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/HI_Hawaii/USA_HI_Molokai.AP.Molokai.911860_TMYx.zip",
+      "status": "reviewed_metadata_match",
+      "published_url": "https://climate.onebuilding.org/WMO_Region_5_Southwest_Pacific/USA_United_States_of_America/HI_Hawaii/USA_HI_Molokai.AP.Molokai.911860_TMYx.zip",
+      "evidence_ids": [
+        "onebuilding-au-coordinate-xlsx",
+        "onebuilding-us"
+      ],
+      "rationale": "Owner-accepted individual review: complete product filename and remaining path agree; only WMO Region 4 versus Region 5 differs. No redirect or archive-byte equivalence asserted."
+    },
+    {
+      "catalog_url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/HI_Hawaii/USA_HI_Molokai.AP.Molokai.911860_US.Normals.1991-2020.zip",
+      "status": "reviewed_metadata_match",
+      "published_url": "https://climate.onebuilding.org/WMO_Region_5_Southwest_Pacific/USA_United_States_of_America/HI_Hawaii/USA_HI_Molokai.AP.Molokai.911860_US.Normals.1991-2020.zip",
+      "evidence_ids": [
+        "onebuilding-normals-coordinate-xlsx",
+        "onebuilding-us"
+      ],
+      "rationale": "Owner-accepted individual review: complete product filename and remaining path agree; only WMO Region 4 versus Region 5 differs. No redirect or archive-byte equivalence asserted."
+    },
+    {
+      "catalog_url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/HI_Hawaii/USA_HI_Molokai.AP.Molokai.911860_US.Normals.2006-2020.zip",
+      "status": "reviewed_metadata_match",
+      "published_url": "https://climate.onebuilding.org/WMO_Region_5_Southwest_Pacific/USA_United_States_of_America/HI_Hawaii/USA_HI_Molokai.AP.Molokai.911860_US.Normals.2006-2020.zip",
+      "evidence_ids": [
+        "onebuilding-normals-coordinate-xlsx",
+        "onebuilding-us"
+      ],
+      "rationale": "Owner-accepted individual review: complete product filename and remaining path agree; only WMO Region 4 versus Region 5 differs. No redirect or archive-byte equivalence asserted."
+    },
+    {
+      "catalog_url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/HI_Hawaii/USA_HI_NAS.Barbers.Point.Oahu.911780_TMYx.2004-2018.zip",
+      "status": "reviewed_metadata_match",
+      "published_url": "https://climate.onebuilding.org/WMO_Region_5_Southwest_Pacific/USA_United_States_of_America/HI_Hawaii/USA_HI_NAS.Barbers.Point.Oahu.911780_TMYx.2004-2018.zip",
+      "evidence_ids": [
+        "onebuilding-au-coordinate-xlsx",
+        "onebuilding-us"
+      ],
+      "rationale": "Owner-accepted individual review: complete product filename and remaining path agree; only WMO Region 4 versus Region 5 differs. No redirect or archive-byte equivalence asserted."
+    },
+    {
+      "catalog_url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/HI_Hawaii/USA_HI_NAS.Barbers.Point.Oahu.911780_TMYx.2007-2021.zip",
+      "status": "reviewed_metadata_match",
+      "published_url": "https://climate.onebuilding.org/WMO_Region_5_Southwest_Pacific/USA_United_States_of_America/HI_Hawaii/USA_HI_NAS.Barbers.Point.Oahu.911780_TMYx.2007-2021.zip",
+      "evidence_ids": [
+        "onebuilding-au-coordinate-xlsx",
+        "onebuilding-us"
+      ],
+      "rationale": "Owner-accepted individual review: complete product filename and remaining path agree; only WMO Region 4 versus Region 5 differs. No redirect or archive-byte equivalence asserted."
+    },
+    {
+      "catalog_url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/HI_Hawaii/USA_HI_NAS.Barbers.Point.Oahu.911780_TMYx.2009-2023.zip",
+      "status": "reviewed_metadata_match",
+      "published_url": "https://climate.onebuilding.org/WMO_Region_5_Southwest_Pacific/USA_United_States_of_America/HI_Hawaii/USA_HI_NAS.Barbers.Point.Oahu.911780_TMYx.2009-2023.zip",
+      "evidence_ids": [
+        "onebuilding-au-coordinate-xlsx",
+        "onebuilding-us"
+      ],
+      "rationale": "Owner-accepted individual review: complete product filename and remaining path agree; only WMO Region 4 versus Region 5 differs. No redirect or archive-byte equivalence asserted."
+    },
+    {
+      "catalog_url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/HI_Hawaii/USA_HI_NAS.Barbers.Point.Oahu.911780_TMYx.2011-2025.zip",
+      "status": "reviewed_metadata_match",
+      "published_url": "https://climate.onebuilding.org/WMO_Region_5_Southwest_Pacific/USA_United_States_of_America/HI_Hawaii/USA_HI_NAS.Barbers.Point.Oahu.911780_TMYx.2011-2025.zip",
+      "evidence_ids": [
+        "onebuilding-au-coordinate-xlsx",
+        "onebuilding-us"
+      ],
+      "rationale": "Owner-accepted individual review: complete product filename and remaining path agree; only WMO Region 4 versus Region 5 differs. No redirect or archive-byte equivalence asserted."
+    },
+    {
+      "catalog_url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/HI_Hawaii/USA_HI_NAS.Barbers.Point.Oahu.911780_TMYx.zip",
+      "status": "reviewed_metadata_match",
+      "published_url": "https://climate.onebuilding.org/WMO_Region_5_Southwest_Pacific/USA_United_States_of_America/HI_Hawaii/USA_HI_NAS.Barbers.Point.Oahu.911780_TMYx.zip",
+      "evidence_ids": [
+        "onebuilding-au-coordinate-xlsx",
+        "onebuilding-us"
+      ],
+      "rationale": "Owner-accepted individual review: complete product filename and remaining path agree; only WMO Region 4 versus Region 5 differs. No redirect or archive-byte equivalence asserted."
+    },
+    {
+      "catalog_url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/HI_Hawaii/USA_HI_NAS.Barbers.Point.Oahu.911780_US.Normals.2006-2020.zip",
+      "status": "reviewed_metadata_match",
+      "published_url": "https://climate.onebuilding.org/WMO_Region_5_Southwest_Pacific/USA_United_States_of_America/HI_Hawaii/USA_HI_NAS.Barbers.Point.Oahu.911780_US.Normals.2006-2020.zip",
+      "evidence_ids": [
+        "onebuilding-normals-coordinate-xlsx",
+        "onebuilding-us"
+      ],
+      "rationale": "Owner-accepted individual review: complete product filename and remaining path agree; only WMO Region 4 versus Region 5 differs. No redirect or archive-byte equivalence asserted."
+    },
+    {
+      "catalog_url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/HI_Hawaii/USA_HI_Wheeler.AAF.Oahu.911700_TMYx.2004-2018.zip",
+      "status": "reviewed_metadata_match",
+      "published_url": "https://climate.onebuilding.org/WMO_Region_5_Southwest_Pacific/USA_United_States_of_America/HI_Hawaii/USA_HI_Wheeler.AAF.Oahu.911700_TMYx.2004-2018.zip",
+      "evidence_ids": [
+        "onebuilding-au-coordinate-xlsx",
+        "onebuilding-us"
+      ],
+      "rationale": "Owner-accepted individual review: complete product filename and remaining path agree; only WMO Region 4 versus Region 5 differs. No redirect or archive-byte equivalence asserted."
+    },
+    {
+      "catalog_url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/HI_Hawaii/USA_HI_Wheeler.AAF.Oahu.911700_TMYx.2007-2021.zip",
+      "status": "reviewed_metadata_match",
+      "published_url": "https://climate.onebuilding.org/WMO_Region_5_Southwest_Pacific/USA_United_States_of_America/HI_Hawaii/USA_HI_Wheeler.AAF.Oahu.911700_TMYx.2007-2021.zip",
+      "evidence_ids": [
+        "onebuilding-au-coordinate-xlsx",
+        "onebuilding-us"
+      ],
+      "rationale": "Owner-accepted individual review: complete product filename and remaining path agree; only WMO Region 4 versus Region 5 differs. No redirect or archive-byte equivalence asserted."
+    },
+    {
+      "catalog_url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/HI_Hawaii/USA_HI_Wheeler.AAF.Oahu.911700_TMYx.2009-2023.zip",
+      "status": "reviewed_metadata_match",
+      "published_url": "https://climate.onebuilding.org/WMO_Region_5_Southwest_Pacific/USA_United_States_of_America/HI_Hawaii/USA_HI_Wheeler.AAF.Oahu.911700_TMYx.2009-2023.zip",
+      "evidence_ids": [
+        "onebuilding-au-coordinate-xlsx",
+        "onebuilding-us"
+      ],
+      "rationale": "Owner-accepted individual review: complete product filename and remaining path agree; only WMO Region 4 versus Region 5 differs. No redirect or archive-byte equivalence asserted."
+    },
+    {
+      "catalog_url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/HI_Hawaii/USA_HI_Wheeler.AAF.Oahu.911700_TMYx.2011-2025.zip",
+      "status": "reviewed_metadata_match",
+      "published_url": "https://climate.onebuilding.org/WMO_Region_5_Southwest_Pacific/USA_United_States_of_America/HI_Hawaii/USA_HI_Wheeler.AAF.Oahu.911700_TMYx.2011-2025.zip",
+      "evidence_ids": [
+        "onebuilding-au-coordinate-xlsx",
+        "onebuilding-us"
+      ],
+      "rationale": "Owner-accepted individual review: complete product filename and remaining path agree; only WMO Region 4 versus Region 5 differs. No redirect or archive-byte equivalence asserted."
+    },
+    {
+      "catalog_url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/HI_Hawaii/USA_HI_Wheeler.AAF.Oahu.911700_TMYx.zip",
+      "status": "reviewed_metadata_match",
+      "published_url": "https://climate.onebuilding.org/WMO_Region_5_Southwest_Pacific/USA_United_States_of_America/HI_Hawaii/USA_HI_Wheeler.AAF.Oahu.911700_TMYx.zip",
+      "evidence_ids": [
+        "onebuilding-au-coordinate-xlsx",
+        "onebuilding-us"
+      ],
+      "rationale": "Owner-accepted individual review: complete product filename and remaining path agree; only WMO Region 4 versus Region 5 differs. No redirect or archive-byte equivalence asserted."
+    },
+    {
+      "catalog_url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/HI_Hawaii/USA_HI_Wheeler.AAF.Oahu.911700_US.Normals.2006-2020.zip",
+      "status": "reviewed_metadata_match",
+      "published_url": "https://climate.onebuilding.org/WMO_Region_5_Southwest_Pacific/USA_United_States_of_America/HI_Hawaii/USA_HI_Wheeler.AAF.Oahu.911700_US.Normals.2006-2020.zip",
+      "evidence_ids": [
+        "onebuilding-normals-coordinate-xlsx",
+        "onebuilding-us"
+      ],
+      "rationale": "Owner-accepted individual review: complete product filename and remaining path agree; only WMO Region 4 versus Region 5 differs. No redirect or archive-byte equivalence asserted."
+    },
+    {
+      "catalog_url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/NM_New_Mexico/USA_NM_Los.Alamos.723654_TMY2.zip",
+      "status": "approximate_locality",
+      "label": "Los Alamos locality",
+      "lat": 35.879,
+      "lon": -106.269,
+      "evidence_ids": [
+        "onebuilding-us-xlsx",
+        "noaa-history",
+        "onebuilding-us"
+      ],
+      "rationale": "Owner-accepted locality identification from same-name/identifier evidence. Illustrative existing-source position only; exact historical product coordinates, elevation and supplying station remain unresolved."
+    },
+    {
+      "catalog_url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/TX_Texas/USA_TX_Fort.Worth.Meacham.Intl.AP.722600_TMY.zip",
+      "status": "name_code_conflict",
+      "label": "Fort Worth Meacham",
+      "conflicting_identifier_location": "Stephenville/Clark Field",
+      "evidence_ids": [
+        "onebuilding-us-xlsx",
+        "noaa-history",
+        "onebuilding-us"
+      ],
+      "rationale": "Owner-accepted intended-name identification only. Retain original catalog identifier; file identity requires EPW-header verification. Do not substitute weather from the identifier-matched location."
+    },
+    {
+      "catalog_url": "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/USA_United_States_of_America/TX_Texas/USA_TX_Sherman-Dennison-North.Texas.Rgnl.AP-Perrin.Field.722541_TMY.zip",
+      "status": "name_code_conflict",
+      "label": "Sherman\u2013Denison/Perrin Field",
+      "conflicting_identifier_location": "McKinney/Collin County",
+      "evidence_ids": [
+        "onebuilding-us-xlsx",
+        "noaa-history",
+        "onebuilding-us"
+      ],
+      "rationale": "Owner-accepted intended-name identification only. Retain original catalog identifier; file identity requires EPW-header verification. Do not substitute weather from the identifier-matched location."
+    }
+  ]
+}
