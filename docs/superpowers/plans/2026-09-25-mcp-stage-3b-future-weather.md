@@ -1,6 +1,6 @@
 # Stage 3b implementation plan: future weather from both baseline paths
 
-Status: revised draft for final owner approval, 2026-09-25. Begin implementation after Stage 3a acceptance and final approval of the coordinated remaining-stage plans; no routine stage-by-stage review is required thereafter.
+Status: owner approved autonomous Stages 3a–6 implementation on 2026-09-25. Begin Stage 3b after Stage 3a acceptance; no routine stage-by-stage review is required.
 
 > **For agentic workers:** Use `superpowers:executing-plans` task by task after approval. Write failing tests for behavior changes, verify and commit each coherent increment. The checkboxes are execution tracking, not extra human approval gates.
 

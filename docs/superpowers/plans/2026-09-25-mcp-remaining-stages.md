@@ -1,6 +1,6 @@
 # Production MCP: coordinated plan for Stages 3a–6
 
-Status: revised draft for final owner approval, 2026-09-25. This coordinates the remaining work; the owner's clarification answers set boundaries for future tests but do not authorize implementation now. Stage 1 is accepted and Stage 2 is complete. Work remains on `feature/mcp` in the current checkout. The `feature/data-avail` Stage 1 follow-up was reviewed and merged at `0f79ab3`; its ignored local source files were not moved into this checkout.
+Status: owner approved autonomous Stages 3a–6 implementation on 2026-09-25 by instructing "start now" after plan review. Stage 1 is accepted and Stage 2 is complete. Work remains on `feature/mcp` in the current checkout. The `feature/data-avail` Stage 1 follow-up was reviewed and merged at `0f79ab3`; its ignored local source files were not moved into this checkout.
 
 **Goal:** Deliver a validated local MCP weather workflow, including a reference agent, without losing scientific meaning or request-to-artifact traceability between stages.
 
@@ -85,7 +85,7 @@ Use synthetic or redistribution-safe offline fixtures for deterministic breadth.
 
 ## Review and execution checkpoints
 
-- Review these five linked plans together, especially the upload/ID baseline boundary, plan/job wire identities, MCP tool names, harness evaluation rubric, US$10 cumulative cap and agent/client pilot. Return for the owner's explicit final approval before implementation. Do not infer it from these clarification answers or elapsed time.
+- The owner reviewed these five linked plans and explicitly authorized implementation on 2026-09-25. Preserve the upload/ID baseline boundary, plan/job wire identities, MCP tool names, harness evaluation rubric, US$10 cumulative cap and agent/client pilot during execution.
 - At each stage start, compare the preceding stage's actual acceptance record with this plan. If its interface differs, amend downstream plans before writing code. Routine implementation choices after the relevant plan approval remain autonomous under `AGENTS.md`.
 - At each stage exit, run focused and regression checks, publish an acceptance record with actual results/limits, update architecture/features/roadmap/provider notes as appropriate, and commit at feature/test/docs boundaries using `fix(topic): concise description`.
 - Stop only for the repository's human-intervention boundaries. A blocked provider is reproduced, classified and given a practical fallback; it does not hold the whole program hostage or receive a false live-acceptance claim.

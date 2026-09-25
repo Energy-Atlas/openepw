@@ -1,6 +1,6 @@
 # Stage 6 implementation plan: local pilot and release acceptance
 
-Status: revised draft for final owner approval, 2026-09-25. Pilot execution follows Stage 4/5 acceptance and final approval of the coordinated plan. Client setup and a scorecard may be prepared earlier.
+Status: owner approved autonomous Stages 3a–6 implementation on 2026-09-25. Pilot execution follows Stage 4/5 acceptance. Client setup and a scorecard may be prepared earlier.
 
 > **For agentic workers:** Use `superpowers:executing-plans` after approval. Record observed agent/client results and reproduce defects with focused tests before fixing them. Checkboxes track work, not extra human approval gates.
 

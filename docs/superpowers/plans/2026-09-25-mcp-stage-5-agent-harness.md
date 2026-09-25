@@ -1,6 +1,6 @@
 # Stage 5 implementation plan: optional agent harness and evaluations
 
-Status: revised draft for final owner approval, 2026-09-25. Implement after the Stage 4 MCP contract is accepted and the coordinated plan receives final approval; draft evaluation cases can be prepared earlier.
+Status: owner approved autonomous Stages 3a–6 implementation on 2026-09-25. Implement after the Stage 4 MCP contract is accepted; draft evaluation cases can be prepared earlier.
 
 > **For agentic workers:** Use `superpowers:executing-plans` after approval. Make the deterministic evaluation fail for each required behavior before implementing it, verify and commit increments. Checkboxes are execution tracking, not additional human gates.
 

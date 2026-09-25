@@ -1,6 +1,6 @@
 # Stage 4 implementation plan: local MCP contract
 
-Status: revised draft for final owner approval, 2026-09-25. Implement after Stage 3a/3b service acceptance and final approval of the coordinated plan; no routine stage-by-stage approval gate follows.
+Status: owner approved autonomous Stages 3a–6 implementation on 2026-09-25. Implement after Stage 3a/3b service acceptance; no routine stage-by-stage approval gate follows.
 
 > **For agentic workers:** Use `superpowers:executing-plans` after approval; test the actual protocol session, then implement and commit coherent increments. Checkboxes are execution tracking, not new human gates.
 

@@ -1,6 +1,6 @@
 # MCP Stage 3a Weather Fetch, Batches and Artifacts Implementation Plan
 
-Status: revised draft for final owner approval, 2026-09-25. Stage 3a implementation is not yet approved. The earlier autonomous approval covered Stage 2 only. After final approval of the coordinated Stages 3a–6 plan, work in the checked-out `feature/mcp` repository branch without routine stage gates; preserve the other contributor's separate worktree and branch.
+Status: owner approved autonomous Stages 3a–6 implementation on 2026-09-25 by instructing "start now" after plan review. Work in the checked-out `feature/mcp` repository branch without routine stage gates; preserve the other contributor's separate worktree and branch.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:executing-plans` to implement this plan task by task in the repository checkout, with failing tests before code and a whole-branch review at the end. Checkboxes track execution. Do not begin until the owner approves this plan.
 

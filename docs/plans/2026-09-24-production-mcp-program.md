@@ -1,6 +1,6 @@
 # Production MCP program plan
 
-Status: owner-reviewed program allocation, 2026-09-24; revised with owner clarifications on 2026-09-25. Stage 2 was separately approved and implemented; later stages await final approval. This allocates features, work areas and deliverables across the production MCP stages and is distinct from the completed v0.1 stages.
+Status: owner-reviewed program allocation, 2026-09-24; revised with owner clarifications on 2026-09-25. Stage 2 was separately approved and implemented. The owner approved autonomous Stages 3a–6 implementation on 2026-09-25 by instructing "start now" after reviewing the coordinated plans. This allocates features, work areas and deliverables across the production MCP stages and is distinct from the completed v0.1 stages.
 
 ## Program outcome
 
@@ -69,4 +69,4 @@ The main path is **evidence → shared guidance → weather fetching (3a) → fu
 
 Across stages, the Python package remains canonical, and MCP and the harness consume its facts. Preserve actual-year, TMY-reference and future-window meanings, per-variable provenance, requested-location identity, source coordinates and visible uncertainty. Do not silently switch providers, shorten periods, claim that availability proves weather quality, or promote a syntax-valid EPW to simulation-ready.
 
-Stage 2 was implemented after its separate owner approval. Detailed plans for Stages 3a–6 incorporate the owner's 2026-09-25 clarification answers and await one final approval. After that approval, routine stages may proceed autonomously without intermediate plan gates. The `.env` file remains read-only; bounded live tests share a cumulative billable API cap below US$10, with new calls stopped at US$8 projected spend.
+Stage 2 was implemented after its separate owner approval. Detailed plans for Stages 3a–6 incorporate the owner's 2026-09-25 clarification answers and received final approval on 2026-09-25. Routine stages may proceed autonomously without intermediate plan gates. The `.env` file remains read-only; bounded live tests share a cumulative billable API cap below US$10, with new calls stopped at US$8 projected spend.
