@@ -7,11 +7,12 @@ import os
 import tempfile
 import threading
 from collections.abc import Callable
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 
 from openepw.models import Issue
 
+from .freshness import aged
 from .models import AvailabilityQuery, CatalogBundle, EvidenceRef
 from .store import CatalogStore
 
@@ -69,8 +70,7 @@ def refresh_if_relevant(
             if source is None or not source.source_url:
                 issues.append(Issue(code="SOURCE_UNAVAILABLE", message=f"No refresh URL for {source_id}"))
                 continue
-            cadence = timedelta(days=1 if source_id.startswith("cds-") else 7)
-            if datetime.now(timezone.utc) - (source.checked_at or source.retrieved_at) < cadence:
+            if not aged(source):
                 continue
             try:
                 body, headers, status = http.request(
@@ -88,6 +88,17 @@ def refresh_if_relevant(
                     store.clear_stale(source_id)
                     continue
                 bundle = normalizer(source_id, body, source)
+                old_products = {p.id for p in view.bundle.products
+                                if source_id in p.evidence_ids}
+                if any(len(p.evidence_ids) > 1 for p in view.bundle.products
+                       if p.id in old_products):
+                    raise ValueError("Multi-source product requires a complete coordinated import")
+                if not old_products <= {p.id for p in bundle.products}:
+                    raise ValueError("Partial source normalization cannot replace catalog products")
+                previously_indexed = {e.product_id for e in view.bundle.entries
+                                      if e.product_id in old_products}
+                if not previously_indexed <= {e.product_id for e in bundle.entries}:
+                    raise ValueError("Partial source normalization omitted product membership")
                 checksum = hashlib.sha256(body).hexdigest()
                 refreshed = next((e for e in bundle.evidence if e.id == source_id), None)
                 if refreshed is None:

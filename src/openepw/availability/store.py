@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlsplit
 
+from .freshness import aged
 from .models import (
     AvailabilityEntry,
     CatalogBundle,
@@ -132,6 +133,7 @@ class CatalogStore:
                 contents[name] = [kind.model_validate(json.loads(r[0])) for r in records]
             stale = [row[0] for row in db.execute("SELECT source_id FROM stale_sources ORDER BY source_id")]
         snapshot = CatalogSnapshotRef.model_validate_json(raw_snapshot)
+        stale.extend(e.id for e in contents["evidence"] if aged(e))
         snapshot.stale_sources = sorted(set(snapshot.stale_sources) | set(stale))
         return CatalogView(snapshot,
                            CatalogBundle(**contents))

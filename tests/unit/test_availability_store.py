@@ -13,10 +13,13 @@ from openepw.availability import (
     AvailabilityEntry,
     CatalogBundle,
     EvidenceRef,
+    FutureAvailabilityQuery,
+    FutureWindowScope,
     ProductRecord,
     SiteRecord,
     WeatherAvailabilityQuery,
 )
+from openepw.availability.evaluate import evaluate
 from openepw.availability.store import CatalogImportError, CatalogStore
 from openepw.config import RuntimeConfig
 from openepw.models import Location, WeatherRequest
@@ -196,3 +199,68 @@ def test_failed_refresh_marks_source_stale_and_retains_data(tmp_path):
     assert active.snapshot.generation_id == staged.generation_id
     assert active.snapshot.stale_sources == ["inventory"]
     assert active.bundle.entries[0].scope.years == [2024]
+
+
+def test_aged_oedi_absence_is_unknown_without_refresh(tmp_path):
+    store = CatalogStore(tmp_path)
+    old = CatalogBundle(
+        evidence=[EvidenceRef(id="oedi-45-revised-directory", sha256="c" * 64,
+                              retrieved_at=datetime(2020, 1, 1, tzinfo=timezone.utc),
+                              basis="inventory")],
+        products=[ProductRecord(id="oedi:rcp45", provider="oedi", dataset="hourly",
+                                temporal_kind="future_window",
+                                evidence_ids=["oedi-45-revised-directory"])],
+        entries=[AvailabilityEntry(id="window", product_id="oedi:rcp45",
+                                   scope=FutureWindowScope(scenario="rcp45",
+                                                           start_year=2045, end_year=2054),
+                                   evidence_basis="inventory",
+                                   evidence_ids=["oedi-45-revised-directory"])],
+    )
+    store.activate(store.stage(old).generation_id)
+    view = store.active()
+    assert "oedi-45-revised-directory" in view.snapshot.stale_sources
+    result = evaluate(FutureAvailabilityQuery(location=Location(lat=42, lon=-76),
+                                              method="climate_profile", scenario="rcp45",
+                                              climate_period=(2085, 2094)), view)
+    assert result.options[0].eligibility.status == "unknown"
+    assert "STALE_SOURCE_EVIDENCE" in result.options[0].eligibility.unknowns
+
+
+def test_partial_oedi_refresh_cannot_erase_active_records(tmp_path):
+    from openepw.availability.refresh import refresh_if_relevant
+
+    store = CatalogStore(tmp_path)
+    old = CatalogBundle(
+        evidence=[EvidenceRef(id="oedi-sites", sha256="a" * 64,
+                              retrieved_at=datetime(2020, 1, 1, tzinfo=timezone.utc),
+                              basis="inventory"),
+                  EvidenceRef(id="oedi-45-revised-directory", sha256="b" * 64,
+                              retrieved_at=datetime(2020, 1, 1, tzinfo=timezone.utc),
+                              basis="inventory", source_url="https://example.org/oedi")],
+        products=[ProductRecord(id="oedi:rcp45", provider="oedi", dataset="hourly",
+                                temporal_kind="future_window",
+                                evidence_ids=["oedi-sites", "oedi-45-revised-directory"])],
+        sites=[SiteRecord(id="G1", product_id="oedi:rcp45", lat=42, lon=-76)],
+        entries=[AvailabilityEntry(id="window", product_id="oedi:rcp45", site_id="G1",
+                                   scope=FutureWindowScope(scenario="rcp45",
+                                                           start_year=2045, end_year=2054),
+                                   evidence_basis="inventory",
+                                   evidence_ids=["oedi-45-revised-directory"])],
+    )
+    first = store.stage(old)
+    store.activate(first.generation_id)
+
+    class ChangedHttp:
+        def request(self, *args, **kwargs):
+            return b'{"site_years":{}}', {"ETag": '"changed"'}, 200
+
+    query = FutureAvailabilityQuery(location=Location(lat=42, lon=-76),
+                                    method="climate_profile", scenario="rcp45",
+                                    climate_period=(2045, 2054), refresh="if_needed")
+    issues = refresh_if_relevant(query, store, ChangedHttp(),
+                                 {"oedi-45-revised-directory"},
+                                 lambda source, raw, evidence: CatalogBundle(
+                                     evidence=[evidence]))
+    assert [issue.code for issue in issues] == ["REFRESH_FAILED"]
+    assert store.active().snapshot.generation_id == first.generation_id
+    assert len(store.active().bundle.entries) == 1
