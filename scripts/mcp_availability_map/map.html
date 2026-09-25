@@ -113,7 +113,9 @@
     const css = getComputedStyle(root);
     return {land:css.getPropertyValue('--muted').trim(), border:css.getPropertyValue('--border').trim(),
       ink:css.getPropertyValue('--foreground').trim(), mark:css.getPropertyValue('--viz-series-1').trim(),
-      caution:css.getPropertyValue('--viz-series-2').trim()};
+      caution:css.getPropertyValue('--viz-series-2').trim(),
+      coverage:'#3f6fd9', coveragePartial:'#9a3ab9',
+      coverageOutline:'#111827', coverageHatch:'#ffffff'};
   };
   const saved = window.openai?.widgetState?.modelContent || {};
   const state = {source:saved.source || 'nsrdb-published', start:saved.start || 2024, end:saved.end || 2024,
@@ -262,27 +264,27 @@
     context.fillStyle = ['openmeteo-land','cds-land'].includes(key) && status.textContent.startsWith('Documented') ? paint.mark : paint.land;
     context.globalAlpha = ['openmeteo-land','cds-land'].includes(key) && status.textContent.startsWith('Documented') ? 0.22 : 1;
     context.fill(); context.globalAlpha = 1;
+    context.strokeStyle = paint.border; context.lineWidth = 0.65/transform.k; context.stroke();
     projectedCoverage = [];
     const cellSize = Math.max(0.55,projection.scale()*Math.PI/180*coverage.step*0.8);
-    for (const [cells,color,opacity] of [[coverage.partial,paint.caution,0.38],[coverage.full,paint.mark,0.42]]) {
-      context.fillStyle=color;context.globalAlpha=opacity;
+    for (const [cells,color] of [[coverage.partial,paint.coveragePartial],[coverage.full,paint.coverage]]) {
+      context.fillStyle=color;
       for (const cell of cells) {
         const lat=-90+(cell[0]+0.5)*coverage.step, lon=-180+(cell[1]+0.5)*coverage.step;
         const xy=projection([lon,lat]);if (!xy) continue;
         context.fillRect(xy[0]-cellSize/2,xy[1]-cellSize/2,cellSize,cellSize);
         if (cells===coverage.partial) {
-          context.globalAlpha=0.85;context.strokeStyle=paint.caution;
+          context.strokeStyle=paint.coverageOutline;
           context.lineWidth=Math.max(0.5,0.8/transform.k);
           context.strokeRect(xy[0]-cellSize/2,xy[1]-cellSize/2,cellSize,cellSize);
+          context.strokeStyle=paint.coverageHatch;
           context.beginPath();context.moveTo(xy[0]-cellSize/2,xy[1]+cellSize/2);
           context.lineTo(xy[0]+cellSize/2,xy[1]-cellSize/2);context.stroke();
-          context.globalAlpha=opacity;
         }
         projectedCoverage.push({x:xy[0],y:xy[1],partial:cells===coverage.partial,
           contributors:coverage.cellSources[cell.join(',')] || []});
       }
     }
-    context.globalAlpha = 1; context.strokeStyle = paint.border; context.lineWidth = 0.65/transform.k; context.stroke();
     projected = [];
     context.fillStyle = paint.mark;
     context.globalAlpha = visible.length > 3000 ? 0.62 : 0.9;
