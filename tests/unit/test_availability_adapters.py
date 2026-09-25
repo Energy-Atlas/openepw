@@ -85,6 +85,8 @@ def test_catalog_cli_status_and_missing_import(tmp_path, capsys):
     assert main(["--data-root", str(root), "catalog", "status"]) == 0
     status = json.loads(capsys.readouterr().out)
     assert status["loaded"] is False
+    assert "cds" in status["missing_sources"]
+    assert "era5" not in status["missing_sources"]
     assert main(["--data-root", str(root), "catalog", "import", "--from",
                  str(tmp_path / "missing")]) == 2
     error = json.loads(capsys.readouterr().out)

@@ -67,7 +67,7 @@ def main(argv=None):
             if args.catalog_command == "status":
                 view = service.catalog_store.active()
                 expected = {"openmeteo", "pvgis", "onebuilding", "noaa", "nsrdb",
-                            "era5", "cmip6", "oedi"}
+                            "cds", "cmip6", "oedi"}
                 found = {product.provider for product in view.bundle.products} if view else set()
                 result = {
                     "loaded": view is not None,
