@@ -118,6 +118,26 @@ class WeatherService:
                 if refreshed is not None:
                     result = rank(evaluate(query, refreshed), query)
             result.issues.extend(issues)
+        return self._compact_availability(result)
+
+    @staticmethod
+    def _compact_availability(result: AvailabilityResult) -> AvailabilityResult:
+        """Bound ordinary API/tool output while retaining ranked alternatives."""
+        option_limit = 50
+        kept = set()
+        truncated = 0
+        for assessment in result.locations:
+            truncated += max(0, len(assessment.ranked_option_ids) - option_limit)
+            assessment.ranked_option_ids = assessment.ranked_option_ids[:option_limit]
+            assessment.recommended_option_ids = [
+                option_id for option_id in assessment.recommended_option_ids
+                if option_id in assessment.ranked_option_ids]
+            kept.update(assessment.ranked_option_ids)
+        if truncated:
+            result.options = [option for option in result.options if option.id in kept]
+            result.issues.append(Issue(
+                code="OPTIONS_TRUNCATED", severity="info",
+                message=f"{truncated} lower-ranked options omitted; narrow the query for detail"))
         return result
 
     def geocode(self, query, *, mode="point"):

@@ -61,6 +61,31 @@ def test_fresh_catalog_avoids_repeated_noaa_inventory_http(tmp_path):
     assert len(discovery.selected_candidate_ids) == 1
 
 
+def test_broad_assessment_bounds_options_per_occurrence(tmp_path):
+    store = CatalogStore(tmp_path / "catalog")
+    bundle = CatalogBundle(
+        products=[ProductRecord(id=f"openmeteo:{i}", provider="openmeteo",
+                                dataset=f"synthetic-{i}", spatial_kind="grid",
+                                temporal_kind="actual", adapter_variables=["dry_bulb"])
+                  for i in range(60)],
+        entries=[AvailabilityEntry(id=f"entry:{i}", product_id=f"openmeteo:{i}",
+                                   scope=ActualScope(years=[2024]),
+                                   evidence_basis="inventory") for i in range(60)],
+    )
+    store.activate(store.stage(bundle).generation_id)
+    service = WeatherService(RuntimeConfig(data_root=tmp_path / "runtime"),
+                             http=ForbiddenHttp(), catalog_store=store)
+    query = WeatherAvailabilityQuery(request=WeatherRequest(
+        locations=[Location(id="a", lat=42, lon=-76),
+                   Location(id="b", lat=42, lon=-76)], years=[2024],
+        providers=["openmeteo"]))
+    result = service.assess_availability(query)
+    assert len(result.locations) == 2
+    assert len(result.options) == 100
+    assert all(len(loc.ranked_option_ids) == 50 for loc in result.locations)
+    assert any(issue.code == "OPTIONS_TRUNCATED" for issue in result.issues)
+
+
 def test_assessment_without_catalog_returns_typed_unknown(tmp_path):
     service = WeatherService(RuntimeConfig(data_root=tmp_path / "runtime"),
                              http=ForbiddenHttp(), catalog_store=CatalogStore(tmp_path / "empty"))

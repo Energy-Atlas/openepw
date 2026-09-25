@@ -7,6 +7,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
+from ..availability import AvailabilityQuery
 from ..epw import read_epw
 from ..jobs.worker import JobRunner
 from ..models import FutureRequest, OpenEPWError, WeatherPlan, WeatherRequest
@@ -95,6 +96,10 @@ def create_app(service=None, *, remote=False):
     @app.post("/v1/weather/discover")
     def discover(request: WeatherRequest):
         return service.discover(request)
+
+    @app.post("/v1/availability")
+    def availability(query: AvailabilityQuery):
+        return service.assess_availability(query)
 
     @app.post("/v1/weather/plan")
     def plan(request: WeatherRequest):
