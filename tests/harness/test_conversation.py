@@ -227,6 +227,48 @@ def test_compound_location_choice_and_amy_then_year_keeps_selected_place():
     assert [name for name, _ in port.calls].count("weather_geocode") == 1
 
 
+def test_product_before_numbered_location_keeps_choice_for_followup_year():
+    model = SequenceModel(
+        AgentIntent(kind="weather", place="Cambridge MA"),
+        AgentIntent(kind="unknown", action="explore"),
+        AgentIntent(kind="weather", product="historical"),
+        AgentIntent(kind="unknown", years=[2018]),
+    )
+    port = Port([CAMBRIDGE, ALLSTON])
+    chat = ChatSession(ReferenceAgent(port, model), port, model, auto_submit=False)
+
+    async def journey():
+        await chat.handle("I need weather in Cambridge MA")
+        await chat.handle("what do you have?")
+        assert "year" in (await chat.handle("historical, for location 1")).lower()
+        return await chat.handle("2018")
+
+    assert "review_required" in asyncio.run(journey())
+    assert model.prompts[2] == "historical"
+    request = next(args["request"] for name, args in port.calls if name == "weather_plan")
+    assert request["locations"]["id"] == CAMBRIDGE["id"]
+    assert request["years"] == [2018]
+    assert [name for name, _ in port.calls].count("weather_geocode") == 1
+
+
+def test_new_retrieval_clears_prior_exploration_mode_for_geocoder_choice():
+    model = SequenceModel(
+        AgentIntent(kind="weather", place="Cambridge MA", action="explore"),
+        AgentIntent(kind="weather", place="Boston MA", product="historical",
+                    years=[2018]),
+    )
+    port = Port([CAMBRIDGE, ALLSTON])
+    chat = ChatSession(ReferenceAgent(port, model), port, model, auto_submit=False)
+
+    async def journey():
+        await chat.handle("what do you have for Cambridge MA?")
+        assert "1." in await chat.handle("historical 2018 for Boston MA")
+        return await chat.handle("1")
+
+    assert "review_required" in asyncio.run(journey())
+    assert [name for name, _ in port.calls].count("weather_plan") == 1
+
+
 def test_year_correction_replaces_draft_and_reset_discards_it():
     model = SequenceModel(
         AgentIntent(kind="weather", lat=42.37, lon=-71.1, product="historical",

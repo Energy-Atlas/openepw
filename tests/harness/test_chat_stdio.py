@@ -50,6 +50,11 @@ def test_real_stdio_chat_weather_then_future_followup_and_save(tmp_path):
             assert "[completed]" in first
             assert len(chat.weather_artifacts) == 1
             prior_id = chat.weather_artifacts[0]
+            assert "job_id" in await chat.handle("my download status?")
+            file_answer = await chat.handle("my downloaded file?")
+            assert prior_id in file_answer and "/save last" in file_answer
+            assert "/inspect last" in await chat.handle("ok")
+            assert len(model.prompts) == 1
             second = await chat.handle("Use that EPW for SSP245 future morph, 2036-2065")
             assert "[completed]" in second
             assert "baseline origin weather_output" in second

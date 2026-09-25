@@ -80,3 +80,10 @@
 - The owner's next Cambridge session exposed a compound reply that the console did not recognize: `location 1, AMY data` left the numbered candidate unresolved. The console now selects the displayed location before parsing the remaining product text, so a later `2018` uses the selected coordinates.
 - The active local catalog produced roughly 91 KB assessments and a 123 KB AMY discovery with normal providers, above the former 80 KB MCP result cap. The cap is now 160 KB; the same discovery and its 1.5 KB plan summary fit. This does not change eligibility or QC semantics, and larger results remain bounded.
 - Regression tests for both failures passed before full-suite verification: 356 passed, 15 opt-in tests skipped, and the existing Starlette/AnyIO deprecation warning. The live model parsed `AMY data` as AMY with no place; no weather job was submitted during this check.
+
+## Follow-up from the next console run
+
+- A product-first reply (`historical, for location 1`) was parsed by the model as a new place named `location 1`. Explicit numbered references are now resolved before parsing the remaining words, and a fresh retrieval clears stale exploration state.
+- After a completed job, free-text status and file questions previously reached the intent parser as unknown tasks. The console now uses the stored job/artifact IDs for these read-only follow-ups and explains that `/save` writes the artifact to a local file. An acknowledgement after a job gives the same next-step commands.
+- The NOAA AMY result in that run correctly reported `MISSING_CRITICAL_VARIABLE` and `simulation_ready=false`; this remains a QC limitation, not a conversation-state failure.
+- Verification: 358 offline tests passed, 15 opt-in tests skipped; Ruff and mypy passed. The real stdio follow-up test confirms no extra model call for status, artifact inspection, or acknowledgement. The reported EPW artifact was confirmed present in the local data root without reading its bytes.

@@ -247,16 +247,36 @@ class ChatSession:
         try:
             if line.startswith("/"):
                 return await self._command(line)
-            choice_match = (re.fullmatch(
-                r"(?:(?:location|option|choice)\s+)?(\d+)\b(?:\s*[,;:]\s*|\s+)?(.*)",
-                line, re.IGNORECASE) if self.pending_choices else None)
+            if re.search(r"\b(?:status|progress)\b", line, re.IGNORECASE) and re.search(
+                    r"\b(?:my|job|download|request)\b", line, re.IGNORECASE):
+                return await self._command("/status")
+            if re.search(r"\b(?:downloaded\s+file|my\s+(?:downloaded\s+)?"
+                         r"(?:file|epw)|where\s+is\s+(?:my|the)\s+(?:file|epw))\b",
+                         line, re.IGNORECASE):
+                if len(self.weather_artifacts) == 1:
+                    return (await self._command("/inspect last") +
+                            "\nUse /save last <output path> to write the EPW to a local file.")
+                if self.weather_artifacts:
+                    return "Several EPWs are available. Specify an artifact ID with /inspect or /save."
+                return "No EPW artifact is selected. Use /status to check the current job."
+            if self.agent.job_id and line.casefold().rstrip(".!?") in (
+                    "ok", "okay", "thanks", "thank you"):
+                return ("Use /status to check the job, /inspect last to review EPW QC, "
+                        "or /save last <output path> to write a local file.")
+            embedded_choice = (re.search(
+                r"\b(?:for\s+)?(?:location|option|choice)\s+(\d+)\b", line,
+                re.IGNORECASE) if self.pending_choices else None)
+            choice_match = (embedded_choice or re.fullmatch(
+                r"(\d+)\b(?:\s*[,;:]\s*|\s+)?(.*)", line, re.IGNORECASE)
+                if self.pending_choices else None)
             choice: dict[str, Any] | None
             if choice_match:
                 index = int(choice_match.group(1))
                 if not 1 <= index <= len(self.pending_choices):
                     return self._choices_text(self.pending_choices)
                 choice = self.pending_choices[index - 1]
-                remainder = choice_match.group(2).strip()
+                remainder = ((line[:choice_match.start()] + " " + line[choice_match.end():])
+                             if embedded_choice else choice_match.group(2)).strip(" ,;:")
             else:
                 choice = self._choice(line)
                 remainder = ""
@@ -314,6 +334,7 @@ class ChatSession:
             if (self.reviewed_reply and intent == self.reviewed_intent
                     and self.selected_location == self.reviewed_location):
                 return self.reviewed_reply
+            self.pending_exploration = False
             result = await self.agent.run_intent(
                 intent, auto_submit=self.auto_submit, baseline_override=baseline,
                 location_override=self.selected_location)

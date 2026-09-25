@@ -33,7 +33,8 @@ such as `2018` or `historical` fill the current draft. A year-specific weather
 request is interpreted as historical unless you choose another compatible
 product; the console states that interpretation. Ambiguous geocoding results
 are numbered: reply with a number, an exact displayed name, or a combined
-reply such as `location 1, AMY data`. Use `/reset` to start a new request.
+reply such as `location 1, AMY data` or `historical, for location 1`. Use
+`/reset` to start a new request.
 Ask `what do you have?` to assess read-only catalog
 eligibility. Exploration does not submit a plan and cannot prove that an EPW
 is complete or simulation-ready. TMY/TMYx/published reference products are
@@ -43,7 +44,9 @@ EPWs, select one with `/baseline <artifact_id>` before referring to â€œthat EPWâ
 Use `/upload <path>` to register a user EPW directly through MCP; its bytes and
 local path stay outside model prompts. `/inspect last` shows artifact QC, and
 `/save last <path>` saves an EPW to a new file without overwriting an existing
-one. Type `/help` for all commands. `/status [job_id]` checks a running job,
+one. In the current session, questions such as `my download status?` and
+`my downloaded file?` inspect the last job or EPW artifact; the latter shows
+how to save it locally. Type `/help` for all commands. `/status [job_id]` checks a running job,
 `/retry` retries failed outputs, and `/quit` ends the console while leaving
 jobs and artifacts in the data root. Use `/auto off` to pause subsequent plans
 for review and `/submit` to execute a reviewed plan.
