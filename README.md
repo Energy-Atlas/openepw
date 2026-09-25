@@ -98,6 +98,8 @@ job, baseline, artifact and export tools with `weather://artifacts/{id}` resourc
 future tool inputs use uploaded or fetched artifact IDs. The optional
 `openepw-agent` runs one request at a time; `openepw-chat` provides an interactive
 terminal conversation, reading the existing `.env` and executing plans by default.
+When a LangSmith key is available, console turns and tool steps are traced to
+`openepw-local-chat`; `--no-trace` disables this for a session.
 Both harnesses use these same MCP tools. The [Windows local pilot](docs/validation/mcp-stage-6-acceptance.md)
 used the real MCP Python SDK stdio client, synthetic end-to-end journeys and
 bounded Open-Meteo/OneBuilding retrieval. Streamable MCP is loopback-only in

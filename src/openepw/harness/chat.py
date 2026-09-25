@@ -8,30 +8,42 @@ import re
 from pathlib import Path
 from typing import Any
 
-from .agent import AgentIntent, AgentResult, ReferenceAgent
-from .mcp_client import MCPToolFailure, StdioMCPPort
-from .model import ModelUnavailable, OpenAIIntentParser
+from .agent import AgentIntent, AgentResult, IntentParser, ReferenceAgent
+from .mcp_client import MCPToolFailure
+from .model import ModelUnavailable
+from .trace import ArtifactPort, LangSmithTrace
 
 
-def load_model_key(env_file: str | Path = ".env") -> str:
-    """Use a shell key or read the existing .env; never write either source."""
-    existing = os.environ.get("OPENAI_API_KEY", "").strip()
+def _read_key(name: str, env_file: str | Path) -> str | None:
+    """Read a key from the shell or existing dotenv without modifying it."""
+    existing = os.environ.get(name, "").strip()
     if existing:
         return existing
     source = Path(env_file)
     if source.is_file():
         for line in source.read_text(encoding="utf-8-sig").splitlines():
-            if re.match(r"^\s*OPENAI_API_KEY\s*=", line):
+            if re.match(r"^\s*" + re.escape(name) + r"\s*=", line):
                 value = line.split("=", 1)[1].strip().strip('"').strip("'")
                 if value:
                     return value
+    return None
+
+
+def load_model_key(env_file: str | Path = ".env") -> str:
+    key = _read_key("OPENAI_API_KEY", env_file)
+    if key:
+        return key
     raise ModelUnavailable("OPENAI_API_KEY is missing from the shell and .env")
+
+
+def load_trace_key(env_file: str | Path = ".env") -> str | None:
+    return _read_key("LANGSMITH_API_KEY", env_file)
 
 
 class SessionParser:
     """Add only compact confirmed facts when resolving a follow-up reference."""
 
-    def __init__(self, model: OpenAIIntentParser, session: ChatSession):
+    def __init__(self, model: IntentParser, session: ChatSession):
         self.model = model
         self.session = session
         self.last_intent: AgentIntent | None = None
@@ -50,8 +62,9 @@ class SessionParser:
 class ChatSession:
     """One terminal conversation; the MCP service remains the source of truth."""
 
-    def __init__(self, agent: ReferenceAgent, mcp: StdioMCPPort,
-                 model: OpenAIIntentParser, *, auto_submit: bool = True):
+    def __init__(self, agent: ReferenceAgent, mcp: ArtifactPort,
+                 model: IntentParser, *, auto_submit: bool = True,
+                 tracer: LangSmithTrace | None = None):
         self.agent = agent
         self.mcp = mcp
         self.parser = SessionParser(model, self)
@@ -61,6 +74,7 @@ class ChatSession:
         self.selected_baseline_id: str | None = None
         self.weather_artifacts: tuple[str, ...] = ()
         self.last_intent: AgentIntent | None = None
+        self.tracer = tracer
 
     def confirmed_context(self) -> dict[str, Any]:
         context: dict[str, Any] = {}
@@ -113,6 +127,11 @@ class ChatSession:
         return value
 
     async def handle(self, line: str) -> str:
+        if self.tracer and line.strip():
+            return await self.tracer.run_turn(line, self._handle)
+        return await self._handle(line)
+
+    async def _handle(self, line: str) -> str:
         line = line.strip()
         if not line:
             return ""

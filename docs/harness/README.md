@@ -15,6 +15,14 @@ session and uses `gpt-6-luna` for intent extraction. Each new weather or future
 plan executes automatically. Provider requests can fetch live data and model
 calls are billable; the harness ledger caps projected model spending at US$8
 per data root. Use a distinct `--data-root` to keep a test session separate.
+If `LANGSMITH_API_KEY` is present in the shell or existing `.env`, the console
+also sends each turn to the `openepw-local-chat` LangSmith project. Model intent
+and MCP calls appear as child steps. Traces include sanitized natural-language
+requests, compact intent fields, tool names, opaque IDs and statuses; they omit
+API keys, EPW bytes, provider request bodies and full MCP results. The console
+reads the key without changing `.env`. Set `--trace-project <name>` to group
+traces elsewhere, or `--no-trace` to turn tracing off for a session. Tracing
+failures are reported in the terminal while weather jobs continue.
 
 For example, ask for an actual year at a location, then ask to morph that EPW
 for a named scenario and climate window. A future request also needs a method
@@ -67,8 +75,8 @@ sending user text to the model. It uses `store=false`, low reasoning effort,
 structured intent output, a 1,024-token output cap and an ignored local ledger
 that stops new calls at a projected US$8. Stage 5/6 cumulative authorization
 is below US$10. The key, raw prompts, EPW bytes, hourly tables and full
-catalog inventories are absent from local run records. LangSmith is never
-called. Provider credentials required by a separate live retrieval remain
+catalog inventories are absent from local run records. This single-request
+command does not send LangSmith traces. Provider credentials required by a separate live retrieval remain
 runtime settings for OpenEPW, outside the model prompt.
 
 The agent does not certify an EPW for simulation. It says that catalog support

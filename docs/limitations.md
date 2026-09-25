@@ -32,7 +32,11 @@ The Stage 5 reference agent uses a bounded model only to parse intent; its
 template explanations and fixed rubric do not establish real-user
 comprehension. Host/model availability and natural-language interpretation
 vary. Local records omit prompts and raw weather; the model API receives
-sanitized task text when explicitly used. LangSmith tracing is disabled.
+sanitized task text when explicitly used. The single-request command has no
+LangSmith tracing. The console sends bounded turn, intent and tool traces to
+LangSmith when a key is present; natural-language requests are sanitized before
+transmission, and a terminal option disables tracing. This hosted record has
+LangSmith's retention and access controls, separate from local run records.
 The interactive console carries follow-up references only within its current
 process, so a restarted chat needs explicit artifact or job IDs. It may need
 clarification for ambiguous natural language. Its weather intent uses the UTC

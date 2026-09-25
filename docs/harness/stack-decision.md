@@ -3,6 +3,8 @@
 Date: 2026-09-25. Chosen stack: direct MCP Python SDK client plus a small
 explicit reference-agent state machine. The harness is an optional package
 extra and calls Stage 4 tools only. No LangSmith requests or traces were sent.
+This records the Stage 5 decision. The later interactive console adds optional
+LangSmith tracing around its direct-client workflow without adopting LangGraph.
 
 ## Bounded comparison
 
