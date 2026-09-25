@@ -55,7 +55,7 @@ subscription. Do not purchase a subscription just for these research tests.
 
 ## Local handoff
 
-Copy the repository's `.env.example` to `.env` **only if `.env` does not already
+Copy the repository's `.env.template` to `.env` **only if `.env` does not already
 exist**, then fill the three required values:
 
 ```dotenv
