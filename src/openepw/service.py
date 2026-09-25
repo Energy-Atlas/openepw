@@ -927,7 +927,9 @@ class WeatherService:
     def plan_future(self, request):
         from .planning.future import plan_future
 
-        return plan_future(self, request)
+        plan = plan_future(self, request)
+        self.plan_store.put(plan)
+        return plan
 
     def register_baseline(self, value):
         """Register a trusted local EPW path or bounded upload bytes."""

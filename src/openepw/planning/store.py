@@ -1,4 +1,4 @@
-"""Atomic, content-addressed local weather-plan references."""
+"""Atomic, content-addressed local weather and future plan references."""
 
 from __future__ import annotations
 
@@ -20,8 +20,6 @@ class PlanStore:
 
     def put(self, plan: WeatherPlan) -> str:
         checked = WeatherPlan.model_validate_json(plan.model_dump_json())
-        if checked.kind != "weather":
-            raise OpenEPWError("INVALID_REQUEST", "Only weather plans are stored in Stage 3a")
         body = checked.model_dump_json().encode("utf-8")
         if len(body) > _MAX_PLAN_BYTES:
             raise OpenEPWError("RESOURCE_LIMIT", "Plan exceeds local storage limit")
@@ -40,7 +38,7 @@ class PlanStore:
             if path.stat().st_size > _MAX_PLAN_BYTES:
                 raise ValueError("oversized plan")
             plan = WeatherPlan.model_validate_json(path.read_bytes())
-            if plan.kind != "weather" or plan.plan_hash != plan_hash:
+            if plan.plan_hash != plan_hash:
                 raise ValueError("plan identity mismatch")
         except (OSError, ValueError, ValidationError) as error:
             raise OpenEPWError("PLAN_STALE", "Stored plan failed validation") from error
