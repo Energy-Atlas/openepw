@@ -140,6 +140,40 @@ def test_unknown_noaa_year_uses_bounded_live_discovery_for_plan(tmp_path):
     assert service.plan(request, discovery=discovery).tasks
 
 
+def test_source_wide_unknown_discovery_reuses_identical_metadata_request(tmp_path):
+    store = _catalog(tmp_path)
+
+    class CountingHttp:
+        def __init__(self):
+            self.calls = 0
+
+        def get(self, url, **kwargs):
+            self.calls += 1
+            return b"station history"
+
+    class LiveNoaa:
+        name = "noaa"
+
+        def discover(self, request, location, http):
+            http.get("https://example.org/station-history.csv")
+            return [Candidate(id=f"station:{location.key}", location_id=location.key,
+                              product_id="A00002", source=SourceRef(
+                                  provider="noaa", dataset="ISD global-hourly",
+                                  identity="A00002", location=location),
+                              weather_types=["historical", "amy"],
+                              variables=["dry_bulb"])]
+
+    http = CountingHttp()
+    service = WeatherService(RuntimeConfig(data_root=tmp_path / "runtime"),
+                             http=http, providers=[LiveNoaa()], catalog_store=store)
+    request = WeatherRequest(locations=[Location(id="one", lat=42, lon=-76),
+                                        Location(id="two", lat=42.01, lon=-76)],
+                             years=[2023], providers=["noaa"])
+    discovery = service.discover(request)
+    assert len(discovery.availability.locations) == 2
+    assert http.calls == 1
+
+
 def test_future_capability_does_not_read_baseline_file(tmp_path):
     service = WeatherService(RuntimeConfig(data_root=tmp_path / "runtime"),
                              http=ForbiddenHttp(), catalog_store=CatalogStore(tmp_path / "empty"))

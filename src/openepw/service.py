@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import uuid
@@ -52,6 +53,29 @@ from .providers.onebuilding import OneBuildingProvider
 from .providers.openmeteo import OpenMeteoProvider
 from .providers.pvgis import PVGISProvider
 from .qc import validate
+
+
+class _DiscoveryHttp:
+    """Reuse identical metadata GETs inside one multi-point discovery call."""
+
+    def __init__(self, underlying):
+        self.underlying = underlying
+        self.cache: dict[tuple[str, str, str], Any] = {}
+
+    def get(self, url: str, **kwargs):
+        key = ("get", url, repr(sorted(kwargs.items())))
+        if key not in self.cache:
+            self.cache[key] = self.underlying.get(url, **kwargs)
+        return self.cache[key]
+
+    def get_json(self, url: str, **kwargs):
+        key = ("get_json", url, repr(sorted(kwargs.items())))
+        if key not in self.cache:
+            self.cache[key] = self.underlying.get_json(url, **kwargs)
+        return copy.deepcopy(self.cache[key])
+
+    def __getattr__(self, name: str):
+        return getattr(self.underlying, name)
 
 
 class WeatherService:
@@ -185,6 +209,7 @@ class WeatherService:
         live_resolved: set[str] = set()
         issues = list(availability.issues)
         live_cache: dict[tuple[str, str, str | None], list[Candidate]] = {}
+        live_http = _DiscoveryHttp(self.http)
         for option in sorted(availability.options, key=lambda item: (
             item.occurrence_index, item.rank or 9999)):
             if option.eligibility.status == "excluded":
@@ -203,7 +228,7 @@ class WeatherService:
             if key not in live_cache:
                 try:
                     provider_request = request.model_copy(update={"dataset": option.product.dataset})
-                    live_cache[key] = provider.discover(provider_request, location, self.http)
+                    live_cache[key] = provider.discover(provider_request, location, live_http)
                 except OpenEPWError as exc:
                     issues.append(exc.issue)
                     live_cache[key] = []
@@ -227,8 +252,8 @@ class WeatherService:
                 if candidate_id and candidate_id not in selected:
                     if option_id in live_resolved:
                         candidates[candidate_id].selection_reasons.append(
-                            "Live provider discovery resolved a catalog unknown; "
-                            "catalog evidence remains unchanged")
+                            "Live provider discovery provided a retrieval candidate; "
+                            "catalog uncertainty remains")
                     selected.append(candidate_id)
         return DiscoveryResult(locations=locations, candidates=list(candidates.values()),
                                selected_candidate_ids=selected,

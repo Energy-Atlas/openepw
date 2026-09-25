@@ -5,6 +5,7 @@ from pydantic import ValidationError
 
 from openepw.availability import (
     ActualScope,
+    FutureAvailabilityQuery,
     FutureWindowScope,
     LocationAssessment,
     SiteRecord,
@@ -32,6 +33,13 @@ def test_actual_years_are_sparse_and_station_id_is_text():
 def test_future_window_rejects_reversed_years():
     with pytest.raises(ValidationError):
         FutureWindowScope(start_year=2094, end_year=2085, scenario="rcp45")
+
+
+def test_future_query_rejects_reversed_reference_period():
+    with pytest.raises(ValidationError):
+        FutureAvailabilityQuery(location=Location(lat=42, lon=-76), method="morph",
+                                scenario="ssp245", climate_period=(2041, 2070),
+                                reference_period=(2014, 1995))
 
 
 def test_location_assessment_retains_duplicate_input_occurrence():
