@@ -15,6 +15,7 @@ class EvidenceRef(Model):
     source_url: str | None = None
     sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     retrieved_at: datetime
+    checked_at: datetime | None = None
     basis: Literal["documentation", "inventory", "targeted_probe", "review"]
     last_modified: str | None = None
     etag: str | None = None

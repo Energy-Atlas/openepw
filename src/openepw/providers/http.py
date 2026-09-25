@@ -61,6 +61,7 @@ class HttpClient:
         json_body=None,
         limit=None,
         max_retries=None,
+        allow_not_modified=False,
     ):
         retry_limit = self.config.retries if max_retries is None else max_retries
         for attempt in range(retry_limit + 1):
@@ -69,6 +70,8 @@ class HttpClient:
                     method, url, params=params, headers=headers, json=json_body
                 ) as response:
                     status = response.status_code
+                    if status == 304 and allow_not_modified:
+                        return b"", dict(response.headers), status
                     if status in (301, 302, 303, 307, 308) and method == "GET":
                         target = urljoin(url, response.headers.get("location", ""))
                         old, new = urlparse(url), urlparse(target)
