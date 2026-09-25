@@ -23,6 +23,9 @@ def subplan(plan, outputs):
         if (output.id or output.name) in keys
     ]
     raw["tasks"] = [task.model_dump(mode="json") for task in plan.tasks if task.id in task_ids]
+    if plan.batch_rows:
+        raw["batch_rows"] = [row.model_dump(mode="json") for row in plan.batch_rows
+                             if row.status == "planned" and row.output_id in keys]
     raw["issues"] = []
     return WeatherPlan.model_validate(raw)
 

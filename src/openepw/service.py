@@ -4,7 +4,7 @@ import copy
 import hashlib
 import json
 import uuid
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -29,6 +29,7 @@ from .dataset import without_feb_29
 from .epw.writer import epw_bytes
 from .models import (
     ArtifactBundle,
+    BatchRow,
     Candidate,
     DatasetSelection,
     DiscoveryResult,
@@ -43,6 +44,12 @@ from .models import (
     WeatherRequest,
     digest,
     utcnow,
+)
+from .planning.batch import (
+    exact_published_source,
+    exact_published_url,
+    fetch_task_key,
+    missing_selection_status,
 )
 from .planning.output_identity import filename, location_label, output_id, period_label
 from .providers.era5 import CDSProvider
@@ -452,11 +459,21 @@ class WeatherService:
             raise OpenEPWError("PLAN_STALE", "Discovery locations differ from this request")
         tasks = {}
         outputs = []
+        batch_rows: list[BatchRow] = []
         selected: list[Candidate] = []
         warnings = [i.message for i in discovery.issues]
         issues = list(discovery.issues)
         for occurrence, loc in enumerate(discovery.locations):
-            candidates = [c for c in discovery.candidates if c.location_id == loc.key]
+            candidate_ids = (discovery.candidate_ids_by_occurrence[occurrence]
+                             if len(discovery.candidate_ids_by_occurrence) == len(discovery.locations)
+                             else [c.id for c in discovery.candidates if c.location_id == loc.key])
+            candidates_by_id = {c.id: c for c in discovery.candidates}
+            candidates = [candidates_by_id[cid] for cid in candidate_ids
+                          if cid in candidates_by_id]
+            periods = [(f"{y}-01-01", f"{y}-12-31") for y in request.years] or [
+                (str(request.start), str(request.end))
+            ]
+            missing: list[DatasetSelection | None] = []
             chosen: list[tuple[Candidate, DatasetSelection | None]]
             if request.hybrid_policy.enabled:
                 if request.product not in ("historical", "amy"):
@@ -471,7 +488,7 @@ class WeatherService:
                     chosen.append((candidate, None))
             elif request.dataset_selections:
                 chosen = []
-                ranking = discovery.ranked_candidate_ids.get(loc.key, [])
+                ranking = candidate_ids
                 ordered = sorted(
                     candidates,
                     key=lambda candidate: (
@@ -492,13 +509,15 @@ class WeatherService:
                         None,
                     )
                     if candidate is None:
+                        missing.append(selection)
                         issues.append(
                             Issue(
                                 code="DATASET_UNAVAILABLE",
-                                message=f"{selection.provider}/{selection.dataset} is unavailable for this location",
+                                message=f"{selection.provider}/{selection.dataset} has no executable candidate for this location",
                                 severity="warning",
                                 field="dataset_selections",
                                 location_id=loc.key,
+                                occurrence_index=occurrence,
                                 dataset_selection=selection.model_dump(mode="json"),
                             )
                         )
@@ -506,20 +525,32 @@ class WeatherService:
                     chosen.append((candidate, selection))
             else:
                 chosen = []
-                chosen.extend(
-                    (c, None) for c in candidates if c.id in discovery.selected_candidate_ids
-                )
-                chosen = chosen[:1]
+                if candidates:
+                    chosen = [(candidates[0], None)]
             if not chosen:
-                if request.dataset_selections:
-                    continue
-                raise OpenEPWError(
-                    "PROVIDER_UNAVAILABLE", "No candidate supports requested product/location"
-                )
+                if not request.dataset_selections:
+                    missing.append(None)
+            for missing_selection in missing:
+                status = missing_selection_status(discovery.availability, occurrence,
+                                                  missing_selection)
+                chosen_selection = missing_selection or DatasetSelection(
+                    provider="unresolved", dataset=request.dataset or request.product,
+                    product_id=request.product_id)
+                code = "DATASET_UNAVAILABLE" if missing_selection else "PROVIDER_UNAVAILABLE"
+                if missing_selection is None:
+                    issues.append(Issue(code=code, message="No executable candidate for this location",
+                                        location_id=loc.key, occurrence_index=occurrence))
+                for start, end in periods:
+                    batch_rows.append(BatchRow(
+                        occurrence_index=occurrence, requested_location_id=loc.key,
+                        dataset_selection=chosen_selection,
+                        period_start=date.fromisoformat(start) if request.years or request.start else None,
+                        period_end=date.fromisoformat(end) if request.years or request.end else None,
+                        status=status, issue_codes=[code],
+                    ))
+            if not chosen:
+                continue
             selected.extend(c for c, _ in chosen if c.id not in [v.id for v in selected])
-            periods = [(f"{y}-01-01", f"{y}-12-31") for y in request.years] or [
-                (str(request.start), str(request.end))
-            ]
             for start, end in periods:
                 ids = []
                 for candidate, _selection in chosen:
@@ -542,19 +573,14 @@ class WeatherService:
                             lat=candidate.source.location.lat, lon=candidate.source.location.lon
                         )
                     params = {
-                        "location": query_location,
                         "start": start,
                         "end": end,
                         "product": request.product,
                         "product_id": candidate.product_id or request.product_id,
                     }
-                    key = digest(
-                        {
-                            "source": candidate.source.model_dump(mode="json"),
-                            "parameters": params,
-                            "version": "0.1",
-                        }
-                    )
+                    if not exact_published_url(candidate):
+                        params["location"] = query_location
+                    key = fetch_task_key(candidate.source, params)
                     task_id = key[:20]
                     if key not in tasks:
                         tasks[key] = FetchTask(
@@ -601,9 +627,9 @@ class WeatherService:
                         }
                     )
                     first = output_candidates[0]
-                    outputs.append(
-                        OutputSpec(
+                    output_spec = OutputSpec(
                             id=identity,
+                            occurrence_index=occurrence,
                             requested_location_id=loc.key,
                             task_ids=output_task_ids,
                             dataset_selection=output_selection,
@@ -618,16 +644,26 @@ class WeatherService:
                                 identity,
                             ),
                         )
+                    outputs.append(output_spec)
+                    row_selection = output_selection or DatasetSelection(
+                        provider="hybrid" if request.hybrid_policy.enabled else first.source.provider,
+                        dataset="explicit" if request.hybrid_policy.enabled else first.source.dataset,
+                        product_id=first.product_id or request.product_id,
                     )
-        if not outputs:
-            raise OpenEPWError(
-                "PROVIDER_UNAVAILABLE", "No selected dataset supports any requested location"
-            )
+                    batch_rows.append(BatchRow(
+                        occurrence_index=occurrence, requested_location_id=loc.key,
+                        dataset_selection=row_selection,
+                        period_start=date.fromisoformat(start) if request.years or request.start else None,
+                        period_end=date.fromisoformat(end) if request.years or request.end else None,
+                        status="planned", candidate_id=first.id,
+                        task_ids=output_task_ids, output_id=identity,
+                    ))
         return WeatherPlan(
             request=request,
             selected_candidates=selected,
             tasks=list(tasks.values()),
             outputs=outputs,
+            batch_rows=batch_rows,
             warnings=list(dict.fromkeys(warnings)),
             issues=issues,
             estimated_calls=len(tasks),
@@ -636,7 +672,7 @@ class WeatherService:
     def execute(self, plan: WeatherPlan, *, cancelled=lambda: False, progress=lambda *_: None):
         plan = WeatherPlan.model_validate_json(plan.model_dump_json())
         if not plan.tasks or not plan.outputs:
-            raise OpenEPWError("INVALID_REQUEST", "Cannot execute an empty plan")
+            raise OpenEPWError("NO_EXECUTABLE_OUTPUTS", "Cannot execute a plan without outputs")
         if plan.kind == "future":
             return self._execute_future(plan, cancelled=cancelled, progress=progress)
         for task in plan.tasks:
@@ -651,7 +687,10 @@ class WeatherService:
                 raise OpenEPWError(
                     "PLAN_STALE", "Task identifiers do not match its scientific request"
                 )
-            Location.model_validate(task.parameters.get("location"))
+            if "location" in task.parameters:
+                Location.model_validate(task.parameters["location"])
+            elif not exact_published_source(task.source, task.parameters.get("product_id")):
+                raise OpenEPWError("PLAN_STALE", "Task lacks a validated source location")
         bundle_id = uuid.uuid4().hex
         weather, additional, issues, manifest_outputs, qc_records = (
             [],

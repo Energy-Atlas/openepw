@@ -3,7 +3,7 @@ from test_batch import StationProvider
 
 from openepw.config import RuntimeConfig
 from openepw.jobs.store import JobStore
-from openepw.jobs.worker import JobRunner
+from openepw.jobs.worker import JobRunner, subplan
 from openepw.models import Location, WeatherRequest
 from openepw.service import WeatherService
 
@@ -39,8 +39,6 @@ def test_cancel_before_execution(tmp_path):
 
 
 def test_restart_resumes_after_verified_completed_item(tmp_path):
-    from openepw.models import WeatherPlan
-
     provider = StationProvider()
     service = WeatherService(RuntimeConfig(data_root=tmp_path), providers=[provider])
     plan = service.plan(
@@ -53,10 +51,7 @@ def test_restart_resumes_after_verified_completed_item(tmp_path):
     store = JobStore(tmp_path)
     job = store.submit(plan)
     first = plan.outputs[0]
-    raw = plan.model_dump(mode="json", exclude={"plan_hash"})
-    raw["outputs"] = [first.model_dump()]
-    raw["tasks"] = [t.model_dump() for t in plan.tasks if t.id in first.task_ids]
-    prior = service.execute(WeatherPlan.model_validate(raw))
+    prior = service.execute(subplan(plan, [first]))
     store.complete_item(job.id, first.id, prior)
     job.state = "running"
     store.save(job)
