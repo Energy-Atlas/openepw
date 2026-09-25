@@ -15,8 +15,11 @@ contracts screen documented capabilities. A query emits at most 50 ranked
 options per occurrence and reports omitted alternatives. Filter by product/model
 for more detail. Original raw inventories remain local and are not bundled.
 
-No Stage 3a verified batch fetch-equivalence/export or Stage 3b baseline choice and
-future execution workflow is supplied by these assessments. Stage 4 will settle
+Stage 3a supplies batch fetch-equivalence, per-row outcomes and explicit local
+export. These still depend on successful provider retrieval and QC; an eligible
+catalog option may yield a failed or QC-limited row. The local ZIP does not grant
+redistribution rights for source files. Stage 3b baseline choice and future
+execution workflow are pending. Stage 4 will settle
 the final MCP tool names and conversation shape. The existing `weather_discover`
 tool carries shared assessment facts when a catalog is loaded.
 

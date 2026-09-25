@@ -22,10 +22,10 @@ src/openepw/
   providers/{base,http,openmeteo,pvgis,onebuilding,noaa_isd,nsrdb,era5}.py
   availability/{models,store,stage1,bootstrap,freshness,refresh,evaluate,recommend}.py
   availability/importers/{contracts,climate}.py
-  planning/{spatial,hybrid,future,output_identity}.py
+  planning/{spatial,hybrid,future,output_identity,batch,store}.py
   service.py             discovery, planning, execution and bundles
   generation/{cmip6,morph,hourly_archive,climate_profile}.py
-  artifacts/store.py     atomic files, checksums, opaque identifiers
+  artifacts/{store,export}.py  atomic files, checksums, compact export
   jobs/{store,worker}.py  SQLite item records and bounded worker threads
   api/app.py             REST adapter
   mcp/server.py          MCP adapter
@@ -99,8 +99,15 @@ generation on failure, including partial replacements. Broad responses retain th
 ranked options per occurrence and report truncation.
 
 Discovery consumes these shared assessments when a catalog is active. Verified
-fetch-task equivalence and full output mapping remain separate execution concerns;
-the existing v0.1 request/plan identity and artifact contracts remain intact.
+fetch-task equivalence and full output mapping are Stage 3a execution concerns.
+Each planned occurrence, dataset and period has a batch row, including unsupported
+and unresolved combinations. Weather plans persist under their integrity hash.
+Jobs use SQLite item records and reuse verified source results only within one
+active job; checksum-verified output artifacts survive restart. Final manifests
+record every row's status, source/QC links and separate request/task/output counts.
+An explicit compact ZIP has a complete CSV mapping and groups only byte-identical
+outputs with matching task, transform and lineage semantics. The existing v0.1
+request/plan identity and artifact contracts remain intact.
 
 Providers implement `discover(request, location, http)` and
 `fetch(task, http) -> ProviderResult(dataset, source, raw, native_epw)`.
@@ -169,8 +176,11 @@ items to disappear. No Redis/Celery/database server is required.
 
 REST: POST `/v1/geocode`, `/v1/availability`, `/v1/weather/discover`, `/v1/weather/plan`,
 `/v1/weather/jobs`, `/v1/future/plan`, `/v1/future/jobs`, `/v1/artifacts`,
-`/v1/jobs/{id}/cancel`, `/v1/jobs/{id}/retry`; GET `/v1/jobs/{id}`, `/v1/jobs/{id}/artifacts`,
-`/v1/artifacts/{id}`, `/health`. Jobs accept a plan plus optional idempotency key.
+`/v1/jobs/{id}/cancel`, `/v1/jobs/{id}/retry`, `/v1/jobs/{id}/export/compact`;
+GET `/v1/jobs/{id}`, `/v1/jobs/{id}/artifacts`, `/v1/artifacts/{id}`, `/health`.
+Weather jobs accept an inline plan or stored plan hash plus optional idempotency key;
+future jobs retain inline plans. CLI `execute` accepts a plan file or stored hash,
+and `export` takes a finished weather job ID.
 Uploads accept bounded EPW files, never arbitrary server paths. Remote REST requires
 a runtime bearer token; default binding is loopback. Request validation does not
 echo potentially secret inputs.

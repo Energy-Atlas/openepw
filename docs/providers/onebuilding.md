@@ -10,6 +10,16 @@ coordinates or EPW content have not been verified by these annotations. Catalog
 matching does not grant redistribution rights. See the
 [accepted review](../validation/mcp-stage-1/onebuilding-manual-review.md).
 
+## MCP Stage 3a batch behavior — 2026-09-25
+
+An exact published HTTPS product path is a verified native fetch identity for
+within-job reuse. Distinct requested occurrences still receive distinct normalized
+EPW artifacts and retain the source coordinates. This path identity does not
+establish availability at another location or redistribution permission. A compact
+local export can group byte-identical outputs only when task, transform and lineage
+semantics also match. The Stage 3a published-batch anchor uses synthetic source
+bytes and does not re-download or redistribute a hosted archive.
+
 ## v0.1 implementation result — 2026-09-20
 
 The adapter retrieved and parsed the published Ithaca TMYx into 8,760 rows. Selection uses an explicit relative ZIP product path, or a country catalog with a location name; no global nearest-station index is claimed. ZIP path, member count and uncompressed size checks apply. Native data stays in ignored local artifacts and is not committed or mirrored.

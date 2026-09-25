@@ -16,7 +16,7 @@ plan were completed. Owner approved Stage 2 on 2026-09-20.
 - [x] MCP, CLI and examples over the canonical service.
 - [x] Final acceptance record, documentation and regression checks.
 
-## Production MCP — Stage 1 accepted; Stage 2 implemented; Stages 3a–6 planned
+## Production MCP — Stage 1 accepted; Stages 2–3a implemented; Stages 3b–6 approved
 
 The current goal is a validated local MCP experience with an agent harnessing
 layer. The staged roadmap ends at the local pilot; team deployment is outside
@@ -44,8 +44,9 @@ The [Stage 2 design](docs/superpowers/specs/2026-09-24-mcp-stage-2-availability-
 and [implementation plan](docs/superpowers/plans/2026-09-24-mcp-stage-2-availability.md)
 record the approved work. The [coordinated remaining-stage plan](docs/superpowers/plans/2026-09-25-mcp-remaining-stages.md)
 links detailed plans for Stages 3a, 3b, 4, 5 and 6. They incorporate the owner's
-2026-09-25 clarification answers and await one final approval; implementation of
-these remaining stages has not begun.
+2026-09-25 clarification answers. The owner approved autonomous implementation
+on 2026-09-25. Stage 3a weather planning, durable batch jobs, QC mapping and
+compact export have [offline acceptance](docs/validation/mcp-stage-3a-acceptance.md).
 An owner-authorized NOAA follow-up retrieved the larger station/month inventory
 in one additional call; its normalized local index was imported for Stage 2.
 The approved follow-up also resolved both OEDI scenario directories and matched

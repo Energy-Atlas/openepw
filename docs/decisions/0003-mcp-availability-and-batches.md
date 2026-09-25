@@ -7,12 +7,12 @@ Stage 2 implementation on 2026-09-24; its catalog and recommendation service are
 implemented with [acceptance evidence](../validation/mcp-stage-2-acceptance.md).
 Stage 1 research is complete with explicit limitations in the
 [findings](../validation/mcp-stage-1/README.md). The transition is documented in the [agent handoff](../handoffs/2026-09-24-mcp-stage-2.md).
-Later implementation stages remain proposals in the
-[MCP staged design](../superpowers/specs/2026-09-23-mcp-stages.md). The owner's
-subsequent 2026-09-24 direction adds an agent-harnessing stage before the local
-pilot and removes team deployment from the current roadmap. An agent is extending
-NSRDB and other Stage 1 evidence on a separate branch/worktree; the accepted
-snapshot remains valid until that work is reviewed and integrated.
+The owner approved autonomous Stages 3a–6 implementation on 2026-09-25 after
+reviewing the [coordinated plan](../superpowers/plans/2026-09-25-mcp-remaining-stages.md).
+Stage 3a has [offline acceptance](../validation/mcp-stage-3a-acceptance.md). The
+Stage 1 follow-up branch was reviewed and merged without importing its research
+maps into the active service catalog. The current roadmap adds agent harnessing
+before the local pilot and omits team deployment.
 
 These MCP stage numbers are separate from the completed v0.1 Stage 1/Stage 2.
 
