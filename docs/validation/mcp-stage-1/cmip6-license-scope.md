@@ -62,3 +62,7 @@ The offline implementation is `cmip_license_scope` in
 places the model map and counts under
 `inventories["cmip6-catalog"]["license_scope"]` in ignored `analysis.json`.
 It never invokes `collect`.
+
+The [local availability map view](../mcp-stage-2/cmip6-license-map.md) displays
+these model-level counts by SSP scenario while leaving geographic footprint and
+requested climate windows unshaded and unknown.

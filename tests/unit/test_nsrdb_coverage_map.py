@@ -355,6 +355,73 @@ def test_build_map_uses_published_nsrdb_grid_without_point_probes(tmp_path):
     assert "api_key=" not in html
 
 
+def test_build_map_summarizes_pinned_cmip6_licenses_by_scenario(tmp_path):
+    snapshot = _map_snapshot(tmp_path)
+    analysis = json.loads((snapshot / "analysis.json").read_text(encoding="utf-8"))
+    analysis["inventories"]["cmip6-catalog"] = {"combinations": [
+        {"model": "M1", "scenario": "ssp126", "stores": {"historical/tas": "gs://secret-a"}},
+        {"model": "M1", "scenario": "ssp245", "stores": {"historical/tas": "gs://secret-b"}},
+        {"model": "M2", "scenario": "ssp245", "stores": {"historical/tas": "gs://secret-c"}},
+        {"model": "M3", "scenario": "ssp585", "stores": {"historical/tas": "gs://secret-d"}},
+    ]}
+    (snapshot / "analysis.json").write_text(json.dumps(analysis), encoding="utf-8")
+    registry = {"source_id": {
+        "M1": {"license_info": {"id": "CC BY 4.0"}},
+        "M2": {"license_info": {"id": "CC0 1.0"}},
+    }}
+    raw = json.dumps(registry).encode()
+    (snapshot / "raw" / "cmip6-license.body").write_bytes(raw)
+    catalog_raw = b"pinned catalog"
+    (snapshot / "raw" / "cmip6-catalog.body").write_bytes(catalog_raw)
+    ledger = json.loads((snapshot / "ledger.json").read_text(encoding="utf-8"))
+    for ident, body in (("cmip6-catalog", catalog_raw), ("cmip6-license", raw)):
+        ledger["records"].append({"id": ident, "snapshot": f"raw/{ident}.body",
+                                  "sha256": hashlib.sha256(body).hexdigest()})
+    (snapshot / "ledger.json").write_text(json.dumps(ledger), encoding="utf-8")
+    topology = tmp_path / "world.json"
+    topology.write_text(json.dumps({"type": "Topology", "objects": {"countries": {
+        "type": "GeometryCollection", "geometries": []}}, "arcs": []}), encoding="utf-8")
+
+    html = build_map(snapshot, tmp_path / "output", tmp_path / "footprints", topology).read_text(
+        encoding="utf-8"
+    )
+    encoded = re.search(r'<script type="text/plain" id="oepw-payload">([^<]+)</script>', html)
+    payload = json.loads(gzip.decompress(base64.b64decode(encoded.group(1))))
+    cmip6 = payload["cmip6"]
+    assert cmip6["total"] == 4
+    assert cmip6["models"] == 3
+    assert cmip6["license_counts"] == {"CC BY 4.0": 2, "CC0 1.0": 1, "unknown": 1}
+    assert cmip6["scenarios"]["ssp245"] == {
+        "total": 2, "models": 2, "license_counts": {"CC BY 4.0": 1, "CC0 1.0": 1}
+    }
+    assert "gs://secret-" not in html
+
+
+def test_build_map_does_not_claim_cmip6_license_without_registry(tmp_path):
+    snapshot = _map_snapshot(tmp_path)
+    analysis = json.loads((snapshot / "analysis.json").read_text(encoding="utf-8"))
+    analysis["inventories"]["cmip6-catalog"] = {"combinations": [
+        {"model": "M1", "scenario": "ssp245"}
+    ]}
+    (snapshot / "analysis.json").write_text(json.dumps(analysis), encoding="utf-8")
+    catalog_raw = b"pinned catalog"
+    (snapshot / "raw" / "cmip6-catalog.body").write_bytes(catalog_raw)
+    ledger = json.loads((snapshot / "ledger.json").read_text(encoding="utf-8"))
+    ledger["records"].append({"id": "cmip6-catalog", "snapshot": "raw/cmip6-catalog.body",
+                              "sha256": hashlib.sha256(catalog_raw).hexdigest()})
+    (snapshot / "ledger.json").write_text(json.dumps(ledger), encoding="utf-8")
+    topology = tmp_path / "world.json"
+    topology.write_text(json.dumps({"type": "Topology", "objects": {"countries": {
+        "type": "GeometryCollection", "geometries": []}}, "arcs": []}), encoding="utf-8")
+
+    html = build_map(snapshot, tmp_path / "output", tmp_path / "footprints", topology).read_text(
+        encoding="utf-8"
+    )
+    encoded = re.search(r'<script type="text/plain" id="oepw-payload">([^<]+)</script>', html)
+    payload = json.loads(gzip.decompress(base64.b64decode(encoded.group(1))))
+    assert payload["cmip6"]["license_counts"] == {"unknown": 1}
+
+
 def test_build_map_rejects_mismatched_stage1_snapshot(tmp_path):
     snapshot = _map_snapshot(tmp_path)
     (snapshot / "raw" / "nsrdb-phoenix.body").write_text("{}", encoding="utf-8")

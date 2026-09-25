@@ -1,5 +1,6 @@
+<meta charset="utf-8">
 <div id="openepw-stage1-map">
-  <h2>OpenEPW availability evidence · 24 Sep 2026 snapshot</h2>
+  <h2>OpenEPW availability evidence · pinned Stage 1 snapshots</h2>
   <div class="viz-controls" aria-label="Map filters">
     <label class="form-label">Product or source
       <select class="form-select" id="oepw-source">
@@ -12,7 +13,7 @@
         <option value="openmeteo-land">Open-Meteo ERA5-Land documented land extent</option>
         <option value="cds-era5">CDS ERA5 documented bbox</option>
         <option value="cds-land">CDS ERA5-Land documented bbox</option>
-        <option value="cmip6">CMIP6 catalog, spatial detail unknown</option>
+        <option value="cmip6">CMIP6 catalog and model-license scope</option>
       </select>
     </label>
     <label class="form-label" id="oepw-year-start-wrap">Actual year from
@@ -56,6 +57,14 @@
         <option value="2085-2094">2085–2094</option>
       </select>
     </label>
+    <label class="form-label" id="oepw-cmip-scenario-wrap" hidden>CMIP6 scenario
+      <select class="form-select" id="oepw-cmip-scenario">
+        <option value="ssp126">SSP126</option>
+        <option value="ssp245">SSP245</option>
+        <option value="ssp370">SSP370</option>
+        <option value="ssp585">SSP585</option>
+      </select>
+    </label>
     <label class="form-label" id="oepw-native-wrap" hidden>Native product ID
       <select class="form-select" id="oepw-native">
         <option value="tmy">TMY</option><option value="tdy">TDY</option><option value="tgy">TGY</option>
@@ -67,7 +76,18 @@
     </label>
   </div>
   <div id="oepw-status" aria-live="polite" class="text-small"></div>
-  <canvas id="oepw-map" role="img" aria-label="Map of the selected source's catalog-listed locations or documented extent"></canvas>
+  <div id="oepw-map-wrap">
+    <canvas id="oepw-map" role="img" aria-label="Map of the selected source's catalog-listed locations or documented extent"></canvas>
+    <div class="card" id="oepw-cmip-overlay" hidden>
+      <div class="text-small" id="oepw-cmip-heading"></div>
+      <div id="oepw-cmip-count"></div>
+      <div class="text-small" id="oepw-cmip-models"></div>
+      <div class="text-small" id="oepw-cmip-bar-label">Effective model licenses</div>
+      <div id="oepw-cmip-bar" role="img"></div>
+      <div id="oepw-cmip-keys" class="text-small"></div>
+      <div class="text-small" id="oepw-cmip-limit">Geographic footprint and requested climate windows unverified</div>
+    </div>
+  </div>
   <figure id="oepw-pvgis-coverage" hidden>
     <a href="https://joint-research-centre.ec.europa.eu/sites/default/files/2024-09/PVGIS_53_DB_Coverage.png" target="_blank" rel="noopener noreferrer">
       <img src="https://joint-research-centre.ec.europa.eu/sites/default/files/2024-09/PVGIS_53_DB_Coverage.png" width="5615" height="2119" loading="lazy" alt="JRC PVGIS 5.3 map of irradiance sources: SARAH3 in green, ERA5LP in yellow, with a white coastal buffer.">
@@ -81,6 +101,11 @@
     <a href="https://registry.opendata.aws/nrel-pds-nsrdb/" target="_blank" rel="noopener noreferrer">public collection</a>
     (CC BY 3.0 US).
   </div>
+  <div id="oepw-cmip-credit" class="text-small" hidden>
+    Sources: <a href="https://pangeo-data.github.io/pangeo-cmip6-cloud/" target="_blank" rel="noopener noreferrer">Pangeo CMIP6 catalog</a> ·
+    <a href="https://github.com/WCRP-CMIP/CMIP6_CVs/blob/main/CMIP6_source_id.json" target="_blank" rel="noopener noreferrer">WCRP model-license registry</a>.
+    Only derived CMIP6 counts are embedded.
+  </div>
   <div class="card" id="oepw-detail" aria-live="polite" hidden></div>
   <div class="sr-only" id="oepw-accessible-summary"></div>
 </div>
@@ -89,17 +114,36 @@
 <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/topojson-client@3.1.0/dist/topojson-client.min.js"></script>
 <style>
-  #openepw-stage1-map { width: 100%; color: var(--foreground); }
+  #openepw-stage1-map { width: 100%; color: var(--foreground, #111827); font-family: system-ui, sans-serif; }
   #openepw-stage1-map [hidden] { display: none !important; }
+  #openepw-stage1-map .sr-only { position: absolute; width: 1px; height: 1px;
+    padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0);
+    white-space: nowrap; border: 0; }
   #openepw-stage1-map h2 { margin: 0 0 10px; }
   #openepw-stage1-map .viz-controls { margin-bottom: 8px; }
   #openepw-stage1-map .form-label { min-width: 120px; }
-  #openepw-stage1-map #oepw-status { min-height: 20px; margin: 6px 0; color: var(--foreground); }
-  #openepw-stage1-map #oepw-map { display: block; width: 100%; height: 430px; border: 1px solid var(--border); touch-action: none; }
+  #openepw-stage1-map #oepw-status { min-height: 20px; margin: 6px 0; color: var(--foreground, #111827); }
+  #openepw-stage1-map #oepw-map-wrap { position: relative; }
+  #openepw-stage1-map #oepw-map { display: block; width: 100%; height: 430px; border: 1px solid var(--border, #cbd5e1); touch-action: none; }
+  #openepw-stage1-map #oepw-cmip-overlay { position: absolute; top: 12px; left: 12px;
+    width: min(320px, calc(100% - 24px)); box-sizing: border-box; padding: 12px;
+    background: var(--card, #fff); color: var(--card-foreground, #111827);
+    border: 1px solid var(--border, #cbd5e1); border-radius: 8px;
+    box-shadow: 0 3px 14px rgb(0 0 0 / 12%); pointer-events: none; }
+  #openepw-stage1-map #oepw-cmip-count { font-size: 1.55em; font-weight: 650; line-height: 1.2; margin: 5px 0; }
+  #openepw-stage1-map #oepw-cmip-bar-label { margin-top: 11px; }
+  #openepw-stage1-map #oepw-cmip-bar { display: flex; height: 10px; margin: 12px 0 7px;
+    background: var(--muted, #e5e7eb); overflow: hidden; }
+  #openepw-stage1-map #oepw-cmip-bar span { height: 100%; display: block; }
+  #openepw-stage1-map #oepw-cmip-keys { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+  #openepw-stage1-map #oepw-cmip-keys span { white-space: nowrap; }
+  #openepw-stage1-map #oepw-cmip-keys i { display: inline-block; width: 8px; height: 8px;
+    margin-right: 4px; vertical-align: baseline; }
+  #openepw-stage1-map #oepw-cmip-limit { margin-top: 12px; }
   #openepw-stage1-map #oepw-pvgis-coverage { margin: 10px 0; }
   #openepw-stage1-map #oepw-pvgis-coverage img { display: block; width: 100%; height: auto; background: #fff; border: 1px solid var(--border); }
   #openepw-stage1-map #oepw-pvgis-coverage figcaption { margin-top: 5px; color: var(--muted-foreground); font-size: 0.9em; }
-  #openepw-stage1-map #oepw-legend { margin-top: 7px; color: var(--muted-foreground); }
+  #openepw-stage1-map #oepw-legend { margin-top: 7px; color: var(--muted-foreground, #4b5563); }
   #openepw-stage1-map #oepw-detail { margin-top: 10px; }
   @media (max-width: 520px) { #openepw-stage1-map #oepw-map { height: 340px; } }
 </style>
@@ -110,6 +154,7 @@
   const source = $('oepw-source'), start = $('oepw-year-start'), end = $('oepw-year-end');
   const period = $('oepw-period'), family = $('oepw-family'), scenario = $('oepw-scenario');
   const windowChoice = $('oepw-window'), native = $('oepw-native');
+  const cmipScenario = $('oepw-cmip-scenario'), cmipOverlay = $('oepw-cmip-overlay');
   const status = $('oepw-status'), legend = $('oepw-legend'), detail = $('oepw-detail');
   const canvas = $('oepw-map'), context = canvas.getContext('2d');
   const topology = JSON.parse(document.getElementById('oepw-world-data').textContent);
@@ -128,11 +173,14 @@
   const saved = window.openai?.widgetState?.modelContent || {};
   const state = {source:saved.source || 'nsrdb-published', start:saved.start || 2024, end:saved.end || 2024,
     period:saved.period || 'all', family:saved.family || 'all', scenario:saved.scenario || 'rcp45',
-    window:saved.window || '2045-2054', native:saved.native || 'tdy-2023'};
+    window:saved.window || '2045-2054', native:saved.native || 'tdy-2023',
+    cmipScenario:saved.cmipScenario || 'ssp245'};
   source.value = [...source.options].some(option => option.value === state.source) ? state.source : 'nsrdb-published';
   start.value = state.start; end.value = state.end;
   period.value = state.period; family.value = state.family; scenario.value = state.scenario;
   windowChoice.value = state.window; native.value = state.native;
+  cmipScenario.value = [...cmipScenario.options].some(option => option.value === state.cmipScenario)
+    ? state.cmipScenario : 'ssp245';
   let projection, transform = d3.zoomIdentity, visible = [], projected = [];
   let coverage = {full:[],partial:[],step:0.25,meta:null}, projectedCoverage = [];
   let width = 700, height = 430;
@@ -173,7 +221,7 @@
     if (!window.openai?.setWidgetState) return;
     window.openai.setWidgetState({modelContent:{source:source.value,start:Number(start.value),end:Number(end.value),
       period:period.value,family:family.value,scenario:scenario.value,window:windowChoice.value,
-      native:native.value},privateContent:null}).catch(()=>{});
+      native:native.value,cmipScenario:cmipScenario.value},privateContent:null}).catch(()=>{});
   }
   function controlVisibility() {
     const actual = ['noaa','openmeteo-era5','openmeteo-land','cds-era5','cds-land'].includes(source.value);
@@ -182,9 +230,12 @@
     $('oepw-year-start-wrap').hidden = $('oepw-year-end-wrap').hidden = !actual;
     $('oepw-period-wrap').hidden = $('oepw-family-wrap').hidden = !published;
     $('oepw-scenario-wrap').hidden = $('oepw-window-wrap').hidden = !future;
+    $('oepw-cmip-scenario-wrap').hidden = source.value !== 'cmip6';
     $('oepw-native-wrap').hidden = source.value !== 'nsrdb-published';
     $('oepw-nsrdb-credit').hidden = !source.value.startsWith('nsrdb-');
+    $('oepw-cmip-credit').hidden = source.value !== 'cmip6';
     canvas.hidden = false;
+    cmipOverlay.hidden = source.value !== 'cmip6';
     $('oepw-pvgis-coverage').hidden = source.value !== 'pvgis';
   }
   function selectNsrdbMasks(keys) {
@@ -237,8 +288,19 @@
       return ['PVGIS v5_3 TMY: approximate JRC SARAH3 land extent and one exact London confirmation.',
         'Blue polygon: approximate SARAH3 irradiance-source region, clipped to land; white circle: saved London probe. Compare with the JRC figure below. Neither layer verifies TMY eligibility at arbitrary coordinates. JRC lists 2005–2023 source data, not actual-year outputs.'];
     }
-    if (key === 'cmip6') return ['636 coherent historical/scenario seven-variable catalog combinations.',
-      'Complete climate-window coordinates, per-model licenses and a verified geographic map layer remain unknown.'];
+    if (key === 'cmip6') {
+      const selected = payload.cmip6.scenarios[cmipScenario.value];
+      if (!payload.cmip6.catalog_sha256) return ['CMIP6 catalog evidence unavailable.',
+        'No catalog or geographic footprint can be shown from these local snapshots.'];
+      const licenseNote = payload.cmip6.registry_sha256
+        ? 'Effective licenses screened by the saved WCRP model registry.'
+        : 'Model-license registry unavailable; license status is unknown.';
+      const overall = payload.cmip6.license_counts;
+      const dated = payload.cmip6.catalog_last_modified
+        ? `Catalog last modified ${payload.cmip6.catalog_last_modified.slice(5,16)}.` : '';
+      return [`CMIP6 ${cmipScenario.value.toUpperCase()}: ${selected.total.toLocaleString()} coherent catalog combinations across ${selected.models} models.`,
+        `Saved Pangeo catalog · ${payload.cmip6.total.toLocaleString()} combinations across all four SSP scenarios (${overall['CC BY 4.0'] || 0} CC BY 4.0, ${overall['CC0 1.0'] || 0} CC0 1.0, ${overall.unknown || 0} unknown). ${dated} ${licenseNote} Geographic footprint and requested climate windows have not been validated.`];
+    }
     const cds = key.startsWith('cds'), land = key.endsWith('land');
     const first = land ? 1950 : 1940;
     if (!years || years[0] < first || years[1] >= 2026) return [
@@ -265,7 +327,8 @@
       context.globalAlpha = 0.09; context.fillStyle = paint.mark; context.fillRect(0,0,width,height); context.globalAlpha = 1;
     }
     context.beginPath(); d3.geoPath(projection,context)(countries);
-    context.fillStyle = ['openmeteo-land','cds-land'].includes(key) && status.textContent.startsWith('Documented') ? paint.mark : paint.land;
+    context.fillStyle = ['openmeteo-land','cds-land'].includes(key) && status.textContent.startsWith('Documented')
+      ? paint.mark : key==='cmip6' ? (paint.land || '#cbd5e1') : paint.land;
     context.globalAlpha = ['openmeteo-land','cds-land'].includes(key) && status.textContent.startsWith('Documented') ? 0.22 : 1;
     context.fill(); context.globalAlpha = 1;
     if (key==='pvgis') {
@@ -330,12 +393,41 @@
     context.globalAlpha = 1;
     context.restore();
   }
+  function updateCmipOverlay() {
+    if (source.value !== 'cmip6') return;
+    const data = payload.cmip6.scenarios[cmipScenario.value];
+    $('oepw-cmip-heading').textContent = `CMIP6 · ${cmipScenario.value.toUpperCase()}`;
+    $('oepw-cmip-count').textContent = `${data.total.toLocaleString()} combinations`;
+    $('oepw-cmip-models').textContent = `${data.models} models · ${payload.cmip6.total.toLocaleString()} combinations across all SSPs`;
+    const labels = [['CC BY 4.0','--viz-series-1','#2563eb'],['CC0 1.0','--viz-series-2','#d97706'],
+      ['CC BY-SA 4.0','--viz-series-3','#7c3aed'],['unknown','--muted-foreground','#6b7280']];
+    const bar = $('oepw-cmip-bar'), keys = $('oepw-cmip-keys');
+    bar.replaceChildren(); keys.replaceChildren();
+    for (const [label,color,fallback] of labels) {
+      const count = data.license_counts[label] || 0;
+      if (!count) continue;
+      const segment = document.createElement('span');
+      segment.style.width = `${100*count/data.total}%`;
+      segment.style.background = `var(${color}, ${fallback})`;
+      bar.appendChild(segment);
+      const item = document.createElement('span'), swatch = document.createElement('i');
+      swatch.style.background = `var(${color}, ${fallback})`;
+      item.append(swatch, `${label}: ${count}`);
+      keys.appendChild(item);
+    }
+    bar.setAttribute('aria-label', `Effective model-license screen: ${labels.map(([label]) =>
+      `${label} ${data.license_counts[label] || 0}`).join(', ')}`);
+  }
   function update(persist=true) {
     controlVisibility();
     const [line,note] = selectData();
     status.textContent = line;
     legend.textContent = note;
     $('oepw-accessible-summary').textContent = line + ' ' + note;
+    canvas.setAttribute('aria-label', source.value === 'cmip6'
+      ? 'Neutral world map: CMIP6 geographic coverage is unverified; license counts appear in the overlay.'
+      : "Map of the selected source's catalog-listed locations or documented extent");
+    updateCmipOverlay();
     detail.hidden = true;
     if (source.value === 'pvgis') {
       detail.textContent = 'Exact saved TMY probe: London (51.507°N, 0.128°W). Its response identifies SARAH3 irradiance and ERA5 meteorology. The blue land polygon above approximates JRC SARAH3 source coverage; compare it with the original figure below.';
@@ -375,7 +467,7 @@
     if (key==='pvgis') text += ' · selected London TMY probe';
     detail.textContent=text; detail.hidden=false;
   });
-  for (const input of [source,start,end,period,family,scenario,windowChoice,native]) input.addEventListener('change', () => {
+  for (const input of [source,start,end,period,family,scenario,windowChoice,native,cmipScenario]) input.addEventListener('change', () => {
     if (input===source) {transform=d3.zoomIdentity;d3.select(canvas).call(zoom.transform,d3.zoomIdentity);}
     update();
   });
@@ -384,7 +476,9 @@
     if (!next || !next.source) return;
     source.value = [...source.options].some(option => option.value === next.source) ? next.source : 'nsrdb-published';
     for (const [input,key] of [[start,'start'],[end,'end'],[period,'period'],[family,'family'],
-      [scenario,'scenario'],[windowChoice,'window'],[native,'native']]) if (next[key] != null) input.value=next[key];
+      [scenario,'scenario'],[windowChoice,'window'],[native,'native'],[cmipScenario,'cmipScenario']])
+      if (next[key] != null) input.value=next[key];
+    if (!cmipScenario.value) cmipScenario.value='ssp245';
     update(false);
   });
   new ResizeObserver(() => draw()).observe(canvas);

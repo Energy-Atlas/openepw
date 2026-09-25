@@ -7,7 +7,10 @@ import base64
 import gzip
 import hashlib
 import json
+from collections import Counter
 from pathlib import Path
+
+from scripts.mcp_research.analysis import cmip_license_scope
 
 from .nsrdb_coverage import load_coverage_manifest
 
@@ -79,11 +82,58 @@ def _masks(footprints_root: Path) -> dict[str, dict[str, object]]:
     return result
 
 
+def _cmip6_summary(snapshot_root: Path, records: dict, inventories: dict) -> dict:
+    scenarios = ("ssp126", "ssp245", "ssp370", "ssp585")
+    catalog = records.get("cmip6-catalog")
+    combinations = (
+        inventories.get("cmip6-catalog", {}).get("combinations", [])
+        if catalog and catalog.get("snapshot") else []
+    )
+    registry_record = records.get("cmip6-license")
+    registry = {}
+    if registry_record and registry_record.get("snapshot"):
+        raw = (snapshot_root / registry_record["snapshot"]).read_bytes()
+        try:
+            registry = json.loads(raw).get("source_id", {})
+        except (ValueError, AttributeError):
+            registry = {}
+    scope = cmip_license_scope(
+        combinations,
+        {model: record.get("license_info", {}) for model, record in registry.items()},
+    )
+
+    def summary(rows: list[dict]) -> dict:
+        counts = Counter()
+        for row in rows:
+            model = scope["models"][row["model"]]
+            license_id = model["effective_license"]["id"] if model["gate"] == "allowed" else "unknown"
+            counts[license_id] += 1
+        return {
+            "total": len(rows),
+            "models": len({row["model"] for row in rows}),
+            "license_counts": dict(sorted(counts.items())),
+        }
+
+    return {
+        **summary(combinations),
+        "scenarios": {
+            scenario: summary([row for row in combinations if row["scenario"] == scenario])
+            for scenario in scenarios
+        },
+        "catalog_sha256": catalog.get("sha256") if catalog else None,
+        "catalog_last_modified": catalog.get("headers", {}).get("last-modified") if catalog else None,
+        "registry_sha256": registry_record.get("sha256") if registry else None,
+        "registry_retrieved_at": registry_record.get("finished_at") if registry else None,
+        "spatial_coverage": "unknown",
+        "window_coverage": "unknown",
+    }
+
+
 def build_map(
     snapshot_root: Path, output_root: Path, footprints_root: Path, topology_path: Path
 ) -> Path:
     """Produce ignored local HTML; never download or mutate source snapshots."""
-    _verify_ledger(snapshot_root)
+    records = _verify_ledger(snapshot_root)
     analysis = json.loads((snapshot_root / "analysis.json").read_text(encoding="utf-8"))
     if analysis.get("errors"):
         raise ValueError("Stage 1 analysis contains errors")
@@ -148,6 +198,7 @@ def build_map(
         "onebuilding": onebuilding,
         "oedi": oedi,
         "nsrdb": {"masks": _masks(footprints_root)},
+        "cmip6": _cmip6_summary(snapshot_root, records, inventories),
         "counts": {
             "noaa_history": len(inventories["noaa-history"]["sites"]),
             "noaa_mappable": len(noaa),
