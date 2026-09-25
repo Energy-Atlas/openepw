@@ -233,6 +233,9 @@ class ReferenceAgent:
         if not selected:
             return AgentResult("needs_clarification", "Provide a job ID to resume.")
         self.job_id = selected
+        job = await self._call("job_inspect", job_id=selected)
+        if job.get("plan_hash"):
+            self.plan_hash = job["plan_hash"]
         self._persist()
         if not preface and self.plan_hash:
             detail = await self._call("plan_inspect", plan_hash=self.plan_hash)
@@ -249,12 +252,11 @@ class ReferenceAgent:
                 request = detail.get("request", {})
                 preface = (f"Weather {request.get('product', 'unknown')} "
                            f"{request.get('years') or [request.get('start'), request.get('end')]}.")
-        job: dict[str, Any] = {}
         for _ in range(100):
-            job = await self._call("job_inspect", job_id=selected)
             if job.get("state") not in ("queued", "running"):
                 break
             await asyncio.sleep(0.1)
+            job = await self._call("job_inspect", job_id=selected)
         if job.get("state") in ("queued", "running"):
             return AgentResult("running", f"Job {selected} is still running.",
                                self.plan_hash, selected)
