@@ -5,6 +5,23 @@ baseline EPW/artifact and reports what role that baseline plays. A requested tar
 year represents a climate period, never a literal forecast. Unsupported scenario,
 period, profile or variable combinations fail explicitly.
 
+## Stage 3b baseline and job contract
+
+A trusted Python/CLI path or a bounded REST upload becomes a checksummed local
+baseline artifact. A fetched OpenEPW weather artifact can be supplied by its ID;
+the future plan records that exact output, source manifest and QC artifact.
+External EPW provider identity remains unknown unless verified lineage is linked.
+Planning checks a complete annual sequence and required hourly variables, including
+missing sentinels. An 8,760/8,784-row count alone is insufficient. A gapped NOAA
+output may be a valid Stage 3a artifact and still fail future preflight.
+
+Future plans persist under their hash. A job records each selected member or
+profile output separately, including method, scenario, climate window, source
+lineage and QC. One failed member does not discard verified successful members;
+explicit retry selects only missing outputs. Source results are reused only within
+the active job. Manifests retain `simulation_ready=false` pending independent
+simulation validation.
+
 ## A — CMIP6 monthly morphing
 
 OpenEPW implements Belcher-style shift/stretch from published equations in OpenEPW, using

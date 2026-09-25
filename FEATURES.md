@@ -30,6 +30,8 @@ are recorded separately. Installed source package version: 0.1.0.
 | Weather batch row accounting | MCP Stage 3a implemented, offline tested | Every occurrence/selection/period has a planned, unsupported or unresolved row; final manifests distinguish success, failure and cancellation |
 | Stored weather plans and jobs | MCP Stage 3a implemented, offline tested | Hash references, partial completion, verified restart and explicit retry; job-local verified task reuse |
 | Compact weather export | MCP Stage 3a implemented, offline tested | Explicit local ZIP with complete CSV mapping, one weather member per exact equivalence group, checksum verification; redistribution rights unchanged |
+| Registered future baselines | MCP Stage 3b implemented, offline tested | Uploaded or trusted local EPW and fetched weather artifact IDs; annual/missing-variable preflight, checksum-linked source manifest/QC |
+| Durable future members | MCP Stage 3b implemented, offline tested | Stored future plan hashes, member-level jobs, partial retry and cancellation; monthly morph and hourly climate profile remain distinct |
 | Local availability map | Research artifact, outside installed package | [PVGIS source-region approximation, NSRDB published grid, CMIP6 license counts](docs/validation/README.md); layers have different evidence bases and do not certify request eligibility |
 | Packaging/CI | Wheel/sdist built; local installation verified | Cross-OS runners configured; see actual run evidence |
 

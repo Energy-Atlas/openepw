@@ -61,6 +61,11 @@ semantic EPW filename. An occurrence index keeps even identical requested point
 entries distinct. Legacy persisted plans without output IDs retain their old hashes
 and use filenames as their internal item keys.
 
+Future plans use the same stored hash references. New plans carry an optional
+`BaselineRef` with the checksummed EPW artifact, origin, input QC and verified
+manifest/QC links when the baseline is a fetched weather output. Legacy future
+plans without that field retain their hashes and remain readable.
+
 ## Weather semantics
 
 WeatherDataset stores a pandas frame indexed by timezone-aware UTC **interval ends**,
@@ -144,6 +149,11 @@ source locations, units, licenses and extracted-input checksums accompany output
 Monthly morphing is an independent shift/stretch implementation. Hourly archive
 selection uses bounded ZIP64 ranges, ETags, CRC and decompression limits to read
 whole WRF trajectories. See [method contract](docs/methods/future-weather.md).
+Both methods require a complete annual baseline with essential variables;
+EPW syntax and row count alone do not pass preflight. User uploads and trusted
+local paths register checksummed artifacts, while fetched EPWs retain their
+source manifest and QC identity. A future job persists each selected output
+separately and reuses shared climate results only within the job.
 
 ## Artifacts and jobs
 
@@ -151,6 +161,7 @@ whole WRF trajectories. See [method contract](docs/methods/future-weather.md).
 data-root/
   jobs.sqlite3
   artifacts/<opaque-id>.json
+  plans/<plan-hash>.json
   cache/{raw-v2,cmip6,ranges}/...
   jobs/<bundle-id>/{request.json,plan.json,manifest.json,qc.json,*.epw}
 ```
@@ -178,9 +189,10 @@ REST: POST `/v1/geocode`, `/v1/availability`, `/v1/weather/discover`, `/v1/weath
 `/v1/weather/jobs`, `/v1/future/plan`, `/v1/future/jobs`, `/v1/artifacts`,
 `/v1/jobs/{id}/cancel`, `/v1/jobs/{id}/retry`, `/v1/jobs/{id}/export/compact`;
 GET `/v1/jobs/{id}`, `/v1/jobs/{id}/artifacts`, `/v1/artifacts/{id}`, `/health`.
-Weather jobs accept an inline plan or stored plan hash plus optional idempotency key;
-future jobs retain inline plans. CLI `execute` accepts a plan file or stored hash,
-and `export` takes a finished weather job ID.
+Weather and future jobs accept an inline plan or stored plan hash plus optional
+idempotency key. CLI `execute` accepts a plan file or stored hash; `future-plan`
+persists a future plan, `register-baseline` registers a trusted local EPW, and
+`export` takes a finished weather job ID.
 Uploads accept bounded EPW files, never arbitrary server paths. Remote REST requires
 a runtime bearer token; default binding is loopback. Request validation does not
 echo potentially secret inputs.
