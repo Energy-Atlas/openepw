@@ -325,7 +325,7 @@ def _map_snapshot(tmp_path):
     return root
 
 
-def test_build_map_embeds_exact_nsrdb_evidence_without_credentials(tmp_path):
+def test_build_map_uses_published_nsrdb_grid_without_point_probes(tmp_path):
     snapshot = _map_snapshot(tmp_path)
     footprint_root = tmp_path / "footprints" / TMY_ID / "tdy-2023"
     footprint_root.mkdir(parents=True)
@@ -339,12 +339,14 @@ def test_build_map_embeds_exact_nsrdb_evidence_without_credentials(tmp_path):
     assert encoded
     assert int.from_bytes(base64.b64decode(encoded.group(1))[4:8], "little") == 0
     payload = json.loads(gzip.decompress(base64.b64decode(encoded.group(1))))
-    assert payload["nsrdb"]["points"] == [
-        ["Ithaca", 42440, -76500, ["2023", "2024"], ["tdy-2023"]],
-        ["Phoenix", 33450, -112070, ["2023", "2024"], ["tdy-2023"]],
-    ]
+    assert payload["schema"] == "stage2-map-2"
+    assert "points" not in payload["nsrdb"]
+    assert list(payload["nsrdb"]["masks"]) == ["published:tdy-2023"]
     assert payload["nsrdb"]["masks"]["published:tdy-2023"]["cells"] == [[529, 414]]
     assert payload["nsrdb"]["masks"]["published:tdy-2023"]["basis"] == "source_grid_sites"
+    assert 'value="nsrdb-actual"' not in html
+    assert "nsrdbPoints" not in html
+    assert "Ithaca" not in html and "Phoenix" not in html
     assert "source grid sites" in html.lower()
     assert "td y" not in html.lower()
     assert "https://developer.nlr.gov/docs/solar/nsrdb/" in html

@@ -7,10 +7,9 @@ import base64
 import gzip
 import hashlib
 import json
-import re
 from pathlib import Path
 
-from .nsrdb_coverage import AGGREGATE_ID, TMY_ID, load_coverage_manifest, load_point_catalogs
+from .nsrdb_coverage import load_coverage_manifest
 
 
 def _coordinate(value: float) -> int:
@@ -42,24 +41,6 @@ def _verify_ledger(snapshot_root: Path) -> dict[str, dict[str, object]]:
     return records
 
 
-def _points(snapshot_root: Path, records: dict[str, dict[str, object]]) -> list[list[object]]:
-    catalogs = load_point_catalogs(snapshot_root)
-    result = []
-    for ident, label in (("nsrdb-ithaca", "Ithaca"), ("nsrdb-phoenix", "Phoenix")):
-        row = records[ident]
-        document = json.loads((snapshot_root / str(row["snapshot"])).read_text(encoding="utf-8"))
-        wkt = document["inputs"]["query"]["wkt"]
-        match = re.fullmatch(r"POINT\((-?\d+(?:\.\d+)?) (-?\d+(?:\.\d+)?)\)", wkt)
-        if not match:
-            raise ValueError("unsupported point coordinate")
-        longitude, latitude = map(float, match.groups())
-        result.append([
-            label, _coordinate(latitude), _coordinate(longitude),
-            catalogs[ident].get(AGGREGATE_ID, []), catalogs[ident].get(TMY_ID, []),
-        ])
-    return result
-
-
 def _masks(footprints_root: Path) -> dict[str, dict[str, object]]:
     result = {}
     if not footprints_root.exists():
@@ -67,7 +48,9 @@ def _masks(footprints_root: Path) -> dict[str, dict[str, object]]:
     for manifest_path in footprints_root.rglob("manifest.json"):
         manifest = load_coverage_manifest(manifest_path)
         for entry in manifest.entries:
-            key = ("actual:" if entry.selector_kind == "actual_year" else "published:") + entry.selector
+            if entry.selector_kind != "published_name":
+                continue
+            key = "published:" + entry.selector
             if key in result:
                 raise ValueError("duplicate NSRDB footprint selector")
             meta_path = manifest_path.parent / "meta.bin"
@@ -100,7 +83,7 @@ def build_map(
     snapshot_root: Path, output_root: Path, footprints_root: Path, topology_path: Path
 ) -> Path:
     """Produce ignored local HTML; never download or mutate source snapshots."""
-    records = _verify_ledger(snapshot_root)
+    _verify_ledger(snapshot_root)
     analysis = json.loads((snapshot_root / "analysis.json").read_text(encoding="utf-8"))
     if analysis.get("errors"):
         raise ValueError("Stage 1 analysis contains errors")
@@ -160,11 +143,11 @@ def build_map(
         if latitude is not None and longitude is not None:
             oedi.append([site["id"], _coordinate(latitude), _coordinate(longitude)])
     payload = {
-        "schema": "stage2-map-1",
+        "schema": "stage2-map-2",
         "noaa": noaa,
         "onebuilding": onebuilding,
         "oedi": oedi,
-        "nsrdb": {"points": _points(snapshot_root, records), "masks": _masks(footprints_root)},
+        "nsrdb": {"masks": _masks(footprints_root)},
         "counts": {
             "noaa_history": len(inventories["noaa-history"]["sites"]),
             "noaa_mappable": len(noaa),

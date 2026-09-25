@@ -1,5 +1,12 @@
 # NSRDB Geospatial Availability Implementation Plan
 
+**Owner display revision, 2026-09-24:** The local map now presents only reviewed
+published NSRDB grid evidence. The aggregate actual-year map option and the two
+point markers/payload entries were removed at the owner's request. Tasks below
+describe the original evidence acquisition and review; their point cross-checks
+remain historical source validation, not current map layers. The Stage 1 snapshots
+and the still-unapproved shared Stage 2 service design are unchanged.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task by task after owner review. Steps use checkbox (`- [ ]`) syntax for tracking. This is a focused local map deliverable before shared Stage 2 service implementation.
 
 **Goal:** Show defensible NSRDB product-specific geographic evidence for selected actual years or native TMY/TDY/TGY names in the local availability map.

@@ -6,7 +6,6 @@
         <option value="noaa">NOAA ISD station reports</option>
         <option value="onebuilding">OneBuilding published EPWs</option>
         <option value="oedi">OEDI future PUMA files</option>
-        <option value="nsrdb-actual">NSRDB actual-year grid evidence</option>
         <option value="nsrdb-published">NSRDB published grid evidence</option>
         <option value="pvgis">PVGIS v5_3 TMY source coverage</option>
         <option value="openmeteo-era5">Open-Meteo ERA5 documented extent</option>
@@ -130,7 +129,8 @@
   const state = {source:saved.source || 'nsrdb-published', start:saved.start || 2024, end:saved.end || 2024,
     period:saved.period || 'all', family:saved.family || 'all', scenario:saved.scenario || 'rcp45',
     window:saved.window || '2045-2054', native:saved.native || 'tdy-2023'};
-  source.value = state.source; start.value = state.start; end.value = state.end;
+  source.value = [...source.options].some(option => option.value === state.source) ? state.source : 'nsrdb-published';
+  start.value = state.start; end.value = state.end;
   period.value = state.period; family.value = state.family; scenario.value = state.scenario;
   windowChoice.value = state.window; native.value = state.native;
   let projection, transform = d3.zoomIdentity, visible = [], projected = [];
@@ -141,8 +141,6 @@
   const onebuilding = payload.onebuilding.map(row => ({id:row[0],lat:row[1]/1000,lon:row[2]/1000,
     product:row[3],period:row[4],position:row[5]}));
   const oedi = payload.oedi.map(row => ({id:row[0],lat:row[1]/1000,lon:row[2]/1000}));
-  const nsrdbPoints = payload.nsrdb.points.map(row => ({id:row[0],lat:row[1]/1000,
-    lon:row[2]/1000,years:row[3],names:row[4]}));
   const masks = payload.nsrdb.masks;
   const probes = {pvgis:[{id:'London',lat:51.507,lon:-0.128}]};
   // Coarse lon/lat envelope traced against JRC's PVGIS 5.3 coverage figure; land-clipped below.
@@ -178,7 +176,7 @@
       native:native.value},privateContent:null}).catch(()=>{});
   }
   function controlVisibility() {
-    const actual = ['noaa','nsrdb-actual','openmeteo-era5','openmeteo-land','cds-era5','cds-land'].includes(source.value);
+    const actual = ['noaa','openmeteo-era5','openmeteo-land','cds-era5','cds-land'].includes(source.value);
     const published = source.value === 'onebuilding';
     const future = source.value === 'oedi';
     $('oepw-year-start-wrap').hidden = $('oepw-year-end-wrap').hidden = !actual;
@@ -227,22 +225,12 @@
       return [`${visible.length.toLocaleString()} PUMA sites · ${scenario.value.toUpperCase()} · ${windowChoice.value}.`,
         'Both scenario directories list all 20 expected site-years; file membership is not weather-content validation.'];
     }
-    if (key === 'nsrdb-actual') {
-      if (!years || years[0]<1998 || years[1]>2025) return ['The two point catalogs list actual years 1998–2025; this interval is outside that snapshot.', ''];
-      const selected = Array.from({length:years[1]-years[0]+1},(_,index)=>String(years[0]+index));
-      visible = nsrdbPoints.filter(point => selected.every(year => point.years.includes(year)));
-      coverage = selectNsrdbMasks(selected.map(year => 'actual:'+year));
-      const count = coverage.full.length, partial = coverage.partial.length;
-      return [`NSRDB aggregate v4, actual ${years[0]}–${years[1]}: ${count.toLocaleString()} all-year grid display cells${partial?` · ${partial.toLocaleString()} some-year cells`:''}; ${visible.length} catalog-confirmed points.`,
-        coverage.sources.length ? `NLR source grid sites; ${coverage.step}° display cells. ${coverage.missing} selected year(s) lack grid metadata. Sources: ${coverage.sources.map(item => `${item.selector} · ${item.source_file_id} · internal ${item.source_version} · evidence ${item.meta_sha256.slice(0,12)}`).join('; ')}. Some-year cells are outlined with a diagonal. Grid presence is not API eligibility or complete weather.` :
-        'NLR documents GOES east/west coverage, but an exact regional layer for this selected interval is unresolved. Ithaca/Phoenix point catalogs are separate confirmations.'];
-    }
     if (key === 'nsrdb-published') {
-      visible = nsrdbPoints.filter(point => point.names.includes(native.value));
       coverage = selectNsrdbMasks(['published:'+native.value]);
-      return [`NSRDB ${native.value.toUpperCase()} published product: ${coverage.full.length.toLocaleString()} occupied grid display cells; ${visible.length} catalog-confirmed points.`,
-        coverage.meta ? `NLR ${coverage.meta.coordinate_count.toLocaleString()} source grid sites summarized at ${coverage.step}°. File ${coverage.meta.source_file_id}; internal model ${coverage.meta.source_version}; modified ${coverage.meta.source_modified_at}; retrieved ${coverage.meta.retrieved_at}; evidence ${coverage.meta.meta_sha256.slice(0,12)}. Product suffix is not actual-year coverage; grid presence is not API eligibility or weather completeness.` :
-        'Exact grid extent for this published name is unresolved. NLR documents the GOES-derived family; Ithaca/Phoenix are only point catalog confirmations. Product suffix is not actual-year coverage.'];
+      if (!coverage.meta) return [`NSRDB ${native.value.toUpperCase()} published product: source-grid extent unknown.`,
+        'No reviewed source-grid metadata for this published name. No point probes are displayed as a substitute. Product suffix is not actual-year coverage.'];
+      return [`NSRDB ${native.value.toUpperCase()} published product: ${coverage.full.length.toLocaleString()} occupied source-grid display cells.`,
+        `NLR ${coverage.meta.coordinate_count.toLocaleString()} source grid sites summarized at ${coverage.step}°. File ${coverage.meta.source_file_id}; internal model ${coverage.meta.source_version}; modified ${coverage.meta.source_modified_at}; retrieved ${coverage.meta.retrieved_at}; evidence ${coverage.meta.meta_sha256.slice(0,12)}. Product suffix is not actual-year coverage; grid presence is not API eligibility or weather completeness.`];
     }
     if (key === 'pvgis') {
       visible = probes.pvgis;
@@ -384,8 +372,6 @@
     if (key==='noaa') text += ` · listed reports in each selected year; operating interval ${nearest.begin}–${nearest.finish}`;
     if (key==='onebuilding') text += ` · ${nearest.product}${nearest.period?` · reference ${nearest.period}`:''} · ${nearest.position}`;
     if (key==='oedi') text += ` · ${scenario.value.toUpperCase()} ${windowChoice.value} directory member listed`;
-    if (key==='nsrdb-actual') text += ' · aggregate v4 point catalog';
-    if (key==='nsrdb-published') text += ` · ${native.value.toUpperCase()} native product listed`;
     if (key==='pvgis') text += ' · selected London TMY probe';
     detail.textContent=text; detail.hidden=false;
   });
@@ -396,7 +382,8 @@
   window.addEventListener('openai:set_globals', event => {
     const next=event.detail?.globals?.widgetState?.modelContent;
     if (!next || !next.source) return;
-    for (const [input,key] of [[source,'source'],[start,'start'],[end,'end'],[period,'period'],[family,'family'],
+    source.value = [...source.options].some(option => option.value === next.source) ? next.source : 'nsrdb-published';
+    for (const [input,key] of [[start,'start'],[end,'end'],[period,'period'],[family,'family'],
       [scenario,'scenario'],[windowChoice,'window'],[native,'native']]) if (next[key] != null) input.value=next[key];
     update(false);
   });

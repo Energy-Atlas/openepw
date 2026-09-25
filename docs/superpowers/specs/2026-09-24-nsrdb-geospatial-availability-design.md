@@ -1,5 +1,11 @@
 # NSRDB geospatial availability design
 
+**Local-map display revision, 2026-09-24:** The owner chose a published-grid-only
+NSRDB map. The aggregate actual-year option and two point markers are no longer
+rendered or embedded in its payload. Their accepted Stage 1 records and the
+point-to-grid source cross-check remain intact. The original proposed service
+semantics below have not received Stage 2 implementation approval.
+
 Status: proposed amendment to the [MCP Stage 2 availability design](2026-09-24-mcp-stage-2-availability-design.md). Owner review is required before implementation. This work uses the validated, ignored Stage 1 snapshots; it does not restart Stage 1 collection.
 
 ## Purpose and present evidence
