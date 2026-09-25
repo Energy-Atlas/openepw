@@ -678,12 +678,14 @@ class WeatherService:
 
     def execute(self, plan: WeatherPlan, *, cancelled=lambda: False, progress=lambda *_: None,
                 task_results: dict[str, ProviderResult] | None = None,
-                cacheable_task_ids: set[str] | None = None):
+                cacheable_task_ids: set[str] | None = None,
+                future_results: dict[str, Any] | None = None):
         plan = WeatherPlan.model_validate_json(plan.model_dump_json())
         if not plan.tasks or not plan.outputs:
             raise OpenEPWError("NO_EXECUTABLE_OUTPUTS", "Cannot execute a plan without outputs")
         if plan.kind == "future":
-            return self._execute_future(plan, cancelled=cancelled, progress=progress)
+            return self._execute_future(plan, cancelled=cancelled, progress=progress,
+                                        source_results=future_results)
         for task in plan.tasks:
             expected = digest(
                 {
@@ -857,6 +859,30 @@ class WeatherService:
                                   for row in manifest["batch_rows"]),
                 "emitted_artifacts": len(manifest_outputs),
             }
+        if plan.kind == "future":
+            produced = {entry.get("output_id"): entry for entry in manifest_outputs}
+            cancelled = any(issue.code == "CANCELLED" for issue in issues)
+            manifest["future_rows"] = []
+            for output in plan.outputs:
+                identity = output.id or output.name
+                entry = produced.get(identity)
+                related = [issue.code for issue in issues if issue.task_id == identity]
+                row = {
+                    "output_id": output.id,
+                    "index": output.index,
+                    "method": plan.request.method,
+                    "scenario": plan.request.climate_scenario,
+                    "reference_period": plan.request.reference_period,
+                    "climate_period": plan.request.climate_period,
+                    "baseline_artifact_id": plan.request.baseline,
+                    "status": "succeeded" if entry else
+                              ("cancelled" if cancelled and not related else "failed"),
+                    "issue_codes": list(dict.fromkeys(related)),
+                }
+                if entry:
+                    row["artifact_id"] = entry["artifact_id"]
+                    row["qc_artifact_id"] = qc_ref.id
+                manifest["future_rows"].append(row)
         manifest_ref = self.artifacts.json(bundle_id, "manifest.json", manifest, "manifest")
         return ArtifactBundle(
             bundle_id=bundle_id,

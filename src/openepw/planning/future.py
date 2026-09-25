@@ -237,7 +237,7 @@ def plan_future(service, request: FutureRequest):
     )
 
 
-def execute_future(service, plan, *, cancelled, progress):
+def execute_future(service, plan, *, cancelled, progress, source_results=None):
     from ..epw.writer import epw_bytes
     from ..generation.cmip6 import CMIP6Backend
     from ..generation.morph import MonthlySignal, morph
@@ -286,43 +286,58 @@ def execute_future(service, plan, *, cancelled, progress):
             raise OpenEPWError("PLAN_STALE", "Baseline QC changed")
     if cancelled():
         raise OpenEPWError("CANCELLED", "Future execution cancelled")
-    if request.method == "morph":
-        if request.signals:
-            sig_ref, sig_path = service.artifacts.resolve(request.signals)
-            if sig_ref.sha256 != params["signals_sha256"]:
-                raise OpenEPWError("PLAN_STALE", "Signals changed since planning")
-            signals = [MonthlySignal.model_validate(s) for s in json.loads(sig_path.read_bytes())]
-            if (
-                not signals
-                or any(
-                    s.scenario != request.climate_scenario
-                    or s.reference_period != request.reference_period
-                    or s.climate_period != request.climate_period
-                    or (request.models and s.model not in request.models)
-                    or (request.members and s.member not in request.members)
-                    or (request.profile == "extreme" and s.profile_year is None)
-                    for s in signals
-                )
-                or (request.profile == "typical" and len(signals) != 1)
-            ):
-                raise OpenEPWError("INVALID_CLIMATE_SIGNAL", "Signals disagree with future request")
-        else:
-            signals = CMIP6Backend(service.http).signals(
-                params["cmip6_pairs"], request, baseline.location
-            )
-        datasets = [morph(baseline, s) for s in signals]
+    source_results = source_results if source_results is not None else {}
+    task_id = plan.tasks[0].id
+    if task_id in source_results:
+        source = source_results[task_id]
+        if isinstance(source, OpenEPWError):
+            raise source
     else:
-        from ..generation.hourly_archive import HourlyArchive
+        try:
+            if request.method == "morph":
+                if request.signals:
+                    sig_ref, sig_path = service.artifacts.resolve(request.signals)
+                    if sig_ref.sha256 != params["signals_sha256"]:
+                        raise OpenEPWError("PLAN_STALE", "Signals changed since planning")
+                    signals = [MonthlySignal.model_validate(s)
+                               for s in json.loads(sig_path.read_bytes())]
+                    if (
+                        not signals
+                        or any(
+                            s.scenario != request.climate_scenario
+                            or s.reference_period != request.reference_period
+                            or s.climate_period != request.climate_period
+                            or (request.models and s.model not in request.models)
+                            or (request.members and s.member not in request.members)
+                            or (request.profile == "extreme" and s.profile_year is None)
+                            for s in signals
+                        )
+                        or (request.profile == "typical" and len(signals) != 1)
+                    ):
+                        raise OpenEPWError("INVALID_CLIMATE_SIGNAL",
+                                           "Signals disagree with future request")
+                else:
+                    signals = CMIP6Backend(service.http).signals(
+                        params["cmip6_pairs"], request, baseline.location)
+                source = ("morph", signals)
+            else:
+                from ..generation.hourly_archive import HourlyArchive
 
-        datasets = HourlyArchive(service.http).generate(request, params, baseline)
-    if any(output.index is None for output in plan.outputs) and len(datasets) != len(plan.outputs):
+                source = ("climate_profile",
+                          HourlyArchive(service.http).generate(request, params, baseline))
+        except OpenEPWError as exc:
+            source_results[task_id] = exc
+            raise
+        source_results[task_id] = source
+    method, members = source
+    if any(output.index is None for output in plan.outputs) and len(members) != len(plan.outputs):
         raise OpenEPWError(
             "INVALID_REQUEST", "Future output count does not match coherent source profiles"
         )
     indices = [
         output.index if output.index is not None else i for i, output in enumerate(plan.outputs)
     ]
-    if len(set(indices)) != len(indices) or any(i >= len(datasets) for i in indices):
+    if len(set(indices)) != len(indices) or any(i >= len(members) for i in indices):
         raise OpenEPWError("INVALID_REQUEST", "Future output index is invalid")
     bundle_id = uuid.uuid4().hex
     weather = []
@@ -330,7 +345,7 @@ def execute_future(service, plan, *, cancelled, progress):
     issues = []
     qc = []
     for output, index in zip(plan.outputs, indices, strict=True):
-        data = datasets[index]
+        identity = output.id or output.name
         if cancelled():
             issues.append(
                 Issue(
@@ -340,32 +355,46 @@ def execute_future(service, plan, *, cancelled, progress):
                 )
             )
             break
-        checks = validate(data, "annual")
-        if any(x.severity == "error" for x in checks):
-            raise OpenEPWError("EPW_CONVERSION_FAILED", "Future output failed structural annual QC")
-        ref = service.artifacts.write(
-            bundle_id,
-            output.name,
-            epw_bytes(data),
-            "weather",
-            "application/vnd.energyplus.epw",
-        )
-        weather.append(ref)
-        manifests.append(
-            {
+        try:
+            data = morph(baseline, members[index]) if method == "morph" else members[index]
+            checks = validate(data, "annual")
+            if any(x.code == "MISSING_CRITICAL_VARIABLE" for x in checks):
+                raise OpenEPWError("MISSING_CRITICAL_VARIABLE",
+                                   "Future output has missing required weather values")
+            if any(x.severity == "error" for x in checks):
+                raise OpenEPWError("EPW_CONVERSION_FAILED",
+                                   "Future output failed structural annual QC")
+            ref = service.artifacts.write(
+                bundle_id, output.name, epw_bytes(data), "weather",
+                "application/vnd.energyplus.epw")
+            weather.append(ref)
+            manifests.append({
                 "artifact_id": ref.id,
                 "output_id": output.id,
+                "index": output.index,
                 "requested_locations": [output.requested_location_id],
                 "lineage": {k: v.model_dump(mode="json") for k, v in data.lineage.items()},
                 "metadata": data.metadata,
+                "method": request.method,
+                "model": members[index].model if method == "morph" else None,
+                "member": members[index].member if method == "morph" else None,
+                "baseline_artifact_id": request.baseline,
+                "baseline_origin": plan.baseline_ref.origin if plan.baseline_ref else None,
+                "baseline_manifest_id": (plan.baseline_ref.source_manifest_id
+                                         if plan.baseline_ref else None),
+                "baseline_qc_id": (plan.baseline_ref.source_qc_id
+                                   if plan.baseline_ref else None),
                 "baseline_sha256": params["baseline_sha256"],
                 "profile": request.profile,
                 "climate_period": request.climate_period,
                 "reference_period": request.reference_period,
                 "scenario": request.climate_scenario,
-            }
-        )
-        issues.extend(checks)
-        qc.append({"artifact_id": ref.id, "issues": [x.model_dump() for x in checks]})
-        progress(output.id or output.name, None)
+            })
+            issues.extend(x.model_copy(update={"task_id": identity}) for x in checks)
+            qc.append({"artifact_id": ref.id, "issues": [x.model_dump() for x in checks]})
+            progress(identity, None)
+        except OpenEPWError as exc:
+            issue = exc.issue.model_copy(update={"task_id": identity})
+            issues.append(issue)
+            progress(identity, issue)
     return service._bundle(plan, bundle_id, weather, [], issues, manifests, qc)

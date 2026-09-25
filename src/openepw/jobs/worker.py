@@ -147,8 +147,14 @@ class JobRunner:
             except OpenEPWError:
                 del completed[name]
         outputs = list({(o.id or o.name): o for o in plan.outputs}.values())
-        if plan.kind == "future":
-            outputs = [None]
+        completed_output_ids = set(completed)
+        if plan.kind == "future" and "future" in completed:
+            _, legacy_manifest = self.service.artifacts.resolve(completed["future"].manifest.id)
+            completed_output_ids.update(
+                entry.get("output_id") for entry in json.loads(legacy_manifest.read_text())
+                .get("outputs", []) if entry.get("artifact_id") in
+                {ref.id for ref in completed["future"].weather}
+            )
         pending_tasks = Counter(
             task_id for output in outputs if output is not None and
             (output.id or output.name) not in completed for task_id in output.task_ids
@@ -156,19 +162,20 @@ class JobRunner:
         shared_tasks = {task.id for task in plan.tasks
                         if pending_tasks[task.id] > 1 and not task.source.provisional}
         task_results: dict[str, ProviderResult] = {}
+        future_results: dict[str, object] = {}
         attempted = len(completed)
         for output in outputs:
             if self.store.get(job_id).cancellation_requested:
                 break
-            name = (output.id or output.name) if output else "future"
-            if name in completed:
+            name = output.id or output.name
+            if name in completed_output_ids:
                 continue
             try:
-                execution_plan = subplan(plan, [output]) if output else plan
+                execution_plan = subplan(plan, [output])
                 bundle = self.service.execute(
                     execution_plan, cancelled=lambda: self.store.get(job_id).cancellation_requested,
-                    **({"task_results": task_results, "cacheable_task_ids": shared_tasks}
-                       if output is not None else {}),
+                    **({"future_results": future_results} if plan.kind == "future" else
+                       {"task_results": task_results, "cacheable_task_ids": shared_tasks}),
                 )
                 self.store.complete_item(job_id, name, bundle)
                 completed[name] = bundle
@@ -185,7 +192,7 @@ class JobRunner:
                 )
                 issue = issue.model_copy(update={"task_id": name})
                 job.errors.append(issue)
-            if output is not None:
+            if plan.kind == "weather":
                 for task_id in output.task_ids:
                     pending_tasks[task_id] -= 1
                     if pending_tasks[task_id] <= 0:
