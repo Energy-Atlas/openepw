@@ -197,10 +197,13 @@ Uploads accept bounded EPW files, never arbitrary server paths. Remote REST requ
 a runtime bearer token; default binding is loopback. Request validation does not
 echo potentially secret inputs.
 
-MCP exposes `weather_geocode`, `weather_discover`, `weather_plan`, `weather_fetch`,
-`weather_inspect`, `weather_generate_future` and artifact resources. It calls the
-Python service directly. Stdio and loopback Streamable HTTP are supported; remote
-MCP authentication is deferred rather than exposed without protection.
+MCP exposes bounded guidance, stored weather/future plans, baseline upload,
+job control, artifact inspection/export and checksum-verified resource tools.
+Three v0.1 inline aliases remain for transition. It calls the Python service
+directly; `plan_hash` is the execution handoff. The local path import tool
+requires an explicit allowed root. Stdio and loopback Streamable HTTP are
+supported; remote MCP authentication is deferred rather than exposed without
+protection. See [local MCP contract](docs/mcp/README.md).
 
 MCP availability research tooling lives under `scripts/mcp_research/`, outside the
 installed package. Its bounded collector and offline inventory analysis feed the

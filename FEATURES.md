@@ -26,12 +26,13 @@ are recorded separately. Installed source package version: 0.1.0.
 | MCP availability research | Stage 1 accepted | Bounded inventory investigation and accepted annotations; [findings](docs/validation/mcp-stage-1/README.md) |
 | Shared availability catalog | MCP Stage 2 implemented, offline tested | Explicit local import validates analysis input fingerprints; bundled safe contracts when inventories are absent; immutable generations, sparse years, future membership, stale fallback |
 | Eligibility and recommendations | MCP Stage 2 implemented, offline tested | Per-occurrence reasons and unknowns; supported means retrieval eligible, not weather complete |
-| Availability interfaces | Python, REST and CLI implemented | Existing MCP discovery includes shared facts; final MCP tool design remains Stage 4 |
+| Availability interfaces | Python, REST, CLI and MCP implemented | MCP includes shared evidence and bounded discovery; support is retrieval eligibility |
 | Weather batch row accounting | MCP Stage 3a implemented, offline tested | Every occurrence/selection/period has a planned, unsupported or unresolved row; final manifests distinguish success, failure and cancellation |
 | Stored weather plans and jobs | MCP Stage 3a implemented, offline tested | Hash references, partial completion, verified restart and explicit retry; job-local verified task reuse |
 | Compact weather export | MCP Stage 3a implemented, offline tested | Explicit local ZIP with complete CSV mapping, one weather member per exact equivalence group, checksum verification; redistribution rights unchanged |
 | Registered future baselines | MCP Stage 3b implemented, offline tested | Uploaded or trusted local EPW and fetched weather artifact IDs; annual/missing-variable preflight, checksum-linked source manifest/QC |
 | Durable future members | MCP Stage 3b implemented, offline tested | Stored future plan hashes, member-level jobs, partial retry and cancellation; monthly morph and hourly climate profile remain distinct |
+| Local MCP contract | MCP Stage 4 implemented, offline tested | Real stdio SDK sessions, structured tools, stored plan hashes, bounded baseline upload, verified artifacts/resources and QC; no remote auth rollout |
 | Local availability map | Research artifact, outside installed package | [PVGIS source-region approximation, NSRDB published grid, CMIP6 license counts](docs/validation/README.md); layers have different evidence bases and do not certify request eligibility |
 | Packaging/CI | Wheel/sdist built; local installation verified | Cross-OS runners configured; see actual run evidence |
 

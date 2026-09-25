@@ -21,9 +21,13 @@ catalog option may yield a failed or QC-limited row. The local ZIP does not gran
 redistribution rights for source files. Stage 3b accepts a registered user EPW or
 fetched weather artifact ID as a future baseline only after annual and essential
 variable QC. Fetched provenance requires verified companion manifest/QC artifacts.
-Stage 4 will settle
-the final MCP tool names and conversation shape. The existing `weather_discover`
-tool carries shared assessment facts when a catalog is loaded.
+Stage 4 exposes bounded structured tools and verified artifact resources through
+local MCP. Ordinary results cap at 80 KB; plan/job pages show at most 50 rows,
+uploads at most 5 MB and resource reads at most 10 MB. Hosts may impose smaller
+limits. Local path registration requires an explicit allowed root. The v0.1
+inline tools remain compatibility aliases; new clients submit stored hashes.
+The tested client is the MCP Python SDK stdio client on Windows. Remote MCP
+authentication and other host behavior remain untested.
 
 ## Scientific meaning
 

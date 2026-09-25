@@ -19,6 +19,7 @@ Status: owner approved autonomous Stages 3a–6 implementation on 2026-09-25. Im
 | Interpret a place | `weather_geocode` | Candidate points/areas, ambiguity, source and selected coordinates; never silently choose an ambiguous name |
 | Compare choices | `weather_assess` / `weather_discover` | Per-occurrence supported/unsupported/unknown, alternatives, source health/access, evidence date and reason |
 | Inspect weather or future work | `weather_plan` / `future_plan` | Stored `plan_hash`, selected/alternative choices, batch rows or baseline reference, warnings, estimates |
+| Inspect a stored plan page | `plan_inspect` | Selected candidate and paged output/batch rows by immutable `plan_hash` |
 | Reuse a fetched baseline | `future_plan` with `baseline_artifact_id` | Resolve a recently produced weather artifact ID and its manifest/QC; no re-upload or provider inference |
 | Upload a user EPW | `baseline_upload` | Bounded encoded EPW bytes → checksummed artifact ID and input QC; the client sends bytes directly, never through model context |
 | Register a local file by path | `baseline_register_path` | Bounded allowed local path → the same checksummed user-baseline artifact; explicit path/access error |
@@ -82,5 +83,11 @@ The two required baseline journeys are (1) direct reuse of an OpenEPW weather ar
 - [ ] Commit `fix(docs): record Stage 4 MCP acceptance`.
 
 ## Exit and Stage 5 handoff
+
+Implementation note (2026-09-25): Stage 4 accepted the above names plus
+`plan_inspect`. MCP Python SDK 1.30.0 negotiated protocol `2025-11-25` in the
+real stdio session. The bounded live provider matrix is coordinated with Stage 6
+so the shared US$10 billable cap is tracked once. See
+[Stage 4 acceptance](../../validation/mcp-stage-4-acceptance.md).
 
 Stage 4 exits when a real local MCP client can perform the anchor workflows using inspected plans, durable jobs and checksum-verified artifacts; geography ambiguity, partial batch outcomes, future method limits and NOAA QC remain visible; and setup examples work with the tested SDK version. Stage 5 treats this tool/resource schema as its dependency and does not call private service internals.

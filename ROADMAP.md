@@ -16,7 +16,7 @@ plan were completed. Owner approved Stage 2 on 2026-09-20.
 - [x] MCP, CLI and examples over the canonical service.
 - [x] Final acceptance record, documentation and regression checks.
 
-## Production MCP — Stage 1 accepted; Stages 2–3b implemented; Stages 4–6 approved
+## Production MCP — Stage 1 accepted; Stages 2–4 implemented; Stages 5–6 approved
 
 The current goal is a validated local MCP experience with an agent harnessing
 layer. The staged roadmap ends at the local pilot; team deployment is outside
@@ -49,6 +49,8 @@ on 2026-09-25. Stage 3a weather planning, durable batch jobs, QC mapping and
 compact export have [offline acceptance](docs/validation/mcp-stage-3a-acceptance.md).
 Stage 3b registered baselines, both distinct future methods, and member-level
 jobs have [offline acceptance](docs/validation/mcp-stage-3b-acceptance.md).
+Stage 4 local MCP tools, resource reads and real stdio SDK sessions have
+[offline acceptance](docs/validation/mcp-stage-4-acceptance.md).
 An owner-authorized NOAA follow-up retrieved the larger station/month inventory
 in one additional call; its normalized local index was imported for Stage 2.
 The approved follow-up also resolved both OEDI scenario directories and matched
