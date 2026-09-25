@@ -12,6 +12,7 @@ from typing import Any
 
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
+from pydantic import AnyUrl
 
 
 class MCPToolFailure(Exception):
@@ -84,3 +85,14 @@ class StdioMCPPort:
         result = await self.call(
             "baseline_upload", content_base64=base64.b64encode(body).decode("ascii"))
         return result["artifact_id"]
+
+    async def read_artifact(self, artifact_id: str) -> bytes:
+        """Read a verified MCP artifact resource outside model context."""
+        if self.session is None:
+            raise MCPToolFailure("CLIENT_CLOSED", "MCP client session is closed")
+        try:
+            result = await self.session.read_resource(
+                AnyUrl(f"weather://artifacts/{artifact_id}"))
+            return base64.b64decode(result.contents[0].blob, validate=True)
+        except Exception:
+            raise MCPToolFailure("INVALID_ARTIFACT", "Artifact bytes unavailable") from None

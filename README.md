@@ -96,7 +96,9 @@ uploads and verified artifact downloads. Remote REST requires `OPENEPW_BEARER_TO
 Use one server process per data root. MCP exposes bounded availability, plan,
 job, baseline, artifact and export tools with `weather://artifacts/{id}` resources;
 future tool inputs use uploaded or fetched artifact IDs. The optional
-`openepw-agent` harness runs against these same tools. The [Windows local pilot](docs/validation/mcp-stage-6-acceptance.md)
+`openepw-agent` runs one request at a time; `openepw-chat` provides an interactive
+terminal conversation, reading the existing `.env` and executing plans by default.
+Both harnesses use these same MCP tools. The [Windows local pilot](docs/validation/mcp-stage-6-acceptance.md)
 used the real MCP Python SDK stdio client, synthetic end-to-end journeys and
 bounded Open-Meteo/OneBuilding retrieval. Streamable MCP is loopback-only in
 v0.1. [MCP setup](docs/mcp/README.md) and [agent setup](docs/harness/README.md).

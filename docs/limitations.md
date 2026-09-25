@@ -33,6 +33,12 @@ template explanations and fixed rubric do not establish real-user
 comprehension. Host/model availability and natural-language interpretation
 vary. Local records omit prompts and raw weather; the model API receives
 sanitized task text when explicitly used. LangSmith tracing is disabled.
+The interactive console carries follow-up references only within its current
+process, so a restarted chat needs explicit artifact or job IDs. It may need
+clarification for ambiguous natural language. Its weather intent uses the UTC
+default; it does not expose an explicit fixed standard-time offset. Automatic
+submission can invoke live providers, but catalog eligibility remains only
+permission to try retrieval and emitted EPWs still require QC review.
 The Stage 6 pilot used a scripted agent and MCP Python SDK stdio client on
 Windows. It did not test a human participant, another desktop MCP host,
 Linux/macOS behavior or EnergyPlus consumption. A model initially classified

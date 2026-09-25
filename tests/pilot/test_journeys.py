@@ -65,7 +65,7 @@ async def finished(client, job_id):
         job = await client.call("job_inspect", job_id=job_id)
         if job["state"] not in ("queued", "running"):
             return job
-        await asyncio.sleep(0.1)
+        await asyncio.sleep(0.25)
     raise AssertionError("pilot job did not finish in 30 seconds")
 
 

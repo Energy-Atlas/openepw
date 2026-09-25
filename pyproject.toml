@@ -23,6 +23,7 @@ dev = ["pytest>=8", "ruff>=0.9", "mypy>=1.14", "pandas-stubs>=2.2", "build>=1.2"
 [project.scripts]
 openepw = "openepw.cli.main:main"
 openepw-agent = "openepw.harness.cli:main"
+openepw-chat = "openepw.harness.chat_cli:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

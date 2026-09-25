@@ -29,7 +29,7 @@ src/openepw/
   jobs/{store,worker}.py  SQLite item records and bounded worker threads
   api/app.py             REST adapter
   mcp/server.py          MCP adapter
-  harness/{agent,mcp_client,model,rubric}.py  optional reference MCP agent
+  harness/{agent,chat,chat_cli,mcp_client,model,rubric}.py  optional reference MCP agent and console
   cli/main.py            argparse adapter
 ```
 
@@ -211,6 +211,10 @@ MCP tools through a real stdio client. Its small model adapter extracts typed
 intent; the service retains scientific authority. Safe local run state stores
 opaque plan/job/artifact IDs and tool names, while the billable model ledger
 stores token counts and estimated cost. No hosted tracing is enabled.
+The optional console keeps brief confirmed choices and artifact references in
+memory for follow-up turns, reads the existing ignored `.env` only for the model
+key, and uses the same MCP planning and job operations. It reads or writes EPW
+bytes directly between MCP and local files, outside model context.
 
 MCP availability research tooling lives under `scripts/mcp_research/`, outside the
 installed package. Its bounded collector and offline inventory analysis feed the

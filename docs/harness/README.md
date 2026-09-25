@@ -1,5 +1,42 @@
 # Local reference agent
 
+## Interactive console chat
+
+From the repository root, install the optional harness and start a local chat:
+
+```powershell
+.venv/Scripts/python.exe -m pip install -e ".[harness]"
+.venv/Scripts/openepw-chat.exe --data-root .local/openepw --env-file .env
+```
+
+The console reads `OPENAI_API_KEY` from the existing, ignored `.env` if it is
+not set in the shell. It never writes the file. It opens one local stdio MCP
+session and uses `gpt-6-luna` for intent extraction. Each new weather or future
+plan executes automatically. Provider requests can fetch live data and model
+calls are billable; the harness ledger caps projected model spending at US$8
+per data root. Use a distinct `--data-root` to keep a test session separate.
+
+For example, ask for an actual year at a location, then ask to morph that EPW
+for a named scenario and climate window. A future request also needs a method
+and, for morphing, a reference window. The console carries only confirmed
+choices and artifact IDs between turns. If a weather request produced several
+EPWs, select one with `/baseline <artifact_id>` before referring to “that EPW”.
+Use `/upload <path>` to register a user EPW directly through MCP; its bytes and
+local path stay outside model prompts. `/inspect last` shows artifact QC, and
+`/save last <path>` saves an EPW to a new file without overwriting an existing
+one. Type `/help` for all commands. `/status [job_id]` checks a running job,
+`/retry` retries failed outputs, and `/quit` ends the console while leaving
+jobs and artifacts in the data root. Use `/auto off` to pause subsequent plans
+for review and `/submit` to execute a reviewed plan.
+
+Conversation references last only while the terminal stays open. After restart,
+use an explicit artifact ID or `/status <job_id>`. The reference parser currently
+requests UTC output for weather; use the Python, CLI or MCP interfaces directly
+when a particular fixed standard-time offset is required. Inspect QC before
+using any EPW for simulation: `simulation_ready=false` remains the contract.
+
+## Single-request reference agent
+
 Install the optional `openepw[harness]` extra, then use
 `openepw-agent --data-root <private-data-root> --prompt "<task>"`.
 The command launches the Stage 4 stdio MCP server and consumes only its public

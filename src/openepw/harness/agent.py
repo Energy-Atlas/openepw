@@ -282,10 +282,10 @@ class ReferenceAgent:
                 request = detail.get("request", {})
                 preface = (f"Weather {request.get('product', 'unknown')} "
                            f"{request.get('years') or [request.get('start'), request.get('end')]}.")
-        for _ in range(100):
+        for _ in range(40):
             if job.get("state") not in ("queued", "running"):
                 break
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(0.25)
             job = await self._call("job_inspect", job_id=selected)
         if job.get("state") in ("queued", "running"):
             return AgentResult("running", f"Job {selected} is still running.",
