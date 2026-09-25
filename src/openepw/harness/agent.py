@@ -29,7 +29,8 @@ class AgentIntent(BaseModel):
     baseline_artifact_id: str | None = None
     signals_artifact_id: str | None = None
     method: Literal["morph", "climate_profile"] | None = None
-    climate_scenario: str | None = None
+    climate_scenario: Literal["ssp126", "ssp245", "ssp370", "ssp585",
+                              "rcp45", "rcp85"] | None = None
     climate_period: tuple[int, int] | None = None
     reference_period: tuple[int, int] | None = None
 
@@ -213,6 +214,16 @@ class ReferenceAgent:
         preface = (f"Future {intent.method} for {intent.climate_scenario} "
                    f"{intent.climate_period[0]}–{intent.climate_period[1]}; "
                    f"baseline origin {baseline.get('origin', 'unknown')}.")
+        if plan.get("issues"):
+            codes = [issue.get("code", "UNKNOWN") for issue in plan["issues"][:10]]
+            preface += " Plan issues: " + ", ".join(codes) + "."
+        if plan.get("warnings"):
+            preface += " Plan warnings: " + safe_prompt(
+                "; ".join(plan["warnings"][:5]))[:500] + "."
+        if not plan.get("output_count"):
+            return AgentResult("no_executable_output",
+                               preface + " No executable future output.",
+                               self.plan_hash)
         if not auto_submit:
             return AgentResult("review_required", preface +
                                f" Review plan {self.plan_hash} before submission.",

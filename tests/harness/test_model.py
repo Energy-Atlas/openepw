@@ -29,6 +29,7 @@ def test_bounded_model_parser_redacts_prompt_and_records_only_usage(tmp_path):
     assert intent.years == [2024]
     assert seen[0]["model"] == "gpt-6-luna"
     assert seen[0]["reasoning"]["effort"] == "low"
+    assert seen[0]["text"]["format"]["type"] == "json_schema"
     assert seen[0]["store"] is False
     assert "sk-test-secret" not in seen[0]["input"][1]["content"]
     assert "sk-test-secret" not in ledger.read_text()

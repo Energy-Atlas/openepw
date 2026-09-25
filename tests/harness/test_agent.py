@@ -3,6 +3,7 @@ import json
 
 from openepw.harness.agent import AgentIntent, ReferenceAgent
 from openepw.harness.mcp_client import MCPToolFailure
+from openepw.harness.rubric import Case, RunRecord, score
 
 
 class StubModel:
@@ -82,6 +83,17 @@ def test_agent_submits_exact_plan_hash_and_explains_gap(tmp_path):
     assert "gap" in result.message.lower()
     assert "simulation_ready=false" in result.message
     assert ("weather_submit", {"plan_hash": "a" * 64}) in mcp.calls
+    rubric = score(
+        Case("G", required_tools=("weather_discover", "weather_plan",
+                                  "weather_submit", "job_inspect",
+                                  "artifact_inspect"),
+             required_terms=("gap", "simulation_ready=false")),
+        RunRecord(
+            tools=[name for name, _ in mcp.calls], explanation=result.message,
+            plan_hash=result.plan_hash, submitted_hash="a" * 64,
+            simulation_ready=False),
+    )
+    assert rubric.passed
     saved = record.read_text()
     assert "sk-test-secret" not in saved
     assert "Ithaca 2024" not in saved
@@ -114,3 +126,46 @@ def test_unsupported_future_method_is_blocked_without_substitution():
         "Hourly profile SSP245", auto_submit=True))
     assert result.status == "blocked"
     assert "UNSUPPORTED_SCENARIO" in result.message
+
+
+def test_unprobed_nsrdb_actual_year_stays_unknown():
+    class UnknownMCP(StubMCP):
+        async def call(self, name, **arguments):
+            if name == "weather_discover":
+                self.calls.append((name, arguments))
+                return {"availability": {"options": [
+                    {"eligibility": {"status": "unknown"}}]}}
+            if name == "weather_plan":
+                self.calls.append((name, arguments))
+                return {"plan_hash": "a" * 64, "kind": "weather",
+                        "output_count": 0, "issues": [{"code": "UNVERIFIED_FOOTPRINT"}]}
+            return await super().call(name, **arguments)
+
+    mcp = UnknownMCP()
+    model = StubModel(AgentIntent(kind="weather", lat=40, lon=-105,
+                                  product="historical", years=[2023],
+                                  provider="nsrdb"))
+    result = asyncio.run(ReferenceAgent(mcp, model).run(
+        "NSRDB actual year 2023", auto_submit=True))
+    assert result.status == "no_executable_output"
+    assert "unknown" in result.message.lower()
+    assert not any(name == "weather_submit" for name, _ in mcp.calls)
+
+
+def test_cmip6_license_does_not_hide_unknown_window():
+    class WindowMCP:
+        async def call(self, name, **arguments):
+            assert name == "future_plan"
+            return {"plan_hash": "d" * 64, "kind": "future",
+                    "baseline_ref": {"origin": "user_provided"},
+                    "output_count": 1, "issues": [],
+                    "warnings": ["Model license allowed; climate window unknown"]}
+
+    model = StubModel(AgentIntent(
+        kind="future", baseline_artifact_id="a" * 32, method="morph",
+        climate_scenario="ssp245", climate_period=(2036, 2065),
+        reference_period=(1985, 2014)))
+    result = asyncio.run(ReferenceAgent(WindowMCP(), model).run(
+        "CMIP6 SSP245 future", auto_submit=False))
+    assert result.status == "review_required"
+    assert "climate window unknown" in result.message

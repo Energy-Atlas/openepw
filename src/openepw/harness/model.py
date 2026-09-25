@@ -15,6 +15,55 @@ INPUT_USD_PER_MILLION = 0.10
 OUTPUT_USD_PER_MILLION = 0.50
 
 
+def _nullable(kind: str) -> dict[str, Any]:
+    return {"type": [kind, "null"]}
+
+
+INTENT_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "kind": {"type": "string", "enum": ["weather", "future", "unknown"]},
+        "place": _nullable("string"),
+        "lat": _nullable("number"),
+        "lon": _nullable("number"),
+        "product": {"type": ["string", "null"],
+                    "enum": ["historical", "amy", "tmy", "tmyx", "published", None]},
+        "years": {"type": "array", "items": {"type": "integer"}},
+        "start": _nullable("string"),
+        "end": _nullable("string"),
+        "provider": _nullable("string"),
+        "missing_policy": {"type": "string", "enum": ["warn", "error"]},
+        "baseline_artifact_id": _nullable("string"),
+        "signals_artifact_id": _nullable("string"),
+        "method": {"type": ["string", "null"],
+                   "enum": ["morph", "climate_profile", None]},
+        "climate_scenario": {"type": ["string", "null"],
+                             "enum": ["ssp126", "ssp245", "ssp370", "ssp585",
+                                      "rcp45", "rcp85", None]},
+        "climate_period": {
+            "anyOf": [
+                {"type": "array", "items": {"type": "integer"},
+                 "minItems": 2, "maxItems": 2},
+                {"type": "null"},
+            ]
+        },
+        "reference_period": {
+            "anyOf": [
+                {"type": "array", "items": {"type": "integer"},
+                 "minItems": 2, "maxItems": 2},
+                {"type": "null"},
+            ]
+        },
+    },
+    "required": [
+        "kind", "place", "lat", "lon", "product", "years", "start", "end",
+        "provider", "missing_policy", "baseline_artifact_id", "signals_artifact_id",
+        "method", "climate_scenario", "climate_period", "reference_period",
+    ],
+    "additionalProperties": False,
+}
+
+
 class ModelUnavailable(Exception):
     pass
 
@@ -33,6 +82,7 @@ class OpenAIIntentParser:
         self.ledger_path = Path(ledger_path) if ledger_path else None
         self.max_cost_usd = max_cost_usd
         self.client = client or httpx.Client(timeout=30)
+        self.last_intent: AgentIntent | None = None
         self.usage = {"calls": 0, "input_tokens": 0, "output_tokens": 0,
                       "estimated_usd": 0.0}
         if self.ledger_path and self.ledger_path.is_file():
@@ -48,9 +98,9 @@ class OpenAIIntentParser:
 
     def parse(self, prompt: str) -> AgentIntent:
         prompt = safe_prompt(prompt)
-        # Conservative allowance before every call; the server-side cap is 512 output tokens.
+        # Conservative allowance before every call; the server-side cap includes reasoning.
         projection = ((len(prompt) / 3 + 1500) * INPUT_USD_PER_MILLION +
-                      512 * OUTPUT_USD_PER_MILLION) / 1_000_000
+                      1024 * OUTPUT_USD_PER_MILLION) / 1_000_000
         if self.usage["estimated_usd"] + projection >= self.max_cost_usd:
             raise ModelUnavailable("Projected model usage exceeds the local budget stop")
         if self.usage["calls"] >= 20:
@@ -67,13 +117,17 @@ class OpenAIIntentParser:
                     "method, climate_scenario, climate_period, reference_period, "
                     "and signals_artifact_id only if supplied. Do not invent missing "
                     "values, source availability, coordinates, artifact IDs or climate windows. "
-                    "Output JSON only."
+                    "Use exact enum values. Year windows are arrays [start_year,end_year]. "
+                    "Use null for missing optional fields. Output JSON only."
                 )},
                 {"role": "user", "content": prompt},
             ],
             "reasoning": {"effort": "low"},
-            "text": {"format": {"type": "json_object"}},
-            "max_output_tokens": 512,
+            "text": {"format": {
+                "type": "json_schema", "name": "weather_intent",
+                "strict": True, "schema": INTENT_SCHEMA,
+            }},
+            "max_output_tokens": 1024,
             "store": False,
         }
         try:
@@ -99,11 +153,15 @@ class OpenAIIntentParser:
             self.usage["estimated_usd"] += cost
             self._save()
             if raw.get("status") != "completed":
-                raise ValueError("incomplete")
+                raise ModelUnavailable("Model response was incomplete")
             message = next(item for item in raw["output"] if item.get("type") == "message")
             text = next(item["text"] for item in message["content"]
                         if item.get("type") == "output_text")
             intent = AgentIntent.model_validate_json(text)
-        except (KeyError, StopIteration, ValueError, ValidationError, TypeError):
+        except ValidationError as exc:
+            fields = ",".join(str(error["loc"][0]) for error in exc.errors()[:3])
+            raise ModelUnavailable(f"Model intent fields invalid: {fields}") from None
+        except (KeyError, StopIteration, ValueError, TypeError):
             raise ModelUnavailable("Model returned no valid intent JSON") from None
+        self.last_intent = intent
         return intent
