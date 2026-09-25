@@ -1,8 +1,10 @@
 # MCP Stage 2 Availability and Recommendation Implementation Plan
 
+Status: proposed for owner review, 2026-09-24. Stage 2 implementation is not approved.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:executing-plans` to implement this plan task by task in the repository checkout on `feature/mcp`. Inline execution is the handoff's preferred approach; finish with one independent whole-branch review. Checkboxes track work. Implementation starts only after the owner reviews this plan.
 
-**Goal:** Add a local, evidence-preserving availability catalog and purpose-based recommendations shared by Python, REST and MCP, without repeating MCP Stage 1 collection.
+**Goal:** Add a local, evidence-preserving availability catalog and purpose-based recommendations in the canonical Python service, with each requested occurrence assessed separately, without repeating MCP Stage 1 collection. Stage 4 will settle the final MCP tool contract.
 
 **Architecture:** Immutable SQLite catalog generations and ignored raw metadata files feed source-specific importers. A pure eligibility evaluator and deterministic ranker return typed facts; `WeatherService` owns orchestration and current transport adapters serialize its results. Existing plan, output, artifact and cache identities stay compatible.
 
@@ -21,6 +23,7 @@
 - No full third-party indexes or weather files in git/wheels without source-specific redistribution permission. Synthetic offline fixtures are the default.
 - Use `fix(topic): concise description` commits with configured human authorship. No `codex/` branch, agent trailer, force push, destructive reset or published-history rewrite.
 - Existing v0.1 request/plan hashes and artifact references must round-trip. Do not silently shorten requested periods, switch providers, or collapse output occurrences.
+- Stage 2 reports possible shared station/source candidates for each input occurrence, including provisional identity. Stage 3a owns verified retrieval equivalence, complete batch/output mapping, and new execution-planning rules; Stage 3b owns future generation workflows.
 - Another agent's NSRDB and availability follow-up on a separate branch is independent. Incorporate its evidence only after review as a new catalog generation; do not block on it or discard the accepted Stage 1 baseline.
 
 ## Review focus
@@ -35,15 +38,15 @@
 
 | File | Responsibility |
 | --- | --- |
-| `src/openepw/availability/models.py` | Tagged catalog, evidence, query, eligibility and recommendation wire records. |
+| `src/openepw/availability/models.py` | Tagged catalog, evidence, query, per-occurrence assessment, eligibility and recommendation wire records. |
 | `src/openepw/availability/store.py` | SQLite schema, immutable generation staging/activation and pinned read views. |
 | `src/openepw/availability/stage1.py`, `availability/data/onebuilding_reviews.json` | Strict local import of Stage 1 `analysis.json`, ledger/raw checksums and a packaged exact copy of the accepted review registry; no network. |
 | `src/openepw/availability/importers/{noaa,onebuilding,climate,contracts}.py` | Source-specific normalization and validation of later snapshots, keeping native semantics. |
 | `src/openepw/availability/refresh.py` | Bounded, conditional, decision-relevant source refresh and stale fallback. |
 | `src/openepw/availability/evaluate.py` | Pure three-valued geographic/temporal/variable/future evaluation. |
 | `src/openepw/availability/recommend.py` | Study-purpose variable priorities and explained deterministic ordering. |
-| `src/openepw/service.py`, `src/openepw/models/__init__.py`, provider `discover` methods, `src/openepw/planning/future.py` | Narrow shared-service integration and compatibility. |
-| `src/openepw/api/app.py`, `src/openepw/mcp/server.py`, `src/openepw/cli/main.py` | Thin typed access; final MCP tool contract remains Stage 4. |
+| `src/openepw/service.py`, `src/openepw/models/__init__.py`, provider `discover` methods | Narrow shared-service discovery integration and compatibility. |
+| `src/openepw/api/app.py`, `src/openepw/mcp/server.py`, `src/openepw/cli/main.py` | Existing discovery adapters consume shared results; direct REST/CLI availability access and local CLI catalog setup remain thin. Final MCP tool contract remains Stage 4. |
 
 Core signatures, fixed here to prevent task drift:
 
@@ -64,7 +67,7 @@ class WeatherService:
     def assess_availability(self, query: AvailabilityQuery) -> AvailabilityResult: ...
 ```
 
-`CatalogBundle` has `schema_version: Literal["1"]`, `evidence: list[EvidenceRef]`, `products: list[ProductRecord]`, `sites: list[SiteRecord]`, `entries: list[AvailabilityEntry]` and `reviews: list[ReviewAnnotation]`. `CatalogView` is a read-only transaction pinned to one active generation; it closes after the assessment. The `AvailabilityResult` has `options: list[SuitabilityOption]`, `recommended_option_ids: list[str] = []`, `issues: list[Issue] = []` and `snapshots: list[CatalogSnapshotRef] = []`. Exact enum values and semantic rules are in the spec. Make the type names importable from `openepw.availability` and expose only `assess_availability` at the top-level Python convenience API. The repository checkout currently has `.venv/Scripts/python.exe` and the original ignored Stage 1 snapshots; verify both before execution and preserve the snapshots.
+`CatalogBundle` has `schema_version: Literal["1"]`, `evidence: list[EvidenceRef]`, `products: list[ProductRecord]`, `sites: list[SiteRecord]`, `entries: list[AvailabilityEntry]` and `reviews: list[ReviewAnnotation]`. `CatalogView` is a read-only transaction pinned to one active generation; it closes after the assessment. The `AvailabilityResult` has `locations: list[LocationAssessment]`, `options: list[SuitabilityOption]`, `issues: list[Issue]` and `snapshots: list[CatalogSnapshotRef]`. A `LocationAssessment` holds one input occurrence index, its requested location, ranked and recommended option IDs, and unresolved mapping facts. Each `SuitabilityOption` has a query-local ID including the occurrence index and links back to a catalog product/site ID; sharing a site remains provisional unless native source identity is verified. Exact enum values and semantic rules are in the spec. Make the type names importable from `openepw.availability` and expose only `assess_availability` at the top-level Python convenience API. The repository checkout currently has `.venv/Scripts/python.exe` and the original ignored Stage 1 snapshots; verify both before execution and preserve the snapshots.
 
 ---
 
@@ -72,9 +75,9 @@ class WeatherService:
 
 **Files:** Create `src/openepw/availability/{__init__,models}.py`; test `tests/unit/test_availability_models.py`.
 
-**Interfaces:** Produces the exact models named in the file map; consumes existing `Location`, `WeatherRequest`, `Model` and `Issue`. `WeatherAvailabilityQuery` and `FutureAvailabilityQuery` use a discriminated `kind` field; `AvailabilityQuery` is their union. A `TemporalScope` union has `actual`, `tmy_reference` and `future_window` tags.
+**Interfaces:** Produces the exact models named in the file map, including `LocationAssessment`; consumes existing `Location`, `WeatherRequest`, `Model` and `Issue`. `WeatherAvailabilityQuery` and `FutureAvailabilityQuery` use a discriminated `kind` field; `AvailabilityQuery` is their union. A `TemporalScope` union has `actual`, `tmy_reference` and `future_window` tags. Purpose is optional; omitted purpose has no study-specific preference. Assessment defaults to `refresh="never"`.
 
-- [ ] Write failing model tests for distinct temporal tags, sparse year representation, exact future windows, string station IDs, no fabricated `0` elevation, enum validation and JSON round-trip. Example:
+- [ ] Write failing model tests for distinct temporal tags, sparse year representation, exact future windows, string station IDs, no fabricated `0` elevation, per-occurrence option references, enum validation and JSON round-trip. Example:
 
   ```python
   def test_tmy_reference_is_not_actual_years():
@@ -177,26 +180,27 @@ class WeatherService:
   ```
 
 - [ ] Run focused pytest; expect failures. Implement rule functions by temporal tag and spatial kind. A fresh, applicable positive catalog membership can support an attempt; stale or incomplete absence is unknown; adapter incompatibility is excluded independently of catalog freshness. Do not infer station-hour completeness from counts or native weather coordinates from a reviewed index. Include evidence IDs and reason codes in every decision.
-- [ ] Write failing ranking tests for the three initial purposes, explicit variables/limits, user provider order, deterministic ties, no recommendation when all unknown/excluded and unknown alternatives retained. Example:
+- [ ] Write failing ranking tests for neutral purpose and the three initial named purposes, explicit variables/limits, user provider order, deterministic ties, per-occurrence recommendations, no recommendation when all options for an occurrence are unknown/excluded, and unknown alternatives retained. Test that absent purpose-preferred variables are explained gaps while absent explicitly required variables affect eligibility. Example:
 
   ```python
-  def test_solar_purpose_explains_radiation_gap(options, solar_query):
-      ranked = rank(AvailabilityResult(options=options), solar_query)
-      assert ranked.recommended_option_ids == ["nsrdb:aggregate:ithaca"]
-      noaa = next(o for o in ranked.options if o.id == "noaa:ithaca")
-      assert {"ghi", "dni", "dhi"} <= set(noaa.missing_required_variables)
-      assert "MISSING_REQUIRED_RADIATION" in noaa.reasons
+  def test_solar_purpose_explains_radiation_gap(availability_result, solar_query):
+      ranked = rank(availability_result, solar_query)
+      nsrdb = next(o for o in ranked.options if o.product.provider == "nsrdb")
+      assert ranked.locations[0].recommended_option_ids == [nsrdb.id]
+      noaa = next(o for o in ranked.options if o.product.provider == "noaa")
+      assert {"ghi", "dni", "dhi"} <= set(noaa.missing_preferred_variables)
+      assert "MISSING_PREFERRED_RADIATION" in noaa.reasons
   ```
 
 - [ ] Implement lexicographic ordering and per-option explanation fields as specified; leave caller-overridden variable/limit choices visible. Run focused tests, Ruff and mypy; commit `fix(availability): evaluate eligibility and explain recommendations`.
 
-### Task 6: Shared service and existing discovery/planning integration
+### Task 6: Shared service and existing discovery integration
 
-**Files:** Modify `src/openepw/{service.py,__init__.py,models/__init__.py}`, provider `discover` methods only where they currently repeat catalog lookup, and narrowly `src/openepw/planning/future.py`; test `tests/unit/test_availability_service.py`, `tests/unit/test_service.py`, `tests/unit/test_future.py`.
+**Files:** Modify `src/openepw/{service.py,__init__.py,models/__init__.py}` and provider `discover` methods only where they currently repeat catalog lookup; test `tests/unit/test_availability_service.py`, `tests/unit/test_service.py`, `tests/unit/test_future.py`.
 
-**Interfaces:** Add `WeatherService.assess_availability(query) -> AvailabilityResult`. Add optional `DiscoveryResult.availability` with `exclude_if` when empty, leaving old JSON and plan hashes intact. `discover()` obtains a pinned catalog view, evaluates/ranks once for all locations, maps actionable options to existing `Candidate` identities and keeps unknown/excluded alternatives in structured availability. When a bounded live discovery can resolve an actionable unknown, call it once per source/unique query, never per duplicate point. `plan()` preserves explicit selected source and refuses a known exclusion; future preflight and `plan_future` share the same method capability constants.
+**Interfaces:** Add `WeatherService.assess_availability(query) -> AvailabilityResult`. Add optional `DiscoveryResult.availability` with `exclude_if` when empty, preserving existing fields and old request/plan hashes. `discover()` obtains a pinned catalog view, evaluates/ranks once for all locations, maps actionable options to existing `Candidate` identities and keeps unknown/excluded alternatives in structured availability. Every input occurrence has its own assessment, even when existing discovery uses the same location key for repeated coordinates. When a bounded live discovery can resolve an actionable unknown, call it once per source/unique query, never per duplicate point. Future-method capability assessment remains independent of a baseline file and exposes only confirmed method constraints. Do not add a new `plan()` or `plan_future()` validation gate or change execution acceptance here; Stage 3a/3b consume the evidence for their complete preflight workflows.
 
-- [ ] Write failing tests showing 100 duplicate/nearby requests use one snapshot and no provider call for known metadata; an unknown NSRDB point triggers at most one bounded point catalog lookup; no fallback source is silently selected after a provider error; old serialized `WeatherPlan` still validates with its original hash; every input occurrence survives current planning. Example:
+- [ ] Write failing tests showing 100 duplicate/nearby requests use one snapshot, retain 100 occurrence assessments, and make no provider call for known metadata; an unknown NSRDB point triggers at most one bounded point catalog lookup; no fallback source is silently selected after a provider error; old serialized `WeatherPlan` still validates with its original hash. Several occurrences may show the same provisional station/site candidate without authorizing one retrieval or collapsing output identity. Example:
 
   ```python
   def test_fresh_catalog_avoids_noaa_inventory_http(service, noaa_request):
@@ -207,15 +211,15 @@ class WeatherService:
   ```
 
 - [ ] Run focused tests; expect failures. Wire catalog service behind dependency injection (`catalog_store` and clock/refresh policy) so offline tests do not require `.local` snapshots. Retain existing provider `fetch` paths, raw-response cache, candidate IDs, output IDs and warnings. Do not silently convert unknown into excluded or treat a catalog-supported option as a completed plan. Keep future capability check independent of baseline file access.
-- [ ] Re-run focused and full offline tests, Ruff and mypy. Commit `fix(service): share catalog assessments with discovery and planning`.
+- [ ] Re-run focused and full offline tests, Ruff and mypy. Commit `fix(service): share catalog assessments with discovery`.
 
 ### Task 7: Thin adapters, documentation and acceptance
 
-**Files:** Modify `src/openepw/api/app.py`, `src/openepw/mcp/server.py`, `src/openepw/cli/main.py`, `ARCHITECTURE.md`, `FEATURES.md`, `ROADMAP.md`, `docs/providers/{README,noaa,onebuilding,nsrdb,pvgis,era5}.md`, `docs/limitations.md`, `docs/decisions/0003-mcp-availability-and-batches.md`; create `docs/validation/mcp-stage-2-acceptance.md`; test `tests/unit/test_availability_adapters.py`.
+**Files:** Modify `src/openepw/api/app.py`, `src/openepw/mcp/server.py`, `src/openepw/cli/main.py` only for chosen thin access, plus `ARCHITECTURE.md`, `FEATURES.md`, `ROADMAP.md`, `docs/providers/{README,noaa,onebuilding,nsrdb,pvgis,era5}.md`, `docs/limitations.md`, `docs/decisions/0003-mcp-availability-and-batches.md`; create `docs/validation/mcp-stage-2-acceptance.md`; test `tests/unit/test_availability_adapters.py`.
 
-**Interfaces:** Add `POST /v1/availability`, `weather_availability` and `openepw availability <query.json>` as thin calls to `WeatherService.assess_availability`. Existing `/v1/weather/discover` and `weather_discover` expose the same enriched result; no full inventory rows or hourly data in ordinary tool output. Stage 4 may revise MCP naming and descriptions after client validation.
+**Interfaces:** Keep existing `/v1/weather/discover` and `weather_discover` behavior compatible while exposing the shared assessment. Add thin `POST /v1/availability` and `openepw availability <query.json>` access to the canonical service, including future-capability queries. Add local-only `openepw catalog status` and `openepw catalog import --from <snapshot-root>` for explicit snapshot setup. Stage 4 owns the final MCP tool list, names, descriptions and interaction; Stage 2 adds no new MCP tool. No full inventory rows or hourly data enter ordinary tool output.
 
-- [ ] Write failing parity tests with one injected service and synthetic catalog. Compare Python, REST and MCP JSON decisions/reasons/snapshot IDs; check invalid temporal kind and path fields produce bounded structured errors; check secrets and full source rows are absent from outputs. Example:
+- [ ] Write failing parity tests with one injected service and synthetic catalog. Compare Python, new REST and CLI decisions/reasons/snapshot IDs; existing REST/MCP discovery must serialize the same shared facts without its own ranking. Check invalid temporal kind and path fields produce bounded structured errors; check secrets and full source rows are absent from outputs. Example:
 
   ```python
   def test_weather_discover_parity(service, request, rest_client, mcp_tool):
@@ -224,7 +228,7 @@ class WeatherService:
       assert mcp_tool("weather_discover", request.model_dump(mode="json")) == expected
   ```
 
-- [ ] Run focused pytest; expect failures. Add the adapter entry points, validation and compact pagination/limits for option lists. CLI reads a local JSON query; MCP/REST accept data only, no server-side snapshot path. Update API/usage and provider limitations, showing evidence dates, access needs, exact temporal meaning, 56/3/2 accepted judgments and unresolved redistributability. Mark this plan's approved date only after owner approval.
+- [ ] Run focused pytest; expect failures. Add the named REST/CLI entry points, validation and compact limits for option lists. CLI accepts a local query file; server/MCP accept data only and no server-side snapshot path. `catalog import` verifies and imports the already captured snapshots without network access, while `catalog status` reports loaded/missing/stale sources. Update API/usage and provider limitations, showing evidence dates, access needs, exact temporal meaning, 56/3/2 accepted judgments and unresolved redistributability. Mark this plan's approved date only after owner approval.
 - [ ] Run `.venv/Scripts/python.exe -m pytest tests/unit -q`, `.venv/Scripts/python.exe -m ruff check src tests scripts/mcp_research`, `.venv/Scripts/python.exe -m mypy src/openepw`, and `.venv/Scripts/python.exe -m build`. Record exact results and skipped opt-in snapshot/live tests in `docs/validation/mcp-stage-2-acceptance.md`. Use an opt-in local import only if the original snapshots are present; do not run Stage 1 collection. Commit `fix(interfaces): expose shared availability evidence` and `fix(docs): record MCP Stage 2 acceptance` at the respective boundaries.
 
 ## Completion review
