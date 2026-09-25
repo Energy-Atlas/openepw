@@ -30,6 +30,12 @@ def test_bounded_model_parser_redacts_prompt_and_records_only_usage(tmp_path):
     assert seen[0]["model"] == "gpt-6-luna"
     assert seen[0]["reasoning"]["effort"] == "low"
     assert seen[0]["text"]["format"]["type"] == "json_schema"
+    schema = seen[0]["text"]["format"]["schema"]
+    assert "locations" in schema["required"]
+    assert "product_id" in schema["required"]
+    guidance = seen[0]["input"][0]["content"]
+    assert "product=tmyx" in guidance
+    assert "Provider IDs are lowercase" in guidance
     assert seen[0]["store"] is False
     assert "sk-test-secret" not in seen[0]["input"][1]["content"]
     assert "sk-test-secret" not in ledger.read_text()

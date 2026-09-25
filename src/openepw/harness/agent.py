@@ -18,6 +18,7 @@ from .mcp_client import MCPToolFailure
 class AgentIntent(BaseModel):
     kind: Literal["weather", "future", "unknown"]
     place: str | None = None
+    locations: list[dict[str, float | str]] | None = None
     lat: float | None = None
     lon: float | None = None
     product: Literal["historical", "amy", "tmy", "tmyx", "published"] | None = None
@@ -25,6 +26,7 @@ class AgentIntent(BaseModel):
     start: str | None = None
     end: str | None = None
     provider: str | None = None
+    product_id: str | None = None
     missing_policy: Literal["warn", "error"] = "warn"
     baseline_artifact_id: str | None = None
     signals_artifact_id: str | None = None
@@ -132,7 +134,10 @@ class ReferenceAgent:
             return AgentResult("needs_clarification", "Which weather product do you need?")
         if intent.product in ("historical", "amy") and not (intent.years or intent.start):
             return AgentResult("needs_clarification", "Which actual year or dates do you need?")
-        if intent.lat is None or intent.lon is None:
+        location: Any
+        if intent.locations:
+            location = intent.locations
+        elif intent.lat is None or intent.lon is None:
             if not intent.place:
                 return AgentResult("needs_clarification", "Which location do you mean?")
             geocode = await self._call("weather_geocode", query=intent.place)
@@ -153,7 +158,9 @@ class ReferenceAgent:
         if intent.start and intent.end:
             request.update({"start": intent.start, "end": intent.end})
         if intent.provider:
-            request["providers"] = [intent.provider]
+            request["providers"] = [intent.provider.casefold()]
+        if intent.product_id:
+            request["product_id"] = intent.product_id
         discovery = await self._call("weather_discover", request=request)
         statuses = {
             option.get("eligibility", {}).get("status")
@@ -165,6 +172,16 @@ class ReferenceAgent:
             assessment += " Some availability is unknown."
         if "unsupported" in statuses or "excluded" in statuses:
             assessment += " Some alternatives are unsupported."
+        candidate_sources = list(dict.fromkeys(
+            candidate.get("source", {}).get("provider", "unknown")
+            for candidate in discovery.get("candidates", [])[:10]
+        ))
+        if len(candidate_sources) > 1:
+            assessment += " Source alternatives: " + ", ".join(candidate_sources) + "."
+        if any(candidate.get("source", {}).get("provisional") or
+               candidate.get("missing_fields")
+               for candidate in discovery.get("candidates", [])):
+            assessment += " Some discovered alternatives have provisional identity or missing coverage/fields."
         plan = await self._call("weather_plan", request=request)
         self.plan_hash = plan["plan_hash"]
         self._persist()
@@ -174,6 +191,8 @@ class ReferenceAgent:
             source = selected[0].get("source", {})
             assessment += (f" Selected {source.get('provider', 'unknown')}/"
                            f"{source.get('dataset', 'unknown')}.")
+            if selected[0].get("product_id"):
+                assessment += f" Exact product {selected[0]['product_id']}."
             reasons = selected[0].get("selection_reasons", [])
             if reasons:
                 assessment += " Selection reasons: " + ", ".join(reasons[:3]) + "."

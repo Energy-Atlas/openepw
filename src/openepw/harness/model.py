@@ -24,6 +24,18 @@ INTENT_SCHEMA: dict[str, Any] = {
     "properties": {
         "kind": {"type": "string", "enum": ["weather", "future", "unknown"]},
         "place": _nullable("string"),
+        "locations": {
+            "anyOf": [
+                {"type": "array", "items": {
+                    "type": "object", "properties": {
+                        "id": {"type": "string"}, "lat": {"type": "number"},
+                        "lon": {"type": "number"},
+                    }, "required": ["id", "lat", "lon"],
+                    "additionalProperties": False,
+                }},
+                {"type": "null"},
+            ],
+        },
         "lat": _nullable("number"),
         "lon": _nullable("number"),
         "product": {"type": ["string", "null"],
@@ -32,6 +44,7 @@ INTENT_SCHEMA: dict[str, Any] = {
         "start": _nullable("string"),
         "end": _nullable("string"),
         "provider": _nullable("string"),
+        "product_id": _nullable("string"),
         "missing_policy": {"type": "string", "enum": ["warn", "error"]},
         "baseline_artifact_id": _nullable("string"),
         "signals_artifact_id": _nullable("string"),
@@ -56,8 +69,9 @@ INTENT_SCHEMA: dict[str, Any] = {
         },
     },
     "required": [
-        "kind", "place", "lat", "lon", "product", "years", "start", "end",
-        "provider", "missing_policy", "baseline_artifact_id", "signals_artifact_id",
+        "kind", "place", "locations", "lat", "lon", "product", "years", "start", "end",
+        "provider", "product_id", "missing_policy", "baseline_artifact_id",
+        "signals_artifact_id",
         "method", "climate_scenario", "climate_period", "reference_period",
     ],
     "additionalProperties": False,
@@ -112,7 +126,12 @@ class OpenAIIntentParser:
                     "Extract a weather task as a JSON object. Fields may be omitted except kind. "
                     "kind is weather, future, or unknown. For weather, include product "
                     "(historical, amy, tmy, tmyx, published), explicit years/dates, "
-                    "place or coordinates, provider only if requested, and missing_policy. "
+                    "place, coordinates or an explicit locations array with id/lat/lon, "
+                    "provider and exact product_id only if requested, "
+                    "and missing_policy. If the user names TMYx, use product=tmyx "
+                    "even when it is a published file; published is only for an "
+                    "unspecified published product. Provider IDs are lowercase "
+                    "(for example onebuilding, openmeteo, noaa, nsrdb). "
                     "For future, include an exact baseline_artifact_id if supplied, "
                     "method, climate_scenario, climate_period, reference_period, "
                     "and signals_artifact_id only if supplied. Do not invent missing "

@@ -22,19 +22,24 @@ class MCPToolFailure(Exception):
 
 class StdioMCPPort:
     def __init__(self, data_root: str | Path, *,
-                 allowed_roots: list[str | Path] | None = None):
+                 allowed_roots: list[str | Path] | None = None,
+                 server_args: list[str] | None = None):
         self.data_root = Path(data_root)
         self.allowed_roots = allowed_roots or []
+        self.server_args = server_args
         self.stack: AsyncExitStack | None = None
         self.session: ClientSession | None = None
 
     async def __aenter__(self):
         self.stack = AsyncExitStack()
         await self.stack.__aenter__()
-        args = ["-c", "from openepw.cli.main import main; raise SystemExit(main())",
-                "--data-root", str(self.data_root), "mcp"]
-        for root in self.allowed_roots:
-            args.extend(["--allow-root", str(root)])
+        args = self.server_args or [
+            "-c", "from openepw.cli.main import main; raise SystemExit(main())",
+            "--data-root", str(self.data_root), "mcp",
+        ]
+        if self.server_args is None:
+            for root in self.allowed_roots:
+                args.extend(["--allow-root", str(root)])
         environment = {key: value for key, value in os.environ.items()
                        if key not in ("OPENAI_API_KEY", "LANGCHAIN_API_KEY",
                                       "LANGSMITH_API_KEY", "LANGCHAIN_TRACING_V2")}
