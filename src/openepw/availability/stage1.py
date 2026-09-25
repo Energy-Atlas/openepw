@@ -63,7 +63,7 @@ def _noaa(inventories: dict, known: set[str]) -> tuple[list[ProductRecord], list
     if not history and not counts:
         return [], [], []
     refs = [name for name in ("noaa-history", "noaa-inventory-authorized") if name in known]
-    product = ProductRecord(id="noaa:isd", provider="noaa", dataset="isd", spatial_kind="station",
+    product = ProductRecord(id="noaa:isd", provider="noaa", dataset="ISD global-hourly", spatial_kind="station",
                             temporal_kind="actual", source_variables=["dry_bulb", "dew_point",
                             "relative_humidity", "wind_speed", "wind_direction"],
                             adapter_variables=["dry_bulb", "dew_point", "relative_humidity",
@@ -124,8 +124,10 @@ def _onebuilding(inventories: dict, known: set[str], checksums: dict[str, str], 
             if inventory_id in known and inventory_id not in match_refs:
                 match_refs.append(inventory_id)
             products.append(ProductRecord(
-                id=product_id, provider="onebuilding", dataset="published_epw",
+                id=product_id, provider="onebuilding", dataset="OneBuilding published EPW",
                 native_product_id=url, spatial_kind="station", temporal_kind="tmy_reference",
+                adapter_variables=["dry_bulb", "dew_point", "relative_humidity", "pressure",
+                                   "ghi", "dni", "dhi", "wind_speed", "wind_direction"],
                 evidence_ids=match_refs,
             ))
             lat, lon = match.get("lat"), match.get("lon")

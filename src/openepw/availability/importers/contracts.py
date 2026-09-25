@@ -90,6 +90,7 @@ def normalize_contracts(inventories: dict, known: set[str], probe_locations: dic
                     id=product_id, provider="nsrdb", dataset=native, version="v4",
                     native_product_id=native, spatial_kind="grid", temporal_kind=kind,
                     source_variables=_EPW_FIELDS, adapter_variables=adapter,
+                    adapter_supported=bool(adapter),
                     access_requirements=["OPENEPW_NLR_API_KEY", "OPENEPW_NLR_EMAIL"],
                     evidence_ids=[probe_id],
                 ))

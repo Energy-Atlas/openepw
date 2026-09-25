@@ -272,6 +272,7 @@ class DiscoveryResult(Model):
     # Location key -> candidate ids, best first, by the same rule as selected_candidate_ids.
     ranked_candidate_ids: dict[str, list[str]] = Field(default_factory=dict)
     issues: list[Issue] = Field(default_factory=list)
+    availability: Any | None = Field(default=None, exclude_if=lambda value: value is None)
     observed_at: str = Field(default_factory=utcnow)
 
 

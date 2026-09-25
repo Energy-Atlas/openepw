@@ -189,3 +189,41 @@ def test_unknown_elevation_cannot_satisfy_user_limit():
                                                max_elevation_delta_m=100), _view(bundle))
     assert result.options[0].eligibility.status == "unknown"
     assert "ELEVATION_DIFFERENCE_UNKNOWN" in result.options[0].eligibility.unknowns
+
+
+def test_upstream_product_without_adapter_is_excluded():
+    bundle = _noaa_bundle()
+    bundle.products[0].adapter_supported = False
+    request = WeatherRequest(locations=Location(lat=42, lon=-76), years=[2024],
+                             providers=["noaa"])
+    result = evaluate(WeatherAvailabilityQuery(request=request), _view(bundle))
+    assert result.options[0].eligibility.status == "excluded"
+    assert "ADAPTER_PRODUCT_UNSUPPORTED" in result.options[0].eligibility.reasons
+
+
+def test_explicit_noaa_station_is_retained_beyond_default_search_radius():
+    bundle = _noaa_bundle()
+    bundle.sites.append(SiteRecord(id="B00003", product_id="noaa:isd", lat=45, lon=-76,
+                                   position_status="published", station_identity_status="verified"))
+    bundle.entries.append(AvailabilityEntry(id="year-b", product_id="noaa:isd", site_id="B00003",
+                                            scope=ActualScope(years=[2024]),
+                                            evidence_basis="inventory"))
+    request = WeatherRequest(locations=Location(lat=42, lon=-76), years=[2024],
+                             providers=["noaa"], product_id="B00003")
+    result = evaluate(WeatherAvailabilityQuery(request=request), _view(bundle))
+    assert [option.site.id for option in result.options] == ["B00003"]
+    assert result.options[0].eligibility.status == "supported"
+
+
+def test_temporal_coverage_can_outweigh_five_nearest_noaa_stations():
+    bundle = _noaa_bundle()
+    bundle.sites = [SiteRecord(id=f"S{n}", product_id="noaa:isd", lat=42 + n * .01,
+                               lon=-76, position_status="published") for n in range(6)]
+    bundle.entries = [AvailabilityEntry(id=f"year-{n}", product_id="noaa:isd",
+                                        site_id=f"S{n}",
+                                        scope=ActualScope(years=[2023 if n < 5 else 2024]),
+                                        evidence_basis="inventory") for n in range(6)]
+    request = WeatherRequest(locations=Location(lat=42, lon=-76), years=[2024],
+                             providers=["noaa"])
+    result = evaluate(WeatherAvailabilityQuery(request=request), _view(bundle))
+    assert any(o.site.id == "S5" and o.eligibility.status == "supported" for o in result.options)

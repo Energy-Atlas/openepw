@@ -113,6 +113,10 @@ def test_original_local_snapshot_counts(tmp_path):
     bundle = import_stage1(root)
     noaa_rows = sum(len(e.scope.years) for e in bundle.entries if e.product_id == "noaa:isd")
     assert noaa_rows == 154_841
+    assert next(p for p in bundle.products if p.id == "noaa:isd").dataset == "ISD global-hourly"
+    assert next(p for p in bundle.products if p.provider == "onebuilding").dataset == (
+        "OneBuilding published EPW")
+    assert "dry_bulb" in next(p for p in bundle.products if p.provider == "onebuilding").adapter_variables
     assert {status: sum(r.status == status for r in bundle.reviews) for status in
             ("reviewed_metadata_match", "approximate_locality", "name_code_conflict")} == {
                 "reviewed_metadata_match": 56, "approximate_locality": 3,

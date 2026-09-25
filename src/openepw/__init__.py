@@ -4,7 +4,13 @@ __version__ = "0.1.0"
 
 from .models import FutureRequest, Location, WeatherPlan, WeatherRequest
 
-__all__ = ["FutureRequest", "Location", "WeatherPlan", "WeatherRequest"]
+__all__ = ["FutureRequest", "Location", "WeatherPlan", "WeatherRequest", "assess_availability"]
+
+
+def assess_availability(query, *, config=None):
+    from .service import WeatherService
+
+    return WeatherService(config).assess_availability(query)
 
 
 def geocode(query, *, mode="point", config=None):

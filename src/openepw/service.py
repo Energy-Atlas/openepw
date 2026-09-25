@@ -3,10 +3,26 @@ from __future__ import annotations
 import hashlib
 import json
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 from .artifacts.store import ArtifactStore, atomic_write
+from .availability import (
+    AvailabilityResult,
+    EligibilityDecision,
+    FutureAvailabilityQuery,
+    LocationAssessment,
+    ProductRecord,
+    SuitabilityOption,
+    WeatherAvailabilityQuery,
+)
+from .availability.evaluate import evaluate
+from .availability.importers import normalize_source
+from .availability.recommend import rank
+from .availability.refresh import refresh_if_relevant
+from .availability.store import CatalogStore
 from .config import RuntimeConfig
 from .dataset import without_feb_29
 from .epw.writer import epw_bytes
@@ -21,6 +37,7 @@ from .models import (
     Location,
     OpenEPWError,
     OutputSpec,
+    SourceRef,
     WeatherPlan,
     WeatherRequest,
     digest,
@@ -38,7 +55,8 @@ from .qc import validate
 
 
 class WeatherService:
-    def __init__(self, config: RuntimeConfig | None = None, *, http=None, providers=None):
+    def __init__(self, config: RuntimeConfig | None = None, *, http=None, providers=None,
+                 catalog_store: CatalogStore | None = None):
         self.config = config or RuntimeConfig.load()
         self.http = http or HttpClient(self.config)
         self.providers: dict[str, Any] = {
@@ -59,6 +77,48 @@ class WeatherService:
             )
         }
         self.artifacts = ArtifactStore(self.config.data_root)
+        self.catalog_store = catalog_store or CatalogStore(self.config.data_root / "catalog")
+
+    def assess_availability(self, query: WeatherAvailabilityQuery | FutureAvailabilityQuery) -> AvailabilityResult:
+        view = self.catalog_store.active()
+        if view is None:
+            locations = ([query.location] if isinstance(query, FutureAvailabilityQuery)
+                         else self.locations(query.request))
+            provider_names = (["cmip6" if query.method == "morph" else "oedi"]
+                              if isinstance(query, FutureAvailabilityQuery) else
+                              query.request.providers or list(self.providers))
+            options = []
+            for occurrence, _location in enumerate(locations):
+                for provider in provider_names:
+                    product = ProductRecord(id=f"unloaded:{provider}", provider=provider,
+                                            dataset="unloaded", temporal_kind=(
+                                                "future_window" if isinstance(query, FutureAvailabilityQuery)
+                                                else "tmy_reference" if query.request.product in
+                                                ("tmy", "tmyx", "published") else "actual"))
+                    options.append(SuitabilityOption(
+                        id=f"{occurrence}:unloaded:{provider}", occurrence_index=occurrence,
+                        product=product,
+                        eligibility=EligibilityDecision(status="unknown",
+                                                        unknowns=["CATALOG_UNAVAILABLE"])))
+            return AvailabilityResult(
+                locations=[LocationAssessment(occurrence_index=i, requested_location=loc)
+                           for i, loc in enumerate(locations)], options=options,
+                issues=[Issue(code="CATALOG_UNAVAILABLE",
+                              message="No local availability catalog is loaded")],
+                checked_at=datetime.now(timezone.utc))
+        result = rank(evaluate(query, view), query)
+        if query.refresh == "if_needed":
+            relevant = {evidence_id for option in result.options
+                        if option.eligibility.status == "unknown"
+                        for evidence_id in option.eligibility.evidence_ids}
+            issues = refresh_if_relevant(query, self.catalog_store, self.http,
+                                         relevant, normalize_source)
+            if relevant:
+                refreshed = self.catalog_store.active()
+                if refreshed is not None:
+                    result = rank(evaluate(query, refreshed), query)
+            result.issues.extend(issues)
+        return result
 
     def geocode(self, query, *, mode="point"):
         if mode != "point":
@@ -100,6 +160,115 @@ class WeatherService:
         return sample(request.locations, request.sampling)
 
     def discover(self, request: WeatherRequest):
+        if self.catalog_store.active() is None:
+            return self._discover_live(request)
+        availability = self.assess_availability(WeatherAvailabilityQuery(request=request))
+        locations = self.locations(request)
+        candidates: dict[str, Candidate] = {}
+        option_candidates: dict[str, str] = {}
+        issues = list(availability.issues)
+        live_cache: dict[tuple[str, str, str | None], list[Candidate]] = {}
+        for option in sorted(availability.options, key=lambda item: (
+            item.occurrence_index, item.rank or 9999)):
+            if option.eligibility.status == "excluded":
+                continue
+            location = locations[option.occurrence_index]
+            candidate = self._catalog_candidate(option, location, request)
+            if candidate is not None:
+                candidates[candidate.id] = candidate
+                option_candidates[option.id] = candidate.id
+                continue
+            provider = self.providers.get(option.product.provider)
+            if provider is None:
+                continue
+            key = (option.product.provider, location.key, option.product.dataset)
+            if key not in live_cache:
+                try:
+                    provider_request = request.model_copy(update={"dataset": option.product.dataset})
+                    live_cache[key] = provider.discover(provider_request, location, self.http)
+                except OpenEPWError as exc:
+                    issues.append(exc.issue)
+                    live_cache[key] = []
+            for found in live_cache[key]:
+                candidates[found.id] = found
+                option_candidates[option.id] = found.id
+        ranked: dict[str, list[str]] = {}
+        selected: list[str] = []
+        for assessment in availability.locations:
+            location_key = assessment.requested_location.key
+            ranked[location_key] = list(dict.fromkeys(option_candidates[option_id] for option_id in
+                                             assessment.ranked_option_ids if option_id in option_candidates))
+            for option_id in assessment.recommended_option_ids:
+                candidate_id = option_candidates.get(option_id)
+                if candidate_id and candidate_id not in selected:
+                    selected.append(candidate_id)
+        return DiscoveryResult(locations=locations, candidates=list(candidates.values()),
+                               selected_candidate_ids=selected,
+                               ranked_candidate_ids=ranked, issues=issues,
+                               availability=availability)
+
+    def _catalog_candidate(self, option: SuitabilityOption, location: Location,
+                           request: WeatherRequest) -> Candidate | None:
+        product = option.product
+        site = option.site
+        if product.provider == "noaa" and site and site.lat is not None and site.lon is not None:
+            station = site.id
+            source = SourceRef(
+                provider="noaa", dataset="ISD global-hourly", identity=station,
+                location=Location(lat=site.lat, lon=site.lon, elevation=site.elevation_m,
+                                  standard_offset_minutes=location.standard_offset_minutes),
+                provisional=False, license="US government public data",
+                citation="https://www.ncei.noaa.gov/products/land-based-station/integrated-surface-database",
+            )
+            return Candidate(
+                id=f"noaa:{station}:{location.key}", location_id=location.key,
+                product_id=station, source=source, weather_types=["historical", "amy"],
+                variables=product.adapter_variables,
+                missing_fields=[v for v in request.required_variables if v not in
+                                product.adapter_variables],
+                warnings=["Catalog listing does not establish hourly completeness or variable coverage"],
+            )
+        if product.provider == "onebuilding" and product.native_product_id:
+            parsed = urlparse(product.native_product_id)
+            if parsed.scheme != "https" or parsed.netloc != "climate.onebuilding.org" or (
+                not parsed.path.endswith(".zip") or ".." in parsed.path.split("/")):
+                return None
+            return Candidate(
+                id=f"onebuilding:{hashlib.sha256(product.native_product_id.encode()).hexdigest()[:16]}:{location.key}",
+                location_id=location.key, product_id=parsed.path.lstrip("/"),
+                source=SourceRef(provider="onebuilding", dataset="OneBuilding published EPW",
+                                 identity=parsed.path, citation=product.native_product_id,
+                                 license="Redistribution permission unverified; local retrieval only"),
+                weather_types=["tmy", "tmyx", "published"],
+                variables=product.adapter_variables,
+                warnings=["Published product coordinates remain provisional until EPW header verification"],
+            )
+        if product.provider == "nsrdb" and option.eligibility.status == "supported":
+            published = product.temporal_kind == "tmy_reference"
+            product_id = request.product_id if published else None
+            if published and not product_id:
+                view = self.catalog_store.active()
+                labels = [entry.scope.product_label for entry in view.bundle.entries
+                          if entry.product_id == product.id and entry.probe_location and
+                          abs(entry.probe_location.lat - location.lat) < 1e-6 and
+                          abs(entry.probe_location.lon - location.lon) < 1e-6 and
+                          hasattr(entry.scope, "product_label")] if view else []
+                product_id = max((label for label in labels if label.startswith("tmy-")), default=None)
+            if published and not product_id:
+                return None
+            return Candidate(
+                id=f"nsrdb:{product.dataset}:{product_id or 'actual'}:{location.key}",
+                product_id=product_id, location_id=location.key,
+                source=SourceRef(provider="nsrdb", dataset=product.dataset,
+                                 resolution_km=4, citation="https://nsrdb.nlr.gov",
+                                 license="NLR NSRDB data terms; attribute NSRDB"),
+                weather_types=["tmy", "published"] if published else ["historical", "amy"],
+                variables=product.adapter_variables, interval_minutes=60,
+                requires_credentials=product.access_requirements,
+            )
+        return None
+
+    def _discover_live(self, request: WeatherRequest):
         locations = self.locations(request)
         candidates: list[Candidate] = []
         issues = []

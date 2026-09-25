@@ -77,29 +77,47 @@ def _relevant_product(query: AvailabilityQuery, product: ProductRecord) -> bool:
         return False
     if request.dataset and request.dataset != product.dataset:
         return False
-    if request.product_id and request.product_id not in (
-        product.native_product_id, product.id
-    ) and product.provider == "onebuilding":
+    if (request.product_id and product.provider == "onebuilding" and
+            request.product_id not in (
+                product.native_product_id, product.id,
+                (product.native_product_id or "").split("climate.onebuilding.org/", 1)[-1],
+            )):
         return False
     return True
 
 
 def _candidate_sites(query: AvailabilityQuery, location: Location, product: ProductRecord,
-                     sites: list[SiteRecord]) -> Sequence[SiteRecord | None]:
+                     sites: list[SiteRecord],
+                     entries_by_site: dict[tuple[str, str | None], list[AvailabilityEntry]]) -> Sequence[SiteRecord | None]:
     if not sites:
         return [None]
+    if (isinstance(query, WeatherAvailabilityQuery) and product.provider == "noaa" and
+            query.request.product_id):
+        return [site for site in sites if site.id == query.request.product_id]
     if product.provider == "onebuilding" and isinstance(query, WeatherAvailabilityQuery):
         if query.request.product_id:
             return sites[:1]
     known = [(distance, site) for site in sites if (distance := _distance(location, site)) is not None
              and site.position_status not in ("approximate_locality", "conflicted")]
     known.sort(key=lambda item: (item[0], item[1].id))
+    if product.provider == "noaa" and isinstance(query, WeatherAvailabilityQuery) and known:
+        requested = set(_requested_years(query))
+        nearby = [(distance, site) for distance, site in known if distance <= 100]
+        listed = [(distance, site) for distance, site in nearby if any(
+            isinstance(entry.scope, ActualScope) and requested <= set(entry.scope.years)
+            for entry in entries_by_site.get((product.id, site.id), []))]
+        supported_ids = {site.id for _, site in listed[:5]}
+        uncertain = [site for _, site in nearby if site.id not in supported_ids][:3]
+        chosen = [site for _, site in listed[:5]] + uncertain
+        if chosen:
+            return chosen
     if known:
         return [site for _, site in known[:5]]
     return sites[:1]
 
 
-def _temporal(query: AvailabilityQuery, entry: AvailabilityEntry) -> tuple[str, list[str], list[str]]:
+def _temporal(query: AvailabilityQuery, entry: AvailabilityEntry,
+              product: ProductRecord) -> tuple[str, list[str], list[str]]:
     scope = entry.scope
     if isinstance(query, FutureAvailabilityQuery):
         if not isinstance(scope, FutureWindowScope):
@@ -132,7 +150,7 @@ def _temporal(query: AvailabilityQuery, entry: AvailabilityEntry) -> tuple[str, 
         return "unknown", [], ["OPERATING_INTERVAL_NOT_REPORT_COVERAGE"]
     if not isinstance(scope, TMYReferenceScope):
         return "excluded", ["TEMPORAL_KIND_MISMATCH"], []
-    if query.request.product_id and query.request.product_id != scope.product_label and (
+    if product.provider == "nsrdb" and query.request.product_id and query.request.product_id != scope.product_label and (
         query.request.product_id not in entry.id
     ):
         return "excluded", ["PUBLISHED_PRODUCT_MISMATCH"], []
@@ -155,7 +173,11 @@ def _assess(query: AvailabilityQuery, location: Location, product: ProductRecord
             reasons.append("METHOD_PRODUCT_MISMATCH")
     elif (query.request.product in ("historical", "amy")) != (product.temporal_kind == "actual"):
         reasons.append("TEMPORAL_KIND_MISMATCH")
-    if product.provider == "noaa" and distance is not None and distance > 100:
+    if not product.adapter_supported:
+        reasons.append("ADAPTER_PRODUCT_UNSUPPORTED")
+    explicit_noaa = (isinstance(query, WeatherAvailabilityQuery) and product.provider == "noaa"
+                     and site is not None and query.request.product_id == site.id)
+    if product.provider == "noaa" and not explicit_noaa and distance is not None and distance > 100:
         reasons.append("BEYOND_PROVIDER_SEARCH_RADIUS")
     if product.provider == "oedi" and distance is not None and distance > 150:
         reasons.append("BEYOND_PROVIDER_SEARCH_RADIUS")
@@ -188,7 +210,7 @@ def _assess(query: AvailabilityQuery, location: Location, product: ProductRecord
     if not entries:
         unknowns.append("TEMPORAL_EVIDENCE_MISSING")
     else:
-        decisions = [_temporal(query, entry) for entry in entries]
+        decisions = [_temporal(query, entry, product) for entry in entries]
         best = next((d for d in decisions if d[0] == "supported"),
                     next((d for d in decisions if d[0] == "unknown"), decisions[0]))
         if best[0] == "excluded":
@@ -211,6 +233,7 @@ def _assess(query: AvailabilityQuery, location: Location, product: ProductRecord
     stable_exclusions = (
         "METHOD_PRODUCT_MISMATCH", "TEMPORAL_KIND_MISMATCH", "BEYOND_PROVIDER_SEARCH_RADIUS",
         "BEYOND_REQUESTED_DISTANCE", "BEYOND_REQUESTED_ELEVATION", "REQUIRED_VARIABLE_UNSUPPORTED",
+        "ADAPTER_PRODUCT_UNSUPPORTED",
         "SCENARIO_MISMATCH", "BEFORE_DOCUMENTED_START",
         "PUBLISHED_PRODUCT_MISMATCH")
     if any(code in reasons for code in stable_exclusions) or (
@@ -263,7 +286,7 @@ def evaluate(query: AvailabilityQuery, view: CatalogView) -> AvailabilityResult:
                     product.id not in selected_published):
                 continue
             for site in _candidate_sites(query, location, product,
-                                         all_sites.get(product.id, [])):
+                                         all_sites.get(product.id, []), all_entries):
                 entries = all_entries.get((product.id, site.id if site else None), [])
                 decision, distance, elevation_delta = _assess(
                     query, location, product, site, entries,

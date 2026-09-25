@@ -38,6 +38,7 @@ class ProductRecord(Model):
     longitude_convention: Literal["-180_180", "0_360"] | None = None
     source_variables: list[str] = Field(default_factory=list)
     adapter_variables: list[str] = Field(default_factory=list)
+    adapter_supported: bool = True
     native_resolution_minutes: int | None = Field(default=None, gt=0)
     delivered_resolution_minutes: int | None = Field(default=None, gt=0)
     access_requirements: list[str] = Field(default_factory=list)
