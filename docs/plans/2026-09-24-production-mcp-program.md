@@ -26,6 +26,7 @@ A local user can ask for suitable weather data, understand the alternatives and 
 
 - **Work area:** Carry selected historical and published-weather sources through inspectable plans, execution, jobs and artifacts for one location or many.
 - **Representative workload:** Start with two bounded anchor requests: an actual-year point request with one or a few source choices, and a multi-location published-weather request that can expose shared stations and unsupported locations. Record which dataset/product × geography × time combinations they cover; use offline variants for additional combinations instead of an exhaustive live cross-product. Keep these requests as anchors for later MCP, harness and pilot work.
+- **Sparse-data case:** Carry a deterministic NOAA request with missing hourly observations through the same end-to-end path. The returned EPW, QC, manifest and occurrence mapping must make the gap visible and must not claim simulation readiness; the strict missing-data choice must report failure without an EPW while other batch occurrences can succeed.
 - **Features:** Preserve every requested occurrence and its source/output mapping; reuse only scientifically equivalent retrievals; continue supported locations while reporting unsupported and failed ones; offer explicit compact export alongside the existing per-location default.
 - **Deliverables:** End-to-end weather-fetch and batch workflows, clear partial-result summaries, artifact references and complete input-to-source-to-output mappings, plus offline tests for retry, restart, missing coverage and shared sources.
 - **Handoff to Stage 3b:** Fetched EPWs and their provenance are available as inspectable artifacts; every input occurrence remains traceable even when sources are shared or results are partial.
@@ -43,6 +44,7 @@ A local user can ask for suitable weather data, understand the alternatives and 
 - **Work area:** Present the Stage 2–3 services to a local MCP client through understandable tools, resources and errors.
 - **Features:** Expose place-name interpretation and geocoding candidates alongside explicit point/area inputs, with geographic ambiguity visible to the caller. Guided dataset discovery, planning, execution, future generation and job/artifact inspection have compact, typed results; long-running work remains inspectable after a client disconnects.
 - **Deliverables:** A local stdio MCP server contract, client setup examples, protocol-level tests and a documented list of supported workflows and limits. This stage decides final tool boundaries and names.
+- **Case carried forward:** The MCP client can inspect the sparse-NOAA artifact and QC warning, or the strict-policy failure, without the catalog's retrieval eligibility being presented as weather quality.
 - **Handoff to Stage 5:** A real MCP client can run the core workflows and retrieve artifacts without receiving bulk hourly data in ordinary tool responses.
 
 ### Stage 5 — agent harnessing and evaluations (proposed)
@@ -50,12 +52,14 @@ A local user can ask for suitable weather data, understand the alternatives and 
 - **Work area:** Design an agent layer above MCP that turns user intent into sensible tool sequences and explains choices, uncertainty, failures and QC.
 - **Features:** A reference agent handles clarification, plan review, job progress, artifact follow-up and recovery across representative workflows. It does not reimplement provider selection or weather science.
 - **Deliverables:** Harness design, a runnable reference agent, representative evaluation tasks, redacted traces and a short stack decision. Compare a small direct implementation with LangChain/LangGraph; consider LangSmith or another evaluation tool only if it improves the work. None is a required core dependency by default.
+- **Evaluation case:** Check that the agent reports the sparse-NOAA gap and avoids recommending its sentinel-bearing EPW as ready for simulation.
 - **Handoff to Stage 6:** The reference agent reliably completes the selected local tasks under deterministic evaluation and exposes its decisions for review. Direct Python and MCP use remain available without it.
 
 ### Stage 6 — local pilot and release acceptance (proposed)
 
 - **Work area:** Exercise the integrated product with the target LLM client, reference harness and representative users on realistic local tasks.
 - **Features:** Center pilot cases on Stage 3a's two weather-fetch anchors and Stage 3b's future-weather anchor. Include dataset guidance, geography interpretation, actual and published EPWs, both future-baseline paths, shared sources, unsupported locations and partial failures. Check whether users can understand provenance, uncertainty and QC from the returned evidence.
+- **End-to-end case:** Reuse the deterministic sparse-NOAA request to verify what the user sees from discovery through artifact inspection, including the distinction between eligible retrieval and incomplete weather. Any opt-in live example supplements this case rather than replacing it.
 - **Deliverables:** Recorded client/platform/provider results, a small opt-in live acceptance matrix, resolved material defects, installation guidance and an honest limitations/release report.
 - **Completion:** The agreed local stories work end to end and remaining limitations are documented. No remote team-service acceptance is implied.
 

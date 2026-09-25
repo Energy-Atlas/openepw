@@ -12,6 +12,7 @@ unknowns are Stage 2 inputs, not reasons to restart this investigation.
 Artifacts: [sanitized evidence and ledger](evidence.json),
 [executed follow-up requests](requests.json), [source register](sources.md),
 [Stage 2 catalog contract](catalog-contract.md),
+[proposed analysis snapshot lifecycle](../../superpowers/specs/2026-09-25-mcp-analysis-snapshot-lifecycle.md),
 [research tool instructions](../../../scripts/mcp_research/README.md), and
 [execution plan/ledger](../../superpowers/plans/2026-09-23-mcp-stage-1.md).
 

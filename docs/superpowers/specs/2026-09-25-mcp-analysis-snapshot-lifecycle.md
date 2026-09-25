@@ -1,0 +1,29 @@
+# MCP analysis snapshot lifecycle design
+
+Status: proposed for owner review, 2026-09-25. This designs storage and provenance for future catalog generations; it does not change the accepted Stage 1 snapshot or authorize collection. The [program plan](../../plans/2026-09-24-production-mcp-program.md) remains the stage allocation.
+
+## Problem and boundary
+
+Stage 1's ignored `.local/mcp-availability/analysis.json` is a roughly 120 MB offline-derived inventory. The research analyzer reads `ledger.json` and checksum-verified raw snapshots and writes that file. Stage 2's importer verifies raw files against the ledger, then reads inventories from `analysis.json`. It does not currently bind the imported analysis bytes to the ledger, raw inputs or analyzer version. A stale or replaced analysis could therefore be imported with a valid ledger. The accepted OneBuilding review registry has its own source checksum pins; those judgments must remain a separate, reviewed layer.
+
+Full raw and normalized third-party inventories stay outside Git and the wheel unless each source's redistribution terms are reviewed. Git should carry a small provenance record and accepted judgments, not the 120 MB analysis. Git LFS would still distribute the inventory and does not settle permissions. Local-only files without a tracked provenance record would make generations hard to review or reproduce.
+
+## Chosen lifecycle
+
+1. **Preserve the accepted baseline.** Leave the current `.local/mcp-availability/` tree in place. Do not rerun `collect`, overwrite the ledger, replace `coordinate-baseline.json`, or regenerate the accepted analysis merely to introduce this design. Treat it as a legacy generation until it is bound by the new verification process.
+2. **Keep full bytes local.** Save each future raw/ledger/analysis set under an ignored, immutable local generation directory. A new accepted follow-up creates a new directory; it never edits an older generation. Keep the current root path readable for compatibility during migration. An optional private transfer or backup can move these bytes only after source-specific terms permit it; it is not required for fresh installations.
+3. **Track a sanitized manifest in Git.** One small JSON manifest per accepted generation records a content-derived generation ID, analysis schema and SHA-256, analyzer version or source revision, ledger SHA-256, saved raw source IDs with SHA-256, accepted review-registry SHA-256, checked dates and high-level row counts. Record source/license status and the local import requirement. Exclude full rows, signed URLs, credentials, local absolute paths and raw response bodies. Commit a manifest only after the generation and any changed annotations are reviewed. The accepted Stage 1 evidence ledger and 61-decision review registry remain tracked as they are now.
+4. **Bind derivation before activation.** Offline analysis should produce stable bytes from identical inputs, or define a canonical digest that excludes volatile fields. Write a local companion provenance record at the same time as `analysis.json`; it declares the exact ledger/raw digests and analyzer version used. The importer must verify the analysis digest against the reviewed Git manifest, the companion's input digests against the actual ledger and raw files, the expected schema/analyzer version, and review-registry pins before activating a catalog generation. A mismatch fails closed and leaves the previous catalog generation active. The catalog generation retains a reference to the reviewed manifest digest; its existing internal generation identifier need not change.
+5. **Update through review.** A later researcher may collect a bounded follow-up independently, then run the offline analyzer against its saved inputs. Review a sanitized source/count/annotation diff against the prior generation, check redistribution status, commit the new manifest and any accepted review changes, then import and activate the new local generation. Old manifests and local generations remain available for audit and rollback. A source change that invalidates an accepted annotation keeps it unresolved until renewed review; an importer must not silently carry it forward.
+6. **Handle missing local bytes honestly.** A fresh clone can use only the distributable source contracts and tracked review metadata; inventory-dependent answers remain unknown. To reproduce a full catalog, the operator supplies matching local snapshots under the applicable source terms. If upstream bytes have changed, that is a new generation with a new manifest, not a reconstructed copy of the older one.
+
+The manifest is a provenance pointer, not a claim that the underlying inventory is redistributable, current, complete hourly weather, or simulation-ready. The local generation and Git manifest are both needed to reproduce a full import.
+
+## Implementation acceptance for a later scoped plan
+
+- Two analyses of unchanged inputs produce the same canonical digest; changed raw, ledger, analyzer or analysis bytes produce a distinguishable generation or an explicit incompatibility.
+- Import rejects a mismatched, missing, stale or unsupported analysis/provenance pair without disturbing the active catalog. A valid reviewed generation imports offline.
+- A new manifest shows only sanitized source identities, hashes, dates, counts and review pins. Tests and packaging checks confirm raw and normalized inventories remain ignored and absent from the wheel.
+- A follow-up generation preserves the accepted 61 annotations only where their source checksum pins still match. Old local snapshots and prior Git manifests remain readable.
+
+No migration or importer change is part of this design document. The current Stage 2 acceptance applies to its existing local snapshot and should not be read as verification of this proposed stronger binding.

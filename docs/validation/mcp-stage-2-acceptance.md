@@ -26,6 +26,12 @@ original ignored `.local/mcp-availability/` files remain in place. Stage 1
 non-editable `openepw` copy; it was replaced with a local editable install before
 the CLI smoke test.
 
+The importer checks raw snapshots against the ledger but does not yet bind the
+derived `analysis.json` bytes to those inputs. The proposed
+[snapshot lifecycle design](../superpowers/specs/2026-09-25-mcp-analysis-snapshot-lifecycle.md)
+records how a reviewed manifest and local provenance check would close this gap
+for future generations. This acceptance does not claim that stronger check.
+
 The opt-in test verified the source checksum pins and previously accepted Stage 1
 counts: 154,841 NOAA station/year rows; 56 reviewed metadata matches, three
 approximate localities, two name/code conflicts; 636 coherent CMIP6 seven-variable
