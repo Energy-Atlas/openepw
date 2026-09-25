@@ -1,6 +1,6 @@
 # MCP Stage 2 Availability and Recommendation Implementation Plan
 
-Status: proposed for owner review, 2026-09-24. Stage 2 implementation is not approved.
+Status: approved for autonomous implementation by the owner on 2026-09-24. Work in the checked-out `feature/mcp` repository branch; stage and commit meaningful increments without routine human supervision. Escalate only a major missed requirement or blocking issue that remains unresolved after a reasonable retry, and the repository's explicit irreversible/security boundaries.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:executing-plans` to implement this plan task by task in the repository checkout on `feature/mcp`. Inline execution is the handoff's preferred approach; finish with one independent whole-branch review. Checkboxes track work. Implementation starts only after the owner reviews this plan.
 
