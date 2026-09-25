@@ -4,6 +4,7 @@ import sys
 
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
+from mcp.types import LATEST_PROTOCOL_VERSION
 from pydantic import AnyUrl
 
 from openepw.artifacts.store import ArtifactStore
@@ -23,6 +24,7 @@ def test_real_stdio_session_tools_errors_and_resource(tmp_path):
             async with ClientSession(reader, writer) as client:
                 initialized = await client.initialize()
                 assert initialized.serverInfo.name == "openepw"
+                assert initialized.protocolVersion == LATEST_PROTOCOL_VERSION
                 tools = await client.list_tools()
                 assert {"weather_assess", "artifact_inspect", "baseline_upload"} <= {
                     tool.name for tool in tools.tools

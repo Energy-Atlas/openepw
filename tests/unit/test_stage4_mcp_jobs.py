@@ -97,6 +97,7 @@ def test_weather_plan_submit_inspect_and_compact_export(tmp_path):
     inspected_plan = _call(server, "plan_inspect", plan_hash=plan["plan_hash"])
     assert inspected_plan["plan_hash"] == plan["plan_hash"]
     assert inspected_plan["outputs"][0]["id"]
+    assert inspected_plan["selected_candidates"]
     submitted = _call(server, "weather_submit", plan_hash=plan["plan_hash"])
     for _ in range(100):
         job = _call(server, "job_inspect", job_id=submitted["id"])
