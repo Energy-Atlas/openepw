@@ -61,3 +61,29 @@ def test_retry_route_submits_only_failed_outputs(tmp_path):
         assert retry["retry_of"] == original.id
         assert retry["total"] == 1
         assert len(app.state.runner.store.plan(retry["id"]).outputs) == 1
+
+
+def test_stored_hash_job_and_compact_export_share_service_identities(tmp_path):
+    from openepw.models import Location, WeatherRequest
+
+    service = WeatherService(RuntimeConfig(data_root=tmp_path), providers=[StationProvider()])
+    plan = service.plan(WeatherRequest(
+        locations=[Location(lat=1, lon=0), Location(lat=12, lon=0)],
+        start="2024-01-01", end="2024-01-01"))
+    app = create_app(service)
+    with TestClient(app) as client:
+        app.state.runner.enqueue = lambda _: None
+        response = client.post("/v1/weather/jobs", json={"plan_hash": plan.plan_hash})
+        assert response.status_code == 202
+        job_id = response.json()["id"]
+        app.state.runner.run(job_id)
+        job = client.get(f"/v1/jobs/{job_id}").json()
+        assert job["plan_hash"] == plan.plan_hash
+        assert "dry_bulb" not in response.text
+        export = client.post(f"/v1/jobs/{job_id}/export/compact")
+        assert export.status_code == 200
+        ref = export.json()
+        assert ref["media_type"] == "application/zip"
+        downloaded = client.get(f"/v1/artifacts/{ref['id']}")
+        assert downloaded.status_code == 200
+        assert downloaded.content.startswith(b"PK")

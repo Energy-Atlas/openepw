@@ -132,4 +132,9 @@ def test_job_manifest_accounts_for_mixed_fetch_outcomes(tmp_path):
     assert manifest["batch_rows"][0]["source"]["location"]["lat"] == 1
     assert manifest["batch_rows"][1]["issue_codes"] == ["FETCH_FAILED"]
     assert all("artifact_id" not in row for row in manifest["batch_rows"][1:])
+    assert manifest["counts"] == {
+        "requested_occurrences": 4, "output_intents": 2, "native_tasks": 2,
+        "shared_native_tasks": 0, "unsupported": 1, "unresolved": 1,
+        "emitted_artifacts": 1,
+    }
     runner.close()

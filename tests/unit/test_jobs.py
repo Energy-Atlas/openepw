@@ -26,6 +26,8 @@ def test_durable_idempotency_completion_and_restart(tmp_path):
 
 
 def test_cancel_before_execution(tmp_path):
+    import json
+
     service = WeatherService(RuntimeConfig(data_root=tmp_path), providers=[StationProvider()])
     plan = service.plan(
         WeatherRequest(locations=Location(lat=1, lon=0), start="2024-01-01", end="2024-01-01")
@@ -34,8 +36,11 @@ def test_cancel_before_execution(tmp_path):
     job = store.submit(plan)
     store.cancel(job.id)
     JobRunner(service, store).run(job.id)
-    assert store.get(job.id).state == "cancelled"
+    final = store.get(job.id)
+    assert final.state == "cancelled"
     assert service.providers["station"].calls == 0
+    _, path = service.artifacts.resolve(final.bundle.manifest.id)
+    assert json.loads(path.read_text())["batch_rows"][0]["status"] == "cancelled"
 
 
 def test_restart_resumes_after_verified_completed_item(tmp_path):

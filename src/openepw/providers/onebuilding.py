@@ -98,6 +98,7 @@ class OneBuildingProvider:
                         provider=self.name,
                         dataset="OneBuilding published EPW",
                         identity=parsed.path,
+                        provisional=False,
                         license="Redistribution permission unverified; local retrieval only",
                         citation=url,
                     ),

@@ -1,5 +1,6 @@
 import argparse
 import json
+import re
 from pathlib import Path
 
 from pydantic import TypeAdapter, ValidationError
@@ -115,19 +116,25 @@ def main(argv=None):
             finally:
                 runner.close()
         else:
-            raw = Path(args.input).read_text(encoding="utf-8")
             if args.command == "execute":
-                result = service.execute(WeatherPlan.model_validate_json(raw))
-            elif args.command == "future":
-                result = service.execute(
-                    service.plan_future(FutureRequest.model_validate_json(raw))
+                selected_plan = (
+                    service.plan_store.get(args.input)
+                    if re.fullmatch(r"[0-9a-f]{64}", args.input)
+                    else WeatherPlan.model_validate_json(Path(args.input).read_text(encoding="utf-8"))
                 )
-            elif args.command == "availability":
-                result = service.assess_availability(
-                    TypeAdapter(AvailabilityQuery).validate_json(raw))
+                result = service.execute(selected_plan)
             else:
-                request = WeatherRequest.model_validate_json(raw)
-                result = getattr(service, args.command)(request)
+                raw = Path(args.input).read_text(encoding="utf-8")
+                if args.command == "future":
+                    result = service.execute(
+                        service.plan_future(FutureRequest.model_validate_json(raw))
+                    )
+                elif args.command == "availability":
+                    result = service.assess_availability(
+                        TypeAdapter(AvailabilityQuery).validate_json(raw))
+                else:
+                    request = WeatherRequest.model_validate_json(raw)
+                    result = getattr(service, args.command)(request)
         value = result.model_dump(mode="json") if hasattr(result, "model_dump") else result
         rendered = json.dumps(value, indent=2, allow_nan=False)
         if getattr(args, "output", None):

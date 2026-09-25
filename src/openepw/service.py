@@ -4,6 +4,7 @@ import copy
 import hashlib
 import json
 import uuid
+from collections import Counter
 from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -843,6 +844,19 @@ class WeatherService:
             for row in manifest["batch_rows"]:
                 if row["status"] == "succeeded":
                     row["qc_artifact_id"] = qc_ref.id
+            uses = Counter(task_id for row in plan.batch_rows
+                           if row.status == "planned" for task_id in row.task_ids)
+            manifest["counts"] = {
+                "requested_occurrences": len({row.occurrence_index for row in plan.batch_rows}),
+                "output_intents": len(plan.outputs),
+                "native_tasks": len(plan.tasks),
+                "shared_native_tasks": sum(count > 1 for count in uses.values()),
+                "unsupported": sum(row["status"] == "unsupported"
+                                   for row in manifest["batch_rows"]),
+                "unresolved": sum(row["status"] == "unresolved"
+                                  for row in manifest["batch_rows"]),
+                "emitted_artifacts": len(manifest_outputs),
+            }
         manifest_ref = self.artifacts.json(bundle_id, "manifest.json", manifest, "manifest")
         return ArtifactBundle(
             bundle_id=bundle_id,

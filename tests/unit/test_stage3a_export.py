@@ -17,7 +17,8 @@ from openepw.service import WeatherService
 def _finished(tmp_path):
     service = WeatherService(RuntimeConfig(data_root=tmp_path), providers=[StationProvider()])
     plan = service.plan(WeatherRequest(
-        locations=[Location(lat=1, lon=0), Location(lat=12, lon=0)],
+        locations=[Location(lat=1, lon=0, name="../unsafe" * 30),
+                   Location(lat=12, lon=0, name="CON")],
         start="2024-01-01", end="2024-01-01",
         dataset_selections=[{"provider": "station", "dataset": "synthetic"},
                             {"provider": "missing", "dataset": "unknown"}],
@@ -71,4 +72,29 @@ def test_compact_export_refuses_unfinished_job(tmp_path):
     job = runner.store.submit(plan)
     with pytest.raises(OpenEPWError, match="EXPORT_UNAVAILABLE"):
         runner.export_compact(job.id)
+    runner.close()
+
+
+def test_failed_row_has_no_compact_member(tmp_path):
+    class FailingStation(StationProvider):
+        def fetch(self, task, http):
+            if task.source.identity == "2":
+                raise OpenEPWError("FETCH_FAILED", "Synthetic fetch failure")
+            return super().fetch(task, http)
+
+    service = WeatherService(RuntimeConfig(data_root=tmp_path),
+                             providers=[FailingStation()])
+    plan = service.plan(WeatherRequest(
+        locations=[Location(lat=1, lon=0), Location(lat=2, lon=0)],
+        start="2024-01-01", end="2024-01-01"))
+    runner = JobRunner(service)
+    runner.enqueue = lambda _: None
+    job = runner.submit(plan)
+    runner.run(job.id)
+    _, path = service.artifacts.resolve(runner.export_compact(job.id).id)
+    with zipfile.ZipFile(path) as archive:
+        mapping = list(csv.DictReader(io.StringIO(archive.read("mapping.csv").decode())))
+    failed = next(row for row in mapping if row["status"] == "failed")
+    assert failed["artifact_id"] == failed["compact_member"] == ""
+    assert failed["issue_codes"] == "FETCH_FAILED"
     runner.close()

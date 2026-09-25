@@ -197,6 +197,9 @@ class JobRunner:
         weather = []
         extra = []
         errors = [*plan.issues, *job.errors]
+        if self.store.get(job_id).cancellation_requested:
+            errors.append(Issue(code="CANCELLED", message="Execution cancelled",
+                                severity="error"))
         manifests = []
         qc = []
         for bundle in completed.values():
