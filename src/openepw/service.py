@@ -52,6 +52,7 @@ from .planning.batch import (
     missing_selection_status,
 )
 from .planning.output_identity import filename, location_label, output_id, period_label
+from .planning.store import PlanStore
 from .providers.era5 import CDSProvider
 from .providers.http import HttpClient
 from .providers.noaa_isd import NOAAProvider
@@ -126,6 +127,7 @@ class WeatherService:
         }
         self.artifacts = ArtifactStore(self.config.data_root)
         self.catalog_store = catalog_store or CatalogStore(self.config.data_root / "catalog")
+        self.plan_store = PlanStore(self.config.data_root)
 
     def assess_availability(self, query: WeatherAvailabilityQuery | FutureAvailabilityQuery) -> AvailabilityResult:
         view = self.catalog_store.active()
@@ -658,7 +660,7 @@ class WeatherService:
                         status="planned", candidate_id=first.id,
                         task_ids=output_task_ids, output_id=identity,
                     ))
-        return WeatherPlan(
+        plan = WeatherPlan(
             request=request,
             selected_candidates=selected,
             tasks=list(tasks.values()),
@@ -668,6 +670,8 @@ class WeatherService:
             issues=issues,
             estimated_calls=len(tasks),
         )
+        self.plan_store.put(plan)
+        return plan
 
     def execute(self, plan: WeatherPlan, *, cancelled=lambda: False, progress=lambda *_: None):
         plan = WeatherPlan.model_validate_json(plan.model_dump_json())

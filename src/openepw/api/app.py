@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI, File, Header, HTTPException, UploadFile
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
 from ..availability import AvailabilityQuery
 from ..epw import read_epw
@@ -15,6 +15,18 @@ from ..service import WeatherService
 
 
 class JobSubmission(BaseModel):
+    plan: WeatherPlan | None = None
+    plan_hash: str | None = None
+    idempotency_key: str | None = None
+
+    @model_validator(mode="after")
+    def exactly_one_plan(self):
+        if (self.plan is None) == (self.plan_hash is None):
+            raise ValueError("Specify exactly one of plan or plan_hash")
+        return self
+
+
+class FutureJobSubmission(BaseModel):
     plan: WeatherPlan
     idempotency_key: str | None = None
 
@@ -117,18 +129,20 @@ def create_app(service=None, *, remote=False):
         return service.plan_future(request)
 
     def submit(payload, kind):
-        if payload.plan.kind != kind:
+        selected_plan = (service.plan_store.get(payload.plan_hash)
+                         if payload.plan_hash is not None else payload.plan)
+        if selected_plan.kind != kind:
             raise OpenEPWError("INVALID_REQUEST", "Plan kind does not match endpoint")
         if kind == "future":
-            safe_future(payload.plan.request)
-        return runner.submit(payload.plan, payload.idempotency_key)
+            safe_future(selected_plan.request)
+        return runner.submit(selected_plan, payload.idempotency_key)
 
     @app.post("/v1/weather/jobs", status_code=202)
     def weather_job(payload: JobSubmission):
         return submit(payload, "weather")
 
     @app.post("/v1/future/jobs", status_code=202)
-    def future_job(payload: JobSubmission):
+    def future_job(payload: FutureJobSubmission):
         return submit(payload, "future")
 
     @app.get("/v1/jobs/{job_id}")

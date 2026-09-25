@@ -36,6 +36,8 @@ class JobStore:
             db.close()
 
     def submit(self, plan, idempotency_key=None, retry_of=None):
+        if plan.kind == "weather" and not plan.outputs:
+            raise OpenEPWError("NO_EXECUTABLE_OUTPUTS", "Weather plan has no executable outputs")
         job = WeatherJob(
             id=uuid.uuid4().hex,
             plan_hash=plan.plan_hash,

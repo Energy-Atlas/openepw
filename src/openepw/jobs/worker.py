@@ -41,6 +41,8 @@ class JobRunner:
         self.active = set()
 
     def submit(self, plan, idempotency_key=None, retry_of=None):
+        if isinstance(plan, str):
+            plan = self.service.plan_store.get(plan)
         job = self.store.submit(plan, idempotency_key, retry_of=retry_of)
         self.enqueue(job.id)
         return job
