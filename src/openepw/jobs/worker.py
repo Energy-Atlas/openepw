@@ -119,6 +119,11 @@ class JobRunner:
     def close(self):
         self.pool.shutdown(wait=True)
 
+    def export_compact(self, job_id):
+        from ..artifacts.export import export_compact
+
+        return export_compact(self, job_id)
+
     def run(self, job_id):
         job = self.store.get(job_id)
         if job.state not in ("queued", "running"):

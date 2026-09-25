@@ -59,6 +59,35 @@ class ArtifactStore:
             bundle_id, name, json.dumps(value, indent=2, allow_nan=False).encode(), role
         )
 
+    def register_file(self, bundle_id: str, name: str, source: Path, role: str,
+                      media_type: str, artifact_id: str) -> ArtifactRef:
+        """Atomically register a streamed local artifact under a stable identifier."""
+        if not re.fullmatch(r"[a-f0-9]{32}", bundle_id) or not re.fullmatch(
+            r"[a-f0-9]{32}", artifact_id
+        ) or not re.fullmatch(r"[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+", name):
+            raise OpenEPWError("INVALID_ARTIFACT", "Unsafe artifact identity")
+        relative = Path("jobs") / bundle_id / name
+        path = (self.root / relative).resolve()
+        if not path.is_relative_to(self.root) or not source.resolve().is_relative_to(self.root):
+            raise OpenEPWError("INVALID_ARTIFACT", "Artifact path escapes data root")
+        record = self.root / "artifacts" / f"{artifact_id}.json"
+        if record.exists():
+            ref, _ = self.resolve(artifact_id)
+            return ref
+        hasher = hashlib.sha256()
+        size = 0
+        with source.open("rb") as stream:
+            for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                hasher.update(chunk)
+                size += len(chunk)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        source.replace(path)
+        ref = ArtifactRef(id=artifact_id, path=relative.as_posix(),
+                          media_type=media_type, bytes=size, sha256=hasher.hexdigest(),
+                          role=role)
+        atomic_write(record, ref.model_dump_json().encode())
+        return ref
+
     def resolve(self, artifact_id):
         if not artifact_id.isalnum() or len(artifact_id) != 32:
             raise OpenEPWError("INVALID_ARTIFACT", "Invalid artifact identifier")

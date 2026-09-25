@@ -23,10 +23,10 @@ def main(argv=None):
     parser.add_argument("--data-root")
     sub = parser.add_subparsers(dest="command", required=True)
     for command in ("geocode", "discover", "plan", "fetch", "execute", "future",
-                    "inspect", "availability"):
+                    "inspect", "availability", "export"):
         cmd = sub.add_parser(command)
         cmd.add_argument(
-            "input", help="Location text, request/plan JSON path, or EPW/job ID for inspect"
+            "input", help="Location text, request/plan JSON path, or EPW/job ID"
         )
         cmd.add_argument("--output", help="Write compact JSON result to this path")
     serve = sub.add_parser("serve")
@@ -106,6 +106,14 @@ def main(argv=None):
                 from ..jobs.store import JobStore
 
                 result = JobStore(config.data_root).get(args.input)
+        elif args.command == "export":
+            from ..jobs.worker import JobRunner
+
+            runner = JobRunner(service)
+            try:
+                result = runner.export_compact(args.input)
+            finally:
+                runner.close()
         else:
             raw = Path(args.input).read_text(encoding="utf-8")
             if args.command == "execute":

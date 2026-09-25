@@ -161,6 +161,10 @@ def create_app(service=None, *, remote=False):
     def artifacts(job_id: str):
         return runner.store.get(job_id).bundle
 
+    @app.post("/v1/jobs/{job_id}/export/compact")
+    def compact_export(job_id: str):
+        return runner.export_compact(job_id)
+
     @app.post("/v1/artifacts", status_code=201)
     async def upload(file: UploadFile = File(...)):
         body = await file.read(5_000_001)
