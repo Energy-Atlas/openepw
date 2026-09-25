@@ -5,6 +5,7 @@ import hashlib
 import io
 import json
 import sys
+import time
 import zipfile
 from calendar import isleap
 from pathlib import Path
@@ -56,6 +57,12 @@ class CompleteStation:
             for variable in data.data
         }
         return ProviderResult(data, task.source, b"pilot-complete")
+
+
+class SlowStation(CompleteStation):
+    def fetch(self, task, http):
+        time.sleep(1)
+        return super().fetch(task, http)
 
 
 class AlternativeStation:
@@ -198,13 +205,17 @@ def puma_service(root):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--data-root", type=Path, required=True)
-    parser.add_argument("--mode", choices=["general", "noaa", "puma"], default="general")
+    parser.add_argument("--mode", choices=["general", "noaa", "puma", "slow"],
+                        default="general")
     args = parser.parse_args()
     args.data_root.mkdir(parents=True, exist_ok=True)
     if args.mode == "noaa":
         service = noaa_service(args.data_root)
     elif args.mode == "puma":
         service = puma_service(args.data_root)
+    elif args.mode == "slow":
+        service = WeatherService(RuntimeConfig(data_root=args.data_root),
+                                 providers=[SlowStation()])
     else:
         service = WeatherService(
             RuntimeConfig(data_root=args.data_root),

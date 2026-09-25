@@ -364,6 +364,32 @@ def test_recovery_path_allowlist_invalid_upload_and_corrupt_artifact(tmp_path):
     run(journey())
 
 
+def test_recovery_active_cancel_then_retry_through_client(tmp_path):
+    async def journey():
+        async with port(tmp_path, "slow") as client:
+            plan = await client.call("weather_plan", request={
+                "locations": [ITHACA, {"id": "nearby", "lat": 42.5, "lon": -76.45}],
+                "product": "historical", "years": [2024],
+                "providers": ["station"]})
+            job = await client.call("weather_submit", plan_hash=plan["plan_hash"])
+            requested = await client.call("job_cancel", job_id=job["id"])
+            assert requested["cancellation_requested"]
+            cancelled = await finished(client, job["id"])
+            assert cancelled["state"] == "cancelled"
+            prior = cancelled.get("artifacts", {}).get("weather", [])
+            assert len(prior) <= 1
+            retry = await client.call("job_retry_failed", job_id=job["id"])
+            completed = await finished(client, retry["id"])
+            assert completed["state"] == "completed", completed
+            assert len(prior) + len(completed["artifacts"]["weather"]) == 2
+            for artifact_id in prior:
+                assert (await client.call("artifact_inspect", artifact_id=artifact_id))["sha256"]
+            assert completed["retry_of"] == job["id"]
+            assert client.tool_calls <= 30
+
+    run(journey())
+
+
 def test_merged_evidence_keeps_unprobed_year_and_future_window_unknown(tmp_path):
     catalog = CatalogStore(tmp_path / "catalog")
     bundle = CatalogBundle(
