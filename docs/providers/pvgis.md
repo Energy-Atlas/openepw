@@ -12,6 +12,10 @@ JSON identifies SARAH3 radiation, ERA5 meteorology, selected months and a
 2005–2023 source period. Store that upstream hybrid provenance and the returned
 irradiance time offset. Do not infer a single native resolution for all fields.
 SARAH3 is approximately 0.05°; ERA5 is 0.25°. Availability varies geographically.
+The [JRC 5.3 coverage figure](../validation/mcp-stage-2/pvgis-map-evidence.md)
+now appears as documented default irradiance-source context in the local
+availability map. It does not convert the London TMY probe into a regional
+API-eligibility claim.
 
 The native EPW has hours 1–24 and minute 0, despite the dictionary's 1–60 minute
 convention. Preserve downloaded bytes; normalized re-exports use canonical hourly

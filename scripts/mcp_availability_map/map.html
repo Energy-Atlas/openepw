@@ -8,7 +8,7 @@
         <option value="oedi">OEDI future PUMA files</option>
         <option value="nsrdb-actual">NSRDB actual-year grid evidence</option>
         <option value="nsrdb-published">NSRDB published grid evidence</option>
-        <option value="pvgis">PVGIS TMY probe</option>
+        <option value="pvgis">PVGIS v5_3 TMY source coverage</option>
         <option value="openmeteo-era5">Open-Meteo ERA5 documented extent</option>
         <option value="openmeteo-land">Open-Meteo ERA5-Land documented land extent</option>
         <option value="cds-era5">CDS ERA5 documented bbox</option>
@@ -69,6 +69,12 @@
   </div>
   <div id="oepw-status" aria-live="polite" class="text-small"></div>
   <canvas id="oepw-map" role="img" aria-label="Map of the selected source's catalog-listed locations or documented extent"></canvas>
+  <figure id="oepw-pvgis-coverage" hidden>
+    <a href="https://joint-research-centre.ec.europa.eu/sites/default/files/2024-09/PVGIS_53_DB_Coverage.png" target="_blank" rel="noopener noreferrer">
+      <img src="https://joint-research-centre.ec.europa.eu/sites/default/files/2024-09/PVGIS_53_DB_Coverage.png" loading="lazy" alt="JRC PVGIS 5.3 map of irradiance sources: SARAH3 in green, ERA5LP in yellow, with a white coastal buffer.">
+    </a>
+    <figcaption>JRC <a href="https://joint-research-centre.ec.europa.eu/photovoltaic-geographical-information-system-pvgis/using-pvgis-5/pvgis-5-user-manual_en" target="_blank" rel="noopener noreferrer">PVGIS 5.3 user manual</a>: documented default irradiance-source regions for TMY. Green is SARAH3; yellow is ERA5LP (ERA5LandPlus). JRC lists 2005–2023 source data. The figure is not exact TMY eligibility at every coordinate; London is the saved point confirmation. © European Union, PVGIS/JRC.</figcaption>
+  </figure>
   <div id="oepw-legend" class="text-small"></div>
   <div id="oepw-nsrdb-credit" class="text-small" hidden>
     NSRDB data: National Laboratory of the Rockies.
@@ -91,6 +97,9 @@
   #openepw-stage1-map .form-label { min-width: 120px; }
   #openepw-stage1-map #oepw-status { min-height: 20px; margin: 6px 0; color: var(--foreground); }
   #openepw-stage1-map #oepw-map { display: block; width: 100%; height: 430px; border: 1px solid var(--border); touch-action: none; }
+  #openepw-stage1-map #oepw-pvgis-coverage { margin: 10px 0; }
+  #openepw-stage1-map #oepw-pvgis-coverage img { display: block; width: 100%; max-width: 712px; height: auto; background: #fff; border: 1px solid var(--border); }
+  #openepw-stage1-map #oepw-pvgis-coverage figcaption { max-width: 712px; margin-top: 5px; color: var(--muted-foreground); font-size: 0.9em; }
   #openepw-stage1-map #oepw-legend { margin-top: 7px; color: var(--muted-foreground); }
   #openepw-stage1-map #oepw-detail { margin-top: 10px; }
   @media (max-width: 520px) { #openepw-stage1-map #oepw-map { height: 340px; } }
@@ -172,6 +181,7 @@
     $('oepw-scenario-wrap').hidden = $('oepw-window-wrap').hidden = !future;
     $('oepw-native-wrap').hidden = source.value !== 'nsrdb-published';
     $('oepw-nsrdb-credit').hidden = !source.value.startsWith('nsrdb-');
+    $('oepw-pvgis-coverage').hidden = source.value !== 'pvgis';
   }
   function selectNsrdbMasks(keys) {
     const found = keys.map(key => masks[key]).filter(mask => mask && !mask.stale);
@@ -230,8 +240,8 @@
     }
     if (key === 'pvgis') {
       visible = probes.pvgis;
-      return ['London probe: PVGIS v5_3 TMY, reference period 2005–2023.',
-        'Selected source-month years differ; London does not establish a global SARAH3 footprint.'];
+      return ['PVGIS v5_3 TMY: JRC documented default SARAH3 and ERA5LP irradiance regions; one exact London confirmation.',
+        'The JRC figure below shows source context, not a verified point-by-point TMY footprint. JRC lists 2005–2023 source data; a TMY is not actual-year availability, and selected source-month years vary by location.'];
     }
     if (key === 'cmip6') return ['636 coherent historical/scenario seven-variable catalog combinations.',
       'Complete climate-window coordinates, per-model licenses and a verified geographic map layer remain unknown.'];
@@ -286,18 +296,25 @@
       }
     }
     projected = [];
-    context.fillStyle = paint.mark;
+    context.fillStyle = key==='pvgis' ? paint.coverage : paint.mark;
     context.globalAlpha = visible.length > 3000 ? 0.62 : 0.9;
     for (const point of visible) {
       const xy = projection([point.lon,point.lat]);
       if (!xy) continue;
       projected.push({point,x:xy[0],y:xy[1]});
-      const r = visible.length > 3000 ? 1.65/Math.sqrt(transform.k) : 3.5/Math.sqrt(transform.k);
+      const r = key==='pvgis' ? 6/Math.sqrt(transform.k) :
+        visible.length > 3000 ? 1.65/Math.sqrt(transform.k) : 3.5/Math.sqrt(transform.k);
       context.beginPath(); context.arc(xy[0],xy[1],r,0,Math.PI*2);
       if (point.position === 'approximate locality') {
         context.globalAlpha=1; context.strokeStyle=paint.caution; context.lineWidth=1.8/transform.k; context.stroke();
         context.globalAlpha=visible.length > 3000 ? 0.62 : 0.9;
-      } else context.fill();
+      } else {
+        context.fill();
+        if (key==='pvgis') {
+          context.strokeStyle=paint.coverageOutline;context.lineWidth=1.5/transform.k;
+          context.stroke();
+        }
+      }
     }
     context.globalAlpha = 1;
     context.restore();

@@ -85,7 +85,9 @@ Stage 1's existing ledger budgets are not reusable runtime quotas for production
    [follow-up plan](../../superpowers/plans/2026-09-23-mcp-stage-1.md#accepted-onebuilding-follow-up-plan--2026-09-23).
    Keep inferred place coordinates separate from verified source coordinates.
 4. Resolve version-specific PVGIS footprint/source-period metadata and NSRDB product
-   footprints without mass queries. The focused [NSRDB map acceptance](../mcp-stage-2/nsrdb-footprint-acceptance.md)
+   footprints without mass queries. JRC's [PVGIS 5.3 source-region figure](../mcp-stage-2/pvgis-map-evidence.md)
+   now supplies documented TMY source context, while exact PVGIS TMY availability
+   outside London remains unknown. The focused [NSRDB map acceptance](../mcp-stage-2/nsrdb-footprint-acceptance.md)
    now provides an exact-source-identity grid-site display mask for GOES TMY v4
    `published_name:tdy-2023`, in addition to the two Stage 1 point probes. Its
    0.25° occupied cells are generalized display evidence, not positive arbitrary-point
