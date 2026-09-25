@@ -1,5 +1,7 @@
 """Catalog generations activate atomically and retain a usable snapshot."""
 
+import json
+import sqlite3
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -52,6 +54,28 @@ def test_failed_stage_keeps_previous_generation(tmp_path):
         store.stage(bad)
     assert store.active().snapshot.generation_id == first.generation_id
     assert len(store.active().bundle.entries) == 1
+
+
+def test_unknown_database_schema_requires_reimport(tmp_path):
+    with sqlite3.connect(tmp_path / "catalog.sqlite3") as db:
+        db.execute("PRAGMA user_version = 9")
+    with pytest.raises(CatalogImportError, match="schema"):
+        CatalogStore(tmp_path)
+
+
+def test_unknown_generation_importer_requires_reimport(tmp_path):
+    store = CatalogStore(tmp_path)
+    first = store.stage(bundle())
+    store.activate(first.generation_id)
+    with sqlite3.connect(store.database) as db:
+        row = db.execute("SELECT snapshot FROM generations WHERE id = ?",
+                         (first.generation_id,)).fetchone()
+        snapshot = json.loads(row[0])
+        snapshot["importer_version"] = "future"
+        db.execute("UPDATE generations SET snapshot = ? WHERE id = ?",
+                   (json.dumps(snapshot), first.generation_id))
+    with pytest.raises(CatalogImportError, match="importer"):
+        store.active()
 
 
 def test_pinned_view_survives_later_activation(tmp_path):

@@ -47,11 +47,28 @@ class CatalogStore:
         self.root.mkdir(parents=True, exist_ok=True)
         self.database = self.root / "catalog.sqlite3"
         with self._connect() as db:
+            version = db.execute("PRAGMA user_version").fetchone()[0]
+            if version not in (0, 1):
+                raise CatalogImportError("Unsupported catalog database schema; reimport required")
             db.execute("CREATE TABLE IF NOT EXISTS generations (id TEXT PRIMARY KEY, snapshot TEXT NOT NULL)")
             db.execute("CREATE TABLE IF NOT EXISTS active (singleton INTEGER PRIMARY KEY CHECK (singleton = 1), generation_id TEXT NOT NULL REFERENCES generations(id))")
             db.execute("CREATE TABLE IF NOT EXISTS stale_sources (source_id TEXT PRIMARY KEY)")
             for name, _ in _TABLES:
                 db.execute(f"CREATE TABLE IF NOT EXISTS {name} (generation_id TEXT NOT NULL REFERENCES generations(id), id TEXT NOT NULL, body TEXT NOT NULL, PRIMARY KEY (generation_id, id))")
+            expected = {"generations": {"id", "snapshot"},
+                        "active": {"singleton", "generation_id"},
+                        "stale_sources": {"source_id"}}
+            expected.update({name: {"generation_id", "id", "body"} for name, _ in _TABLES})
+            for name, columns in expected.items():
+                actual = {row[1] for row in db.execute(f"PRAGMA table_info({name})")}
+                if not columns <= actual:
+                    raise CatalogImportError("Unsupported catalog database schema; reimport required")
+            db.execute("PRAGMA user_version = 1")
+
+    @staticmethod
+    def _check_versions(snapshot: CatalogSnapshotRef):
+        if snapshot.schema_version != "1" or snapshot.importer_version != "1":
+            raise CatalogImportError("Unsupported catalog importer/schema version; reimport required")
 
     def _connect(self):
         db = sqlite3.connect(self.database, timeout=10)
@@ -113,6 +130,7 @@ class CatalogStore:
             if row is None:
                 raise CatalogImportError("Unknown catalog generation")
             snapshot = CatalogSnapshotRef.model_validate_json(row[0])
+            self._check_versions(snapshot)
             snapshot.activated_at = datetime.now(timezone.utc)
             db.execute("UPDATE generations SET snapshot = ? WHERE id = ?",
                        (snapshot.model_dump_json(), generation_id))
@@ -126,13 +144,14 @@ class CatalogStore:
             if row is None:
                 return None
             generation_id, raw_snapshot = row
+            snapshot = CatalogSnapshotRef.model_validate_json(raw_snapshot)
+            self._check_versions(snapshot)
             contents = {}
             for name, kind in _TABLES:
                 records = db.execute(f"SELECT body FROM {name} WHERE generation_id = ? ORDER BY id",
                                      (generation_id,)).fetchall()
                 contents[name] = [kind.model_validate(json.loads(r[0])) for r in records]
             stale = [row[0] for row in db.execute("SELECT source_id FROM stale_sources ORDER BY source_id")]
-        snapshot = CatalogSnapshotRef.model_validate_json(raw_snapshot)
         stale.extend(e.id for e in contents["evidence"] if aged(e))
         snapshot.stale_sources = sorted(set(snapshot.stale_sources) | set(stale))
         return CatalogView(snapshot,
