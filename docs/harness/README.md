@@ -1,0 +1,43 @@
+# Local reference agent
+
+Install the optional `openepw[harness]` extra, then use
+`openepw-agent --data-root <private-data-root> --prompt "<task>"`.
+The command launches the Stage 4 stdio MCP server and consumes only its public
+tools. It uses `gpt-6-luna` through the Responses API for bounded intent
+extraction; the service and MCP tools decide eligibility, plans, jobs and QC.
+Set `OPENAI_API_KEY` in the process environment before a model run. The
+command does not load, copy or change the repository's `.env`.
+
+By default the agent stops at `review_required`, showing the immutable
+plan hash and key choices. Run `openepw-agent --data-root <root>
+--submit-kind weather` (or `future`) after reviewing it. For scripted
+local evaluation, `--auto-submit` proceeds through job completion. Use
+`--resume [JOB_ID]` after disconnect; the agent re-reads canonical MCP job
+facts instead of rerunning completed outputs. The reference record lives at
+`<data-root>/harness/last-run.json` and contains only opaque IDs and tool
+names. The ignored cost ledger lives beside it.
+
+For a user EPW, pass `--baseline-file <path>` with a future prompt. The client
+reads and uploads bytes directly, outside model input, and supplies the
+returned baseline ID to the agent. A fetched OpenEPW weather artifact ID can
+instead appear in the task prompt. A future prompt must name the method,
+scenario and climate window; morphing should also specify the reference
+window. Unsupported combinations return a typed MCP error and no silent
+source switch.
+
+The parser removes credential assignments and absolute local paths before
+sending user text to the model. It uses `store=false`, low reasoning effort,
+structured intent output, a 1,024-token output cap and an ignored local ledger
+that stops new calls at a projected US$8. Stage 5/6 cumulative authorization
+is below US$10. The key, raw prompts, EPW bytes, hourly tables and full
+catalog inventories are absent from local run records. LangSmith is never
+called. Provider credentials required by a separate live retrieval remain
+runtime settings for OpenEPW, outside the model prompt.
+
+The agent does not certify an EPW for simulation. It says that catalog support
+only makes retrieval eligible to try, reports unknown alternatives, and
+inspects manifest/QC before describing a finished output. A NOAA gap with
+`warn` remains sentinel-bearing and `simulation_ready=false`; with `error`
+no EPW is emitted for that row. See [the fixed rubric](evaluation.md),
+[stack comparison](stack-decision.md) and
+[Stage 5 acceptance](../validation/mcp-stage-5-acceptance.md).

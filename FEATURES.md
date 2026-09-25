@@ -33,6 +33,7 @@ are recorded separately. Installed source package version: 0.1.0.
 | Registered future baselines | MCP Stage 3b implemented, offline tested | Uploaded or trusted local EPW and fetched weather artifact IDs; annual/missing-variable preflight, checksum-linked source manifest/QC |
 | Durable future members | MCP Stage 3b implemented, offline tested | Stored future plan hashes, member-level jobs, partial retry and cancellation; monthly morph and hourly climate profile remain distinct |
 | Local MCP contract | MCP Stage 4 implemented, offline tested | Real stdio SDK sessions, structured tools, stored plan hashes, bounded baseline upload, verified artifacts/resources and QC; no remote auth rollout |
+| Reference MCP agent | MCP Stage 5 implemented, offline and bounded live tested | Optional direct stdio harness; typed low-cost model intent, plan review, job resume and QC explanations; local redacted records, no LangSmith trace |
 | Local availability map | Research artifact, outside installed package | [PVGIS source-region approximation, NSRDB published grid, CMIP6 license counts](docs/validation/README.md); layers have different evidence bases and do not certify request eligibility |
 | Packaging/CI | Wheel/sdist built; local installation verified | Cross-OS runners configured; see actual run evidence |
 

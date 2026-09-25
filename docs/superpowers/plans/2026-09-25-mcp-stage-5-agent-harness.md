@@ -65,4 +65,13 @@ Score each task on: required tool calls and order; scientific choices and explic
 
 ## Exit and Stage 6 handoff
 
+Implementation note (2026-09-25): the direct MCP SDK harness was chosen after
+an isolated LangGraph/LangChain prototype; the beta adapter negotiated a
+newer MCP era and required extra result parsing. `plan_inspect` is used for
+selected-candidate and restart explanations. A bounded `gpt-6-luna` model
+plus real stdio future job passed after structured intent validation. Five
+model calls cost an estimated US$0.0005143 and are recorded only in an
+ignored local ledger. See [Stage 5 acceptance](../../validation/mcp-stage-5-acceptance.md)
+and [stack decision](../../harness/stack-decision.md).
+
 Stage 5 exits with an optional runnable reference agent, a fixed local evaluation suite and local redacted run records showing the selected anchor and recovery tasks pass the rubric. Any real-model variability or host-specific behavior is recorded, not hidden. Stage 6 uses this harness and the Stage 4 MCP contract through a real local client session; human participant sessions are deferred.

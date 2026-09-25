@@ -205,6 +205,12 @@ requires an explicit allowed root. Stdio and loopback Streamable HTTP are
 supported; remote MCP authentication is deferred rather than exposed without
 protection. See [local MCP contract](docs/mcp/README.md).
 
+The optional [reference harness](docs/harness/README.md) consumes only these
+MCP tools through a real stdio client. Its small model adapter extracts typed
+intent; the service retains scientific authority. Safe local run state stores
+opaque plan/job/artifact IDs and tool names, while the billable model ledger
+stores token counts and estimated cost. No hosted tracing is enabled.
+
 MCP availability research tooling lives under `scripts/mcp_research/`, outside the
 installed package. Its bounded collector and offline inventory analysis feed the
 [Stage 1 findings](docs/validation/mcp-stage-1/README.md). The Stage 2 catalog and

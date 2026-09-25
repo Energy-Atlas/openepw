@@ -28,6 +28,11 @@ limits. Local path registration requires an explicit allowed root. The v0.1
 inline tools remain compatibility aliases; new clients submit stored hashes.
 The tested client is the MCP Python SDK stdio client on Windows. Remote MCP
 authentication and other host behavior remain untested.
+The Stage 5 reference agent uses a bounded model only to parse intent; its
+template explanations and fixed rubric do not establish real-user
+comprehension. Host/model availability and natural-language interpretation
+vary. Local records omit prompts and raw weather; the model API receives
+sanitized task text when explicitly used. LangSmith tracing is disabled.
 
 ## Scientific meaning
 
