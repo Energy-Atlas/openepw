@@ -22,7 +22,7 @@ redistribution rights for source files. Stage 3b accepts a registered user EPW o
 fetched weather artifact ID as a future baseline only after annual and essential
 variable QC. Fetched provenance requires verified companion manifest/QC artifacts.
 Stage 4 exposes bounded structured tools and verified artifact resources through
-local MCP. Ordinary results cap at 80 KB; plan/job pages show at most 50 rows,
+local MCP. Ordinary results cap at 160 KB; plan/job pages show at most 50 rows,
 uploads at most 5 MB and resource reads at most 10 MB. Hosts may impose smaller
 limits. Local path registration requires an explicit allowed root. The v0.1
 inline tools remain compatibility aliases; new clients submit stored hashes.

@@ -247,19 +247,35 @@ class ChatSession:
         try:
             if line.startswith("/"):
                 return await self._command(line)
-            choice = self._choice(line)
+            choice_match = (re.fullmatch(
+                r"(?:(?:location|option|choice)\s+)?(\d+)\b(?:\s*[,;:]\s*|\s+)?(.*)",
+                line, re.IGNORECASE) if self.pending_choices else None)
+            choice: dict[str, Any] | None
+            if choice_match:
+                index = int(choice_match.group(1))
+                if not 1 <= index <= len(self.pending_choices):
+                    return self._choices_text(self.pending_choices)
+                choice = self.pending_choices[index - 1]
+                remainder = choice_match.group(2).strip()
+            else:
+                choice = self._choice(line)
+                remainder = ""
             if choice is not None and self.draft is not None:
                 self.selected_location = choice
                 self.pending_choices = ()
-                if self.pending_exploration:
-                    self.pending_exploration = False
+                was_exploring = self.pending_exploration
+                self.pending_exploration = False
+                if remainder:
+                    line = remainder
+                elif was_exploring:
                     return await self._explore(self.draft)
-                conflict = self._product_year_conflict(self.draft)
-                if conflict:
-                    return conflict
-                return self._remember(await self.agent.run_intent(
-                    self.draft, auto_submit=self.auto_submit,
-                    location_override=self.selected_location))
+                else:
+                    conflict = self._product_year_conflict(self.draft)
+                    if conflict:
+                        return conflict
+                    return self._remember(await self.agent.run_intent(
+                        self.draft, auto_submit=self.auto_submit,
+                        location_override=self.selected_location))
             if self.pending_choices and (line.isdecimal() or any(
                     str(item.get("name", "")).casefold().startswith(line.casefold())
                     for item in self.pending_choices)):

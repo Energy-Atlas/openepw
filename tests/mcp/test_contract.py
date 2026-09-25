@@ -4,7 +4,8 @@ import pytest
 from mcp.server.fastmcp.exceptions import ToolError
 
 from openepw.config import RuntimeConfig
-from openepw.mcp.server import create_server
+from openepw.mcp.server import _bounded, create_server
+from openepw.models import OpenEPWError
 from openepw.service import WeatherService
 
 
@@ -25,3 +26,10 @@ def test_invalid_input_has_safe_code(tmp_path):
     with pytest.raises(ToolError, match="INVALID_BASELINE") as error:
         asyncio.run(server.call_tool("baseline_upload", {"content_base64": "bad!"}))
     assert "Traceback" not in str(error.value)
+
+
+def test_catalog_sized_tool_result_fits_but_runaway_result_is_rejected():
+    catalog_sized = {"availability": {"options": [{"evidence": "x" * 100_000}]}}
+    assert _bounded(catalog_sized) == catalog_sized
+    with pytest.raises(OpenEPWError, match="RESOURCE_LIMIT"):
+        _bounded({"availability": {"options": [{"evidence": "x" * 200_000}]}})

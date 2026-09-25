@@ -22,7 +22,7 @@ reported 18 tools, one resource template and protocol 2025-11-25;
 Future climate sources may additionally require `openepw[climate]` or
 `openepw[cds]` depending on method/provider. The synthetic morph fixture
 uses registered signals and needs no live climate credentials. User EPW
-upload is bounded at 5 MB; normal tool results at 80 KB and resource reads
+upload is bounded at 5 MB; normal tool results now cap at 160 KB and resource reads
 at 10 MB. The tested SDK client can read annual synthetic EPW blobs. Host
 limits elsewhere remain unknown. `.env` is never copied into the pilot
 environment or modified; approved live smoke reads only needed keys into

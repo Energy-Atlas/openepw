@@ -74,3 +74,9 @@
 - The interactive console uses the US$8 ledger stop without the 20-call smoke cap. The standalone parser retains its 20-call default.
 - Deterministic transcript and real stdio fixture tests cover the Cambridge clarification path, one plan and submission, future-task separation, and no planning during exploration. A bounded four-call live model-only check covered the owner's opening phrasing; no live weather retrieval was performed.
 - Verification: full offline suite 350 passed, 15 skipped before two final location-choice edge tests; focused conversation tests 11 passed after them. Ruff, mypy, and the installed console help command passed. The existing Starlette/AnyIO deprecation warning is unrelated.
+
+## Interactive follow-up — 2026-09-25
+
+- The owner's next Cambridge session exposed a compound reply that the console did not recognize: `location 1, AMY data` left the numbered candidate unresolved. The console now selects the displayed location before parsing the remaining product text, so a later `2018` uses the selected coordinates.
+- The active local catalog produced roughly 91 KB assessments and a 123 KB AMY discovery with normal providers, above the former 80 KB MCP result cap. The cap is now 160 KB; the same discovery and its 1.5 KB plan summary fit. This does not change eligibility or QC semantics, and larger results remain bounded.
+- Regression tests for both failures passed before full-suite verification: 356 passed, 15 opt-in tests skipped, and the existing Starlette/AnyIO deprecation warning. The live model parsed `AMY data` as AMY with no place; no weather job was submitted during this check.

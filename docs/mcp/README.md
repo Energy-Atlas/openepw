@@ -39,7 +39,7 @@ Never paste EPW bytes into a model prompt.
 `weather_fetch`, `weather_inspect` and `weather_generate_future` remain
 v0.1 compatibility aliases for inline submission/inspection. New clients
 should use the stored plan tools. Normal results are structured JSON capped at
-80 KB; plans and job summaries page or truncate at 50 rows. An oversized
+160 KB; plans and job summaries page or truncate at 50 rows. An oversized
 query returns `RESOURCE_LIMIT`, so narrow it. Large EPWs and ZIPs are never
 inline tool results.
 

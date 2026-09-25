@@ -22,7 +22,7 @@ from ..service import WeatherService
 
 MAX_UPLOAD = 5_000_000
 MAX_RESOURCE = 10_000_000
-MAX_RESULT = 80_000
+MAX_RESULT = 160_000
 
 
 def _json(value: Any) -> Any:

@@ -32,8 +32,9 @@ choices, a current request draft and artifact IDs between turns. Short replies
 such as `2018` or `historical` fill the current draft. A year-specific weather
 request is interpreted as historical unless you choose another compatible
 product; the console states that interpretation. Ambiguous geocoding results
-are numbered: reply with a number or exact displayed name, or use `/reset` to
-start a new request. Ask `what do you have?` to assess read-only catalog
+are numbered: reply with a number, an exact displayed name, or a combined
+reply such as `location 1, AMY data`. Use `/reset` to start a new request.
+Ask `what do you have?` to assess read-only catalog
 eligibility. Exploration does not submit a plan and cannot prove that an EPW
 is complete or simulation-ready. TMY/TMYx/published reference products are
 assessed without treating an actual year as their source year.
