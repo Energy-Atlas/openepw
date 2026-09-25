@@ -1,6 +1,6 @@
 # MCP Stage 2 availability and recommendation design
 
-Status: proposed for owner review, 2026-09-24. Planning is authorized; implementation and new public contracts await review. This Stage 2 follows the accepted [MCP Stage 1 handoff](../../handoffs/2026-09-24-mcp-stage-2.md), not the completed v0.1 implementation stage.
+Status: owner approved on 2026-09-24; implemented on `feature/mcp` with [acceptance evidence](../../validation/mcp-stage-2-acceptance.md). This Stage 2 follows the accepted [MCP Stage 1 handoff](../../handoffs/2026-09-24-mcp-stage-2.md), not the completed v0.1 implementation stage.
 
 ## Intent and boundaries
 

@@ -8,8 +8,10 @@ eligibility. A `supported` option means that catalog evidence does not rule out 
 retrieval attempt; it does not establish all hours, valid variables, EPW quality or
 simulation readiness. Unknown coordinates, stale sources, sparse inventory gaps,
 unverified future periods and access restrictions are reported rather than filled.
-Refresh is opt-in and source-specific; unsupported raw metadata formats retain the
-last good generation and report a refresh failure. A query emits at most 50 ranked
+Refresh is opt-in and source-specific; aged evidence loses authority to exclude.
+Unsupported or partial raw metadata formats retain the last good generation and
+report a refresh failure. With no local inventory, only bundled Open-Meteo/CDS
+contracts screen documented capabilities. A query emits at most 50 ranked
 options per occurrence and reports omitted alternatives. Filter by product/model
 for more detail. Original raw inventories remain local and are not bundled.
 

@@ -1,6 +1,6 @@
 # MCP Stage 2 Availability and Recommendation Implementation Plan
 
-Status: approved for autonomous implementation by the owner on 2026-09-24. Work in the checked-out `feature/mcp` repository branch; stage and commit meaningful increments without routine human supervision. Escalate only a major missed requirement or blocking issue that remains unresolved after a reasonable retry, and the repository's explicit irreversible/security boundaries.
+Status: approved for autonomous implementation by the owner on 2026-09-24 and implemented on the checked-out `feature/mcp` branch. The original task checkboxes below are retained as the reviewed execution plan; the [acceptance record](../../validation/mcp-stage-2-acceptance.md) and commit history record actual completion, review fixes and deviations.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:executing-plans` to implement this plan task by task in the repository checkout on `feature/mcp`. Inline execution is the handoff's preferred approach; finish with one independent whole-branch review. Checkboxes track work. Implementation starts only after the owner reviews this plan.
 
@@ -237,3 +237,22 @@ class WeatherService:
 - Check `git status` for ignored snapshot leakage; review the diff for secrets, signed URLs, full inventory rows, accidental API breakage and changed v0.1 plan hashes.
 - Request one independent whole-branch review after implementation and resolve material findings. The owner's plan review is the implementation gate; the task checkpoints above are engineering verification, not new permission gates.
 - Link the final acceptance record and distinguish offline synthetic verification, optional local-snapshot import, live metadata checks and weather/QC validation. A syntactically valid EPW is never labeled simulation ready by this feature.
+
+## Implementation record — 2026-09-24
+
+Tasks 1–7 were implemented in boundary commits on `feature/mcp`. The independent
+whole-branch review found five material issues; follow-up commits added bundled
+documented-contract fallback, live discovery for actionable unknowns, future
+selector checks, partial-refresh rejection, age-based staleness and schema version
+checks. The final offline suite, opt-in original-snapshot import, Ruff, mypy and
+wheel/sdist build passed; exact commands and limits are in the acceptance record.
+
+Two implementation choices differ from the original file map. NOAA and
+OneBuilding local analysis normalization are contained in `stage1.py` instead of
+thin single-purpose modules. Import requires an existing `analysis.json`; an
+installed package does not invoke checkout-only research analysis automatically.
+If only raw/ledger are present, run the offline Stage 1 analyzer explicitly before
+`catalog import`. Automatic refresh accepts supported JSON metadata only and
+rejects incomplete or multi-source replacements, keeping the last good generation
+and marking the source stale. These choices keep the accepted snapshots and 61
+review annotations intact without running Stage 1 collection.

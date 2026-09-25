@@ -25,8 +25,9 @@ weather form wraps the normal request:
 Python can call `openepw.assess_availability(query)` and REST accepts the same
 JSON at `POST /v1/availability`. A future-capability query asks about a location,
 method, scenario and climate period without requiring a baseline EPW. Assessment
-defaults to `refresh="never"`; absence of a loaded catalog yields explicit
-unknowns. The response includes one assessment per input occurrence, ranked
+defaults to `refresh="never"`; absence of a loaded catalog uses a small bundle
+of documented Open-Meteo/CDS contracts and labels inventory-dependent facts
+unknown. The response includes one assessment per input occurrence, ranked
 options, reasons, source checksums and a generation ID. It caps ordinary output
 at 50 ranked alternatives per occurrence. `weather_discover` in MCP includes the
 same shared facts when the catalog is active; no new MCP tool is added in Stage 2.

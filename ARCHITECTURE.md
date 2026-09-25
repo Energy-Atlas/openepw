@@ -20,7 +20,7 @@ src/openepw/
   epw/{schema,reader,writer}.py
   qc/checks.py
   providers/{base,http,openmeteo,pvgis,onebuilding,noaa_isd,nsrdb,era5}.py
-  availability/{models,store,stage1,refresh,evaluate,recommend}.py
+  availability/{models,store,stage1,bootstrap,freshness,refresh,evaluate,recommend}.py
   availability/importers/{contracts,climate}.py
   planning/{spatial,hybrid,future,output_identity}.py
   service.py             discovery, planning, execution and bundles
@@ -89,8 +89,10 @@ eligible and uncertain alternatives with reasons. Actual sparse years, TMY sourc
 reference periods and future scenario/windows have separate tagged scopes. A
 supported assessment means eligible to attempt retrieval, not complete weather.
 Access/terms and operational health are reported separately. When no catalog is
-loaded, assessment returns typed unknowns. Source refresh is opt-in per query and
-keeps the last good generation on failure. Broad responses retain the first 50
+loaded, bundled dated Open-Meteo/CDS contracts screen documented capabilities;
+inventory-dependent facts remain typed unknowns. Evidence ages against local
+source check cadences. Source refresh is opt-in per query and keeps the last good
+generation on failure, including partial replacements. Broad responses retain the first 50
 ranked options per occurrence and report truncation.
 
 Discovery consumes these shared assessments when a catalog is active. Verified

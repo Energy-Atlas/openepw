@@ -1,6 +1,6 @@
 # Production MCP program plan
 
-Status: draft for owner discussion, 2026-09-24. This allocates features, work areas and deliverables across the production MCP stages. It is not an implementation design or authorization to begin Stage 2 implementation. These stage numbers are separate from the completed v0.1 stages.
+Status: owner-reviewed program allocation, 2026-09-24. Stage 2 was separately approved and implemented; later stages remain proposed. This allocates features, work areas and deliverables across the production MCP stages and is distinct from the completed v0.1 stages.
 
 ## Program outcome
 
@@ -15,12 +15,12 @@ A local user can ask for suitable weather data, understand the alternatives and 
 - **Completion:** The 2026-09-24 baseline is accepted and sufficient for Stage 2. Its uncertainties remain explicit; availability evidence does not certify complete weather or EPW quality.
 - **Parallel follow-up:** Another agent is improving NSRDB and other evidence on a separate branch/worktree. Review those findings separately and add accepted changes as a new snapshot. This does not reopen Stage 1 or block Stage 2 planning.
 
-### Stage 2 — shared availability and recommendation services (plan under review)
+### Stage 2 — shared availability and recommendation services (implemented)
 
 - **Work area:** Turn the accepted evidence into a local catalog and shared service that answers where, when and for what purpose a product or future method is an eligible choice.
 - **Features:** Evaluate geographic and temporal coverage together for each requested location/product/period. Show supported, excluded and unknown outcomes with reasons; keep source coverage, current adapter support, access requirements and provider health distinct; explain recommendations while retaining alternatives. Show when several input sample locations may map to one candidate station or source, while labeling unverified equivalence as provisional.
 - **Deliverables:** Typed Python service results, locally usable metadata snapshots and refresh behavior, provider/method limitations, and deterministic evidence-based acceptance tests. REST/MCP adapters may expose shared facts, while Stage 4 owns the final client-facing tool contract.
-- **Handoff to Stage 3a:** A request can inspect credible candidate choices before planning. Catalog evidence is never treated as proof of complete hourly data or simulation fitness. The detailed [Stage 2 design](../superpowers/specs/2026-09-24-mcp-stage-2-availability-design.md) and [implementation plan](../superpowers/plans/2026-09-24-mcp-stage-2-availability.md) remain proposals for review after this program allocation is settled.
+- **Handoff to Stage 3a:** A request can inspect credible candidate choices before planning. Catalog evidence is never treated as proof of complete hourly data or simulation fitness. The [Stage 2 design](../superpowers/specs/2026-09-24-mcp-stage-2-availability-design.md), [implementation plan](../superpowers/plans/2026-09-24-mcp-stage-2-availability.md) and [acceptance record](../validation/mcp-stage-2-acceptance.md) document the implemented boundary.
 
 ### Stage 3a — complete weather-fetch planning, batches and artifacts (proposed)
 
