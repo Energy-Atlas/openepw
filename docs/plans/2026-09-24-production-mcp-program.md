@@ -69,4 +69,4 @@ The main path is **evidence → shared guidance → weather fetching (3a) → fu
 
 Across stages, the Python package remains canonical, and MCP and the harness consume its facts. Preserve actual-year, TMY-reference and future-window meanings, per-variable provenance, requested-location identity, source coordinates and visible uncertainty. Do not silently switch providers, shorten periods, claim that availability proves weather quality, or promote a syntax-valid EPW to simulation-ready.
 
-After owner review of this allocation, revisit the existing detailed Stage 2 plan against the agreed Stage 2 boundary. Stage 2 implementation still requires its plan review.
+Stage 2 was implemented after its separate owner approval. The [Stage 3a detailed plan](../superpowers/plans/2026-09-25-mcp-stage-3a-weather-fetch.md) is drafted for review; its implementation has not been approved.

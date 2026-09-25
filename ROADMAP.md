@@ -16,7 +16,7 @@ plan were completed. Owner approved Stage 2 on 2026-09-20.
 - [x] MCP, CLI and examples over the canonical service.
 - [x] Final acceptance record, documentation and regression checks.
 
-## Production MCP — Stage 1 accepted; Stage 2 implemented
+## Production MCP — Stage 1 accepted; Stage 2 implemented; Stage 3a planned
 
 The current goal is a validated local MCP experience with an agent harnessing
 layer. The staged roadmap ends at the local pilot; team deployment is outside
@@ -34,20 +34,19 @@ MCP Stage 1 uses authoritative footprints, station/site inventories, temporal ra
 and future scenario/windows, with strategic bounded probes instead of exhaustive
 API queries. Previous successful runs and QC summaries are excluded from this stage.
 
-MCP Stage 1 research and follow-ups completed on 2026-09-24 and were explicitly
-accepted by the owner. The owner agreed to advance to Stage 2; its next deliverable
-is a detailed design and implementation plan. Read the
-[agent handoff](docs/handoffs/2026-09-24-mcp-stage-2.md). The
-[findings and evidence](docs/validation/mcp-stage-1/README.md) record 41 metadata
-requests and three targeted probes, reproducible tooling, and precise limitations.
+The 2026-09-24 MCP Stage 1 research baseline was explicitly accepted by the
+owner. The [handoff](docs/handoffs/2026-09-24-mcp-stage-2.md) and
+[findings](docs/validation/mcp-stage-1/README.md) record 41 metadata requests,
+three targeted probes, reproducible tooling and precise limitations.
 The shared Stage 2 catalog, eligibility and recommendation services are implemented
 with offline validation; see [acceptance](docs/validation/mcp-stage-2-acceptance.md).
 The [Stage 2 design](docs/superpowers/specs/2026-09-24-mcp-stage-2-availability-design.md)
 and [implementation plan](docs/superpowers/plans/2026-09-24-mcp-stage-2-availability.md)
-record the approved work. Stage 3a, Stage 3b, Stage 4, harnessing and pilot work
-remain future stages.
+record the approved work. The [Stage 3a detailed plan](docs/superpowers/plans/2026-09-25-mcp-stage-3a-weather-fetch.md)
+is drafted for owner review; Stage 3a implementation has not begun. Stage 3b,
+Stage 4, harnessing and pilot work remain future stages.
 An owner-authorized NOAA follow-up retrieved the larger station/month inventory
-in one additional call; its normalized local index is ready for Stage 2 integration.
+in one additional call; its normalized local index was imported for Stage 2.
 The approved follow-up also resolved both OEDI scenario directories and matched
 selected OneBuilding products through published coordinate spreadsheets or
 corroborated NOAA station IDs. The additional coordinate follow-up reduced unknown
