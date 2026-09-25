@@ -36,6 +36,8 @@ def main(argv=None):
     serve.add_argument("--port", type=int, default=8000)
     mcp = sub.add_parser("mcp")
     mcp.add_argument("--transport", choices=["stdio", "streamable-http"], default="stdio")
+    mcp.add_argument("--allow-root", action="append", default=[],
+                     help="Allow MCP baseline path registration beneath this local directory")
     catalog = sub.add_parser("catalog")
     catalog_sub = catalog.add_subparsers(dest="catalog_command", required=True)
     catalog_sub.add_parser("status")
@@ -61,7 +63,7 @@ def main(argv=None):
         if args.command == "mcp":
             from ..mcp.server import create_server
 
-            create_server(service).run(transport=args.transport)
+            create_server(service, allowed_roots=args.allow_root).run(transport=args.transport)
             return 0
         if args.command == "geocode":
             result = service.geocode(args.input)

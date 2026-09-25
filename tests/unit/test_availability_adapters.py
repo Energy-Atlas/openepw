@@ -71,7 +71,7 @@ def test_existing_mcp_discovery_exposes_shared_assessment(tmp_path):
     expected = service.discover(request).model_dump(mode="json")
     result = asyncio.run(create_server(service).call_tool(
         "weather_discover", {"request": request.model_dump(mode="json")}))
-    actual = result if isinstance(result, dict) else json.loads(result[0].text)
+    actual = result if isinstance(result, dict) else result[1]
     assert actual["availability"]["snapshots"] == expected["availability"]["snapshots"]
     assert actual["availability"]["options"][0]["eligibility"] == (
         expected["availability"]["options"][0]["eligibility"])

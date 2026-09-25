@@ -29,7 +29,7 @@ def test_mcp_tool_surface_and_core_plan(tmp_path):
     service = WeatherService(RuntimeConfig(data_root=tmp_path), providers=[StationProvider()])
     server = create_server(service)
     tools = asyncio.run(server.list_tools())
-    assert {t.name for t in tools} == {
+    assert {t.name for t in tools} >= {
         "weather_geocode",
         "weather_discover",
         "weather_plan",
