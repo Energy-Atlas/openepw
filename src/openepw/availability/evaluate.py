@@ -124,6 +124,15 @@ def _temporal(query: AvailabilityQuery, entry: AvailabilityEntry,
             return "excluded", ["TEMPORAL_KIND_MISMATCH"], []
         if scope.scenario != query.scenario:
             return "excluded", ["SCENARIO_MISMATCH"], []
+        if product.provider == "cmip6":
+            if query.model and scope.model and scope.model != query.model:
+                return "excluded", ["MODEL_MISMATCH"], []
+            if query.member and scope.member and scope.member != query.member:
+                return "excluded", ["MEMBER_MISMATCH"], []
+            if query.model and not scope.model:
+                return "unknown", [], ["MODEL_UNVERIFIED"]
+            if query.member and not scope.member:
+                return "unknown", [], ["MEMBER_UNVERIFIED"]
         if scope.start_year is None or scope.end_year is None:
             return "unknown", [], ["CLIMATE_WINDOW_UNVERIFIED"]
         if (scope.start_year, scope.end_year) != query.climate_period:
@@ -171,6 +180,19 @@ def _assess(query: AvailabilityQuery, location: Location, product: ProductRecord
             query.method == "climate_profile" and product.provider != "oedi"
         ):
             reasons.append("METHOD_PRODUCT_MISMATCH")
+        if query.profile == "sampled":
+            reasons.append("PROFILE_UNSUPPORTED")
+        if product.provider == "oedi":
+            if query.model and query.model.lower() not in ("wrf", "ccsm4", "wrf/ccsm4"):
+                reasons.append("MODEL_MISMATCH")
+            if query.member:
+                unknowns.append("MEMBER_UNVERIFIED")
+            if query.reference_period == (1995, 2004):
+                unknowns.append("REFERENCE_MEMBERSHIP_UNVERIFIED")
+            elif query.reference_period is not None:
+                reasons.append("REFERENCE_PERIOD_UNSUPPORTED")
+        elif product.provider == "cmip6" and query.reference_period is not None:
+            unknowns.append("REFERENCE_WINDOW_UNVERIFIED")
     elif (query.request.product in ("historical", "amy")) != (product.temporal_kind == "actual"):
         reasons.append("TEMPORAL_KIND_MISMATCH")
     if not product.adapter_supported:
@@ -234,7 +256,8 @@ def _assess(query: AvailabilityQuery, location: Location, product: ProductRecord
         "METHOD_PRODUCT_MISMATCH", "TEMPORAL_KIND_MISMATCH", "BEYOND_PROVIDER_SEARCH_RADIUS",
         "BEYOND_REQUESTED_DISTANCE", "BEYOND_REQUESTED_ELEVATION", "REQUIRED_VARIABLE_UNSUPPORTED",
         "ADAPTER_PRODUCT_UNSUPPORTED",
-        "SCENARIO_MISMATCH", "BEFORE_DOCUMENTED_START",
+        "SCENARIO_MISMATCH", "MODEL_MISMATCH", "MEMBER_MISMATCH",
+        "PROFILE_UNSUPPORTED", "REFERENCE_PERIOD_UNSUPPORTED", "BEFORE_DOCUMENTED_START",
         "PUBLISHED_PRODUCT_MISMATCH")
     if any(code in reasons for code in stable_exclusions) or (
         "WINDOW_NOT_PUBLISHED" in reasons and not stale

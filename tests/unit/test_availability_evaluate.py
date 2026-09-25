@@ -106,6 +106,52 @@ def test_oedi_exact_scenario_window_and_cmip6_unknown_window():
         "unknown")
 
 
+def test_future_model_member_reference_and_profile_constraints():
+    bundle = CatalogBundle(
+        products=[ProductRecord(id="cmip6:A", provider="cmip6", dataset="monthly",
+                                temporal_kind="future_window"),
+                  ProductRecord(id="cmip6:B", provider="cmip6", dataset="monthly",
+                                temporal_kind="future_window"),
+                  ProductRecord(id="oedi:rcp45", provider="oedi", dataset="WRF/CCSM4",
+                                temporal_kind="future_window")],
+        entries=[AvailabilityEntry(id="A", product_id="cmip6:A",
+                                   scope=FutureWindowScope(scenario="ssp245", model="A",
+                                                           member="r1"),
+                                   evidence_basis="inventory"),
+                 AvailabilityEntry(id="B", product_id="cmip6:B",
+                                   scope=FutureWindowScope(scenario="ssp245", model="B",
+                                                           member="r2"),
+                                   evidence_basis="inventory"),
+                 AvailabilityEntry(id="oedi", product_id="oedi:rcp45",
+                                   scope=FutureWindowScope(scenario="rcp45",
+                                                           start_year=2045, end_year=2054,
+                                                           listed_years=list(range(2045, 2055))),
+                                   evidence_basis="inventory")],
+    )
+    cmip = evaluate(FutureAvailabilityQuery(location=Location(lat=42, lon=-76),
+                                            method="morph", scenario="ssp245",
+                                            climate_period=(2041, 2070),
+                                            reference_period=(1995, 2014),
+                                            model="A", member="r1"), _view(bundle))
+    by_id = {option.product.id: option.eligibility for option in cmip.options}
+    assert by_id["cmip6:A"].status == "unknown"
+    assert "REFERENCE_WINDOW_UNVERIFIED" in by_id["cmip6:A"].unknowns
+    assert by_id["cmip6:B"].status == "excluded"
+    assert "MODEL_MISMATCH" in by_id["cmip6:B"].reasons
+    oedi = evaluate(FutureAvailabilityQuery(location=Location(lat=42, lon=-76),
+                                            method="climate_profile", scenario="rcp45",
+                                            climate_period=(2045, 2054),
+                                            reference_period=(2000, 2009)), _view(bundle))
+    assert next(o for o in oedi.options if o.product.provider == "oedi").eligibility.status == (
+        "excluded")
+    sampled = evaluate(FutureAvailabilityQuery(location=Location(lat=42, lon=-76),
+                                               method="climate_profile", scenario="rcp45",
+                                               climate_period=(2045, 2054),
+                                               profile="sampled"), _view(bundle))
+    assert next(o for o in sampled.options if o.product.provider == "oedi").eligibility.status == (
+        "excluded")
+
+
 def test_large_published_catalog_limits_nearest_options_without_losing_explicit_choice():
     products = [ProductRecord(id=f"onebuilding:{n}", provider="onebuilding",
                               dataset="published_epw", native_product_id=f"product-{n}",

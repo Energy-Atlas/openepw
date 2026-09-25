@@ -224,6 +224,13 @@ class FutureAvailabilityQuery(Model):
     max_elevation_delta_m: float | None = Field(default=None, ge=0)
     refresh: Literal["never", "if_needed"] = "never"
 
+    @model_validator(mode="after")
+    def valid_periods(self):
+        for period in (self.climate_period, self.reference_period):
+            if period and (period[0] > period[1] or period[0] < 1850 or period[1] > 2300):
+                raise ValueError("Invalid climate period")
+        return self
+
 
 AvailabilityQuery = Annotated[
     WeatherAvailabilityQuery | FutureAvailabilityQuery, Field(discriminator="kind")
