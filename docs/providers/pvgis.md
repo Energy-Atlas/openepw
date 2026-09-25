@@ -1,5 +1,12 @@
 # PVGIS
 
+## MCP Stage 2 availability — 2026-09-24
+
+The local London v5_3 metadata sample records a 2005–2023 reference period and
+selected source-month years as TMY evidence. This does not establish actual-year
+weather in London or the same database/window worldwide. The catalog preserves
+documented product access separately from the scoped probe result.
+
 ## v0.1 implementation result — 2026-09-20
 
 The v5_3 native TMY adapter passed 8,760-hour acceptance. It retains the original EPW plus JSON inputs and selected source-month years. Published TMY requests do not accept actual-year selectors. The singular PVGIS HOLIDAYS/DAYLIGHT SAVING header is accepted explicitly.

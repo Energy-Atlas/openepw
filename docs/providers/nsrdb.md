@@ -1,5 +1,14 @@
 # NSRDB / NLR
 
+## MCP Stage 2 availability — 2026-09-24
+
+Ithaca and Phoenix point-catalog evidence is scoped to those probe locations.
+Actual aggregate years and published TMY/TDY/TGY identifiers remain separate.
+An unprobed location is not promoted to a verified catalog point; wider source
+documentation and adapter restrictions remain distinct. Runtime key/email access
+is reported separately from scientific eligibility. A parallel Stage 1 follow-up
+will be reviewed before any new generation replaces this accepted baseline.
+
 ## v0.1 implementation result — 2026-09-20
 
 Production credentials passed both aggregate v4 actual-year retrieval (2024, 8,784 hours) and native published TMY retrieval (8,760 hours). Published TMY/TDY/TGY IDs are selected from the live catalog. Hour-center actual-year timestamps become interval ends; native TMY fixed timezone and mixed original source years are retained. Only the specific NLR S3 redirect is followed without forwarding credentials. Other spatial footprints/subhourly products remain deferred.

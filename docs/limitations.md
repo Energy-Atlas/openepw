@@ -1,5 +1,23 @@
 # v0.1 limitations and deferred follow-ups
 
+## MCP Stage 2 availability boundaries
+
+Availability assessments use the explicitly imported, dated local Stage 1
+snapshot. They retain source evidence, accepted review decisions and three-valued
+eligibility. A `supported` option means that catalog evidence does not rule out a
+retrieval attempt; it does not establish all hours, valid variables, EPW quality or
+simulation readiness. Unknown coordinates, stale sources, sparse inventory gaps,
+unverified future periods and access restrictions are reported rather than filled.
+Refresh is opt-in and source-specific; unsupported raw metadata formats retain the
+last good generation and report a refresh failure. A query emits at most 50 ranked
+options per occurrence and reports omitted alternatives. Filter by product/model
+for more detail. Original raw inventories remain local and are not bundled.
+
+No Stage 3a verified batch fetch-equivalence/export or Stage 3b baseline choice and
+future execution workflow is supplied by these assessments. Stage 4 will settle
+the final MCP tool names and conversation shape. The existing `weather_discover`
+tool carries shared assessment facts when a catalog is loaded.
+
 ## Scientific meaning
 
 QC distinguishes structural failures from physical warnings. Outputs always carry

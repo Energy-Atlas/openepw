@@ -16,14 +16,14 @@ plan were completed. Owner approved Stage 2 on 2026-09-20.
 - [x] MCP, CLI and examples over the canonical service.
 - [x] Final acceptance record, documentation and regression checks.
 
-## Production MCP — Stage 1 accepted; Stage 2 planning under review
+## Production MCP — Stage 1 accepted; Stage 2 implemented
 
 The current goal is a validated local MCP experience with an agent harnessing
 layer. The staged roadmap ends at the local pilot; team deployment is outside
 the current plan.
 [The production MCP program plan](docs/plans/2026-09-24-production-mcp-program.md)
-allocates features, work areas and deliverables across all six stages. It is a
-draft for discussion; the Stage 2 implementation plan remains a separate review.
+allocates features, work areas and deliverables across all six stages. Stage 2
+implementation was explicitly approved by the owner on 2026-09-24.
 [ADR 0003](docs/decisions/0003-mcp-availability-and-batches.md) records the accepted
 availability-investigation scope and batch behavior. The
 [staged design](docs/superpowers/specs/2026-09-23-mcp-stages.md) proposes subsequent
@@ -40,10 +40,12 @@ is a detailed design and implementation plan. Read the
 [agent handoff](docs/handoffs/2026-09-24-mcp-stage-2.md). The
 [findings and evidence](docs/validation/mcp-stage-1/README.md) record 41 metadata
 requests and three targeted probes, reproducible tooling, and precise limitations.
-Stage 2 planning is authorized; production catalog integration is not yet
-implemented. The [proposed Stage 2 design](docs/superpowers/specs/2026-09-24-mcp-stage-2-availability-design.md)
+The shared Stage 2 catalog, eligibility and recommendation services are implemented
+with offline validation; see [acceptance](docs/validation/mcp-stage-2-acceptance.md).
+The [Stage 2 design](docs/superpowers/specs/2026-09-24-mcp-stage-2-availability-design.md)
 and [implementation plan](docs/superpowers/plans/2026-09-24-mcp-stage-2-availability.md)
-are ready for owner review; neither is implementation approval.
+record the approved work. Stage 3a, Stage 3b, Stage 4, harnessing and pilot work
+remain future stages.
 An owner-authorized NOAA follow-up retrieved the larger station/month inventory
 in one additional call; its normalized local index is ready for Stage 2 integration.
 The approved follow-up also resolved both OEDI scenario directories and matched
@@ -87,4 +89,4 @@ The current feature branch is preserved; no force push or history rewrite.
 The subsequent accepted individual review is applied as research annotations:
 56 Hawaiian metadata correspondences, three approximate mainland localities and
 two unresolved name/code conflicts. Source-checksum changes invalidate acceptance;
-production discovery and weather-equivalence behavior remain unchanged.
+accepted review annotations remain metadata-only; weather equivalence is unverified.

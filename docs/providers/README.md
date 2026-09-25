@@ -1,5 +1,16 @@
 # Provider implementation status — v0.1
 
+## MCP Stage 2 availability layer — 2026-09-24
+
+The local catalog imports the accepted Stage 1 metadata once through explicit
+`openepw catalog import --from <snapshot-root>`. It keeps source checksums,
+evidence dates and accepted OneBuilding review annotations in immutable SQLite
+generations. It screens sparse NOAA years, distinct published TMY reference periods,
+and exact OEDI future-window membership. Catalog `supported` means retrieval can
+be attempted; no row certifies complete hourly weather, QC or simulation fitness.
+The [Stage 2 acceptance](../validation/mcp-stage-2-acceptance.md) covers offline
+behavior; the 2026-09-20 live retrieval claims below remain separate.
+
 Later metadata investigation: [MCP Stage 1 availability findings](../validation/mcp-stage-1/README.md)
 (2026-09-23). These distinguish catalog evidence from usable weather, document
 stale inventories and incomplete indexes, and do not expand the live acceptance

@@ -1,5 +1,14 @@
 # ERA5 and ERA5-Land via CDS
 
+## MCP Stage 2 availability — 2026-09-24
+
+The CDS catalog's 0–360 longitude bbox ending at ±89° does not resolve polar
+coverage merely because the product description says global. ERA5-Land's bbox is
+not a land mask; coast/ocean eligibility can remain unknown. The local assessment
+keeps ERA5 and ERA5-Land adapter variables separate, and reports accepted terms
+and token needs apart from scientific eligibility. Catalog end dates are dated
+metadata, not a guarantee that all current-year hours are available.
+
 ## v0.1 implementation result — 2026-09-20
 
 After owner-provided token and term acceptance, the implemented ERA5 and ERA5-Land adapters each returned a full 24-hour day. CDS returned separate instantaneous/accumulated NetCDF files inside a ZIP despite the unarchived selector. These are merged by coordinates; monthly pieces are concatenated before Land deaccumulation to retain first-midnight energy. Wind/RH are derived; GHI is converted from joules, while DNI/DHI remain missing. Polling is bounded; signed result URLs are memory-only and not persisted. The Stage 1 unauthenticated findings below remain historical evidence.

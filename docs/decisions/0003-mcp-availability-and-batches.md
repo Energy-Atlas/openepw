@@ -2,8 +2,10 @@
 
 Date: 2026-09-23. Status: owner-approved direction and MCP Stage 1 scope;
 On 2026-09-24 the owner explicitly accepted Stage 1 completion and agreed to
-advance to Stage 2 design/planning. Detailed implementation approval remains
-pending plan review. Stage 1 research is complete with explicit limitations in the
+advance to Stage 2 design/planning. The owner subsequently approved autonomous
+Stage 2 implementation on 2026-09-24; its catalog and recommendation service are
+implemented with [acceptance evidence](../validation/mcp-stage-2-acceptance.md).
+Stage 1 research is complete with explicit limitations in the
 [findings](../validation/mcp-stage-1/README.md). The transition is documented in the [agent handoff](../handoffs/2026-09-24-mcp-stage-2.md).
 Later implementation stages remain proposals in the
 [MCP staged design](../superpowers/specs/2026-09-23-mcp-stages.md). The owner's

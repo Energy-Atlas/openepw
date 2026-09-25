@@ -20,6 +20,8 @@ src/openepw/
   epw/{schema,reader,writer}.py
   qc/checks.py
   providers/{base,http,openmeteo,pvgis,onebuilding,noaa_isd,nsrdb,era5}.py
+  availability/{models,store,stage1,refresh,evaluate,recommend}.py
+  availability/importers/{contracts,climate}.py
   planning/{spatial,hybrid,future,output_identity}.py
   service.py             discovery, planning, execution and bundles
   generation/{cmip6,morph,hourly_archive,climate_profile}.py
@@ -35,7 +37,7 @@ small functions/classes suffice. There are no separate REST/MCP weather algorith
 
 ## Public operations
 
-`geocode`, `discover`, `plan`, `execute`, `fetch`, `plan_future`, and
+`geocode`, `discover`, `assess_availability`, `plan`, `execute`, `fetch`, `plan_future`, and
 `generate_future` are exported from `openepw`. `WeatherService` supports injected
 providers and HTTP transport for testing/embedding. Python accepts local baseline
 paths, registered `ArtifactRef`s or `WeatherDataset`s. REST/MCP future requests
@@ -77,6 +79,23 @@ year labels. `read_epw` assigns honest input-file provenance when original provi
 identity is unknown. Original downloaded EPWs accompany normalized native products.
 
 ## Providers, discovery and cache
+
+MCP Stage 2 adds an ignored local SQLite availability catalog. Explicit offline
+`catalog import` validates the saved Stage 1 ledger/raw checksums and analysis,
+then stages and atomically activates an immutable generation. The packaged review
+registry contains accepted decisions, not the full source inventories. Assessments
+pin one active generation, evaluate each input occurrence independently, then rank
+eligible and uncertain alternatives with reasons. Actual sparse years, TMY source
+reference periods and future scenario/windows have separate tagged scopes. A
+supported assessment means eligible to attempt retrieval, not complete weather.
+Access/terms and operational health are reported separately. When no catalog is
+loaded, assessment returns typed unknowns. Source refresh is opt-in per query and
+keeps the last good generation on failure. Broad responses retain the first 50
+ranked options per occurrence and report truncation.
+
+Discovery consumes these shared assessments when a catalog is active. Verified
+fetch-task equivalence and full output mapping remain separate execution concerns;
+the existing v0.1 request/plan identity and artifact contracts remain intact.
 
 Providers implement `discover(request, location, http)` and
 `fetch(task, http) -> ProviderResult(dataset, source, raw, native_epw)`.
@@ -143,7 +162,7 @@ items to disappear. No Redis/Celery/database server is required.
 
 ## Interfaces and deployment
 
-REST: POST `/v1/geocode`, `/v1/weather/discover`, `/v1/weather/plan`,
+REST: POST `/v1/geocode`, `/v1/availability`, `/v1/weather/discover`, `/v1/weather/plan`,
 `/v1/weather/jobs`, `/v1/future/plan`, `/v1/future/jobs`, `/v1/artifacts`,
 `/v1/jobs/{id}/cancel`, `/v1/jobs/{id}/retry`; GET `/v1/jobs/{id}`, `/v1/jobs/{id}/artifacts`,
 `/v1/artifacts/{id}`, `/health`. Jobs accept a plan plus optional idempotency key.
@@ -158,8 +177,10 @@ MCP authentication is deferred rather than exposed without protection.
 
 MCP availability research tooling lives under `scripts/mcp_research/`, outside the
 installed package. Its bounded collector and offline inventory analysis feed the
-[Stage 1 findings](docs/validation/mcp-stage-1/README.md). A shared production
-availability catalog remains a Stage 2 proposal; current adapters are unchanged.
+[Stage 1 findings](docs/validation/mcp-stage-1/README.md). The Stage 2 catalog and
+recommendation service are implemented, with direct Python/REST/CLI access. The
+existing MCP `weather_discover` serializes enriched shared results; Stage 4 owns
+the final MCP tool contract.
 
 Configuration precedence: programmatic overrides → environment → explicitly loaded
 local dotenv → ignored local TOML. Credentials are SecretStr runtime fields and

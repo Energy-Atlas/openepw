@@ -1,5 +1,14 @@
 # NOAA station observations
 
+## MCP Stage 2 availability — 2026-09-24
+
+The local importer preserves the dated 2025-08-30 ISD history and 154,841 sparse
+station/year inventory rows, including alphanumeric and zero-padded IDs. A listed
+year indicates reports exist, while an unlisted year inside a station operating
+span remains unknown. Monthly counts do not prove hourly or variable completeness.
+The GHCNh successor is not inferred from this ISD catalog. See the
+[Stage 1 findings](../validation/mcp-stage-1/README.md) for evidence and limits.
+
 ## v0.1 implementation result — 2026-09-20
 
 The ISD adapter passed a 48-hour request. The endpoint returned no rows for an initial cross-year request; calendar-year splitting recovered the reports. QC flags 0/1/4/5 are accepted and the nearest report within 30 minutes supplies each hourly target. Missing solar and station pressure remain missing; sea-level pressure is not substituted. NOAA announced the ISD service transition to GHCNh: https://www.nesdis.noaa.gov/news/service-location-change-integrated-surface-data-global-hourly . This adapter targets available historical ISD access, not the new GHCNh schema.

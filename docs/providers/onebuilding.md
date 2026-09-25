@@ -1,5 +1,15 @@
 # Climate.OneBuilding
 
+## MCP Stage 2 availability — 2026-09-24
+
+The local catalog retains the 56 accepted metadata correspondences, three
+approximate localities and two unresolved name/code conflicts. Accepted coordinates
+are checksum-pinned to their source indexes; a changed index makes their authority
+stale. An approximate locality is never an exact station location, and archive
+coordinates or EPW content have not been verified by these annotations. Catalog
+matching does not grant redistribution rights. See the
+[accepted review](../validation/mcp-stage-1/onebuilding-manual-review.md).
+
 ## v0.1 implementation result — 2026-09-20
 
 The adapter retrieved and parsed the published Ithaca TMYx into 8,760 rows. Selection uses an explicit relative ZIP product path, or a country catalog with a location name; no global nearest-station index is claimed. ZIP path, member count and uncompressed size checks apply. Native data stays in ignored local artifacts and is not committed or mirrored.

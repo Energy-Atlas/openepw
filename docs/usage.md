@@ -3,6 +3,35 @@
 Install from source with `pip install .` and optional `[api,mcp,climate,cds]` extras.
 This repository has not published v0.1 to PyPI. Examples call the same Python service.
 
+## Local availability catalog
+
+After the Stage 1 offline analyzer has produced `ledger.json`, `analysis.json`
+and matching `raw/*.body` files in an ignored local snapshot directory, import
+that existing evidence explicitly:
+
+```text
+openepw catalog import --from .local/mcp-availability
+openepw catalog status
+openepw availability query.json
+```
+
+`query.json` is a tagged weather or future-capability query. For example, the
+weather form wraps the normal request:
+
+```json
+{"kind":"weather","request":{"locations":{"lat":42.44,"lon":-76.5},"years":[2024],"providers":["noaa"]},"purpose":"building_energy"}
+```
+
+Python can call `openepw.assess_availability(query)` and REST accepts the same
+JSON at `POST /v1/availability`. A future-capability query asks about a location,
+method, scenario and climate period without requiring a baseline EPW. Assessment
+defaults to `refresh="never"`; absence of a loaded catalog yields explicit
+unknowns. The response includes one assessment per input occurrence, ranked
+options, reasons, source checksums and a generation ID. It caps ordinary output
+at 50 ranked alternatives per occurrence. `weather_discover` in MCP includes the
+same shared facts when the catalog is active; no new MCP tool is added in Stage 2.
+Use the returned access state and weather QC before retrieval or simulation.
+
 ## Requests
 
 [examples/request.json](../examples/request.json) is a small Open-Meteo request.
