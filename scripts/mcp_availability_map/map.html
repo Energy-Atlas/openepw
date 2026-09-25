@@ -73,7 +73,7 @@
     <a href="https://joint-research-centre.ec.europa.eu/sites/default/files/2024-09/PVGIS_53_DB_Coverage.png" target="_blank" rel="noopener noreferrer">
       <img src="https://joint-research-centre.ec.europa.eu/sites/default/files/2024-09/PVGIS_53_DB_Coverage.png" width="5615" height="2119" loading="lazy" alt="JRC PVGIS 5.3 map of irradiance sources: SARAH3 in green, ERA5LP in yellow, with a white coastal buffer.">
     </a>
-    <figcaption>JRC <a href="https://joint-research-centre.ec.europa.eu/photovoltaic-geographical-information-system-pvgis/using-pvgis-5/pvgis-5-user-manual_en" target="_blank" rel="noopener noreferrer">PVGIS 5.3 user manual</a>: documented default irradiance-source regions for TMY, shown at the source image's full geographic extent and original proportions. Green is SARAH3; yellow is ERA5LP (ERA5LandPlus). JRC lists 2005–2023 source data. The figure is not exact TMY eligibility at every coordinate; London is the saved point confirmation. © European Union, PVGIS/JRC.</figcaption>
+    <figcaption>Reference for the blue approximate SARAH3 polygon above: JRC <a href="https://joint-research-centre.ec.europa.eu/photovoltaic-geographical-information-system-pvgis/using-pvgis-5/pvgis-5-user-manual_en" target="_blank" rel="noopener noreferrer">PVGIS 5.3 user manual</a>. This original figure shows the full documented irradiance-source extent: green SARAH3, yellow ERA5LP (ERA5LandPlus). JRC lists 2005–2023 source data. Neither the figure nor its approximate polygon establishes exact TMY eligibility at every coordinate; London is the saved point confirmation. © European Union, PVGIS/JRC.</figcaption>
   </figure>
   <div id="oepw-legend" class="text-small"></div>
   <div id="oepw-nsrdb-credit" class="text-small" hidden>
@@ -145,6 +145,11 @@
     lon:row[2]/1000,years:row[3],names:row[4]}));
   const masks = payload.nsrdb.masks;
   const probes = {pvgis:[{id:'London',lat:51.507,lon:-0.128}]};
+  // Coarse lon/lat envelope traced against JRC's PVGIS 5.3 coverage figure; land-clipped below.
+  // It is display context, not a point eligibility or coastal-buffer boundary.
+  const sarah3Approx = [[-25,63],[10,63],[25,63],[30,60],[38,55],[47,48],[54,40],
+    [60,30],[65,20],[62,10],[58,0],[55,-15],[50,-30],[45,-36],[-57,-36],
+    [-62,-28],[-65,-20],[-65,20],[-55,25],[-45,40],[-35,55]];
   function listedYear(station, year) {
     if (year < 1930 || year > 2025) return false;
     const offset = year - 1930;
@@ -181,9 +186,8 @@
     $('oepw-scenario-wrap').hidden = $('oepw-window-wrap').hidden = !future;
     $('oepw-native-wrap').hidden = source.value !== 'nsrdb-published';
     $('oepw-nsrdb-credit').hidden = !source.value.startsWith('nsrdb-');
-    const pvgisSelected = source.value === 'pvgis';
-    canvas.hidden = pvgisSelected;
-    $('oepw-pvgis-coverage').hidden = !pvgisSelected;
+    canvas.hidden = false;
+    $('oepw-pvgis-coverage').hidden = source.value !== 'pvgis';
   }
   function selectNsrdbMasks(keys) {
     const found = keys.map(key => masks[key]).filter(mask => mask && !mask.stale);
@@ -242,8 +246,8 @@
     }
     if (key === 'pvgis') {
       visible = probes.pvgis;
-      return ['PVGIS v5_3 TMY: JRC documented default SARAH3 and ERA5LP irradiance regions; one exact London confirmation.',
-        'The JRC figure shows source context, not a verified point-by-point TMY footprint. JRC lists 2005–2023 source data; a TMY is not actual-year availability, and selected source-month years vary by location.'];
+      return ['PVGIS v5_3 TMY: approximate JRC SARAH3 land extent and one exact London confirmation.',
+        'Blue polygon: approximate SARAH3 irradiance-source region, clipped to land; white circle: saved London probe. Compare with the JRC figure below. Neither layer verifies TMY eligibility at arbitrary coordinates. JRC lists 2005–2023 source data, not actual-year outputs.'];
     }
     if (key === 'cmip6') return ['636 coherent historical/scenario seven-variable catalog combinations.',
       'Complete climate-window coordinates, per-model licenses and a verified geographic map layer remain unknown.'];
@@ -258,7 +262,6 @@
         'Documented footprint is not a per-cell/hour completeness test; resolved source cells may differ from requested points.'];
   }
   function draw() {
-    if (canvas.hidden) {projectedCoverage=[];projected=[];return;}
     const pixelRatio = window.devicePixelRatio || 1;
     const rect = canvas.getBoundingClientRect();
     width = Math.max(320,rect.width); height = Math.max(300,rect.height);
@@ -277,6 +280,23 @@
     context.fillStyle = ['openmeteo-land','cds-land'].includes(key) && status.textContent.startsWith('Documented') ? paint.mark : paint.land;
     context.globalAlpha = ['openmeteo-land','cds-land'].includes(key) && status.textContent.startsWith('Documented') ? 0.22 : 1;
     context.fill(); context.globalAlpha = 1;
+    if (key==='pvgis') {
+      context.save();
+      context.beginPath(); d3.geoPath(projection,context)(countries); context.clip();
+      context.beginPath();
+      for (let edge=0;edge<sarah3Approx.length;edge++) {
+        const from=sarah3Approx[edge], to=sarah3Approx[(edge+1)%sarah3Approx.length];
+        const steps=Math.max(1,Math.ceil(Math.max(Math.abs(to[0]-from[0]),Math.abs(to[1]-from[1]))/2));
+        for (let step=0;step<steps;step++) {
+          const t=step/steps, xy=projection([from[0]+t*(to[0]-from[0]),from[1]+t*(to[1]-from[1])]);
+          if (edge===0 && step===0) context.moveTo(xy[0],xy[1]);
+          else context.lineTo(xy[0],xy[1]);
+        }
+      }
+      context.closePath(); context.fillStyle=paint.coverage; context.fill();
+      context.restore();
+      context.beginPath(); d3.geoPath(projection,context)(countries);
+    }
     context.strokeStyle = paint.border; context.lineWidth = 0.65/transform.k; context.stroke();
     projectedCoverage = [];
     const cellSize = Math.max(0.55,projection.scale()*Math.PI/180*coverage.step*0.8);
@@ -299,7 +319,7 @@
       }
     }
     projected = [];
-    context.fillStyle = key==='pvgis' ? paint.coverage : paint.mark;
+    context.fillStyle = key==='pvgis' ? '#ffffff' : paint.mark;
     context.globalAlpha = visible.length > 3000 ? 0.62 : 0.9;
     for (const point of visible) {
       const xy = projection([point.lon,point.lat]);
@@ -330,7 +350,7 @@
     $('oepw-accessible-summary').textContent = line + ' ' + note;
     detail.hidden = true;
     if (source.value === 'pvgis') {
-      detail.textContent = 'Exact saved TMY probe: London (51.507°N, 0.128°W). Its response identifies SARAH3 irradiance and ERA5 meteorology; the JRC figure shows broader v5.3 source regions.';
+      detail.textContent = 'Exact saved TMY probe: London (51.507°N, 0.128°W). Its response identifies SARAH3 irradiance and ERA5 meteorology. The blue land polygon above approximates JRC SARAH3 source coverage; compare it with the original figure below.';
       detail.hidden = false;
     }
     draw();
