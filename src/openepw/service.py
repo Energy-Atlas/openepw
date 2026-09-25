@@ -78,6 +78,23 @@ class _DiscoveryHttp:
         return getattr(self.underlying, name)
 
 
+def _candidate_for_occurrence(
+    candidate: Candidate, occurrence_index: int, used_ids: set[str],
+) -> Candidate:
+    """Keep a provider's identity while giving colliding query rows distinct IDs."""
+    if candidate.id not in used_ids:
+        used_ids.add(candidate.id)
+        return candidate.model_copy(deep=True)
+    suffix = f":occurrence:{occurrence_index}"
+    unique_id = candidate.id + suffix
+    counter = 1
+    while unique_id in used_ids:
+        unique_id = candidate.id + suffix + f":{counter}"
+        counter += 1
+    used_ids.add(unique_id)
+    return candidate.model_copy(update={"id": unique_id}, deep=True)
+
+
 class WeatherService:
     def __init__(self, config: RuntimeConfig | None = None, *, http=None, providers=None,
                  catalog_store: CatalogStore | None = None):
@@ -205,10 +222,12 @@ class WeatherService:
         availability = self.assess_availability(WeatherAvailabilityQuery(request=request))
         locations = self.locations(request)
         candidates: dict[str, Candidate] = {}
+        candidate_bases: dict[str, str] = {}
         option_candidates: dict[str, str] = {}
+        extra_by_occurrence: dict[int, list[str]] = {}
         live_resolved: set[str] = set()
         issues = list(availability.issues)
-        live_cache: dict[tuple[str, str, str | None], list[Candidate]] = {}
+        live_cache: dict[tuple[str, float, float, int, str | None], list[Candidate]] = {}
         live_http = _DiscoveryHttp(self.http)
         for option in sorted(availability.options, key=lambda item: (
             item.occurrence_index, item.rank or 9999)):
@@ -218,13 +237,17 @@ class WeatherService:
             candidate = (self._catalog_candidate(option, location, request)
                          if option.eligibility.status == "supported" else None)
             if candidate is not None:
-                candidates[candidate.id] = candidate
-                option_candidates[option.id] = candidate.id
+                unique = _candidate_for_occurrence(candidate, option.occurrence_index,
+                                                   set(candidates))
+                candidates[unique.id] = unique
+                candidate_bases[unique.id] = candidate.id
+                option_candidates[option.id] = unique.id
                 continue
             provider = self.providers.get(option.product.provider)
             if provider is None:
                 continue
-            key = (option.product.provider, location.key, option.product.dataset)
+            key = (option.product.provider, location.lat, location.lon,
+                   location.standard_offset_minutes, option.product.dataset)
             if key not in live_cache:
                 try:
                     provider_request = request.model_copy(update={"dataset": option.product.dataset})
@@ -232,32 +255,47 @@ class WeatherService:
                 except OpenEPWError as exc:
                     issues.append(exc.issue)
                     live_cache[key] = []
+            found_ids = []
             for found in live_cache[key]:
-                candidates[found.id] = found
-            if live_cache[key]:
-                option_candidates[option.id] = live_cache[key][0].id
+                unique = _candidate_for_occurrence(found, option.occurrence_index,
+                                                   set(candidates))
+                candidates[unique.id] = unique
+                candidate_bases[unique.id] = found.id
+                found_ids.append(unique.id)
+            if found_ids:
+                option_candidates[option.id] = found_ids[0]
+                extra_by_occurrence.setdefault(option.occurrence_index, []).extend(found_ids[1:])
                 live_resolved.add(option.id)
         ranked: dict[str, list[str]] = {}
+        by_occurrence: list[list[str]] = []
         selected: list[str] = []
+        selected_bases: set[str] = set()
         for assessment in availability.locations:
             location_key = assessment.requested_location.key
-            ranked[location_key] = list(dict.fromkeys(option_candidates[option_id] for option_id in
-                                             assessment.ranked_option_ids if option_id in option_candidates))
+            occurrence_ids = list(dict.fromkeys(
+                [option_candidates[option_id] for option_id in assessment.ranked_option_ids
+                 if option_id in option_candidates] +
+                extra_by_occurrence.get(assessment.occurrence_index, [])
+            ))
+            by_occurrence.append(occurrence_ids)
+            ranked[location_key] = occurrence_ids
             preferred = list(assessment.recommended_option_ids)
             if not preferred:
                 preferred = [option_id for option_id in assessment.ranked_option_ids
                              if option_id in live_resolved][:1]
             for option_id in preferred:
                 candidate_id = option_candidates.get(option_id)
-                if candidate_id and candidate_id not in selected:
+                if candidate_id and candidate_bases[candidate_id] not in selected_bases:
                     if option_id in live_resolved:
                         candidates[candidate_id].selection_reasons.append(
                             "Live provider discovery provided a retrieval candidate; "
                             "catalog uncertainty remains")
                     selected.append(candidate_id)
+                    selected_bases.add(candidate_bases[candidate_id])
         return DiscoveryResult(locations=locations, candidates=list(candidates.values()),
                                selected_candidate_ids=selected,
-                               ranked_candidate_ids=ranked, issues=issues,
+                               ranked_candidate_ids=ranked,
+                               candidate_ids_by_occurrence=by_occurrence, issues=issues,
                                availability=availability)
 
     def _catalog_candidate(self, option: SuitabilityOption, location: Location,
@@ -324,6 +362,7 @@ class WeatherService:
     def _discover_live(self, request: WeatherRequest):
         locations = self.locations(request)
         candidates: list[Candidate] = []
+        by_occurrence: list[list[str]] = []
         issues = []
         if not request.dataset_selections:
             for name in request.providers:
@@ -331,7 +370,12 @@ class WeatherService:
                     issues.append(
                         Issue(code="PROVIDER_UNAVAILABLE", message=f"Unknown provider: {name}")
                     )
-        for loc in locations:
+        selected = []
+        selected_bases: set[str] = set()
+        ranked: dict[str, list[str]] = {}
+        used_ids: set[str] = set()
+        for occurrence_index, loc in enumerate(locations):
+            choices: list[Candidate] = []
             queries = (
                 [
                     (
@@ -357,13 +401,12 @@ class WeatherService:
                 if p is None:
                     continue
                 try:
-                    candidates.extend(p.discover(query, loc, self.http))
+                    for found in p.discover(query, loc, self.http):
+                        unique = _candidate_for_occurrence(found, occurrence_index, used_ids)
+                        candidates.append(unique)
+                        choices.append(unique)
                 except OpenEPWError as exc:
                     issues.append(exc.issue)
-        selected = []
-        ranked: dict[str, list[str]] = {}
-        for loc in locations:
-            choices = [c for c in candidates if c.location_id == loc.key]
             choices.sort(
                 key=lambda c: (
                     len(c.missing_fields),
@@ -374,16 +417,21 @@ class WeatherService:
                 )
             )
             ranked[loc.key] = [c.id for c in choices]
+            by_occurrence.append([c.id for c in choices])
             if choices:
                 choices[0].selection_reasons = [
                     "Fewest missing requested fields; explicit provider order; ungated access as tie-break"
                 ]
-                selected.append(choices[0].id)
+                base_id = choices[0].id.split(":occurrence:", 1)[0]
+                if base_id not in selected_bases:
+                    selected.append(choices[0].id)
+                    selected_bases.add(base_id)
         return DiscoveryResult(
             locations=locations,
             candidates=candidates,
             selected_candidate_ids=selected,
             ranked_candidate_ids=ranked,
+            candidate_ids_by_occurrence=by_occurrence,
             issues=issues,
         )
 

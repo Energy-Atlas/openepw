@@ -31,6 +31,7 @@ class Issue(Model):
     severity: Literal["info", "warning", "error"] = "warning"
     field: str | None = None
     location_id: str | None = None
+    occurrence_index: int | None = Field(default=None, ge=0, exclude_if=lambda value: value is None)
     task_id: str | None = None
     retryable: bool = False
     dataset_selection: dict[str, str | None] | None = None
@@ -271,6 +272,9 @@ class DiscoveryResult(Model):
     selected_candidate_ids: list[str] = Field(default_factory=list)
     # Location key -> candidate ids, best first, by the same rule as selected_candidate_ids.
     ranked_candidate_ids: dict[str, list[str]] = Field(default_factory=dict)
+    candidate_ids_by_occurrence: list[list[str]] = Field(
+        default_factory=list, exclude_if=lambda value: not value
+    )
     issues: list[Issue] = Field(default_factory=list)
     availability: Any | None = Field(default=None, exclude_if=lambda value: value is None)
     observed_at: str = Field(default_factory=utcnow)
@@ -303,12 +307,39 @@ class TransformStep(Model):
 class OutputSpec(Model):
     id: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
     index: int | None = Field(default=None, ge=0)
+    occurrence_index: int | None = Field(default=None, ge=0,
+                                         exclude_if=lambda value: value is None)
     requested_location_id: str
     task_ids: list[str]
     name: str = Field(pattern=r"^[A-Za-z0-9_-]{1,100}\.epw$")
     dataset_selection: DatasetSelection | None = Field(
         default=None, exclude_if=lambda value: value is None
     )
+
+
+class BatchRow(Model):
+    occurrence_index: int = Field(ge=0)
+    requested_location_id: str
+    dataset_selection: DatasetSelection
+    period_start: date | None = None
+    period_end: date | None = None
+    status: Literal["planned", "unsupported", "unresolved"]
+    candidate_id: str | None = None
+    task_ids: list[str] = Field(default_factory=list)
+    output_id: str | None = None
+    issue_codes: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def valid(self):
+        if bool(self.period_start) != bool(self.period_end) or (
+            self.period_start and self.period_end and self.period_start > self.period_end
+        ):
+            raise ValueError("Batch row period must be a valid inclusive range")
+        if self.status == "planned" and (not self.output_id or not self.task_ids):
+            raise ValueError("Planned batch row requires an output and tasks")
+        if self.status != "planned" and (self.output_id or self.task_ids):
+            raise ValueError("Nonexecutable batch row cannot reference an output")
+        return self
 
 
 class WeatherPlan(Model):
@@ -319,6 +350,8 @@ class WeatherPlan(Model):
     tasks: list[FetchTask] = Field(default_factory=list)
     transforms: list[TransformStep] = Field(default_factory=list)
     outputs: list[OutputSpec] = Field(default_factory=list)
+    batch_rows: list[BatchRow] = Field(default_factory=list,
+                                       exclude_if=lambda value: not value)
     warnings: list[str] = Field(default_factory=list)
     issues: list[Issue] = Field(default_factory=list, exclude_if=lambda value: not value)
     estimated_calls: int = 0
@@ -345,6 +378,18 @@ class WeatherPlan(Model):
             or len({o.name for o in self.outputs}) != len(self.outputs)
         ):
             raise ValueError("New plans require unique output IDs and filenames")
+        if self.batch_rows:
+            planned = [row for row in self.batch_rows if row.status == "planned"]
+            row_outputs = [row.output_id for row in planned]
+            if len(row_outputs) != len(set(row_outputs)) or set(row_outputs) != set(output_ids):
+                raise ValueError("Batch rows must reference each output exactly once")
+            if any(not set(row.task_ids) <= set(ids) for row in planned):
+                raise ValueError("Batch row references unknown tasks")
+            row_keys = [(row.occurrence_index, row.dataset_selection.provider,
+                         row.dataset_selection.dataset, row.dataset_selection.product_id,
+                         row.period_start, row.period_end) for row in self.batch_rows]
+            if len(row_keys) != len(set(row_keys)):
+                raise ValueError("Duplicate batch row")
         for candidate in raw["selected_candidates"]:
             candidate.pop("observed_at", None)
         for output in raw["outputs"]:
