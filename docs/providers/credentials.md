@@ -55,7 +55,7 @@ subscription. Do not purchase a subscription just for these research tests.
 
 ## Local handoff
 
-Copy the repository's `.env.template` to `.env` **only if `.env` does not already
+Copy the repository's `.env.example` to `.env` **only if `.env` does not already
 exist**, then fill the three required values:
 
 ```dotenv
@@ -69,6 +69,13 @@ environment running the tests. A `.env` file is not automatically loaded by the
 Stage 1 scripts; those scripts intentionally remain credential-free. During
 implementation, explicitly load the local values into the test process, without
 printing them or modifying the credential-free Stage 1 evidence scripts.
+
+Optional Stage 5/6 agent tests can use `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` for
+the selected model provider, and `LANGSMITH_API_KEY` for opt-in evaluation traces.
+`LANGSMITH_TRACING=false` stays the default. Current `RuntimeConfig.load` reads
+OpenEPW settings only; a future harness must explicitly load or export these agent
+variables before calling model or tracing SDKs. Offline agent tests need none of
+these credentials.
 
 Tell the implementer only that local setup is ready and which CDS terms were
 accepted. Keys/email must be removed from request logs, provider-echoed inputs,
