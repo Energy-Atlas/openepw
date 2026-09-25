@@ -28,7 +28,8 @@ def _snapshot(root: Path, *, changed_source: bool = False, changed_unrelated: bo
                         "kind": "inventory", "sha256": hashlib.sha256(body).hexdigest(),
                         "snapshot": f"raw/{source_id}.body", "finished_at":
                         "2026-09-23T00:00:00+00:00"})
-    (root / "ledger.json").write_text(json.dumps({"records": records}), encoding="utf-8")
+    ledger_bytes = json.dumps({"records": records}).encode("utf-8")
+    (root / "ledger.json").write_bytes(ledger_bytes)
     url = "https://example.org/product_TMYx.2009-2023.zip"
     match = {"url": url, "product": "TMYx.2009-2023", "period": "2009-2023",
              "lat": None, "lon": None, "position_status": "unknown",
@@ -37,7 +38,10 @@ def _snapshot(root: Path, *, changed_source: bool = False, changed_unrelated: bo
              "review": {"status": "reviewed_metadata_match",
                         "published_url": "https://example.org/alternate_TMYx.2009-2023.zip",
                         "coordinates": {"lat": 42.0, "lon": -76.0}}}
-    analysis = {"inventories": {
+    analysis = {"schema_version": "mcp-research-1",
+                "ledger_sha256": hashlib.sha256(ledger_bytes).hexdigest(),
+                "source_checksums": {r["id"]: r["sha256"] for r in records},
+                "inventories": {
         "noaa-history": {"sites": [{"id": "A00002", "lat": 42, "lon": -76,
                                       "start": "2001-01-01", "end": "2025-01-01"}]},
         "noaa-inventory-authorized": {"station_years": {"A00002":
@@ -64,6 +68,48 @@ def _snapshot(root: Path, *, changed_source: bool = False, changed_unrelated: bo
 def test_missing_snapshots_fail_without_network(tmp_path):
     with pytest.raises(CatalogImportError, match="SNAPSHOT_MISSING"):
         import_stage1(tmp_path)
+
+
+@pytest.mark.parametrize("field", ["ledger_sha256", "source_checksums"])
+def test_analysis_must_match_its_local_inputs(tmp_path, field):
+    reviews = _snapshot(tmp_path)
+    path = tmp_path / "analysis.json"
+    analysis = json.loads(path.read_text(encoding="utf-8"))
+    if field == "ledger_sha256":
+        analysis[field] = "0" * 64
+    else:
+        analysis[field]["noaa-history"] = "0" * 64
+    path.write_text(json.dumps(analysis), encoding="utf-8")
+    with pytest.raises(CatalogImportError, match="ANALYSIS_INPUT_MISMATCH"):
+        import_stage1(tmp_path, reviews_path=reviews)
+
+
+def test_analysis_without_input_fingerprints_is_rejected(tmp_path):
+    reviews = _snapshot(tmp_path)
+    path = tmp_path / "analysis.json"
+    analysis = json.loads(path.read_text(encoding="utf-8"))
+    del analysis["ledger_sha256"]
+    path.write_text(json.dumps(analysis), encoding="utf-8")
+    with pytest.raises(CatalogImportError, match="ANALYSIS_INPUT_MISMATCH"):
+        import_stage1(tmp_path, reviews_path=reviews)
+
+
+def test_malformed_analysis_is_rejected(tmp_path):
+    reviews = _snapshot(tmp_path)
+    path = tmp_path / "analysis.json"
+    path.write_text("[]", encoding="utf-8")
+    with pytest.raises(CatalogImportError, match="ANALYSIS_INPUT_MISMATCH"):
+        import_stage1(tmp_path, reviews_path=reviews)
+
+
+def test_analysis_with_parse_errors_is_rejected(tmp_path):
+    reviews = _snapshot(tmp_path)
+    path = tmp_path / "analysis.json"
+    analysis = json.loads(path.read_text(encoding="utf-8"))
+    analysis["errors"] = [{"id": "noaa-history"}]
+    path.write_text(json.dumps(analysis), encoding="utf-8")
+    with pytest.raises(CatalogImportError, match="ANALYSIS_INPUT_MISMATCH"):
+        import_stage1(tmp_path, reviews_path=reviews)
 
 
 def test_noaa_sparse_years_and_reviewed_position_are_distinct(tmp_path):

@@ -16,6 +16,13 @@ and write derived local JSON/Markdown. `collect` requires explicit IDs. Default
 root is ignored `.local/mcp-availability/`; preserve it to resume the same study.
 Do not change roots to evade the investigation's request budget.
 
+`analyze` records the ledger checksum and saved raw-source checksums inside local
+`analysis.json`. Full catalog import verifies these fingerprints and requires a
+fingerprinted analysis. If an older analysis lacks them, preserve a local copy,
+then rerun `analyze` offline; this does not recollect metadata. If no local
+analysis is available, ordinary availability queries use bundled source contracts
+and leave inventory-dependent answers unknown.
+
 Additional requests are explicit JSON arrays of `Request` fields, supplied through
 `--manifest`. The executed follow-up manifest is published with the report. Never
 place real credentials in a manifest; the investigation uses public metadata only.

@@ -279,9 +279,14 @@ def read_snapshot(root, record):
 
 def analyze(root):
     path = root / "ledger.json"
-    ledger = json.loads(path.read_text()) if path.exists() else {"records": []}
+    ledger_bytes = path.read_bytes() if path.exists() else None
+    ledger = json.loads(ledger_bytes) if ledger_bytes is not None else {"records": []}
     result = {
         "schema_version": "mcp-research-1",
+        "ledger_sha256": hashlib.sha256(ledger_bytes).hexdigest() if ledger_bytes is not None else None,
+        "source_checksums": {
+            r["id"]: r["sha256"] for r in ledger["records"] if r["outcome"] == "saved"
+        },
         "providers": [],
         "inventories": {},
         "errors": [],

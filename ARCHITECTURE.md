@@ -83,7 +83,10 @@ identity is unknown. Original downloaded EPWs accompany normalized native produc
 MCP Stage 2 adds an ignored local SQLite availability catalog. Explicit offline
 `catalog import` validates the saved Stage 1 ledger/raw checksums and analysis,
 then stages and atomically activates an immutable generation. The packaged review
-registry contains accepted decisions, not the full source inventories. Assessments
+registry contains accepted decisions, not the full source inventories. Full import
+requires the local analysis to carry matching ledger/source input fingerprints;
+an absent analysis leaves inventory-dependent answers unknown through bundled
+contracts. No full inventory or generation manifest is tracked in Git. Assessments
 pin one active generation, evaluate each input occurrence independently, then rank
 eligible and uncertain alternatives with reasons. Actual sparse years, TMY source
 reference periods and future scenario/windows have separate tagged scopes. A

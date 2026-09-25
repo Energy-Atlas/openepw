@@ -1,6 +1,6 @@
 # Features and implementation status
 
-Updated 2026-09-24. v0.1 Stage 2 and MCP Stage 2 are distinct; acceptance and limitations
+Updated 2026-09-25. v0.1 Stage 2 and MCP Stage 2 are distinct; acceptance and limitations
 are recorded separately. Installed source package version: 0.1.0.
 
 | Capability | Status | Important boundary |
@@ -24,7 +24,7 @@ are recorded separately. Installed source package version: 0.1.0.
 | REST/jobs/artifacts | Implemented, offline tested | SQLite + filesystem; identity-keyed progress and failed-output retry; single server process; bearer auth for remote REST |
 | MCP and CLI | Implemented, offline tested | Stdio and loopback Streamable HTTP; compact artifact references |
 | MCP availability research | Stage 1 accepted | Bounded inventory investigation and accepted annotations; [findings](docs/validation/mcp-stage-1/README.md) |
-| Shared availability catalog | MCP Stage 2 implemented, offline tested | Explicit local import; bundled safe contracts before import; immutable generations, source checksums, sparse years, future membership, stale fallback |
+| Shared availability catalog | MCP Stage 2 implemented, offline tested | Explicit local import validates analysis input fingerprints; bundled safe contracts when inventories are absent; immutable generations, sparse years, future membership, stale fallback |
 | Eligibility and recommendations | MCP Stage 2 implemented, offline tested | Per-occurrence reasons and unknowns; supported means retrieval eligible, not weather complete |
 | Availability interfaces | Python, REST and CLI implemented | Existing MCP discovery includes shared facts; final MCP tool design remains Stage 4 |
 | Packaging/CI | Wheel/sdist built; local installation verified | Cross-OS runners configured; see actual run evidence |

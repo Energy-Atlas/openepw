@@ -1,5 +1,6 @@
 """Research safeguards: synthetic transports only, never provider acceptance."""
 
+import hashlib
 import importlib
 import io
 import sys
@@ -357,6 +358,9 @@ def test_normalize_cds_and_tmy_temporal_meanings(tmp_path):
             m.Request("pvgis-london", "pvgis", "https://example.org/pvgis", "probe", "period")
         )
     a = importlib.import_module("mcp_research.analysis").analyze(tmp_path)
+    assert a["ledger_sha256"] == hashlib.sha256((tmp_path / "ledger.json").read_bytes()).hexdigest()
+    assert a["source_checksums"]["cds-era5"] == hashlib.sha256(
+        (tmp_path / "raw/cds-era5.body").read_bytes()).hexdigest()
     assert a["inventories"]["cds-era5"]["extent"]["spatial"]["bbox"] == [[0, -89, 360, 89]]
     assert a["inventories"]["pvgis-london"]["temporal_kind"] == "tmy_reference_period"
     assert "tmy_hourly" not in a["inventories"]["pvgis-london"]

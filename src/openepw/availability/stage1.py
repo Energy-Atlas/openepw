@@ -193,7 +193,16 @@ def import_stage1(root: Path, *, reviews_path: Path | None = None) -> CatalogBun
         raise CatalogImportError("SNAPSHOT_MISSING: ledger or analysis absent")
     ledger = _json(root / "ledger.json")
     evidence, checksums = _evidence(root, ledger)
-    inventories = _json(root / "analysis.json").get("inventories", {})
+    analysis = _json(root / "analysis.json")
+    if (not isinstance(analysis, dict) or
+            analysis.get("schema_version") != "mcp-research-1" or
+            analysis.get("ledger_sha256") != hashlib.sha256(
+                (root / "ledger.json").read_bytes()).hexdigest() or
+            analysis.get("source_checksums") != checksums or
+            not isinstance(analysis.get("inventories"), dict) or
+            analysis.get("errors")):
+        raise CatalogImportError("ANALYSIS_INPUT_MISMATCH: regenerate local analysis offline")
+    inventories = analysis["inventories"]
     if reviews_path is None:
         registry = json.loads(files("openepw.availability").joinpath(
             "data/onebuilding_reviews.json").read_text(encoding="utf-8"))
