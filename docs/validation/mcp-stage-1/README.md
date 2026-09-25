@@ -16,6 +16,11 @@ Artifacts: [sanitized evidence and ledger](evidence.json),
 [execution plan/ledger](../../superpowers/plans/2026-09-23-mcp-stage-1.md).
 The [offline CMIP6 license-scope addendum](cmip6-license-scope.md) joins the
 accepted catalog and WCRP registry snapshots without new collection.
+Later local map follow-ups document an [approximate JRC PVGIS source region](../mcp-stage-2/pvgis-map-evidence.md),
+a [single-selector NSRDB published grid](../mcp-stage-2/nsrdb-footprint-acceptance.md)
+and [CMIP6 license-count display](../mcp-stage-2/cmip6-license-map.md). These
+follow-ups do not alter the Stage 1 request ledger or promote display layers to
+general request eligibility.
 
 ## Actual network work
 

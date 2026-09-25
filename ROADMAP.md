@@ -16,7 +16,7 @@ plan were completed. Owner approved Stage 2 on 2026-09-20.
 - [x] MCP, CLI and examples over the canonical service.
 - [x] Final acceptance record, documentation and regression checks.
 
-## Production MCP — Stage 1 accepted; Stage 2 planning next
+## Production MCP — Stage 1 accepted; Stage 2 plan under review
 
 Local use will roll out and be tested before self-hosted team deployment.
 [ADR 0003](docs/decisions/0003-mcp-availability-and-batches.md) records the accepted
@@ -30,8 +30,7 @@ and future scenario/windows, with strategic bounded probes instead of exhaustive
 API queries. Previous successful runs and QC summaries are excluded from this stage.
 
 MCP Stage 1 research and follow-ups completed on 2026-09-24 and were explicitly
-accepted by the owner. The owner agreed to advance to Stage 2; its next deliverable
-is a detailed design and implementation plan. Read the
+accepted by the owner. The owner authorized Stage 2 design and planning. Read the
 [agent handoff](docs/handoffs/2026-09-24-mcp-stage-2.md). The
 [findings and evidence](docs/validation/mcp-stage-1/README.md) record 41 metadata
 requests and three targeted probes, reproducible tooling, and precise limitations.
@@ -43,9 +42,16 @@ The [NSRDB geospatial design](docs/superpowers/specs/2026-09-24-nsrdb-geospatial
 and [focused map plan](docs/superpowers/plans/2026-09-24-nsrdb-geospatial-availability.md)
 produced an [accepted local map evidence record](docs/validation/mcp-stage-2/nsrdb-footprint-acceptance.md)
 for the GOES TMY v4 `tdy-2023` published selector. It shows source-grid site occupancy
-in generalized 0.25° cells alongside the Stage 1 point catalogs. Other NSRDB selectors
-retain unknown regional extent; the display mask does not establish arbitrary-point
-API eligibility. The shared Stage 2 service plan remains under owner review.
+in generalized 0.25° cells; the two Stage 1 point probes remain in the research
+snapshots but are not map markers. Other NSRDB selectors retain unknown regional
+extent; the display mask does not establish arbitrary-point API eligibility.
+The local map also displays an [approximation of JRC's PVGIS SARAH3 source region](docs/validation/mcp-stage-2/pvgis-map-evidence.md)
+and [CMIP6 scenario/license counts](docs/validation/mcp-stage-2/cmip6-license-map.md).
+CMIP6 land is neutral because the saved catalog and license registry do not
+establish geographic footprints or requested climate-window coverage. The
+[offline model-license join](docs/validation/mcp-stage-1/cmip6-license-scope.md)
+screens all 636 pinned combinations as an initial gate while retaining original
+store terms separately. The shared Stage 2 service plan remains under owner review.
 An owner-authorized NOAA follow-up retrieved the larger station/month inventory
 in one additional call; its normalized local index is ready for Stage 2 integration.
 The approved follow-up also resolved both OEDI scenario directories and matched

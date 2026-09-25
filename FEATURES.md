@@ -1,7 +1,8 @@
 # Features and implementation status
 
-Updated 2026-09-23. Stage 2 approved and implemented; acceptance and limitations
-are recorded separately. Installed source package version: 0.1.0.
+Updated 2026-09-25. The original v0.1 Stage 2 was approved and implemented;
+acceptance and limitations are recorded separately. The later MCP availability
+Stage 2 service plan remains under review. Installed source package version: 0.1.0.
 
 | Capability | Status | Important boundary |
 | --- | --- | --- |
@@ -24,6 +25,7 @@ are recorded separately. Installed source package version: 0.1.0.
 | REST/jobs/artifacts | Implemented, offline tested | SQLite + filesystem; identity-keyed progress and failed-output retry; single server process; bearer auth for remote REST |
 | MCP and CLI | Implemented, offline tested | Stdio and loopback Streamable HTTP; compact artifact references |
 | MCP availability research | Stage 1 completed, tooling offline tested | Bounded inventory investigation; [findings](docs/validation/mcp-stage-1/README.md); production catalog/recommendation integration remains future work |
+| Local availability map | Research artifact, outside installed package | [PVGIS source-region approximation, NSRDB published grid, CMIP6 license counts](docs/validation/README.md); layers have different evidence bases and do not certify request eligibility |
 | Packaging/CI | Wheel/sdist built; local installation verified | Cross-OS runners configured; see actual run evidence |
 
 Reserved: sampled/stochastic weather, additional hourly scenarios/geographies,

@@ -22,14 +22,14 @@ An immediate repeat used a conditional HEAD and reused the existing local snapsh
 
 ## Map artifact and meaning
 
-Run from the `feature/data-avail` worktree, using the owner-copied Stage 1 directory as `--snapshot-root`:
+Rebuild from the already acquired local snapshots in the `feature/data-avail`
+worktree, using the owner-copied Stage 1 directory as `--snapshot-root`:
 
 ```powershell
-python -m scripts.mcp_availability_map.acquire_nsrdb_meta nsrdb-GOES-tmy-v4-0-0 tdy-2023
 python -m scripts.mcp_availability_map.build --snapshot-root C:\github\Energy-Atlas\openepw\.local\mcp-availability --topology .local\mcp-availability\world-topology.json
 ```
 
-The build command writes `.local/mcp-availability/maps/availability-map.html` in this worktree. With the [approximate PVGIS SARAH3 polygon](pvgis-map-evidence.md) and the NSRDB grid-only view, the deterministic file is 723,514 bytes, SHA-256 `fa1c8fcb6db09e5e2ff570cb470dcf28e4c16cba747409735c516c5fef59ed73`. The local base map came from `world-atlas@2/countries-110m.json`, SHA-256 `8479d201eb95559d4c5da965f979b37b541cf402091969e89a12e65913e12098`, stored ignored beside the snapshots. The generated payload retains 15,476 mapped NOAA stations, 21,651 mapped OneBuilding products, 2,368 OEDI sites and the `tdy-2023` grid occupancy layer. It has schema `stage2-map-2` and carries no NSRDB point probes, API key, email, signed URL or source-coordinate inventory. Generation requires the local `meta.bin` and validates its SHA-256 alongside the mask. The acquisition command accepts only the reviewed `tdy-2023` product/object mapping until another selector receives its own source review.
+The build command writes `.local/mcp-availability/maps/availability-map.html` in this worktree. At the NSRDB/PVGIS acceptance point, the deterministic file was 723,514 bytes, SHA-256 `fa1c8fcb6db09e5e2ff570cb470dcf28e4c16cba747409735c516c5fef59ed73`. The [later CMIP6 overlay](cmip6-license-map.md) changed the generated HTML and has its own current digest. The local base map came from `world-atlas@2/countries-110m.json`, SHA-256 `8479d201eb95559d4c5da965f979b37b541cf402091969e89a12e65913e12098`, stored ignored beside the snapshots. The generated payload retains 15,476 mapped NOAA stations, 21,651 mapped OneBuilding products, 2,368 OEDI sites and the `tdy-2023` grid occupancy layer. It has schema `stage2-map-2` and carries no NSRDB point probes, API key, email, signed URL or source-coordinate inventory. Generation requires the local `meta.bin` and validates its SHA-256 alongside the mask. The one-time acquisition command accepts only the reviewed `tdy-2023` product/object mapping until another selector receives its own source review.
 
 The NSRDB layer means **NLR source grid sites in a generalized 0.25° display cell**. It does not assert every cell is filled, an exact pixel polygon, an API download for an arbitrary point, hourly completeness, variable completeness, or simulation readiness. `tdy-2023` is a named published product, not actual-year 2023 weather. The local map no longer offers the aggregate actual-year NSRDB view or displays the two point probes. Other published names remain selectable but explicitly show unknown extent until matching source-grid metadata is acquired. The documented GOES east/west description is context, not a shaded definitive polygon.
 

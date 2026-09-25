@@ -28,7 +28,14 @@ that geographic footprint and requested climate windows are unverified. The
 four sampled original store-license texts remain separate from this effective
 model-license screen. No Stage 1 collection was repeated.
 
-The rebuilt ignored local HTML is 730,344 bytes with SHA-256
+The land shapes are uniformly neutral in CMIP6 mode by design: the colored bar
+and its legend encode model-license counts, not location. The saved catalog and
+license registry contain no validated per-model geographic footprints. Spatial
+coloring would require separately reviewed coordinate evidence; assigning the
+license colors to land would fabricate a geographic availability claim.
+
+The rebuilt ignored worktree HTML and the browser visualization copy are each
+730,344 bytes with SHA-256
 `23bf7389a531f1830bacf7c92d5da8f941d514f6c7f299f1f590f337e1d8afbe`.
 It was generated from the copied Stage 1 snapshot root, the existing ignored
 world topology and reviewed NSRDB footprint manifest. The browser check selected

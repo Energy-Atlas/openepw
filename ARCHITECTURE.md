@@ -160,6 +160,9 @@ MCP availability research tooling lives under `scripts/mcp_research/`, outside t
 installed package. Its bounded collector and offline inventory analysis feed the
 [Stage 1 findings](docs/validation/mcp-stage-1/README.md). A shared production
 availability catalog remains a Stage 2 proposal; current adapters are unchanged.
+The local availability map builder lives under `scripts/mcp_availability_map/` and
+reads ignored snapshots; it is a research visualization, not a production service
+or a source of eligibility decisions.
 
 Configuration precedence: programmatic overrides → environment → explicitly loaded
 local dotenv → ignored local TOML. Credentials are SecretStr runtime fields and
