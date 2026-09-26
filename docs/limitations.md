@@ -25,7 +25,11 @@ Stage 4 exposes bounded structured tools and verified artifact resources through
 local MCP. Ordinary results cap at 160 KB; plan/job pages show at most 50 rows,
 uploads at most 5 MB and resource reads at most 10 MB. Hosts may impose smaller
 limits. Local path registration requires an explicit allowed root. The v0.1
-inline tools remain compatibility aliases; new clients submit stored hashes.
+weather inline tools remain compatibility aliases; new clients submit stored
+hashes. Future-weather MCP planning, submission and retry are temporarily
+suspended with `FEATURE_SUSPENDED`; prior future records remain readable.
+Generic EPW upload and allowed-root registration remain available. The Python
+and REST future services are outside this MCP suspension.
 The tested client is the MCP Python SDK stdio client on Windows. Remote MCP
 authentication and other host behavior remain untested.
 The Stage 5 reference agent uses a bounded model only to parse intent; its

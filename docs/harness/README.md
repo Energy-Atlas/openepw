@@ -19,7 +19,7 @@ job and artifact references after restarting the process. Use `--thread-id`
 for a separate local conversation. Only one console can use a given data root
 and thread ID at a time; a second console exits with a clear message rather
 than racing on the checkpoint and run record. No raw utterance, EPW bytes or
-API keys are written to the checkpoint. Each complete weather or future plan executes
+API keys are written to the checkpoint. Each complete weather plan executes
 automatically. Provider requests can fetch live data and model calls are billable;
 the harness ledger caps projected model spending at US$8 per data root. The
 interactive console does not inherit the single-request 20-call smoke cap.
@@ -34,7 +34,7 @@ Tool> {"arguments":{"job_id":"abc123"},"call_id":4,"event":"call","tool":"job_in
 Tool> {"call_id":4,"duration_ms":20,"event":"result","summary":{"completed":1,"failed":0,"state":"running","total":3},"tool":"job_inspect"}
 ```
 
-Job polls appear individually while a download runs. Upload messages show
+Job polls appear individually while weather retrieval runs. Upload messages show
 byte counts without EPW contents or local paths; tool errors show codes without
 provider response bodies. These messages are printed locally even when
 LangSmith tracing is disabled.
@@ -58,9 +58,9 @@ reads the key without changing `.env`. Set `--trace-project <name>` to group
 traces elsewhere, or `--no-trace` to turn tracing off for a session. Tracing
 failures are reported in the terminal while weather jobs continue.
 
-For example, ask for an actual year at a location, then ask to morph that EPW
-for a named scenario and climate window. A future request also needs a method
-and, for morphing, a reference window. The console keeps typed request fields,
+For example, ask for an actual year at a location, then ask for its status or
+artifact details. Future-weather requests currently return `FEATURE_SUSPENDED`.
+The console keeps typed request fields,
 confirmed location choices and artifact IDs between turns and process restarts.
 Short replies such as `2018` or `AMY` fill the current draft. AMY and historical
 are aliases for the same actual-year request in the console; the menu shows one
@@ -85,8 +85,8 @@ Ask `what do you have?` to assess read-only catalog
 eligibility. Exploration does not submit a plan and cannot prove that an EPW
 is complete or simulation-ready. TMY/TMYx/published reference products are
 assessed without treating an actual year as their source year.
-If a weather request produced several
-EPWs, select one with `/baseline <artifact_id>` before referring to “that EPW”.
+If a weather request produced several EPWs, provide an explicit artifact ID to
+`/inspect` or `/save`.
 Use `/upload <path>` to register a user EPW directly through MCP; its bytes and
 local path stay outside model prompts. `/inspect last` shows artifact QC, and
 `/save last <path>` saves an EPW to a new file without overwriting an existing
@@ -96,6 +96,10 @@ how to save it locally. Type `/help` for all commands. `/status [job_id]` checks
 `/retry` retries failed outputs, and `/quit` ends the console while leaving
 jobs and artifacts in the data root. Use `/auto off` to pause subsequent plans
 for review and `/submit` to execute a reviewed plan.
+
+`/save` is the current console command for writing a server artifact to the
+user's disk. The [post-retrieval plan](../plans/2026-09-26-post-download-conversations.md)
+will replace it with `/download` and reserve “retrieve” for provider requests.
 
 Conversation references persist in the selected local thread. The reference parser currently
 requests UTC output for weather; use the Python, CLI or MCP interfaces directly
@@ -112,22 +116,19 @@ extraction; the service and MCP tools decide eligibility, plans, jobs and QC.
 Set `OPENAI_API_KEY` in the process environment before a model run. The
 command does not load, copy or change the repository's `.env`.
 
-By default the agent stops at `review_required`, showing the immutable
+Future-weather requests are temporarily suspended in the MCP interface and
+return `FEATURE_SUSPENDED`. By default the agent stops at `review_required`, showing the immutable
 plan hash and key choices. Run `openepw-agent --data-root <root>
---submit-kind weather` (or `future`) after reviewing it. For scripted
+--submit-kind weather` after reviewing it. For scripted
 local evaluation, `--auto-submit` proceeds through job completion. Use
 `--resume [JOB_ID]` after disconnect; the agent re-reads canonical MCP job
 facts instead of rerunning completed outputs. The reference record lives at
 `<data-root>/harness/last-run.json` and contains only opaque IDs and tool
 names. The ignored cost ledger lives beside it.
 
-For a user EPW, pass `--baseline-file <path>` with a future prompt. The client
-reads and uploads bytes directly, outside model input, and supplies the
-returned baseline ID to the agent. A fetched OpenEPW weather artifact ID can
-instead appear in the task prompt. A future prompt must name the method,
-scenario and climate window; morphing should also specify the reference
-window. Unsupported combinations return a typed MCP error and no silent
-source switch.
+The console `/upload` command still accepts a user EPW as a generic input.
+The single-request `--baseline-file` path is currently unavailable because
+future-weather requests are suspended.
 
 The parser removes credential assignments and absolute local paths before
 sending user text to the model. It uses `store=false`, low reasoning effort,

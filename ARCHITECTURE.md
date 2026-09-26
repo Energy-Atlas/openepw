@@ -198,9 +198,12 @@ Uploads accept bounded EPW files, never arbitrary server paths. Remote REST requ
 a runtime bearer token; default binding is loopback. Request validation does not
 echo potentially secret inputs.
 
-MCP exposes bounded guidance, stored weather/future plans, baseline upload,
+MCP currently exposes bounded weather guidance and plans, generic EPW upload,
 job control, artifact inspection/export and checksum-verified resource tools.
-Three v0.1 inline aliases remain for transition. It calls the Python service
+Future-weather planning and execution are temporarily suspended at the MCP
+boundary; existing future plans, jobs and artifacts remain readable. The
+Python and REST future services remain available. Two weather v0.1 inline
+aliases remain for transition. MCP calls the Python service
 directly; `plan_hash` is the execution handoff. The local path import tool
 requires an explicit allowed root. Stdio and loopback Streamable HTTP are
 supported; remote MCP authentication is deferred rather than exposed without
