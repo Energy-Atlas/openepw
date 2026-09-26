@@ -53,7 +53,8 @@ def test_control_c_dismissal_aborts_menu_instead_of_reopening(monkeypatch):
 def test_progress_printer_reports_changes_and_heartbeat(monkeypatch, capsys):
     now = [0.0]
     monkeypatch.setattr(chat_cli.time, "monotonic", lambda: now[0])
-    printer = chat_cli.ProgressPrinter(heartbeat_seconds=5)
+    printer = chat_cli.ProgressPrinter(heartbeat_seconds=5, interactive=False,
+                                       bar_width=12)
     update = {"job_id": "job-1", "state": "running", "completed": 0,
               "failed": 0, "total": 3}
     printer(update)
@@ -65,9 +66,50 @@ def test_progress_printer_reports_changes_and_heartbeat(monkeypatch, capsys):
     printer({**update, "completed": 1})
     lines = capsys.readouterr().out.splitlines()
     assert len(lines) == 3
-    assert "0/3" in lines[0]
+    assert "[>-----------]" in lines[0]
+    assert "output 1/3" in lines[0]
+    assert "0 finished" in lines[0]
     assert "still running" in lines[1]
-    assert "1/3" in lines[2]
+    assert "output 2/3" in lines[2]
+    assert "1 finished" in lines[2]
+
+
+def test_progress_bar_updates_one_terminal_line_and_ends_before_reply(capsys):
+    printer = chat_cli.ProgressPrinter(interactive=True, bar_width=7)
+    printer({"job_id": "job-1", "state": "running", "completed": 0,
+             "failed": 0, "total": 7})
+    printer({"job_id": "job-1", "state": "running", "completed": 2,
+             "failed": 0, "total": 7})
+    printer({"job_id": "job-1", "state": "completed", "completed": 7,
+             "failed": 0, "total": 7})
+    output = capsys.readouterr().out
+    assert "\rProgress> [>------]" in output
+    assert "output 1/7" in output
+    assert "\rProgress> [##>----]" in output
+    assert "output 3/7" in output
+    assert "\rProgress> [#######]" in output
+    assert output.endswith("\n")
+    assert output.count("\n") == 1
+
+
+def test_progress_bar_counts_failed_outputs_as_processed(capsys):
+    printer = chat_cli.ProgressPrinter(interactive=False, bar_width=7)
+    printer({"job_id": "job-1", "state": "running", "completed": 3,
+             "failed": 1, "total": 7})
+    output = capsys.readouterr().out
+    assert "[####>--]" in output
+    assert "output 5/7" in output
+    assert "3 finished, 1 failed" in output
+
+
+def test_queued_bar_does_not_claim_first_output_has_started(capsys):
+    printer = chat_cli.ProgressPrinter(interactive=False, bar_width=7)
+    printer({"job_id": "job-1", "state": "queued", "completed": 0,
+             "failed": 0, "total": 7})
+    output = capsys.readouterr().out
+    assert "[-------]" in output
+    assert "waiting to start" in output
+    assert "output 1/7" not in output
 
 
 def test_interrupt_requests_cancellation_only_for_active_job():

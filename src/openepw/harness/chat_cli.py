@@ -27,16 +27,50 @@ class MenuAborted(Exception):
 
 
 class ProgressPrinter:
-    def __init__(self, *, heartbeat_seconds: float = 5.0):
+    def __init__(self, *, heartbeat_seconds: float = 5.0,
+                 interactive: bool | None = None, bar_width: int = 20):
         self.heartbeat_seconds = heartbeat_seconds
+        self.interactive = sys.stdout.isatty() if interactive is None else interactive
+        self.bar_width = bar_width
         self.last_snapshot: tuple[str, str, int, int, int] | None = None
         self.last_print_at: float | None = None
         self.started_at: float | None = None
+        self.last_line_width = 0
+        self.line_open = False
+
+    def finish(self) -> None:
+        if self.interactive and self.line_open:
+            sys.stdout.write("\n")
+            sys.stdout.flush()
+            self.line_open = False
+            self.last_line_width = 0
+
+    def _line(self, update: dict[str, Any], elapsed: int, heartbeat: bool) -> str:
+        total = max(0, int(update["total"]))
+        completed = max(0, int(update["completed"]))
+        failed = max(0, int(update["failed"]))
+        processed = min(total, completed + failed)
+        filled = self.bar_width * processed // total if total else 0
+        active = update["state"] == "running" and processed < total
+        bar = ("#" * filled + (">" if active else "") +
+               "-" * (self.bar_width - filled - int(active)))
+        if active:
+            detail = f"output {processed + 1}/{total}"
+        elif update["state"] == "queued":
+            detail = "waiting to start"
+        elif total:
+            detail = f"{processed}/{total} processed"
+        else:
+            detail = "preparing"
+        suffix = f"; still {update['state']}" if heartbeat else ""
+        return (f"Progress> [{bar}] {update['state']}: {detail}; "
+                f"{completed} finished, {failed} failed; {elapsed}s{suffix}")
 
     def __call__(self, update: dict[str, Any]) -> None:
         now = time.monotonic()
         if self.started_at is None or (self.last_snapshot is not None and
                                        update["job_id"] != self.last_snapshot[0]):
+            self.finish()
             self.started_at = now
             self.last_print_at = None
             self.last_snapshot = None
@@ -47,13 +81,20 @@ class ProgressPrinter:
                      and self.last_print_at is not None
                      and now - self.last_print_at >= self.heartbeat_seconds)
         if changed or heartbeat:
-            suffix = f" still {update['state']}" if heartbeat else ""
             started_at = self.started_at if self.started_at is not None else now
-            print(f"Progress> {update['state']} {update['completed']}/{update['total']} "
-                  f"outputs, {update['failed']} failed; elapsed "
-                  f"{int(now - started_at)}s{suffix}", flush=True)
+            line = self._line(update, int(now - started_at), heartbeat)
+            if self.interactive:
+                sys.stdout.write("\r" + line +
+                                 " " * max(0, self.last_line_width - len(line)))
+                sys.stdout.flush()
+                self.last_line_width = len(line)
+                self.line_open = True
+            else:
+                print(line, flush=True)
             self.last_print_at = now
         self.last_snapshot = snapshot
+        if update["state"] not in ("queued", "running"):
+            self.finish()
 
 
 async def _read_line(session: GraphChatSession) -> str:
@@ -136,17 +177,21 @@ async def _converse_locked(args, root: Path) -> None:
                     else:
                         answer = await session.handle(line)
                     if answer:
+                        progress.finish()
                         print("Agent> " + answer)
                     if tracer and tracer.failed and not warned:
                         print("LangSmith tracing failed; the chat will continue without traces.")
                         warned = True
             except (KeyboardInterrupt, MenuAborted):
+                progress.finish()
                 await _cancel_active_job(port, agent)
                 print("\nSession ended. Completed artifacts remain in the data root.")
             except asyncio.CancelledError:
+                progress.finish()
                 await _cancel_active_job(port, agent)
                 raise
             finally:
+                progress.finish()
                 if tracer:
                     tracer.close()
                     if tracer.failed and not warned:
