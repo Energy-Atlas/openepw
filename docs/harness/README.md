@@ -24,6 +24,20 @@ automatically. Provider requests can fetch live data and model calls are billabl
 the harness ledger caps projected model spending at US$8 per data root. The
 interactive console does not inherit the single-request 20-call smoke cap.
 Use a distinct `--data-root` to keep a test session separate.
+Every MCP tool invocation prints a structured `Tool> ` JSON message before
+the call, followed by a matching result or error message. The two messages
+share a `call_id`; arguments and results contain only short, selected fields.
+For example:
+
+```text
+Tool> {"arguments":{"job_id":"abc123"},"call_id":4,"event":"call","tool":"job_inspect"}
+Tool> {"call_id":4,"duration_ms":20,"event":"result","summary":{"completed":1,"failed":0,"state":"running","total":3},"tool":"job_inspect"}
+```
+
+Job polls appear individually while a download runs. Upload messages show
+byte counts without EPW contents or local paths; tool errors show codes without
+provider response bodies. These messages are printed locally even when
+LangSmith tracing is disabled.
 While a job runs, the console updates an in-place progress bar in an interactive
 terminal. The bar's filled portion counts processed outputs, and its `>` marker
 shows the output currently in progress: `output 1/7` means the first output is

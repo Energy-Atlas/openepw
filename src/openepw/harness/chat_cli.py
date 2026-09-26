@@ -14,9 +14,10 @@ import questionary
 
 from .agent import ReferenceAgent
 from .chat import load_model_key, load_trace_key
+from .console_port import ConsoleMCPPort
 from .graph_chat import GraphChatSession
 from .graph_model import LangChainTurnParser
-from .mcp_client import MCPToolFailure, StdioMCPPort
+from .mcp_client import MCPToolFailure
 from .model import ModelUnavailable
 from .session_lock import SessionBusy, session_lock
 from .trace import LangSmithTrace, TracingMCPPort
@@ -141,7 +142,10 @@ async def _converse_locked(args, root: Path) -> None:
     model = LangChainTurnParser(
         key, model=args.model,
         ledger_path=root / "harness" / "cost-ledger.json")
-    async with StdioMCPPort(root, allowed_roots=args.allow_root) as mcp:
+    progress = ProgressPrinter()
+    async with ConsoleMCPPort(
+            root, allowed_roots=args.allow_root,
+            before_message=progress.finish) as mcp:
         trace_key = None if args.no_trace else load_trace_key(args.env_file)
         tracer = (LangSmithTrace(trace_key, project=args.trace_project)
                   if trace_key else None)
@@ -150,7 +154,6 @@ async def _converse_locked(args, root: Path) -> None:
                        "chat-" + hashlib.sha256(args.thread_id.encode()).hexdigest()[:16]
                        + "-last-run.json")
         record = root / "harness" / record_name
-        progress = ProgressPrinter()
         agent = (ReferenceAgent.restore(
             port, model, record, on_progress=progress, stream_jobs=True)
             if record.is_file() else ReferenceAgent(

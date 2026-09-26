@@ -174,7 +174,7 @@ def test_interrupt_during_download_requests_job_cancellation(monkeypatch, tmp_pa
     monkeypatch.setattr(chat_cli, "load_model_key", lambda _: "test-key")
     monkeypatch.setattr(chat_cli, "load_trace_key", lambda _: None)
     monkeypatch.setattr(chat_cli, "LangChainTurnParser", lambda *a, **k: object())
-    monkeypatch.setattr(chat_cli, "StdioMCPPort", lambda *a, **k: Port())
+    monkeypatch.setattr(chat_cli, "ConsoleMCPPort", lambda *a, **k: Port())
     monkeypatch.setattr(chat_cli, "GraphChatSession", Session)
     monkeypatch.setattr(chat_cli, "_read_line", line)
     args = SimpleNamespace(env_file=".env", model="stub", allow_root=[],
