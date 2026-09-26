@@ -4,57 +4,86 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import hashlib
+import sys
 from pathlib import Path
 
+import questionary
+
 from .agent import ReferenceAgent
-from .chat import ChatSession, load_model_key, load_trace_key
+from .chat import load_model_key, load_trace_key
+from .graph_chat import GraphChatSession
+from .graph_model import LangChainTurnParser
 from .mcp_client import MCPToolFailure, StdioMCPPort
-from .model import ModelUnavailable, OpenAIIntentParser
-from .trace import LangSmithTrace, TracingIntentParser, TracingMCPPort
+from .model import ModelUnavailable
+from .trace import LangSmithTrace, TracingMCPPort
+
+
+async def _read_line(session: GraphChatSession) -> str:
+    choices = session.menu()
+    if choices and sys.stdin.isatty() and sys.stdout.isatty():
+        answer = await questionary.select(
+            "Choose one (or Other to type an answer)",
+            choices=[questionary.Choice(label, value=value) for value, label in choices],
+            use_arrow_keys=True,
+        ).ask_async()
+        if answer and answer != "other":
+            return "\0choice:" + answer
+        if answer is None:
+            return ""
+    return await asyncio.to_thread(input, "You> ")
 
 
 async def converse(args) -> None:
     root = Path(args.data_root)
     key = load_model_key(args.env_file)
-    model = OpenAIIntentParser(
-        key, model=args.model, max_calls=None,
+    model = LangChainTurnParser(
+        key, model=args.model,
         ledger_path=root / "harness" / "cost-ledger.json")
     async with StdioMCPPort(root, allowed_roots=args.allow_root) as mcp:
         trace_key = None if args.no_trace else load_trace_key(args.env_file)
         tracer = (LangSmithTrace(trace_key, project=args.trace_project)
                   if trace_key else None)
         port = TracingMCPPort(mcp, tracer) if tracer else mcp
-        parser = TracingIntentParser(model, tracer) if tracer else model
-        agent = ReferenceAgent(
-            port, parser, record_path=root / "harness" / "chat-last-run.json")
-        session = ChatSession(agent, port, parser, auto_submit=not args.manual,
-                              tracer=tracer)
-        print("OpenEPW chat. Type /help for commands; /quit to leave.")
-        print("New plans execute automatically." if session.auto_submit else
-              "New plans pause for review.")
-        if tracer:
-            print(f"LangSmith tracing on: {args.trace_project}.")
-        warned = False
-        try:
-            while not session.exit_requested:
-                try:
-                    line = await asyncio.to_thread(input, "You> ")
-                except EOFError:
-                    break
-                except KeyboardInterrupt:
-                    print("\nSession ended. Jobs and artifacts remain in the data root.")
-                    break
-                answer = await session.handle(line)
-                if answer:
-                    print("Agent> " + answer)
-                if tracer and tracer.failed and not warned:
-                    print("LangSmith tracing failed; the chat will continue without traces.")
-                    warned = True
-        finally:
+        record_name = ("chat-last-run.json" if args.thread_id == "console" else
+                       "chat-" + hashlib.sha256(args.thread_id.encode()).hexdigest()[:16]
+                       + "-last-run.json")
+        record = root / "harness" / record_name
+        agent = (ReferenceAgent.restore(port, model, record) if record.is_file()
+                 else ReferenceAgent(port, model, record_path=record))
+        async with GraphChatSession(
+                agent, port, model, root / "harness" / "chat-checkpoints.sqlite",
+                thread_id=args.thread_id, auto_submit=not args.manual,
+                tracer=tracer) as session:
+            print("OpenEPW chat. Type /help for commands; /quit to leave.")
+            print("New plans execute automatically." if session.auto_submit else
+                  "New plans pause for review.")
             if tracer:
-                tracer.close()
-                if tracer.failed and not warned:
-                    print("LangSmith trace delivery failed.")
+                print(f"LangSmith tracing on: {args.trace_project}.")
+            warned = False
+            try:
+                while not session.exit_requested:
+                    try:
+                        line = await _read_line(session)
+                    except EOFError:
+                        break
+                    except KeyboardInterrupt:
+                        print("\nSession ended. Jobs and artifacts remain in the data root.")
+                        break
+                    if line.startswith("\0choice:"):
+                        answer = await session.handle_choice(line[len("\0choice:"):])
+                    else:
+                        answer = await session.handle(line)
+                    if answer:
+                        print("Agent> " + answer)
+                    if tracer and tracer.failed and not warned:
+                        print("LangSmith tracing failed; the chat will continue without traces.")
+                        warned = True
+            finally:
+                if tracer:
+                    tracer.close()
+                    if tracer.failed and not warned:
+                        print("LangSmith trace delivery failed.")
 
 
 def main(argv=None) -> int:
@@ -64,6 +93,8 @@ def main(argv=None) -> int:
     parser.add_argument("--env-file", default=".env",
                         help="Read OPENAI_API_KEY from this existing file if unset in shell")
     parser.add_argument("--model", default="gpt-6-luna")
+    parser.add_argument("--thread-id", default="console",
+                        help="Local conversation ID; reuse it to resume saved choices")
     parser.add_argument("--allow-root", action="append", default=[])
     parser.add_argument("--manual", action="store_true",
                         help="Show plans before execution; /auto on can change this")

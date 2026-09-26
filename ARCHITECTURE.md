@@ -29,7 +29,7 @@ src/openepw/
   jobs/{store,worker}.py  SQLite item records and bounded worker threads
   api/app.py             REST adapter
   mcp/server.py          MCP adapter
-  harness/{agent,chat,chat_cli,mcp_client,model,rubric,trace}.py  optional reference MCP agent and console
+  harness/{agent,chat,chat_cli,graph_chat,graph_model,mcp_client,model,rubric,trace}.py  optional reference MCP agent and console
   cli/main.py            argparse adapter
 ```
 
@@ -212,9 +212,11 @@ intent; the service retains scientific authority. Safe local run state stores
 opaque plan/job/artifact IDs and tool names, while the billable model ledger
 stores token counts and estimated cost. The single-request command has no hosted
 tracing.
-The optional console keeps a typed in-memory draft, explicit geocoder choices
-and artifact references for follow-up turns. It parses each utterance once,
-merges explicit fields, and uses the shared agent's parsed-intent path. Read-only
+The optional console uses LangGraph with a local SQLite checkpointer for typed
+request drafts, geocoder choices and artifact references across process restarts.
+LangChain extracts all fields and separate requests in one utterance. It parses
+each utterance once, merges explicit fields, and uses the shared agent's
+parsed-intent path. The direct MCP client remains the tool transport. Read-only
 catalog exploration never creates a plan; a complete retrieval request follows
 the existing planning/job path. The console reads the existing ignored `.env`
 only for keys and uses the same MCP planning and job operations. It reads or writes EPW

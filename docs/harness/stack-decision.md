@@ -3,8 +3,7 @@
 Date: 2026-09-25. Chosen stack: direct MCP Python SDK client plus a small
 explicit reference-agent state machine. The harness is an optional package
 extra and calls Stage 4 tools only. No LangSmith requests or traces were sent.
-This records the Stage 5 decision. The later interactive console adds optional
-LangSmith tracing around its direct-client workflow without adopting LangGraph.
+This records the Stage 5 decision for the single-request reference agent.
 
 ## Bounded comparison
 
@@ -39,8 +38,20 @@ introduce a second MCP SDK era and a persistence mechanism while jobs already
 persist in OpenEPW. The direct path therefore remains the reference harness.
 Reconsider a graph only if later user tasks need branching multi-agent state
 or long conversations that cannot be represented by stored IDs. The prototype
-environment and scripts are ignored local files; no graph dependency is
-bundled in OpenEPW.
+environment and scripts were ignored local files; no graph dependency was
+bundled in OpenEPW at that stage.
+
+## Interactive console amendment, 2026-09-26
+
+The owner subsequently required durable multi-turn state, menu choices and
+multiple intentions in one user message. The interactive console now uses
+LangGraph with a local SQLite checkpointer and LangChain structured extraction;
+the single-request `openepw-agent` retains the direct stack above. The console
+still calls MCP through the existing SDK client, so it does not install the
+conflicting LangChain MCP adapter or FastMCP 4. The checkpoint holds typed
+request facts, pending choices and opaque IDs. Raw utterances, EPW contents and
+credentials remain outside it. This change responds to longer conversations
+and branching user requests that were outside the Stage 5 comparison.
 
 References: [LangGraph persistence](https://docs.langchain.com/oss/python/langgraph/persistence),
 [LangChain MCP adapter](https://docs.langchain.com/oss/python/langchain/mcp),

@@ -3,8 +3,9 @@
 import asyncio
 import json
 
-from openepw.harness.agent import AgentIntent, AgentResult
+from openepw.harness.agent import AgentIntent, AgentResult, ReferenceAgent
 from openepw.harness.chat import ChatSession, load_trace_key
+from openepw.harness.graph_chat import GraphChatSession
 from openepw.harness.trace import LangSmithTrace, TracingIntentParser, TracingMCPPort
 
 
@@ -87,3 +88,38 @@ def test_trace_key_loader_reads_existing_env_without_changing_it(tmp_path, monke
     monkeypatch.setenv("LANGSMITH_API_KEY", "lsv2-shell-test")
     assert load_trace_key(path) == "lsv2-shell-test"
     assert path.read_bytes() == original
+
+
+def test_graph_console_trace_keeps_model_step_and_redacts_input(tmp_path):
+    class Parser:
+        def parse_many(self, prompt):
+            assert "oneoffcredential" not in prompt
+            return [AgentIntent(kind="weather", lat=42.44, lon=-76.5,
+                                product="historical", years=[2024])]
+
+    class ConsolePort:
+        async def call(self, name, **arguments):
+            if name == "weather_discover":
+                return {"availability": {"options": []}, "candidates": []}
+            if name == "weather_plan":
+                return {"plan_hash": "a" * 64, "output_count": 1, "estimated_calls": 1}
+            if name == "plan_inspect":
+                return {"kind": "weather", "selected_candidates": []}
+            raise AssertionError(name)
+
+    client = CaptureClient()
+    tracer = LangSmithTrace("fake-key", project="openepw-test", client=client)
+    port = TracingMCPPort(ConsolePort(), tracer)
+    parser = Parser()
+
+    async def journey():
+        async with GraphChatSession(ReferenceAgent(port, parser), port, parser,
+                                    tmp_path / "chat.sqlite", auto_submit=False,
+                                    tracer=tracer) as chat:
+            return await chat.handle(
+                "Weather 2024 LANGSMITH_API_KEY=oneoffcredential")
+
+    assert "review_required" in asyncio.run(journey())
+    assert "openepw.intent" in [run["name"] for run in client.created]
+    recorded = json.dumps([client.created, client.updated], default=str)
+    assert "oneoffcredential" not in recorded

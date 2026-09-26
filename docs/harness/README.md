@@ -11,11 +11,17 @@ From the repository root, install the optional harness and start a local chat:
 
 The console reads `OPENAI_API_KEY` from the existing, ignored `.env` if it is
 not set in the shell. It never writes the file. It opens one local stdio MCP
-session and uses `gpt-6-luna` for intent extraction. Each new weather or future
-plan executes automatically. Provider requests can fetch live data and model
-calls are billable; the harness ledger caps projected model spending at US$8
-per data root. The interactive console does not inherit the single-request
-20-call smoke cap. Use a distinct `--data-root` to keep a test session separate.
+session and uses `gpt-6-luna` through LangChain structured output for turn
+extraction. LangGraph checkpoints the conversation under
+`<data-root>/harness/chat-checkpoints.sqlite`; the default thread is `console`.
+Reuse the data root and thread ID to resume its draft, pending choice, most recent
+job and artifact references after restarting the process. Use `--thread-id`
+for a separate local conversation. No raw utterance, EPW bytes or API keys are
+written to the checkpoint. Each complete weather or future plan executes
+automatically. Provider requests can fetch live data and model calls are billable;
+the harness ledger caps projected model spending at US$8 per data root. The
+interactive console does not inherit the single-request 20-call smoke cap.
+Use a distinct `--data-root` to keep a test session separate.
 If `LANGSMITH_API_KEY` is present in the shell or existing `.env`, the console
 also sends each turn to the `openepw-local-chat` LangSmith project. Model intent
 and MCP calls appear as child steps. Traces include sanitized natural-language
@@ -27,14 +33,19 @@ failures are reported in the terminal while weather jobs continue.
 
 For example, ask for an actual year at a location, then ask to morph that EPW
 for a named scenario and climate window. A future request also needs a method
-and, for morphing, a reference window. The console carries only confirmed
-choices, a current request draft and artifact IDs between turns. Short replies
-such as `2018` or `historical` fill the current draft. A year-specific weather
-request is interpreted as historical unless you choose another compatible
-product; the console states that interpretation. Ambiguous geocoding results
-are numbered: reply with a number, an exact displayed name, or a combined
-reply such as `location 1, AMY data` or `historical, for location 1`. Use
-`/reset` to start a new request.
+and, for morphing, a reference window. The console keeps typed request fields,
+confirmed location choices and artifact IDs between turns and process restarts.
+Short replies such as `2018` or `historical` fill the current draft. An explicit
+`same location` reference can reuse the last completed weather location. A
+year-specific weather request is interpreted as historical unless you choose
+another compatible product; the console states that interpretation. One
+utterance may specify several fields or up to five separate requests. Separate
+requests run in order; later ones wait if an earlier request needs clarification.
+Ambiguous geocoding results and weather-product questions show an arrow-key
+single-choice menu in interactive terminals. Select **Other…** to type an
+answer. Numbered choices remain available in non-interactive terminals and for
+combined replies such as `location 1, AMY data`. Use `/reset` to clear the
+current draft.
 Ask `what do you have?` to assess read-only catalog
 eligibility. Exploration does not submit a plan and cannot prove that an EPW
 is complete or simulation-ready. TMY/TMYx/published reference products are
@@ -51,8 +62,7 @@ how to save it locally. Type `/help` for all commands. `/status [job_id]` checks
 jobs and artifacts in the data root. Use `/auto off` to pause subsequent plans
 for review and `/submit` to execute a reviewed plan.
 
-Conversation references last only while the terminal stays open. After restart,
-use an explicit artifact ID or `/status <job_id>`. The reference parser currently
+Conversation references persist in the selected local thread. The reference parser currently
 requests UTC output for weather; use the Python, CLI or MCP interfaces directly
 when a particular fixed standard-time offset is required. Inspect QC before
 using any EPW for simulation: `simulation_ready=false` remains the contract.

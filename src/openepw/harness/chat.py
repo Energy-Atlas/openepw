@@ -52,6 +52,7 @@ class ChatSession:
         self.exit_requested = False
         self.selected_baseline_id: str | None = None
         self.weather_artifacts: tuple[str, ...] = ()
+        self.last_weather_location: dict[str, Any] | None = None
         self.draft: AgentIntent | None = None
         self.selected_location: dict[str, Any] | None = None
         self.pending_choices: tuple[dict[str, Any], ...] = ()
@@ -61,6 +62,54 @@ class ChatSession:
         self.reviewed_location: dict[str, Any] | None = None
         self.reviewed_reply: str | None = None
         self.tracer = tracer
+        self._given_delta: AgentIntent | None = None
+
+    def export_state(self) -> dict[str, Any]:
+        """Return only typed conversation facts for a durable local checkpoint."""
+        return {
+            "draft": self.draft.model_dump(mode="json") if self.draft else None,
+            "selected_location": self.selected_location,
+            "pending_choices": list(self.pending_choices),
+            "pending_exploration": self.pending_exploration,
+            "pending_question": self.pending_question,
+            "reviewed_intent": (self.reviewed_intent.model_dump(mode="json")
+                                if self.reviewed_intent else None),
+            "reviewed_location": self.reviewed_location,
+            "reviewed_reply": self.reviewed_reply,
+            "selected_baseline_id": self.selected_baseline_id,
+            "weather_artifacts": list(self.weather_artifacts),
+            "last_weather_location": self.last_weather_location,
+            "auto_submit": self.auto_submit,
+            "plan_hash": self.agent.plan_hash,
+            "job_id": self.agent.job_id,
+        }
+
+    def import_state(self, state: dict[str, Any]) -> None:
+        self.draft = AgentIntent.model_validate(state["draft"]) if state.get("draft") else None
+        self.selected_location = state.get("selected_location")
+        self.pending_choices = tuple(state.get("pending_choices") or ())
+        self.pending_exploration = bool(state.get("pending_exploration"))
+        self.pending_question = state.get("pending_question")
+        self.reviewed_intent = (AgentIntent.model_validate(state["reviewed_intent"])
+                                if state.get("reviewed_intent") else None)
+        self.reviewed_location = state.get("reviewed_location")
+        self.reviewed_reply = state.get("reviewed_reply")
+        self.selected_baseline_id = state.get("selected_baseline_id")
+        self.weather_artifacts = tuple(state.get("weather_artifacts") or ())
+        self.last_weather_location = state.get("last_weather_location")
+        self.auto_submit = bool(state.get("auto_submit", self.auto_submit))
+        # The agent's ID record is written during tool calls; it may be newer
+        # than a graph checkpoint if the process stopped mid-turn.
+        self.agent.plan_hash = self.agent.plan_hash or state.get("plan_hash")
+        self.agent.job_id = self.agent.job_id or state.get("job_id")
+
+    async def handle_intent(self, line: str, delta: AgentIntent) -> str:
+        """Handle a previously extracted delta without a second model call."""
+        self._given_delta = delta
+        try:
+            return await self.handle(line)
+        finally:
+            self._given_delta = None
 
     @staticmethod
     def _format(result: AgentResult) -> str:
@@ -73,9 +122,11 @@ class ChatSession:
             lines.append("EPW artifact IDs: " + ", ".join(result.artifact_ids))
         return "\n".join(lines)
 
-    def _remember(self, result: AgentResult) -> str:
+    def _remember(self, result: AgentResult, *, update_request: bool = True) -> str:
         if result.artifact_ids:
             self.weather_artifacts = result.artifact_ids
+        if not update_request:
+            return self._format(result)
         self.pending_choices = result.location_choices
         self.pending_question = (result.message if result.status == "needs_clarification"
                                  else None)
@@ -84,6 +135,15 @@ class ChatSession:
             self.reviewed_location = self.selected_location.copy() if self.selected_location else None
             self.reviewed_reply = self._format(result)
         if result.status in ("completed", "partially_completed"):
+            if self.draft and self.draft.kind == "weather":
+                if self.selected_location:
+                    self.last_weather_location = self.selected_location.copy()
+                elif self.draft.locations and len(self.draft.locations) == 1:
+                    self.last_weather_location = dict(self.draft.locations[0])
+                elif self.draft.lat is not None and self.draft.lon is not None:
+                    self.last_weather_location = {"lat": self.draft.lat, "lon": self.draft.lon}
+                elif self.draft.place:
+                    self.last_weather_location = {"place": self.draft.place}
             self.draft = None
             self.selected_location = None
             self.reviewed_intent = None
@@ -266,9 +326,10 @@ class ChatSession:
             embedded_choice = (re.search(
                 r"\b(?:for\s+)?(?:location|option|choice)\s+(\d+)\b", line,
                 re.IGNORECASE) if self.pending_choices else None)
+            year_reply = bool(re.fullmatch(r"(?:18|19|20|21)\d{2}", line))
             choice_match = (embedded_choice or re.fullmatch(
                 r"(\d+)\b(?:\s*[,;:]\s*|\s+)?(.*)", line, re.IGNORECASE)
-                if self.pending_choices else None)
+                if self.pending_choices and not year_reply else None)
             choice: dict[str, Any] | None
             if choice_match:
                 index = int(choice_match.group(1))
@@ -296,7 +357,7 @@ class ChatSession:
                     return self._remember(await self.agent.run_intent(
                         self.draft, auto_submit=self.auto_submit,
                         location_override=self.selected_location))
-            if self.pending_choices and (line.isdecimal() or any(
+            if self.pending_choices and ((line.isdecimal() and not year_reply) or any(
                     str(item.get("name", "")).casefold().startswith(line.casefold())
                     for item in self.pending_choices)):
                 return self._choices_text(self.pending_choices)
@@ -313,12 +374,12 @@ class ChatSession:
             if (baseline is None and future_request and refers_back
                     and len(self.weather_artifacts) == 1 and not explicit_id):
                 baseline = self.weather_artifacts[0]
-            delta = self.model.parse(line)
+            delta = self._given_delta or self.model.parse(line)
             intent = self._merge(delta)
-            if delta.action == "explore" or re.search(
-                    r"\bwhat do you have\b|\bwhat(?:'s| is) available\b|"
-                    r"\bwhich sources\b|\byou tell me\b|\brecommend\b",
-                    line, re.IGNORECASE):
+            if delta.action == "explore" or (self._given_delta is None and re.search(
+                r"\bwhat do you have\b|\bwhat(?:'s| is) available\b|"
+                r"\bwhich sources\b|\byou tell me\b|\brecommend\b",
+                line, re.IGNORECASE)):
                 return await self._explore(intent)
             if self.pending_choices and self.selected_location is None:
                 self.pending_exploration = False
@@ -386,7 +447,14 @@ class ChatSession:
                 return "Stored plan kind is unavailable; submission stopped."
             return self._remember(await self.agent.submit_plan(kind))
         if command in ("/status", "/resume"):
-            return self._remember(await self.agent.resume(argument or None))
+            saved_plan, saved_job = self.agent.plan_hash, self.agent.job_id
+            try:
+                result = await self.agent.resume(argument or None)
+            finally:
+                if self.draft is not None:
+                    self.agent.plan_hash, self.agent.job_id = saved_plan, saved_job
+                    self.agent._persist()
+            return self._remember(result, update_request=False)
         if command == "/cancel":
             if not self.agent.job_id:
                 return "No job is selected."
@@ -398,7 +466,14 @@ class ChatSession:
             if not self.agent.job_id:
                 return "No job is selected."
             retried = await self.mcp.call("job_retry_failed", job_id=self.agent.job_id)
-            return self._remember(await self.agent.resume(retried["id"]))
+            saved_plan, saved_job = self.agent.plan_hash, self.agent.job_id
+            try:
+                result = await self.agent.resume(retried["id"])
+            finally:
+                if self.draft is not None:
+                    self.agent.plan_hash, self.agent.job_id = saved_plan, saved_job
+                    self.agent._persist()
+            return self._remember(result, update_request=False)
         if command == "/upload":
             if not argument:
                 return "Use /upload <EPW path>."

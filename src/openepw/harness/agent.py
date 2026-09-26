@@ -56,7 +56,7 @@ class AgentResult:
     location_choices: tuple[dict[str, Any], ...] = ()
 
 
-def safe_prompt(text: str) -> str:
+def safe_prompt(text: str, *, limit: int = 1000) -> str:
     """Remove credential assignments and absolute paths before model input."""
     text = re.sub(
         r"(?i)\b(?:OPENAI_API_KEY|LANGCHAIN_API_KEY|LANGSMITH_API_KEY|OPENEPW_[A-Z_]*KEY)"
@@ -65,7 +65,7 @@ def safe_prompt(text: str) -> str:
     )
     text = re.sub(r"[A-Za-z]:\\[^\s]+|/(?:home|Users)/[^\s]+",
                   "[local path]", text)
-    return text[:1000]
+    return text[:limit]
 
 
 class ReferenceAgent:
