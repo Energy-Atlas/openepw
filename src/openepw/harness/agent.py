@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal, Protocol
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from .mcp_client import MCPToolFailure
 
@@ -37,6 +37,13 @@ class AgentIntent(BaseModel):
     climate_period: tuple[int, int] | None = None
     reference_period: tuple[int, int] | None = None
 
+    @field_validator("product", mode="before")
+    @classmethod
+    def actual_year_alias(cls, value):
+        # Existing prompts and checkpoints may say AMY; the console has one
+        # actual-year product, with historical as its stable request value.
+        return "historical" if value == "amy" else value
+
 
 class IntentParser(Protocol):
     def parse(self, prompt: str) -> AgentIntent: ...
@@ -54,6 +61,22 @@ class AgentResult:
     job_id: str | None = None
     artifact_ids: tuple[str, ...] = ()
     location_choices: tuple[dict[str, Any], ...] = ()
+
+
+def _batch_row_label(row: dict[str, Any]) -> str:
+    index = row.get("occurrence_index")
+    location = f"location {index + 1}" if isinstance(index, int) else None
+    start = row.get("period_start")
+    end = row.get("period_end")
+    if start:
+        start, end = str(start), str(end) if end else None
+        if (end and start.endswith("-01-01") and end.endswith("-12-31")
+                and start[:4] == end[:4]):
+            period = start[:4]
+        else:
+            period = f"{start}–{end}" if end else start
+        return f"{location}, {period}" if location else period
+    return location or "output"
 
 
 def safe_prompt(text: str, *, limit: int = 1000) -> str:
@@ -100,9 +123,12 @@ class ReferenceAgent:
             "job_id": self.job_id,
             "events": self.events[-100:],
         }
-        temporary = self.record_path.with_suffix(".tmp")
-        temporary.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-        temporary.replace(self.record_path)
+        temporary = self.record_path.with_name(".tmp-" + uuid.uuid4().hex)
+        try:
+            temporary.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+            temporary.replace(self.record_path)
+        finally:
+            temporary.unlink(missing_ok=True)
 
     async def _call(self, name: str, **arguments: Any) -> dict[str, Any]:
         result = await self.mcp.call(name, **arguments)
@@ -142,7 +168,7 @@ class ReferenceAgent:
             intent.baseline_artifact_id = baseline_override
         if intent.kind == "unknown":
             return AgentResult("needs_clarification",
-                               "Please specify historical/published weather or future weather.")
+                               "Please specify actual-year/published weather or future weather.")
         try:
             if intent.kind == "weather":
                 return await self._weather(intent, auto_submit, location_override)
@@ -338,8 +364,8 @@ class ReferenceAgent:
             message += " simulation_ready=false."
         if job.get("batch_rows"):
             rows = job["batch_rows"][:10]
-            message += " Per-occurrence outcomes: " + "; ".join(
-                f"{row.get('occurrence_index')} {row.get('status')}"
+            message += " Per-output outcomes: " + "; ".join(
+                f"{_batch_row_label(row)} {row.get('status')}"
                 + (f" ({', '.join(row['issue_codes'])})" if row.get("issue_codes") else "")
                 for row in rows
             ) + ". Full mapping remains in the job manifest."

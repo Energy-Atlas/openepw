@@ -245,6 +245,8 @@ def create_server(service=None, *, allowed_roots: list[str | Path] | None = None
                 manifest = json.loads(path.read_text(encoding="utf-8"))
                 result["batch_rows"] = [
                     {"occurrence_index": row.get("occurrence_index"),
+                     "period_start": row.get("period_start"),
+                     "period_end": row.get("period_end"),
                      "output_id": row.get("output_id"), "status": row.get("status"),
                      "issue_codes": row.get("issue_codes", [])}
                     for row in manifest.get("batch_rows", [])[:50]

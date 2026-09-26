@@ -1,7 +1,7 @@
 import asyncio
 import json
 
-from openepw.harness.agent import AgentIntent, ReferenceAgent
+from openepw.harness.agent import AgentIntent, ReferenceAgent, _batch_row_label
 from openepw.harness.mcp_client import MCPToolFailure
 from openepw.harness.rubric import Case, RunRecord, score
 
@@ -126,9 +126,42 @@ def test_agent_explains_partial_batch_without_source_switch():
     result = asyncio.run(ReferenceAgent(mcp, model).run("Published batch",
                                                        auto_submit=True))
     assert result.status == "partially_completed"
-    assert "1 unsupported" in result.message
+    assert "location 2 unsupported" in result.message
     assert "OUTSIDE_COVERAGE" in result.message
     assert not any(name == "job_retry_failed" for name, _ in mcp.calls)
+
+
+def test_batch_summary_labels_years_instead_of_repeating_location_index():
+    mcp = StubMCP()
+    original = mcp.call
+
+    async def multi_year(name, **arguments):
+        if name == "job_inspect":
+            result = await original(name, **arguments)
+            result["completed"] = 3
+            result["batch_rows"] = [
+                {"occurrence_index": 0, "period_start": f"{year}-01-01",
+                 "period_end": f"{year}-12-31", "status": "succeeded"}
+                for year in (2012, 2013, 2014)
+            ]
+            return result
+        return await original(name, **arguments)
+
+    mcp.call = multi_year
+    agent = ReferenceAgent(mcp, StubModel(AgentIntent(
+        kind="weather", lat=42, lon=-71, product="historical",
+        years=[2012, 2013, 2014])))
+    result = asyncio.run(agent.run("Weather 2012-2014", auto_submit=True))
+    assert "location 1, 2012 succeeded" in result.message
+    assert "location 1, 2013 succeeded" in result.message
+    assert "location 1, 2014 succeeded" in result.message
+    assert "0 succeeded" not in result.message
+
+
+def test_batch_row_label_preserves_partial_period():
+    assert _batch_row_label({"occurrence_index": 0,
+                             "period_start": "2012-06-01",
+                             "period_end": "2012-08-31"}) == "location 1, 2012-06-01–2012-08-31"
 
 
 def test_unsupported_future_method_is_blocked_without_substitution():

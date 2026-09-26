@@ -67,7 +67,7 @@ def test_graph_remembers_location_product_and_year_across_restart(tmp_path):
             port, parser, record_path=record)
         async with GraphChatSession(agent, port, parser, checkpoint) as chat:
             assert "Cambridge" in chat.draft.place
-            assert chat.draft.product == "amy"
+            assert chat.draft.product == "historical"
             assert "2018" not in await chat.handle("2018")
             assert len(chat.choices) == 2
             assert "completed" in await chat.handle("1")
@@ -77,7 +77,7 @@ def test_graph_remembers_location_product_and_year_across_restart(tmp_path):
     assert len(parser.calls) == 3
     assert [name for name, _ in port.calls].count("weather_geocode") == 1
     request = next(args["request"] for name, args in port.calls if name == "weather_plan")
-    assert request["product"] == "amy"
+    assert request["product"] == "historical"
     assert request["years"] == [2018]
     assert request["locations"]["id"] == CAMBRIDGE["id"]
 
@@ -130,15 +130,16 @@ def test_graph_product_menu_selection_preserves_place_without_model_call(tmp_pat
         async with GraphChatSession(ReferenceAgent(port, parser), port, parser,
                                     tmp_path / "chat.sqlite") as chat:
             assert "product" in await chat.handle("Weather for Cambridge MA")
-            assert ("product:amy", "AMY (actual year)") in chat.menu()
-            assert "year" in await chat.handle_choice("product:amy")
+            assert ("product:historical", "Actual year (AMY)") in chat.menu()
+            assert not any(value == "product:amy" for value, _ in chat.menu())
+            assert "year" in await chat.handle_choice("product:historical")
             assert "1." in await chat.handle("2018")
             assert "completed" in await chat.handle_choice("location:cambridge")
 
     asyncio.run(journey())
     assert len(parser.calls) == 2
     request = next(args["request"] for name, args in port.calls if name == "weather_plan")
-    assert request["product"] == "amy"
+    assert request["product"] == "historical"
     assert request["years"] == [2018]
 
 

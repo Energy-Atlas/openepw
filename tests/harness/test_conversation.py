@@ -198,7 +198,7 @@ def test_exploration_location_choice_then_year_reuses_candidate():
     assert "eligible to try" in asyncio.run(journey()).lower()
     names = [name for name, _ in port.calls]
     assert names.count("weather_geocode") == 1
-    assert names.count("weather_assess") == 5
+    assert names.count("weather_assess") == 4
     assert "weather_plan" not in names
 
 
@@ -222,7 +222,7 @@ def test_compound_location_choice_and_amy_then_year_keeps_selected_place():
     assert model.prompts[2] == "AMY data"
     request = next(args["request"] for name, args in port.calls if name == "weather_plan")
     assert request["locations"]["id"] == CAMBRIDGE["id"]
-    assert request["product"] == "amy"
+    assert request["product"] == "historical"
     assert request["years"] == [2018]
     assert [name for name, _ in port.calls].count("weather_geocode") == 1
 
@@ -317,7 +317,7 @@ def test_you_tell_me_uses_read_only_catalog_options():
 
     answer = asyncio.run(journey())
     assert "eligible to try" in answer.lower()
-    assert [name for name, _ in port.calls].count("weather_assess") == 10
+    assert [name for name, _ in port.calls].count("weather_assess") == 8
     assert "weather_plan" not in [name for name, _ in port.calls]
 
 

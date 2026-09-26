@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -30,6 +31,7 @@ _INSTRUCTIONS = (
     "Extract every distinct user request and every explicit field from the current utterance. "
     "Return one request when a sentence has several fields for the same weather task, "
     "but multiple requests when the user asks for separate outputs (for example AMY and TMYx). "
+    "Treat AMY and historical as the same actual-year product; emit historical for either. "
     "A short answer such as a year or product is a delta: use kind=unknown if the current "
     "utterance does not state weather or future. Do not repeat information from prior turns. "
     "Use action=explore for a question about products, sources or availability without a "
@@ -70,9 +72,12 @@ class LangChainTurnParser:
         if self.ledger_path is None:
             return
         self.ledger_path.parent.mkdir(parents=True, exist_ok=True)
-        temporary = self.ledger_path.with_suffix(".tmp")
-        temporary.write_text(json.dumps(self.usage, indent=2), encoding="utf-8")
-        temporary.replace(self.ledger_path)
+        temporary = self.ledger_path.with_name(".tmp-" + uuid.uuid4().hex)
+        try:
+            temporary.write_text(json.dumps(self.usage, indent=2), encoding="utf-8")
+            temporary.replace(self.ledger_path)
+        finally:
+            temporary.unlink(missing_ok=True)
 
     def parse_many(self, prompt: str) -> list[AgentIntent]:
         prompt = safe_prompt(prompt, limit=4000)

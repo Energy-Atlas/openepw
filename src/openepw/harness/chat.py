@@ -158,7 +158,7 @@ class ChatSession:
         return "Choose a location by number or exact name: " + listed
 
     def _explore_choices_text(self) -> str:
-        return ("Historical/AMY use actual years; TMY/TMYx/published are reference "
+        return ("Actual-year weather (AMY) uses calendar years; TMY/TMYx/published are reference "
                 "products. I need one location to assess catalog options. " +
                 self._choices_text(self.pending_choices))
 
@@ -178,7 +178,7 @@ class ChatSession:
         if intent.product in ("tmy", "tmyx", "published") and intent.years:
             years = ", ".join(str(year) for year in intent.years)
             return (f"{intent.product.upper()} is a reference product, not actual-year "
-                    f"weather for {years}. Choose historical/AMY for {years}, or "
+                    f"weather for {years}. Choose actual-year weather for {years}, or "
                     "request the reference product without a year.")
         return None
 
@@ -220,7 +220,7 @@ class ChatSession:
 
     async def _explore(self, intent: AgentIntent) -> str:
         if intent.kind != "weather":
-            return ("Weather choices include historical/AMY actual years and "
+            return ("Weather choices include actual-year (AMY) weather and "
                     "TMY/TMYx/published products. Give a location and year to assess sources.")
         location = self.selected_location
         if location is None and intent.lat is not None and intent.lon is not None:
@@ -242,13 +242,13 @@ class ChatSession:
         if location is None:
             return "Give a location to assess available weather sources."
         if not intent.years:
-            return ("Historical/AMY require an actual year; TMY/TMYx/published are "
+            return ("Actual-year weather requires a year; TMY/TMYx/published are "
                     "reference products without an actual-year request. Which year do you need?")
         lines = ["Catalog support only means retrieval is eligible to try; weather quality "
                  "and simulation readiness require QC."]
-        for product in ("historical", "amy", "tmy", "tmyx", "published"):
+        for product in ("historical", "tmy", "tmyx", "published"):
             request: dict[str, Any] = {"locations": location, "product": product}
-            if product in ("historical", "amy"):
+            if product == "historical":
                 request["years"] = intent.years
             result = await self.mcp.call(
                 "weather_assess", query={"kind": "weather", "request": request,
@@ -386,11 +386,6 @@ class ChatSession:
             conflict = self._product_year_conflict(intent)
             if conflict:
                 return conflict
-            if (intent.kind == "weather" and intent.years and
-                    delta.product is None and intent.product == "historical"):
-                interpretation = "Interpreting the requested actual year as historical weather. "
-            else:
-                interpretation = ""
             if (self.reviewed_reply and intent == self.reviewed_intent
                     and self.selected_location == self.reviewed_location):
                 return self.reviewed_reply
@@ -398,8 +393,6 @@ class ChatSession:
             result = await self.agent.run_intent(
                 intent, auto_submit=self.auto_submit, baseline_override=baseline,
                 location_override=self.selected_location)
-            if interpretation and result.status not in ("needs_clarification", "blocked"):
-                result.message = interpretation + result.message
             return self._remember(result)
         except (MCPToolFailure, ModelUnavailable, OSError, ValueError) as error:
             if isinstance(error, MCPToolFailure):

@@ -98,6 +98,8 @@ def test_a_actual_year_agent_alternatives_and_reconnect(tmp_path):
             assert "simulation_ready=false" in result.message
             job = await finished(client, result.job_id)
             assert job["plan_hash"] == result.plan_hash
+            assert job["batch_rows"][0]["period_start"] == "2024-01-01"
+            assert job["batch_rows"][0]["period_end"] == "2024-12-31"
             assert len(result.artifact_ids) == 1
             epw = await resource(client, result.artifact_ids[0])
             assert len(read_epw(epw).data) == 8784
@@ -165,7 +167,7 @@ def test_b_published_batch_exact_product_occurrences_and_export(tmp_path):
             answer = await agent.run("Named OneBuilding batch", auto_submit=True)
             assert answer.status == "partially_completed"
             assert "Exact product USA/NY/Ithaca.zip" in answer.message
-            assert "Per-occurrence outcomes" in answer.message
+            assert "Per-output outcomes" in answer.message
             assert "unresolved (PROVIDER_UNAVAILABLE)" in answer.message
             assert client.tool_calls <= 30
 

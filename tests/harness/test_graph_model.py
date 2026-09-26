@@ -31,7 +31,7 @@ def test_langchain_parser_returns_all_requests_and_uses_shared_cost_ledger(tmp_p
 
     requests = parser.parse_many("Cambridge AMY 2018 and TMYx OPENAI_API_KEY=sk-secret12345")
 
-    assert [request.product for request in requests] == ["amy", "tmyx"]
+    assert [request.product for request in requests] == ["historical", "tmyx"]
     assert "sk-secret12345" not in model.messages[1][1]
     assert json.loads(ledger.read_text())["calls"] == 1
     assert "sk-secret12345" not in ledger.read_text()

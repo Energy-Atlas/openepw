@@ -16,6 +16,7 @@ from .graph_chat import GraphChatSession
 from .graph_model import LangChainTurnParser
 from .mcp_client import MCPToolFailure, StdioMCPPort
 from .model import ModelUnavailable
+from .session_lock import SessionBusy, session_lock
 from .trace import LangSmithTrace, TracingMCPPort
 
 
@@ -36,6 +37,11 @@ async def _read_line(session: GraphChatSession) -> str:
 
 async def converse(args) -> None:
     root = Path(args.data_root)
+    with session_lock(root, args.thread_id):
+        await _converse_locked(args, root)
+
+
+async def _converse_locked(args, root: Path) -> None:
     key = load_model_key(args.env_file)
     model = LangChainTurnParser(
         key, model=args.model,
@@ -106,11 +112,13 @@ def main(argv=None) -> int:
     try:
         asyncio.run(converse(args))
         return 0
-    except (ModelUnavailable, MCPToolFailure, OSError) as error:
+    except (ModelUnavailable, MCPToolFailure, SessionBusy, OSError) as error:
         if isinstance(error, ModelUnavailable):
             print(f"Model unavailable: {error}")
         elif isinstance(error, MCPToolFailure):
             print(f"MCP {error.code}: {error}")
+        elif isinstance(error, SessionBusy):
+            print(str(error))
         else:
             print("Local chat setup failed")
         return 2

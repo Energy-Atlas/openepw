@@ -101,8 +101,7 @@ class GraphChatSession:
                 and self.chat.draft.product is None and self.chat.pending_question
                 and "product" in self.chat.pending_question.lower()):
             return [("product:" + value, label) for value, label in (
-                ("historical", "Historical (actual year)"),
-                ("amy", "AMY (actual year)"),
+                ("historical", "Actual year (AMY)"),
                 ("tmy", "TMY (reference year)"),
                 ("tmyx", "TMYx (published reference)"),
                 ("published", "Other published EPW"),

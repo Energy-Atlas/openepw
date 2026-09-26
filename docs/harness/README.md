@@ -16,8 +16,10 @@ extraction. LangGraph checkpoints the conversation under
 `<data-root>/harness/chat-checkpoints.sqlite`; the default thread is `console`.
 Reuse the data root and thread ID to resume its draft, pending choice, most recent
 job and artifact references after restarting the process. Use `--thread-id`
-for a separate local conversation. No raw utterance, EPW bytes or API keys are
-written to the checkpoint. Each complete weather or future plan executes
+for a separate local conversation. Only one console can use a given data root
+and thread ID at a time; a second console exits with a clear message rather
+than racing on the checkpoint and run record. No raw utterance, EPW bytes or
+API keys are written to the checkpoint. Each complete weather or future plan executes
 automatically. Provider requests can fetch live data and model calls are billable;
 the harness ledger caps projected model spending at US$8 per data root. The
 interactive console does not inherit the single-request 20-call smoke cap.
@@ -35,12 +37,17 @@ For example, ask for an actual year at a location, then ask to morph that EPW
 for a named scenario and climate window. A future request also needs a method
 and, for morphing, a reference window. The console keeps typed request fields,
 confirmed location choices and artifact IDs between turns and process restarts.
-Short replies such as `2018` or `historical` fill the current draft. An explicit
+Short replies such as `2018` or `AMY` fill the current draft. AMY and historical
+are aliases for the same actual-year request in the console; the menu shows one
+"Actual year (AMY)" choice and sends `historical` to the service. An explicit
 `same location` reference can reuse the last completed weather location. A
-year-specific weather request is interpreted as historical unless you choose
-another compatible product; the console states that interpretation. One
+year-specific weather request uses the actual-year product unless you choose
+another compatible product. One
 utterance may specify several fields or up to five separate requests. Separate
 requests run in order; later ones wait if an earlier request needs clarification.
+Completed weather jobs list each output's location number and year or date
+range; location numbers start at 1 in chat, while the manifest retains its
+zero-based `occurrence_index` for machine clients.
 Ambiguous geocoding results and weather-product questions show an arrow-key
 single-choice menu in interactive terminals. Select **Other…** to type an
 answer. Numbered choices remain available in non-interactive terminals and for
