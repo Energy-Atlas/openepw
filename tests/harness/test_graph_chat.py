@@ -328,3 +328,30 @@ def test_empty_extraction_uses_no_second_model_call(tmp_path):
 
     assert "needs_clarification" in asyncio.run(journey())
     assert parser.calls == ["hello"]
+
+
+def test_geocode_retries_us_state_abbreviation_with_comma(tmp_path):
+    class SearchPort(Port):
+        async def call(self, name, **arguments):
+            if name == "weather_geocode":
+                self.calls.append((name, arguments))
+                if arguments["query"] == "Cambridge MA":
+                    return {"candidates": []}
+                if arguments["query"] == "Cambridge, MA":
+                    return {"candidates": [CAMBRIDGE, ALLSTON]}
+                raise AssertionError(arguments)
+            return await super().call(name, **arguments)
+
+    parser = Parser([AgentIntent(kind="weather", place="Cambridge MA",
+                                 product="amy", years=[2018])])
+    port = SearchPort()
+
+    async def journey():
+        async with GraphChatSession(ReferenceAgent(port, parser), port, parser,
+                                    tmp_path / "chat.sqlite") as chat:
+            assert "1." in await chat.handle("Cambridge MA AMY 2018")
+            assert "completed" in await chat.handle_choice("location:cambridge")
+
+    asyncio.run(journey())
+    assert [args["query"] for name, args in port.calls if name == "weather_geocode"] == [
+        "Cambridge MA", "Cambridge, MA"]

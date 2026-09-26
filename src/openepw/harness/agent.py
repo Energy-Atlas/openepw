@@ -115,6 +115,19 @@ class ReferenceAgent:
         self._persist()
         return result
 
+    async def geocode_candidates(self, place: str) -> list[dict[str, Any]]:
+        """Retry a bare city/state abbreviation in the provider's accepted form."""
+        result = await self._call("weather_geocode", query=place)
+        candidates = result.get("candidates", [])
+        if not candidates:
+            match = re.fullmatch(r"\s*(.+?)[\s,]+([A-Za-z]{2})\s*", place)
+            if match:
+                normalized = f"{match.group(1).rstrip(', ')}, {match.group(2).upper()}"
+                if normalized != place:
+                    result = await self._call("weather_geocode", query=normalized)
+                    candidates = result.get("candidates", [])
+        return candidates
+
     async def run(self, prompt: str, *, auto_submit: bool = False,
                   baseline_override: str | None = None) -> AgentResult:
         intent = self.model.parse(safe_prompt(prompt))
@@ -152,8 +165,7 @@ class ReferenceAgent:
         elif intent.lat is None or intent.lon is None:
             if not intent.place:
                 return AgentResult("needs_clarification", "Which location do you mean?")
-            geocode = await self._call("weather_geocode", query=intent.place)
-            candidates = geocode.get("candidates", [])
+            candidates = await self.geocode_candidates(intent.place)
             if not candidates:
                 return AgentResult("needs_clarification",
                                    "No location matched. Give coordinates or a more specific place.")

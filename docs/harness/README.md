@@ -46,6 +46,9 @@ single-choice menu in interactive terminals. Select **Other…** to type an
 answer. Numbered choices remain available in non-interactive terminals and for
 combined replies such as `location 1, AMY data`. Use `/reset` to clear the
 current draft.
+When a bare US city/state abbreviation such as `Cambridge MA` yields no geocoder
+match, the harness retries the comma form (`Cambridge, MA`) before asking for a
+different location.
 Ask `what do you have?` to assess read-only catalog
 eligibility. Exploration does not submit a plan and cannot prove that an EPW
 is complete or simulation-ready. TMY/TMYx/published reference products are

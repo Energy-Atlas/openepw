@@ -231,8 +231,7 @@ class ChatSession:
             self.pending_exploration = True
             return self._explore_choices_text()
         if location is None and intent.place:
-            geocode = await self.mcp.call("weather_geocode", query=intent.place)
-            choices = tuple(geocode.get("candidates", [])[:10])
+            choices = tuple((await self.agent.geocode_candidates(intent.place))[:10])
             if len(choices) != 1:
                 self.pending_choices = choices
                 self.pending_exploration = True
