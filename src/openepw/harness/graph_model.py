@@ -41,7 +41,10 @@ _INSTRUCTIONS = (
     "no explicit product conflicts. TMY, TMYx and published reference products do not "
     "use an actual year. For future, capture baseline artifact ID, method, scenario and "
     "climate/reference windows when stated. Never invent a location, year, source "
-    "availability, climate window, artifact ID or missing field. Use lowercase enum values. "
+    "availability, climate window, artifact ID or missing field. Future weather is "
+    "temporarily suspended: identify it as kind=future so the controller can explain "
+    "the suspension; do not create a weather retrieval request for it. Use lowercase "
+    "enum values. "
     "Return no requests for social acknowledgments or job/file status questions."
 )
 

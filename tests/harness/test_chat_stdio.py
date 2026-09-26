@@ -31,7 +31,7 @@ class TwoTurns:
         return self.intents.pop(0)
 
 
-def test_real_stdio_chat_weather_then_future_followup_and_save(tmp_path):
+def test_real_stdio_chat_weather_then_future_suspension_and_save(tmp_path):
     source = Path(__file__).parents[1] / "pilot" / "fixture_server.py"
     signals = ArtifactStore(tmp_path).write(
         "signals", "signals.json",
@@ -56,8 +56,7 @@ def test_real_stdio_chat_weather_then_future_followup_and_save(tmp_path):
             assert "/inspect last" in await chat.handle("ok")
             assert len(model.prompts) == 1
             second = await chat.handle("Use that EPW for SSP245 future morph, 2036-2065")
-            assert "[completed]" in second
-            assert "baseline origin weather_output" in second
+            assert "FEATURE_SUSPENDED" in second
             assert prior_id not in model.prompts[1]
             assert "saved" in await chat.handle(f"/save last {saved}")
             assert len(read_epw(saved).data) == 8784

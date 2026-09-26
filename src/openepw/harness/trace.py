@@ -142,7 +142,7 @@ class TracingMCPPort:
         return result
 
     async def upload_file(self, path: str) -> str:
-        run = self.tracer.start_step("mcp.baseline_upload", "tool", {})
+        run = self.tracer.start_step("mcp.epw_upload", "tool", {})
         try:
             artifact_id = await self.port.upload_file(path)
         except Exception as exc:

@@ -175,11 +175,12 @@ class ReferenceAgent:
             intent.baseline_artifact_id = baseline_override
         if intent.kind == "unknown":
             return AgentResult("needs_clarification",
-                               "Please specify actual-year/published weather or future weather.")
+                               "Please specify actual-year or published weather.")
+        if intent.kind == "future":
+            return AgentResult("blocked", "FEATURE_SUSPENDED: Future-weather MCP "
+                               "workflows are temporarily unavailable.")
         try:
-            if intent.kind == "weather":
-                return await self._weather(intent, auto_submit, location_override)
-            return await self._future(intent, auto_submit)
+            return await self._weather(intent, auto_submit, location_override)
         except MCPToolFailure as error:
             return AgentResult("blocked", f"{error.code}: {error}",
                                self.plan_hash, self.job_id)
@@ -273,48 +274,11 @@ class ReferenceAgent:
             )
         return await self.submit_plan("weather", preface=assessment)
 
-    async def _future(self, intent: AgentIntent, auto_submit: bool) -> AgentResult:
-        if not intent.baseline_artifact_id:
-            return AgentResult("needs_clarification",
-                               "Provide an uploaded or fetched baseline artifact ID.")
-        if not intent.method or not intent.climate_scenario or not intent.climate_period:
-            return AgentResult("needs_clarification",
-                               "Specify the future method, scenario and climate window.")
-        request: dict[str, Any] = {
-            "baseline": intent.baseline_artifact_id,
-            "method": intent.method,
-            "climate_scenario": intent.climate_scenario,
-            "climate_period": list(intent.climate_period),
-        }
-        if intent.reference_period:
-            request["reference_period"] = list(intent.reference_period)
-        if intent.signals_artifact_id:
-            request["signals"] = intent.signals_artifact_id
-        plan = await self._call("future_plan", request=request)
-        self.plan_hash = plan["plan_hash"]
-        self._persist()
-        baseline = plan.get("baseline_ref") or {}
-        preface = (f"Future {intent.method} for {intent.climate_scenario} "
-                   f"{intent.climate_period[0]}–{intent.climate_period[1]}; "
-                   f"baseline origin {baseline.get('origin', 'unknown')}.")
-        if plan.get("issues"):
-            codes = [issue.get("code", "UNKNOWN") for issue in plan["issues"][:10]]
-            preface += " Plan issues: " + ", ".join(codes) + "."
-        if plan.get("warnings"):
-            preface += " Plan warnings: " + safe_prompt(
-                "; ".join(plan["warnings"][:5]))[:500] + "."
-        if not plan.get("output_count"):
-            return AgentResult("no_executable_output",
-                               preface + " No executable future output.",
-                               self.plan_hash)
-        if not auto_submit:
-            return AgentResult("review_required", preface +
-                               f" Review plan {self.plan_hash} before submission.",
-                               self.plan_hash)
-        return await self.submit_plan("future", preface=preface)
-
     async def submit_plan(self, kind: Literal["weather", "future"], *,
                           preface: str = "") -> AgentResult:
+        if kind == "future":
+            return AgentResult("blocked", "FEATURE_SUSPENDED: Future-weather MCP "
+                               "workflows are temporarily unavailable.")
         if not self.plan_hash:
             return AgentResult("needs_clarification", "No stored plan to submit.")
         job = await self._call(f"{kind}_submit", plan_hash=self.plan_hash)

@@ -42,7 +42,7 @@ class Port:
         return "u" * 32
 
     async def read_artifact(self, artifact_id):
-        assert artifact_id == "w" * 32
+        assert artifact_id in ("w" * 32, "u" * 32)
         return b"EPW bytes"
 
 
@@ -82,7 +82,7 @@ def session():
     return ChatSession(agent, port, model), agent, model, port
 
 
-def test_default_chat_auto_submits_and_followup_uses_artifact_override():
+def test_default_chat_auto_submits_and_future_followup_is_suspended():
     chat, agent, model, _ = session()
 
     async def exercise():
@@ -93,8 +93,8 @@ def test_default_chat_auto_submits_and_followup_uses_artifact_override():
                                    climate_scenario="ssp245",
                                    climate_period=(2036, 2065))
         second = await chat.handle("Use that EPW for SSP245 morph in 2036-2065")
-        assert "completed" in second
-        assert agent.calls[1][2] == "w" * 32
+        assert "FEATURE_SUSPENDED" in second
+        assert len(agent.calls) == 1
         assert "Prior confirmed context" not in model.prompts[1]
         assert "w" * 32 not in model.prompts[1]
         assert "Get Ithaca 2024 historical weather" not in model.prompts[1]
@@ -131,8 +131,9 @@ def test_upload_select_inspect_and_save_without_model_paths(tmp_path):
         model.intent = AgentIntent(kind="future", method="morph",
                                    climate_scenario="ssp245",
                                    climate_period=(2036, 2065))
-        await chat.handle("Make future weather from my uploaded baseline")
-        assert agent.calls[-1][2] == "u" * 32
+        assert "FEATURE_SUSPENDED" in await chat.handle(
+            "Make future weather from my uploaded baseline")
+        assert not agent.calls
         assert str(epw) not in model.prompts[-1]
         assert "MISSING_CRITICAL_VARIABLE" in await chat.handle("/inspect last")
         assert "saved" in await chat.handle(f"/save last {saved}")
@@ -148,7 +149,7 @@ def test_ambiguous_artifact_reference_requires_selection():
     model.intent = AgentIntent(kind="future", method="morph",
                                climate_scenario="ssp245", climate_period=(2036, 2065))
     result = asyncio.run(chat.handle("Use that EPW for future weather"))
-    assert "/baseline" in result
+    assert "FEATURE_SUSPENDED" in result
     assert not agent.calls
 
 

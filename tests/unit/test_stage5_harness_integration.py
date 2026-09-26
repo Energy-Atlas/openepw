@@ -1,11 +1,6 @@
 import asyncio
-import json
+from pathlib import Path
 
-from test_epw import synthetic
-from test_future import signal
-
-from openepw.artifacts.store import ArtifactStore
-from openepw.epw.writer import epw_bytes
 from openepw.harness.agent import AgentIntent, ReferenceAgent
 from openepw.harness.mcp_client import StdioMCPPort
 
@@ -13,36 +8,30 @@ from openepw.harness.mcp_client import StdioMCPPort
 class StubModel:
     def parse(self, prompt):
         return AgentIntent(
-            kind="future", method="morph", climate_scenario="ssp245",
-            reference_period=(1985, 2014), climate_period=(2036, 2065),
-            signals_artifact_id=self.signals_id)
+            kind="weather", lat=42.44, lon=-76.5, product="historical",
+            years=[2024], provider="station")
 
 
 def test_reference_agent_runs_and_resumes_over_real_stdio_mcp(tmp_path):
     root = tmp_path / "store"
-    store = ArtifactStore(root)
-    signals = store.write(
-        "a" * 32, "signals.json",
-        json.dumps([signal().model_dump(mode="json")]).encode(), "signals")
+    source = Path(__file__).parents[1] / "pilot" / "fixture_server.py"
     model = StubModel()
-    model.signals_id = signals.id
-    file = tmp_path / "user.epw"
-    file.write_bytes(epw_bytes(synthetic(2023, 8760)))
     record = tmp_path / "run.json"
 
     async def run():
-        async with StdioMCPPort(root) as mcp:
-            baseline_id = await mcp.upload_file(file)
+        async with StdioMCPPort(root, server_args=[
+            str(source), "--data-root", str(root), "--mode", "general",
+        ]) as mcp:
             agent = ReferenceAgent(mcp, model, record_path=record)
             outcome = await agent.run(
-                "Morph my uploaded EPW to SSP245 in 2036–2065",
-                auto_submit=True, baseline_override=baseline_id)
+                "Historical weather for Ithaca in 2024", auto_submit=True)
             assert outcome.status == "completed"
-            assert "user_provided" in outcome.message
             assert "simulation_ready=false" in outcome.message
             assert outcome.artifact_ids
             first_job = outcome.job_id
-        async with StdioMCPPort(root) as mcp:
+        async with StdioMCPPort(root, server_args=[
+            str(source), "--data-root", str(root), "--mode", "general",
+        ]) as mcp:
             restored = ReferenceAgent.restore(mcp, model, record)
             resumed = await restored.resume()
             assert resumed.job_id == first_job
@@ -51,6 +40,5 @@ def test_reference_agent_runs_and_resumes_over_real_stdio_mcp(tmp_path):
 
     asyncio.run(run())
     saved = record.read_text()
-    assert "Morph my uploaded" not in saved
-    assert str(file) not in saved
+    assert "Historical weather for Ithaca" not in saved
     assert "content_base64" not in saved

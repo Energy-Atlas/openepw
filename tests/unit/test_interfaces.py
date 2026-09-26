@@ -35,7 +35,7 @@ def test_mcp_tool_surface_and_core_plan(tmp_path):
         "weather_plan",
         "weather_fetch",
         "weather_inspect",
-        "weather_generate_future",
+        "epw_upload",
     }
     result = asyncio.run(
         server.call_tool(

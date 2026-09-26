@@ -287,6 +287,12 @@ class ChatSession:
             return self.weather_artifacts[0]
         return self.selected_baseline_id
 
+    def _block_future(self) -> str:
+        self.draft = None
+        self.pending_choices = ()
+        self.pending_exploration = False
+        return "[blocked] FEATURE_SUSPENDED: Future-weather MCP workflows are temporarily unavailable."
+
     @staticmethod
     def _unquote(value: str) -> str:
         value = value.strip()
@@ -350,6 +356,8 @@ class ChatSession:
                 elif was_exploring:
                     return await self._explore(self.draft)
                 else:
+                    if self.draft.kind == "future":
+                        return self._block_future()
                     conflict = self._product_year_conflict(self.draft)
                     if conflict:
                         return conflict
@@ -364,9 +372,6 @@ class ChatSession:
                                          line, re.IGNORECASE))
             future_request = bool(re.search(r"\b(future|baseline|morph|climate)\b",
                                             line, re.IGNORECASE))
-            if (refers_back and future_request and len(self.weather_artifacts) > 1
-                    and not self.selected_baseline_id):
-                return "Several EPWs are available. Choose one with /baseline <artifact_id>."
             explicit_id = bool(re.search(r"\b[0-9a-f]{32}\b", line, re.IGNORECASE))
             baseline = (self.selected_baseline_id if future_request and not explicit_id
                         else None)
@@ -375,6 +380,8 @@ class ChatSession:
                 baseline = self.weather_artifacts[0]
             delta = self._given_delta or self.model.parse(line)
             intent = self._merge(delta)
+            if intent.kind == "future":
+                return self._block_future()
             if delta.action == "explore" or (self._given_delta is None and re.search(
                 r"\bwhat do you have\b|\bwhat(?:'s| is) available\b|"
                 r"\bwhich sources\b|\byou tell me\b|\brecommend\b",
@@ -409,10 +416,10 @@ class ChatSession:
             return "Session ended. Jobs and artifacts remain in the data root."
         if command == "/help":
             return (
-                "Type a weather or future request; short clarification replies fill the current draft.\n"
+                "Type a weather request; short clarification replies fill the current draft.\n"
                 "Ask 'what do you have?' for read-only catalog options. New plans execute automatically.\n"
                 "/auto off|on  /submit  /status [job_id]  /cancel  /retry\n"
-                "/upload <EPW path>  /baseline <artifact_id>  /inspect [id|last]\n"
+                "/upload <EPW path>  /inspect [id|last]\n"
                 "/save <id|last> <path>  /reset  /quit\n"
                 "Ctrl+C exits the console and requests cancellation of an active job.\n"
                 "EPW bytes stay outside model prompts; inspect QC before simulation."
@@ -425,7 +432,7 @@ class ChatSession:
             self.pending_exploration = False
             self.reviewed_intent = None
             self.reviewed_reply = None
-            return "Current draft cleared. Start a new weather or future request."
+            return "Current draft cleared. Start a new weather request."
         if command == "/auto":
             if argument not in ("on", "off"):
                 return "Use /auto on or /auto off."
@@ -436,7 +443,9 @@ class ChatSession:
                 return "No plan is ready for submission."
             detail = await self.mcp.call("plan_inspect", plan_hash=self.agent.plan_hash)
             kind = detail.get("kind")
-            if kind not in ("weather", "future"):
+            if kind == "future":
+                return self._block_future()
+            if kind != "weather":
                 return "Stored plan kind is unavailable; submission stopped."
             return self._remember(await self.agent.submit_plan(kind))
         if command in ("/status", "/resume"):
@@ -471,17 +480,10 @@ class ChatSession:
             if not argument:
                 return "Use /upload <EPW path>."
             self.selected_baseline_id = await self.mcp.upload_file(self._unquote(argument))
-            return ("Uploaded and selected baseline artifact: " +
+            return ("Uploaded EPW artifact: " +
                     self.selected_baseline_id)
         if command == "/baseline":
-            if not argument:
-                return "Use /baseline <EPW artifact ID>."
-            selected_id = argument.strip()
-            inspected = await self.mcp.call("artifact_inspect", artifact_id=selected_id)
-            if inspected.get("role") != "weather":
-                return "Selected artifact is not an EPW."
-            self.selected_baseline_id = selected_id
-            return "Selected baseline artifact: " + selected_id
+            return "FEATURE_SUSPENDED: Future-weather MCP workflows are temporarily unavailable."
         if command == "/inspect":
             artifact_id = argument if argument and argument != "last" else self._last_artifact()
             if not artifact_id:

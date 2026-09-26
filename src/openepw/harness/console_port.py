@@ -72,14 +72,14 @@ def _arguments_summary(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         query = arguments.get("query")
         if isinstance(query, str):
             summary["query"] = safe_prompt(query, limit=120)
-    if name == "baseline_upload":
+    if name == "epw_upload":
         encoded = arguments.get("content_base64")
         if isinstance(encoded, str):
             try:
                 summary["bytes"] = len(base64.b64decode(encoded, validate=True))
             except (ValueError, binascii.Error):
                 summary["bytes"] = "invalid encoding"
-    if name == "baseline_register_path":
+    if name == "epw_register_path":
         summary["local_path_provided"] = bool(arguments.get("path"))
     if not summary:
         summary["argument_names"] = sorted(arguments)

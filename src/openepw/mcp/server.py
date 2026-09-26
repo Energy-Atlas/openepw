@@ -16,7 +16,7 @@ from pydantic import TypeAdapter, ValidationError
 from ..availability import AvailabilityQuery
 from ..epw import read_epw
 from ..jobs.worker import JobRunner
-from ..models import FutureRequest, OpenEPWError, WeatherPlan, WeatherRequest
+from ..models import OpenEPWError, WeatherPlan, WeatherRequest
 from ..qc import validate
 from ..service import WeatherService
 
@@ -113,19 +113,12 @@ def create_server(service=None, *, allowed_roots: list[str | Path] | None = None
             raise OpenEPWError("RESOURCE_LIMIT", "MCP request exceeds 50 locations")
         return request
 
-    def safe_future(raw):
-        request = FutureRequest.model_validate(raw)
-        service.artifacts.resolve(request.baseline)
-        if request.signals:
-            service.artifacts.resolve(request.signals)
-        return request
-
     def submit(plan_hash, kind, idempotency_key):
         plan = service.plan_store.get(plan_hash)
+        if plan.kind == "future":
+            raise OpenEPWError("FEATURE_SUSPENDED", "Future-weather MCP access is suspended")
         if plan.kind != kind:
             raise OpenEPWError("INVALID_REQUEST", "Plan kind does not match submit tool")
-        if kind == "future":
-            safe_future(plan.request.model_dump(mode="json"))
         return _job_summary(runner.submit(plan, idempotency_key))
 
     @server.tool(structured_output=True)
@@ -140,8 +133,12 @@ def create_server(service=None, *, allowed_roots: list[str | Path] | None = None
     @server.tool(structured_output=True)
     def weather_assess(query: dict) -> dict[str, Any]:
         """Compare catalog eligibility, evidence dates and unknowns without retrieval."""
-        return call(lambda: service.assess_availability(
-            TypeAdapter(AvailabilityQuery).validate_python(query)))
+        def action():
+            if query.get("kind") == "future":
+                raise OpenEPWError("FEATURE_SUSPENDED", "Future-weather MCP access is suspended")
+            return service.assess_availability(
+                TypeAdapter(AvailabilityQuery).validate_python(query))
+        return call(action)
 
     @server.tool(structured_output=True)
     def weather_discover(request: dict) -> dict[str, Any]:
@@ -152,17 +149,12 @@ def create_server(service=None, *, allowed_roots: list[str | Path] | None = None
     def weather_plan(request: dict, kind: str = "weather") -> dict[str, Any]:
         """Store a weather plan; return hash, occurrence rows and estimates."""
         def action():
-            if kind == "future":  # v0.1 compatibility
-                return _plan_summary(service.plan_future(safe_future(request)))
+            if kind == "future":
+                raise OpenEPWError("FEATURE_SUSPENDED", "Future-weather MCP access is suspended")
             if kind != "weather":
                 raise OpenEPWError("INVALID_REQUEST", "Unknown plan kind")
             return _plan_summary(service.plan(weather_request(request)))
         return call(action)
-
-    @server.tool(structured_output=True)
-    def future_plan(request: dict) -> dict[str, Any]:
-        """Store a future plan from a registered baseline ID and explicit climate windows."""
-        return call(lambda: _plan_summary(service.plan_future(safe_future(request))))
 
     @server.tool(structured_output=True)
     def plan_inspect(plan_hash: str, offset: int = 0, limit: int = 50) -> dict[str, Any]:
@@ -188,17 +180,17 @@ def create_server(service=None, *, allowed_roots: list[str | Path] | None = None
         return call(action)
 
     @server.tool(structured_output=True)
-    def baseline_upload(content_base64: str, filename: str | None = None) -> dict[str, Any]:
+    def epw_upload(content_base64: str, filename: str | None = None) -> dict[str, Any]:
         """Register a user EPW; client encodes bytes outside model context (5 MB maximum)."""
         def action():
             if len(content_base64) > 6_666_672:
-                raise OpenEPWError("RESOURCE_LIMIT", "Baseline upload exceeds 5 MB")
+                raise OpenEPWError("RESOURCE_LIMIT", "EPW upload exceeds 5 MB")
             try:
                 body = base64.b64decode(content_base64, validate=True)
             except (ValueError, binascii.Error):
                 raise OpenEPWError("INVALID_BASELINE", "Invalid base64 EPW content") from None
             if not body or len(body) > MAX_UPLOAD:
-                raise OpenEPWError("RESOURCE_LIMIT", "Baseline upload exceeds 5 MB")
+                raise OpenEPWError("RESOURCE_LIMIT", "EPW upload exceeds 5 MB")
             data = read_epw(body)
             ref = service.register_baseline(body)
             return {"artifact_id": ref.id, "sha256": ref.sha256, "bytes": ref.bytes,
@@ -208,7 +200,7 @@ def create_server(service=None, *, allowed_roots: list[str | Path] | None = None
         return call(action)
 
     @server.tool(structured_output=True)
-    def baseline_register_path(path: str) -> dict[str, Any]:
+    def epw_register_path(path: str) -> dict[str, Any]:
         """Register a local EPW under a configured allowed root (5 MB maximum)."""
         def action():
             target = Path(path).resolve()
@@ -227,11 +219,6 @@ def create_server(service=None, *, allowed_roots: list[str | Path] | None = None
     def weather_submit(plan_hash: str, idempotency_key: str | None = None) -> dict[str, Any]:
         """Submit an inspected weather plan; retrieval may yield gaps or partial failure."""
         return call(submit, plan_hash, "weather", idempotency_key)
-
-    @server.tool(structured_output=True)
-    def future_submit(plan_hash: str, idempotency_key: str | None = None) -> dict[str, Any]:
-        """Submit an inspected future plan using its verified baseline ID."""
-        return call(submit, plan_hash, "future", idempotency_key)
 
     @server.tool(structured_output=True)
     def job_inspect(job_id: str) -> dict[str, Any]:
@@ -267,7 +254,11 @@ def create_server(service=None, *, allowed_roots: list[str | Path] | None = None
     @server.tool(structured_output=True)
     def job_retry_failed(job_id: str, idempotency_key: str | None = None) -> dict[str, Any]:
         """Retry only missing or failed outputs of a finished job."""
-        return call(lambda: _job_summary(runner.retry_failed(job_id, idempotency_key)))
+        def action():
+            if runner.store.get(job_id).kind == "future":
+                raise OpenEPWError("FEATURE_SUSPENDED", "Future-weather MCP retry is suspended")
+            return _job_summary(runner.retry_failed(job_id, idempotency_key))
+        return call(action)
 
     @server.tool(structured_output=True)
     def artifact_inspect(artifact_id: str) -> dict[str, Any]:
@@ -329,6 +320,8 @@ def create_server(service=None, *, allowed_roots: list[str | Path] | None = None
         """Compatibility alias for inline weather plan submission. Prefer weather_submit."""
         def action():
             selected = WeatherPlan.model_validate(plan)
+            if selected.kind == "future":
+                raise OpenEPWError("FEATURE_SUSPENDED", "Future-weather MCP access is suspended")
             if selected.kind != "weather":
                 raise OpenEPWError("INVALID_REQUEST", "Expected a weather plan")
             return _job_summary(runner.submit(selected, idempotency_key))
@@ -343,23 +336,6 @@ def create_server(service=None, *, allowed_roots: list[str | Path] | None = None
             return artifact_inspect(artifact_id)
         raise ToolError(json.dumps({"code": "INVALID_REQUEST",
                                     "message": "Provide job_id or artifact_id"}))
-
-    @server.tool(structured_output=True)
-    def weather_generate_future(
-        request: dict | None = None, plan: dict | None = None,
-        idempotency_key: str | None = None,
-    ) -> dict[str, Any]:
-        """Compatibility alias for inline future submission. Prefer future_submit."""
-        def action():
-            if (request is None) == (plan is None):
-                raise OpenEPWError("INVALID_REQUEST", "Provide request or plan")
-            selected = (WeatherPlan.model_validate(plan) if plan
-                        else service.plan_future(safe_future(request)))
-            if selected.kind != "future":
-                raise OpenEPWError("INVALID_REQUEST", "Expected a future plan")
-            safe_future(selected.request.model_dump(mode="json"))
-            return _job_summary(runner.submit(selected, idempotency_key))
-        return call(action)
 
     @server.resource("weather://artifacts/{artifact_id}")
     def artifact(artifact_id: str) -> bytes:

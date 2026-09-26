@@ -27,7 +27,7 @@ class Session:
             return SimpleNamespace(
                 isError=True, structuredContent=None,
                 content=[SimpleNamespace(text='{"code":"DENIED","message":"private"}')])
-        result = ({"artifact_id": "artifact-1"} if name == "baseline_upload"
+        result = ({"artifact_id": "artifact-1"} if name == "epw_upload"
                   else {"plan_hash": "a" * 64, "output_count": 7,
                         "private_provider_payload": "topsecret"})
         return SimpleNamespace(isError=False, structuredContent=result)
@@ -68,7 +68,7 @@ def test_console_upload_logs_real_tool_without_epw_bytes_or_path(tmp_path, capsy
     assert asyncio.run(port.upload_file(source)) == "artifact-1"
     output = capsys.readouterr().out
     records = events(output)
-    assert records[0]["tool"] == "baseline_upload"
+    assert records[0]["tool"] == "epw_upload"
     assert records[0]["arguments"]["bytes"] == len(b"private EPW bytes")
     assert "private EPW bytes" not in output
     assert str(source) not in output

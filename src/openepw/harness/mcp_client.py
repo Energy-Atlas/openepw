@@ -83,7 +83,7 @@ class StdioMCPPort:
             raise MCPToolFailure("INVALID_BASELINE", "EPW file missing or exceeds 5 MB")
         body = source.read_bytes()
         result = await self.call(
-            "baseline_upload", content_base64=base64.b64encode(body).decode("ascii"))
+            "epw_upload", content_base64=base64.b64encode(body).decode("ascii"))
         return result["artifact_id"]
 
     async def read_artifact(self, artifact_id: str) -> bytes:

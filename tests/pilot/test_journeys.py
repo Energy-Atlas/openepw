@@ -10,6 +10,7 @@ import time
 import zipfile
 from pathlib import Path
 
+import pytest
 from pydantic import AnyUrl
 
 from openepw.artifacts.store import ArtifactStore
@@ -174,6 +175,7 @@ def test_b_published_batch_exact_product_occurrences_and_export(tmp_path):
     run(journey())
 
 
+@pytest.mark.skip(reason="Future-weather MCP generation is temporarily suspended")
 def test_c_uploaded_and_fetched_baselines_and_unsupported_future(tmp_path):
     async def journey():
         signals = [signal().model_dump(mode="json")]
@@ -277,6 +279,7 @@ def test_g_noaa_gap_warn_and_error(tmp_path):
     run(journey())
 
 
+@pytest.mark.skip(reason="Future-weather MCP generation is temporarily suspended")
 def test_c2_hourly_profile_uses_bounded_archive_and_comparison_baseline(tmp_path):
     async def journey():
         async with port(tmp_path, "puma") as client:
@@ -338,8 +341,8 @@ def test_recovery_path_allowlist_invalid_upload_and_corrupt_artifact(tmp_path):
         epw_path.write_bytes(epw_bytes(synthetic(2023, 8760)))
         async with StdioMCPPort(tmp_path) as client:
             for name, args, code in (
-                ("baseline_register_path", {"path": str(epw_path)}, "ACCESS_DENIED"),
-                ("baseline_upload", {"content_base64": "bad!"}, "INVALID_BASELINE"),
+                ("epw_register_path", {"path": str(epw_path)}, "ACCESS_DENIED"),
+                ("epw_upload", {"content_base64": "bad!"}, "INVALID_BASELINE"),
                 ("artifact_inspect", {"artifact_id": "0" * 32}, "INVALID_ARTIFACT"),
             ):
                 try:
@@ -349,7 +352,7 @@ def test_recovery_path_allowlist_invalid_upload_and_corrupt_artifact(tmp_path):
                 else:
                     raise AssertionError(f"{name} should fail with {code}")
         async with StdioMCPPort(tmp_path, allowed_roots=[tmp_path]) as client:
-            registered = await client.call("baseline_register_path", path=str(epw_path))
+            registered = await client.call("epw_register_path", path=str(epw_path))
             assert registered["rows"] == 8760
             assert registered["artifact_id"]
             ref = ArtifactStore(tmp_path).write(
@@ -439,16 +442,16 @@ def test_merged_evidence_keeps_unprobed_year_and_future_window_unknown(tmp_path)
                        for o in published["options"])
             assert all(o["eligibility"]["status"] != "supported"
                        for o in actual["options"])
-            future = await client.call("weather_assess", query={
-                "kind": "future", "location": {"lat": 40, "lon": -105},
-                "method": "morph", "scenario": "ssp245",
-                "climate_period": [2036, 2065], "reference_period": [1985, 2014],
-                "model": "A", "member": "r1",
-            })
-            option = next(o for o in future["options"]
-                          if o["product"]["id"] == "cmip6:model-a")
-            assert option["product"]["license_effective"] == "CC BY 4.0"
-            assert option["eligibility"]["status"] == "unknown"
-            assert option["eligibility"]["unknowns"]
+            try:
+                await client.call("weather_assess", query={
+                    "kind": "future", "location": {"lat": 40, "lon": -105},
+                    "method": "morph", "scenario": "ssp245",
+                    "climate_period": [2036, 2065], "reference_period": [1985, 2014],
+                    "model": "A", "member": "r1",
+                })
+            except MCPToolFailure as error:
+                assert error.code == "FEATURE_SUSPENDED"
+            else:
+                raise AssertionError("Future availability must be suspended in MCP")
 
     run(journey())

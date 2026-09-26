@@ -335,5 +335,5 @@ def test_new_future_task_does_not_inherit_weather_draft():
         return await chat.handle("Now morph a future SSP245 2036-2065 EPW")
 
     answer = asyncio.run(journey())
-    assert "baseline" in answer.lower()
+    assert "FEATURE_SUSPENDED" in answer
     assert "weather_plan" not in [name for name, _ in port.calls]

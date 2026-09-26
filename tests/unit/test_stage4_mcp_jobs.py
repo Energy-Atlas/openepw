@@ -1,13 +1,11 @@
 import asyncio
 import base64
-import json
 import time
 
 import pytest
 from mcp.server.fastmcp.exceptions import ToolError
 from test_batch import StationProvider
 from test_epw import synthetic
-from test_future import signal
 from test_noaa_gap_output import _execute
 
 from openepw.config import RuntimeConfig
@@ -20,11 +18,11 @@ def _call(server, name, **kwargs):
     return asyncio.run(server.call_tool(name, kwargs))[1]
 
 
-def test_upload_path_controls_future_plan_and_durable_job(tmp_path):
+def test_epw_upload_and_allowlisted_path_registration(tmp_path):
     service = WeatherService(RuntimeConfig(data_root=tmp_path / "store"))
     server = create_server(service, allowed_roots=[tmp_path / "inputs"])
     body = epw_bytes(synthetic(2023, 8760))
-    uploaded = _call(server, "baseline_upload", content_base64=base64.b64encode(body).decode(),
+    uploaded = _call(server, "epw_upload", content_base64=base64.b64encode(body).decode(),
                      filename="user.epw")
     assert uploaded["rows"] == 8760
     assert uploaded["input_qc"] == []
@@ -33,39 +31,14 @@ def test_upload_path_controls_future_plan_and_durable_job(tmp_path):
     inputs.mkdir()
     file = inputs / "user.epw"
     file.write_bytes(body)
-    registered = _call(server, "baseline_register_path", path=str(file))
+    registered = _call(server, "epw_register_path", path=str(file))
     assert registered["artifact_id"] == uploaded["artifact_id"]
     with pytest.raises(ToolError, match="ACCESS_DENIED"):
-        _call(server, "baseline_register_path", path=str(tmp_path / "outside.epw"))
+        _call(server, "epw_register_path", path=str(tmp_path / "outside.epw"))
     with pytest.raises(ToolError, match="INVALID_BASELINE"):
-        _call(server, "baseline_upload", content_base64="bad!")
-
-    signals = service.artifacts.write(
-        "a" * 32, "signals.json",
-        json.dumps([signal().model_dump(mode="json")]).encode(), "signals")
-    request = {
-        "baseline": uploaded["artifact_id"], "signals": signals.id,
-        "reference_period": [1985, 2014], "climate_period": [2036, 2065],
-        "climate_scenario": "ssp245",
-    }
-    plan = _call(server, "future_plan", request=request)
-    assert plan["baseline_ref"]["origin"] == "user_provided"
-    assert plan["plan_hash"] == service.plan_store.get(plan["plan_hash"]).plan_hash
-    submitted = _call(server, "future_submit", plan_hash=plan["plan_hash"],
-                      idempotency_key="mcp-future-test")
-    repeated = _call(server, "future_submit", plan_hash=plan["plan_hash"],
-                     idempotency_key="mcp-future-test")
-    assert repeated["id"] == submitted["id"]
-    for _ in range(100):
-        job = _call(server, "job_inspect", job_id=submitted["id"])
-        if job["state"] not in ("queued", "running"):
-            break
-        time.sleep(0.1)
-    assert job["state"] == "completed"
-    assert job["artifacts"]["weather_count"] == 1
-    inspected = _call(server, "artifact_inspect",
-                      artifact_id=job["artifacts"]["weather"][0])
-    assert inspected["role"] == "weather"
+        _call(server, "epw_upload", content_base64="bad!")
+    inspected = _call(server, "artifact_inspect", artifact_id=uploaded["artifact_id"])
+    assert inspected["role"] == "baseline"
     assert inspected["uri"].startswith("weather://artifacts/")
 
 

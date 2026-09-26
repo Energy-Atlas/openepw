@@ -240,7 +240,7 @@ class GraphChatSession:
     @staticmethod
     def _finished(answer: str) -> bool:
         return answer.startswith(("[completed]", "[partially_completed]",
-                                  "[no_executable_output]"))
+                                  "[no_executable_output]", "[blocked]"))
 
     @staticmethod
     def _refers_to_prior_location(line: str) -> bool:

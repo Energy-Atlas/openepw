@@ -26,7 +26,7 @@ def test_real_stdio_session_tools_errors_and_resource(tmp_path):
                 assert initialized.serverInfo.name == "openepw"
                 assert initialized.protocolVersion == LATEST_PROTOCOL_VERSION
                 tools = await client.list_tools()
-                assert {"weather_assess", "artifact_inspect", "baseline_upload"} <= {
+                assert {"weather_assess", "artifact_inspect", "epw_upload"} <= {
                     tool.name for tool in tools.tools
                 }
                 templates = await client.list_resource_templates()
@@ -37,7 +37,7 @@ def test_real_stdio_session_tools_errors_and_resource(tmp_path):
                 assert not inspected.isError
                 assert inspected.structuredContent["sha256"] == artifact.sha256
                 invalid = await client.call_tool(
-                    "baseline_upload", {"content_base64": "bad!"})
+                    "epw_upload", {"content_base64": "bad!"})
                 assert invalid.isError
                 assert "INVALID_BASELINE" in invalid.content[0].text
                 resource = await client.read_resource(

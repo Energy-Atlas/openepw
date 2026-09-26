@@ -2,7 +2,6 @@ import asyncio
 import json
 
 from openepw.harness.agent import AgentIntent, ReferenceAgent, _batch_row_label
-from openepw.harness.mcp_client import MCPToolFailure
 from openepw.harness.rubric import Case, RunRecord, score
 
 
@@ -194,11 +193,10 @@ def test_streamed_resume_waits_beyond_previous_ten_second_poll_limit(monkeypatch
     assert updates[-1]["state"] == "completed"
 
 
-def test_unsupported_future_method_is_blocked_without_substitution():
+def test_future_method_is_suspended_without_mcp_call():
     class RefusingMCP:
         async def call(self, name, **arguments):
-            assert name == "future_plan"
-            raise MCPToolFailure("UNSUPPORTED_SCENARIO", "Method does not support SSP245")
+            raise AssertionError("Future MCP call was made")
 
     model = StubModel(AgentIntent(
         kind="future", baseline_artifact_id="a" * 32, method="climate_profile",
@@ -206,7 +204,7 @@ def test_unsupported_future_method_is_blocked_without_substitution():
     result = asyncio.run(ReferenceAgent(RefusingMCP(), model).run(
         "Hourly profile SSP245", auto_submit=True))
     assert result.status == "blocked"
-    assert "UNSUPPORTED_SCENARIO" in result.message
+    assert "FEATURE_SUSPENDED" in result.message
 
 
 def test_unprobed_nsrdb_actual_year_stays_unknown():
@@ -233,14 +231,10 @@ def test_unprobed_nsrdb_actual_year_stays_unknown():
     assert not any(name == "weather_submit" for name, _ in mcp.calls)
 
 
-def test_cmip6_license_does_not_hide_unknown_window():
+def test_future_license_context_does_not_bypass_suspension():
     class WindowMCP:
         async def call(self, name, **arguments):
-            assert name == "future_plan"
-            return {"plan_hash": "d" * 64, "kind": "future",
-                    "baseline_ref": {"origin": "user_provided"},
-                    "output_count": 1, "issues": [],
-                    "warnings": ["Model license allowed; climate window unknown"]}
+            raise AssertionError("Future MCP call was made")
 
     model = StubModel(AgentIntent(
         kind="future", baseline_artifact_id="a" * 32, method="morph",
@@ -248,5 +242,5 @@ def test_cmip6_license_does_not_hide_unknown_window():
         reference_period=(1985, 2014)))
     result = asyncio.run(ReferenceAgent(WindowMCP(), model).run(
         "CMIP6 SSP245 future", auto_submit=False))
-    assert result.status == "review_required"
-    assert "climate window unknown" in result.message
+    assert result.status == "blocked"
+    assert "FEATURE_SUSPENDED" in result.message
