@@ -8,7 +8,7 @@ import re
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal, Protocol
+from typing import Any, Callable, Literal, Protocol
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -93,7 +93,9 @@ def safe_prompt(text: str, *, limit: int = 1000) -> str:
 
 class ReferenceAgent:
     def __init__(self, mcp: MCPPort, model: IntentParser, *,
-                 record_path: str | Path | None = None):
+                 record_path: str | Path | None = None,
+                 on_progress: Callable[[dict[str, Any]], None] | None = None,
+                 stream_jobs: bool = False):
         self.mcp = mcp
         self.model = model
         self.record_path = Path(record_path) if record_path else None
@@ -101,11 +103,16 @@ class ReferenceAgent:
         self.events: list[dict[str, Any]] = []
         self.plan_hash: str | None = None
         self.job_id: str | None = None
+        self.on_progress = on_progress
+        self.stream_jobs = stream_jobs
 
     @classmethod
-    def restore(cls, mcp: MCPPort, model: IntentParser, record_path: str | Path):
+    def restore(cls, mcp: MCPPort, model: IntentParser, record_path: str | Path, *,
+                on_progress: Callable[[dict[str, Any]], None] | None = None,
+                stream_jobs: bool = False):
         """Resume from safe local IDs; canonical job facts are re-read from MCP."""
-        agent = cls(mcp, model, record_path=record_path)
+        agent = cls(mcp, model, record_path=record_path,
+                    on_progress=on_progress, stream_jobs=stream_jobs)
         raw = json.loads(Path(record_path).read_text(encoding="utf-8"))
         agent.conversation_id = raw["conversation_id"]
         agent.plan_hash = raw.get("plan_hash")
@@ -321,6 +328,7 @@ class ReferenceAgent:
             return AgentResult("needs_clarification", "Provide a job ID to resume.")
         self.job_id = selected
         job = await self._call("job_inspect", job_id=selected)
+        self._emit_progress(job)
         if job.get("plan_hash"):
             self.plan_hash = job["plan_hash"]
         self._persist()
@@ -339,11 +347,14 @@ class ReferenceAgent:
                 request = detail.get("request", {})
                 preface = (f"Weather {request.get('product', 'unknown')} "
                            f"{request.get('years') or [request.get('start'), request.get('end')]}.")
-        for _ in range(40):
+        polls = 0
+        while self.stream_jobs or polls < 40:
             if job.get("state") not in ("queued", "running"):
                 break
-            await asyncio.sleep(0.25)
+            await asyncio.sleep(1.0 if self.stream_jobs else 0.25)
             job = await self._call("job_inspect", job_id=selected)
+            self._emit_progress(job)
+            polls += 1
         if job.get("state") in ("queued", "running"):
             return AgentResult("running", f"Job {selected} is still running.",
                                self.plan_hash, selected)
@@ -371,3 +382,14 @@ class ReferenceAgent:
             ) + ". Full mapping remains in the job manifest."
         return AgentResult(job.get("state", "unknown"), message, self.plan_hash,
                            selected, artifact_ids)
+
+    def _emit_progress(self, job: dict[str, Any]) -> None:
+        if self.on_progress is None:
+            return
+        self.on_progress({
+            "job_id": str(job.get("id", self.job_id or "")),
+            "state": str(job.get("state", "unknown")),
+            "total": int(job.get("total") or 0),
+            "completed": int(job.get("completed") or 0),
+            "failed": int(job.get("failed") or 0),
+        })

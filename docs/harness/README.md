@@ -24,6 +24,13 @@ automatically. Provider requests can fetch live data and model calls are billabl
 the harness ledger caps projected model spending at US$8 per data root. The
 interactive console does not inherit the single-request 20-call smoke cap.
 Use a distinct `--data-root` to keep a test session separate.
+While a job runs, the console streams its queued/running state, completed and
+failed output counts, and elapsed time. It prints changes immediately and a
+heartbeat every five seconds. Providers do not expose a reliable byte count,
+so the console does not invent a download percentage. The console waits for a
+terminal job state; press Ctrl+C to request cancellation of an active job once
+its ID is known, then exit. Ctrl+C also exits from a location or product selection menu. Completed
+artifacts remain available after interruption.
 If `LANGSMITH_API_KEY` is present in the shell or existing `.env`, the console
 also sends each turn to the `openepw-local-chat` LangSmith project. Model intent
 and MCP calls appear as child steps. Traces include sanitized natural-language

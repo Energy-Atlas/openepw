@@ -6,7 +6,9 @@ import argparse
 import asyncio
 import hashlib
 import sys
+import time
 from pathlib import Path
+from typing import Any
 
 import questionary
 
@@ -20,6 +22,40 @@ from .session_lock import SessionBusy, session_lock
 from .trace import LangSmithTrace, TracingMCPPort
 
 
+class MenuAborted(Exception):
+    """The user dismissed a choice prompt with Ctrl+C."""
+
+
+class ProgressPrinter:
+    def __init__(self, *, heartbeat_seconds: float = 5.0):
+        self.heartbeat_seconds = heartbeat_seconds
+        self.last_snapshot: tuple[str, str, int, int, int] | None = None
+        self.last_print_at: float | None = None
+        self.started_at: float | None = None
+
+    def __call__(self, update: dict[str, Any]) -> None:
+        now = time.monotonic()
+        if self.started_at is None or (self.last_snapshot is not None and
+                                       update["job_id"] != self.last_snapshot[0]):
+            self.started_at = now
+            self.last_print_at = None
+            self.last_snapshot = None
+        snapshot = (update["job_id"], update["state"], update["completed"],
+                    update["failed"], update["total"])
+        changed = snapshot != self.last_snapshot
+        heartbeat = (not changed and update["state"] in ("queued", "running")
+                     and self.last_print_at is not None
+                     and now - self.last_print_at >= self.heartbeat_seconds)
+        if changed or heartbeat:
+            suffix = f" still {update['state']}" if heartbeat else ""
+            started_at = self.started_at if self.started_at is not None else now
+            print(f"Progress> {update['state']} {update['completed']}/{update['total']} "
+                  f"outputs, {update['failed']} failed; elapsed "
+                  f"{int(now - started_at)}s{suffix}", flush=True)
+            self.last_print_at = now
+        self.last_snapshot = snapshot
+
+
 async def _read_line(session: GraphChatSession) -> str:
     choices = session.menu()
     if choices and sys.stdin.isatty() and sys.stdout.isatty():
@@ -31,8 +67,26 @@ async def _read_line(session: GraphChatSession) -> str:
         if answer and answer != "other":
             return "\0choice:" + answer
         if answer is None:
-            return ""
+            raise MenuAborted
     return await asyncio.to_thread(input, "You> ")
+
+
+async def _cancel_active_job(port, agent: ReferenceAgent) -> bool:
+    if not agent.job_id:
+        return False
+    try:
+        job = await asyncio.wait_for(
+            port.call("job_inspect", job_id=agent.job_id), timeout=5)
+        if job.get("state") not in ("queued", "running"):
+            return False
+        await asyncio.wait_for(
+            port.call("job_cancel", job_id=agent.job_id), timeout=5)
+    except (MCPToolFailure, OSError, asyncio.TimeoutError):
+        print(f"Could not confirm cancellation of job {agent.job_id}; "
+              "check /status when you resume.")
+        return False
+    print(f"Cancellation requested for job {agent.job_id}.")
+    return True
 
 
 async def converse(args) -> None:
@@ -55,8 +109,12 @@ async def _converse_locked(args, root: Path) -> None:
                        "chat-" + hashlib.sha256(args.thread_id.encode()).hexdigest()[:16]
                        + "-last-run.json")
         record = root / "harness" / record_name
-        agent = (ReferenceAgent.restore(port, model, record) if record.is_file()
-                 else ReferenceAgent(port, model, record_path=record))
+        progress = ProgressPrinter()
+        agent = (ReferenceAgent.restore(
+            port, model, record, on_progress=progress, stream_jobs=True)
+            if record.is_file() else ReferenceAgent(
+                port, model, record_path=record, on_progress=progress,
+                stream_jobs=True))
         async with GraphChatSession(
                 agent, port, model, root / "harness" / "chat-checkpoints.sqlite",
                 thread_id=args.thread_id, auto_submit=not args.manual,
@@ -73,9 +131,6 @@ async def _converse_locked(args, root: Path) -> None:
                         line = await _read_line(session)
                     except EOFError:
                         break
-                    except KeyboardInterrupt:
-                        print("\nSession ended. Jobs and artifacts remain in the data root.")
-                        break
                     if line.startswith("\0choice:"):
                         answer = await session.handle_choice(line[len("\0choice:"):])
                     else:
@@ -85,6 +140,12 @@ async def _converse_locked(args, root: Path) -> None:
                     if tracer and tracer.failed and not warned:
                         print("LangSmith tracing failed; the chat will continue without traces.")
                         warned = True
+            except (KeyboardInterrupt, MenuAborted):
+                await _cancel_active_job(port, agent)
+                print("\nSession ended. Completed artifacts remain in the data root.")
+            except asyncio.CancelledError:
+                await _cancel_active_job(port, agent)
+                raise
             finally:
                 if tracer:
                     tracer.close()
@@ -112,6 +173,9 @@ def main(argv=None) -> int:
     try:
         asyncio.run(converse(args))
         return 0
+    except KeyboardInterrupt:
+        print("\nSession interrupted. Completed artifacts remain in the data root.")
+        return 130
     except (ModelUnavailable, MCPToolFailure, SessionBusy, OSError) as error:
         if isinstance(error, ModelUnavailable):
             print(f"Model unavailable: {error}")

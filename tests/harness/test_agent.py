@@ -164,6 +164,36 @@ def test_batch_row_label_preserves_partial_period():
                              "period_end": "2012-08-31"}) == "location 1, 2012-06-01–2012-08-31"
 
 
+def test_streamed_resume_waits_beyond_previous_ten_second_poll_limit(monkeypatch):
+    updates = []
+
+    class SlowPort:
+        def __init__(self):
+            self.polls = 0
+
+        async def call(self, name, **arguments):
+            if name == "job_inspect":
+                self.polls += 1
+                return {"id": "b" * 32, "state": "running" if self.polls <= 41
+                        else "completed", "total": 1, "completed": 0 if self.polls <= 41
+                        else 1, "failed": 0, "artifacts": {"weather": []}}
+            raise AssertionError(name)
+
+    async def no_wait(_):
+        return None
+
+    monkeypatch.setattr("openepw.harness.agent.asyncio.sleep", no_wait)
+    port = SlowPort()
+    agent = ReferenceAgent(port, StubModel(AgentIntent(kind="unknown")),
+                           on_progress=updates.append, stream_jobs=True)
+    agent.job_id = "b" * 32
+    result = asyncio.run(agent.resume(preface="Weather"))
+    assert result.status == "completed"
+    assert port.polls == 42
+    assert updates[0]["state"] == "running"
+    assert updates[-1]["state"] == "completed"
+
+
 def test_unsupported_future_method_is_blocked_without_substitution():
     class RefusingMCP:
         async def call(self, name, **arguments):

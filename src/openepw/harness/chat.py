@@ -414,6 +414,7 @@ class ChatSession:
                 "/auto off|on  /submit  /status [job_id]  /cancel  /retry\n"
                 "/upload <EPW path>  /baseline <artifact_id>  /inspect [id|last]\n"
                 "/save <id|last> <path>  /reset  /quit\n"
+                "Ctrl+C exits the console and requests cancellation of an active job.\n"
                 "EPW bytes stay outside model prompts; inspect QC before simulation."
             )
         if command == "/reset":
