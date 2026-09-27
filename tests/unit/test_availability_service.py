@@ -47,6 +47,34 @@ def _catalog(tmp_path):
     return store
 
 
+def test_catalog_scopes_expose_only_documented_footprints(tmp_path):
+    store = CatalogStore(tmp_path / "scopes")
+    bundle = CatalogBundle(
+        evidence=[EvidenceRef(id="era5-doc", sha256="b" * 64,
+                              retrieved_at=datetime(2026, 9, 25, tzinfo=timezone.utc),
+                              basis="documentation")],
+        products=[
+            ProductRecord(id="cds:era5", provider="cds", dataset="era5",
+                          temporal_kind="actual", footprint=(0, -89, 360, 89),
+                          longitude_convention="0_360", evidence_ids=["era5-doc"]),
+            ProductRecord(id="noaa:isd", provider="noaa", dataset="isd",
+                          temporal_kind="actual", evidence_ids=["era5-doc"]),
+        ],
+    )
+    staged = store.stage(bundle)
+    store.activate(staged.generation_id)
+    service = WeatherService(RuntimeConfig(data_root=tmp_path / "runtime"),
+                             http=ForbiddenHttp(), catalog_store=store)
+    result = service.catalog_scopes()
+    assert result["snapshot"]["generation_id"] == staged.generation_id
+    assert result["scopes"] == [{
+        "provider": "cds", "dataset": "era5", "footprint": [0, -89, 360, 89],
+        "longitude_convention": "0_360", "evidence_bases": ["documentation"],
+        "evidence_dates": ["2026-09-25"],
+    }]
+    assert result["unmapped"] == [{"provider": "noaa", "dataset": "isd"}]
+
+
 def test_fresh_catalog_avoids_repeated_noaa_inventory_http(tmp_path):
     store = _catalog(tmp_path)
     service = WeatherService(RuntimeConfig(data_root=tmp_path / "runtime"),

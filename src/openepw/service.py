@@ -136,6 +136,43 @@ class WeatherService:
         self.catalog_store = catalog_store or CatalogStore(self.config.data_root / "catalog")
         self.plan_store = PlanStore(self.config.data_root)
 
+    def catalog_scopes(self) -> dict:
+        """Return mappable documentary footprints without assessing a request."""
+        view = self.catalog_store.active()
+        bundle = view.bundle if view is not None else bundled_contracts()
+        evidence = {item.id: item for item in bundle.evidence}
+        scopes = []
+        unmapped = set()
+        seen = set()
+        for product in bundle.products:
+            key = (product.provider, product.dataset)
+            if product.temporal_kind == "future_window":
+                continue  # Future-weather map flows remain suspended.
+            if product.footprint is None:
+                unmapped.add(key)
+                continue
+            identity = (*key, product.footprint)
+            if identity in seen:
+                continue
+            seen.add(identity)
+            refs = [evidence[item] for item in product.evidence_ids if item in evidence]
+            scopes.append({
+                "provider": product.provider, "dataset": product.dataset,
+                "footprint": list(product.footprint),
+                "longitude_convention": product.longitude_convention,
+                "evidence_bases": sorted({ref.basis for ref in refs}),
+                "evidence_dates": sorted({(ref.checked_at or ref.retrieved_at).date().isoformat()
+                                          for ref in refs}),
+            })
+        return {
+            "snapshot": {"generation_id": view.snapshot.generation_id,
+                         "created_at": view.snapshot.created_at.isoformat()} if view else None,
+            "scopes": sorted(scopes, key=lambda item: (item["provider"], item["dataset"],
+                                                       item["footprint"])),
+            "unmapped": [{"provider": provider, "dataset": dataset}
+                         for provider, dataset in sorted(unmapped)],
+        }
+
     def visualization_capabilities(self) -> dict:
         return capabilities()
 

@@ -33,6 +33,15 @@ def test_remote_without_token_rejected(tmp_path):
         create_app(WeatherService(RuntimeConfig(data_root=tmp_path)), remote=True)
 
 
+def test_catalog_scopes_route_is_read_only(tmp_path):
+    service = WeatherService(RuntimeConfig(data_root=tmp_path), providers=[StationProvider()])
+    with TestClient(create_app(service)) as client:
+        response = client.get("/v1/catalog/scopes")
+        assert response.status_code == 200
+        assert "scopes" in response.json()
+        assert "unmapped" in response.json()
+
+
 def test_retry_route_submits_only_failed_outputs(tmp_path):
     from openepw.models import Location, OpenEPWError, WeatherRequest
 

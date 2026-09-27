@@ -266,6 +266,10 @@ def create_app(service=None, *, remote=False, chat_parser=None):
     def availability(query: AvailabilityQuery):
         return service.assess_availability(query)
 
+    @app.get("/v1/catalog/scopes")
+    def catalog_scopes():
+        return service.catalog_scopes()
+
     @app.post("/v1/weather/plan")
     def plan(request: WeatherRequest):
         return service.plan(request)
