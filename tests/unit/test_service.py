@@ -388,3 +388,22 @@ def test_a_selection_variant_picks_that_published_file_at_each_point(tmp_path):
     missing = service.plan(request.model_copy(update={"dataset_selections": [
         DatasetSelection(provider="station", dataset="synthetic", variant="TMY2")]}))
     assert {issue.code for issue in missing.issues} == {"DATASET_UNAVAILABLE"}
+
+def test_two_variants_of_one_published_dataset_plan_side_by_side(tmp_path):
+    from test_batch import StationProvider
+
+    class Published(StationProvider):
+        def discover(self, request, location, http):
+            base = super().discover(request, location, http)[0]
+            return [base.model_copy(update={"id": f"{name}:{location.key}", "product_id": f"USA_X_{name}.zip"})
+                    for name in ("Site.1_TMY3", "Site.1_TMYx.2009-2023")]
+
+    service = WeatherService(RuntimeConfig(data_root=tmp_path), providers=[Published()])
+    plan = service.plan(WeatherRequest(
+        locations=[Location(lat=1, lon=0), Location(lat=2, lon=0)], start="2024-01-01", end="2024-01-01",
+        dataset_selections=[{"provider": "station", "dataset": "synthetic", "variant": "TMY3"},
+                            {"provider": "station", "dataset": "synthetic", "variant": "TMYx.2009-2023"}]))
+    assert len(plan.batch_rows) == 4 and not plan.issues
+    assert sorted(task.parameters["product_id"] for task in plan.tasks) == [
+        "USA_X_Site.1_TMY3.zip", "USA_X_Site.1_TMY3.zip",
+        "USA_X_Site.1_TMYx.2009-2023.zip", "USA_X_Site.1_TMYx.2009-2023.zip"]

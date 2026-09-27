@@ -425,7 +425,8 @@ class WeatherPlan(Model):
                 raise ValueError("Batch row references unknown tasks")
             row_keys = [(row.occurrence_index, row.dataset_selection.provider,
                          row.dataset_selection.dataset, row.dataset_selection.product_id,
-                         row.period_start, row.period_end) for row in self.batch_rows]
+                         row.dataset_selection.variant, row.period_start, row.period_end)
+                        for row in self.batch_rows]
             if len(row_keys) != len(set(row_keys)):
                 raise ValueError("Duplicate batch row")
         for candidate in raw["selected_candidates"]:
