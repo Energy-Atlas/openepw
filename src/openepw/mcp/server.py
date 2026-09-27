@@ -155,10 +155,14 @@ def create_server(service=None, *, allowed_roots: list[str | Path] | None = None
         return call(action)
 
     @server.tool(structured_output=True)
-    def weather_places_preview(places: list[str]) -> dict[str, Any]:
-        """Resolve names/coordinates to numbered points; top matches, no confirmation step."""
+    def weather_places_preview(places: list[str | dict]) -> dict[str, Any]:
+        """Resolve names/coordinates to numbered points; top matches, no confirmation step.
+
+        Rows from an earlier preview may be passed back unchanged to keep them pinned.
+        """
         def action():
-            if not places or any(not item.strip() or len(item) > 150 for item in places):
+            texts = [item if isinstance(item, str) else str(item.get("input", "")) for item in places]
+            if not places or any(not text.strip() or len(text) > 150 for text in texts):
                 raise OpenEPWError("INVALID_REQUEST", "Each place must be 1–150 characters")
             return _preview_summary(service.preview_places(places))
         return call(action)

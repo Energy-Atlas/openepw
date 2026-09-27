@@ -113,3 +113,17 @@ def test_bare_numbers_and_numbered_region_options_answer_the_right_field(tmp_pat
     assert step["draft"]["min_population"] == 50000
     step = service.interpret_places("all", draft=step["draft"])       # "all" means the cap
     assert step["query"]["limit"] == 1000
+
+
+def test_previously_resolved_rows_are_pinned_not_regeocoded(tmp_path):
+    service = _service(tmp_path)
+    first = service.preview_places(["Boston", "Nowhereville"])
+    pinned = first.rows[0].model_dump(mode="json")
+    service.http.calls.clear()
+    again = service.preview_places([pinned, "Denver"])
+    assert service.http.calls == ["geocode:Denver"]
+    assert again.rows[0].model_dump(exclude={"index"}) == first.rows[0].model_dump(exclude={"index"})
+    assert [row.index for row in again.rows] == [1, 2]
+    unresolved = first.rows[1].model_dump(mode="json")
+    retried = service.preview_places([unresolved])          # unresolved rows are retried by input
+    assert retried.rows[0].status == "unresolved" and service.http.calls[-1] == "geocode:Nowhereville"

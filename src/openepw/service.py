@@ -151,7 +151,7 @@ class WeatherService:
         """
         return places_preview.interpret_places(text, self.geonames, draft)
 
-    def preview_places(self, items: list[str]) -> PlacePreview:
+    def preview_places(self, items: list[str | dict]) -> PlacePreview:
         """Resolve names and coordinates to numbered points without per-place confirmation."""
         return places_preview.preview_places(items, self.geocode)
 

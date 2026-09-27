@@ -28,13 +28,23 @@ def build_preview(rows: list[PlaceRow], issues: list[Issue], attribution: list[s
                         digest=digest([row.model_dump(mode="json") for row in rows]))
 
 
-def preview_places(items: list[str], geocode: Callable) -> PlacePreview:
-    """Resolve a list without per-row confirmation; ambiguity and misses stay visible."""
+def preview_places(items: list[str | dict], geocode: Callable) -> PlacePreview:
+    """Resolve a list without per-row confirmation; ambiguity and misses stay visible.
+
+    A dict item is a previously resolved row: it is kept as is (renumbered) so an edit
+    never re-geocodes places the user already saw. Unresolved rows are retried by input.
+    """
     if len(items) > MAX_PLACES:
         raise OpenEPWError("RESOURCE_LIMIT", f"A preview holds at most {MAX_PLACES} places")
     rows: list[PlaceRow] = []
     issues: list[Issue] = []
     for item in items:
+        if isinstance(item, dict):
+            pinned = PlaceRow.model_validate(item | {"index": len(rows) + 1})
+            if pinned.status == "resolved":
+                rows.append(pinned)
+                continue
+            item = pinned.input
         points = parse_coordinates(item)
         if points is not None:
             for lat, lon in points:
