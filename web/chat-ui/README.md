@@ -39,6 +39,12 @@ Node or this UI.
   when the input is accepted or closed. Use `+` in the composer to attach an
   EPW or WGS84 GeoJSON file. The plan shows exact service-accepted points
   before retrieval.
+- Geocoder candidates appear as numbered options in chat and matching filled,
+  numbered markers on the map. Choosing either only selects: the globe rotates
+  to the point (zooming out and back in when it is off screen) and a popup
+  shows the name, coordinates and `Confirm`. Nothing is answered until
+  `Confirm` in the popup or the reply area. `Other — type an answer` reopens
+  the message field with a `Confirm` button.
 - Select a geocoder candidate or type an alternative. `Assess and review plan`
   reads catalog and planning evidence. `Run reviewed plan` starts provider work.
 - The job card shows processed outputs. Download one successful EPW or a compact

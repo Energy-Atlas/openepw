@@ -16,6 +16,11 @@ vi.mock('maplibre-gl', () => {
     constructor() { fake.maps.push(this as unknown as Record<string, unknown>) }
     on(event: string, handler: () => void) { this.handlers.set(event, [...this.handlers.get(event) ?? [], handler]) }
     once() {}
+    off() {}
+    inView = true
+    getBounds() { return { contains: () => this.inView } }
+    project([lon, lat]: [number, number]) { return { x: lon + 200, y: 300 - lat } }
+    flyTo = vi.fn()
     emit(event: string) { for (const handler of this.handlers.get(event) ?? []) handler() }
     isStyleLoaded() { return false }
     getStyle() { return this.parsed ? { version: 8, sources: {}, layers: this.layers } : undefined }
@@ -38,7 +43,7 @@ vi.mock('maplibre-gl', () => {
     setTerrain() {}
     getTerrain() { return null }
     jumpTo() {}
-    easeTo() {}
+    easeTo = vi.fn()
     getCenter() { return { lat: 18, lng: 0 } }
     getZoom() { return 1.65 }
     getPitch() { return 0 }
@@ -83,5 +88,29 @@ describe('map canvas overlays', () => {
     await waitFor(() => expect(map.visibility.get('openepw-catalog-noaa-point')).toBe('none'))
     expect(map.getSource('openepw-candidates')).toBeTruthy()
     expect(map.getSource('openepw-selection')).toBeTruthy()
+  })
+
+  it('previews a chosen candidate with a popup and only rotates when it is already in view', async () => {
+    const { MapCanvas } = await import('../src/map/MapCanvas')
+    const candidates = [{ id: 'ma', name: 'Cambridge, Massachusetts', lat: 42.37, lon: -71.11, number: 1 },
+      { id: 'uk', name: 'Cambridge, England', lat: 52.2, lon: 0.12, number: 2 }]
+    const confirm = vi.fn()
+    const { rerender } = render(<MapCanvas candidates={candidates} pendingCandidate={null} onConfirmCandidate={confirm} />)
+    await waitFor(() => expect(fake.maps).toHaveLength(1))
+    const map = fake.maps[0] as unknown as { parsed: boolean; inView: boolean; emit(event: string): void;
+      easeTo: ReturnType<typeof vi.fn>; flyTo: ReturnType<typeof vi.fn> }
+    map.parsed = true
+    map.emit('style.load')
+    rerender(<MapCanvas candidates={candidates} pendingCandidate="uk" onConfirmCandidate={confirm} />)
+    const popup = await screen.findByRole('dialog', { name: 'Selected location' })
+    expect(popup).toHaveTextContent('Cambridge, England')
+    expect(popup).toHaveTextContent('52.2000, 0.1200')
+    expect(map.easeTo).toHaveBeenCalledWith(expect.objectContaining({ center: [0.12, 52.2] }))
+    expect(map.flyTo).not.toHaveBeenCalled()
+    map.inView = false
+    rerender(<MapCanvas candidates={candidates} pendingCandidate="ma" onConfirmCandidate={confirm} />)
+    await waitFor(() => expect(map.flyTo).toHaveBeenCalledWith(expect.objectContaining({ center: [-71.11, 42.37] })))
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm' }))
+    expect(confirm).toHaveBeenCalledWith('ma')
   })
 })

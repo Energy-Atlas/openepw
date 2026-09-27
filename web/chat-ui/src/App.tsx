@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import './app.css'
 import { ChatApi } from './api'
 import { MapCanvas } from './map/MapCanvas'
@@ -25,6 +25,7 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
   const [message, setMessage] = useState('')
   const [pickMode, setPickMode] = useState(false)
   const [typing, setTyping] = useState(false)
+  const [pendingChoice, setPendingChoice] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const acting = useRef(false)
   const [pendingTurns, setPendingTurns] = useState<Array<{ id: string; text: string }>>([])
@@ -107,7 +108,7 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
   }, [pastJobs])
 
   useEffect(() => { transcript.current?.scrollTo?.(0, transcript.current.scrollHeight) }, [session?.events.length])
-  useEffect(() => setTyping(false), [session?.active_card?.id, session?.active_card?.revision])
+  useEffect(() => { setTyping(false); setPendingChoice(null) }, [session?.active_card?.id, session?.active_card?.revision])
   useEffect(() => { if (typing) document.getElementById('chat-message')?.focus() }, [typing])
 
   async function act(operation: (current: SessionSnapshot) => Promise<SessionSnapshot>,
@@ -229,7 +230,17 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
   const resolvedPoints = (session?.facts.resolved_points ?? []) as Array<{ lat: number; lon: number }>
   const selected = (session?.facts.location as { id?: string; name?: string; lat: number; lon: number } | undefined)
     ?? (resolvedPoints.length === 1 ? resolvedPoints[0] : undefined)
-  const candidates = (session?.facts.candidates ?? []) as Array<{ id: string; name?: string; lat: number; lon: number }>
+  const candidateFacts = (session?.facts.candidates ?? []) as Array<{ id: string; name?: string; lat: number; lon: number }>
+  // Location choices are previewed on the map and only answered after an explicit Confirm.
+  const locationChoice = card?.kind === 'choice' && candidateFacts.length > 0
+  const optionNumber = (id: string) => (card?.options?.findIndex(option => option.id === id) ?? -1) + 1
+  const candidates = useMemo(() => candidateFacts.map(candidate => ({ ...candidate,
+    number: optionNumber(candidate.id) || undefined,
+    name: card?.options?.find(option => option.id === candidate.id)?.label ?? candidate.name })),
+  [JSON.stringify(candidateFacts), card?.id, card?.revision])
+  const confirmChoice = (id: string) => {
+    if (card?.kind === 'choice') void act(current => api.answer(current.id, card.revision, id, randomKey()))
+  }
   const coordinatesFor = (row: JobManifest['batch_rows'][number]) => {
     const point = row.metadata?.requested_location
     return point ? ` · ${point.lat.toFixed(4)}, ${point.lon.toFixed(4)}` : ''
@@ -258,7 +269,9 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
       availability={session?.facts.availability as AvailabilitySummary | undefined}
       onPickPoint={point => void act(current => api.setGeography(current.id, current.revision, point, randomKey()))}
       onPickGeometry={geography => void act(current => api.setGeography(current.id, current.revision, geography, randomKey()))}
-      onPickCandidate={id => { if (card?.kind === 'choice') void act(current => api.answer(current.id, card.revision, id, randomKey())) }} />
+      pendingCandidate={locationChoice ? pendingChoice : null} onConfirmCandidate={confirmChoice}
+      onClearCandidate={() => setPendingChoice(null)}
+      onPickCandidate={id => { if (locationChoice) setPendingChoice(id) }} />
     <aside className="chat-rail" aria-label="Weather chat">
       <div className="chat-transcript" role="log" aria-live="polite" ref={transcript}>
         <article className="chat-event assistant-event welcome">
@@ -383,15 +396,20 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
               onClick={() => setPickMode(current => !current)}>Map</button>
             <input id="chat-message" name="message" placeholder="Place, years, and weather type"
               value={message} onChange={event => setMessage(event.target.value)} />
-            <button type="submit" disabled={!session}>Send</button>
+            <button type="submit" disabled={!session}>{typing && card?.kind === 'choice' ? 'Confirm' : 'Send'}</button>
           </div>
           {typing && backLabel && <button className="reply-alt" type="button" onClick={() => setTyping(false)}>{backLabel}</button>}
         </> : <div className="reply-options" role="group" aria-label="Reply options">
           {card?.kind === 'choice' && <>
-            {card.options?.map(option => <button key={option.id} disabled={busy} type="button"
-              onClick={() => void act(current => api.answer(current.id, card.revision, option.id, randomKey()))}>
-              {option.label}</button>)}
+            {card.options?.map((option, index) => locationChoice
+              ? <button key={option.id} disabled={busy} type="button" className="numbered-option"
+                aria-pressed={pendingChoice === option.id} onClick={() => setPendingChoice(option.id)}>
+                <span className="option-number" aria-hidden="true">{index + 1}</span>{option.label}</button>
+              : <button key={option.id} disabled={busy} type="button" onClick={() => confirmChoice(option.id)}>
+                {option.label}</button>)}
             <button className="reply-alt" type="button" onClick={() => setTyping(true)}>Other — type an answer</button>
+            {locationChoice && pendingChoice && <button className="reply-primary" type="button" disabled={busy}
+              onClick={() => confirmChoice(pendingChoice)}>Confirm</button>}
           </>}
           {card?.kind === 'plan_review' && <>
             {!card.data?.plan_hash ? <button className="reply-primary" type="button" disabled={busy}

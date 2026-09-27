@@ -77,6 +77,42 @@ describe('map-first shell', () => {
     expect(lines[0]).toHaveTextContent('Geocoding place · Found 2 location candidates')
   })
 
+  it('numbers geocoder options and waits for Confirm before answering', async () => {
+    const card = { id: 'where', revision: 3, kind: 'choice' as const, prompt: 'Choose a location',
+      options: [{ id: 'ma', label: 'Cambridge, Massachusetts' }, { id: 'uk', label: 'Cambridge, England' }] }
+    const state: SessionSnapshot = { ...cardState(card), facts: { candidates: [
+      { id: 'ma', name: 'Cambridge, Massachusetts', lat: 42.37, lon: -71.11 },
+      { id: 'uk', name: 'Cambridge, England', lat: 52.2, lon: 0.12 }] } }
+    const answer = vi.fn().mockResolvedValue({ ...state, active_card: null, revision: 4 })
+    render(<App api={{ ...apiFor(state), answer } as unknown as ChatApi} />)
+    const option = await screen.findByRole('button', { name: /Cambridge, England/ })
+    expect(option.querySelector('.option-number')).toHaveTextContent('2')
+    expect(screen.queryByRole('button', { name: 'Confirm' })).not.toBeInTheDocument()
+    fireEvent.click(option)
+    expect(answer).not.toHaveBeenCalled()
+    expect(option).toHaveAttribute('aria-pressed', 'true')
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm' }))
+    await waitFor(() => expect(answer).toHaveBeenCalledWith('test', 3, 'uk', expect.any(String)))
+  })
+
+  it('reopens the text field with a Confirm button for Other', async () => {
+    render(<App api={apiFor(cardState({ id: 'choice', revision: 1, kind: 'choice', prompt: 'Which weather product?',
+      options: [{ id: 'historical', label: 'Actual-year weather' }] }))} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Other — type an answer' }))
+    expect(screen.getByRole('textbox', { name: 'Message' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Confirm' })).toHaveAttribute('type', 'submit')
+    expect(screen.queryByRole('button', { name: 'Send' })).not.toBeInTheDocument()
+  })
+
+  it('still answers ordinary choices immediately', async () => {
+    const state = cardState({ id: 'product', revision: 2, kind: 'choice', prompt: 'Which weather product?',
+      options: [{ id: 'historical', label: 'Actual-year weather' }] })
+    const answer = vi.fn().mockResolvedValue({ ...state, active_card: null })
+    render(<App api={{ ...apiFor(state), answer } as unknown as ChatApi} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Actual-year weather' }))
+    await waitFor(() => expect(answer).toHaveBeenCalledWith('test', 2, 'historical', expect.any(String)))
+  })
+
   it('shows the current choice once as an agent turn', async () => {
     render(<App api={apiFor(cardState({ id: 'choice', revision: 1, kind: 'choice', prompt: 'Which weather product?',
       options: [{ id: 'historical', label: 'Actual-year weather' }] }))} />)

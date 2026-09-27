@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { Map as MapLibreMap } from 'maplibre-gl'
+import type { ExpressionSpecification, Map as MapLibreMap } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
 import { appearanceStyle, applyAppearance, applyLighting, applyScene, autoView3d, scenePitch, type SceneSettings } from './scene'
@@ -7,6 +7,7 @@ import { renderShadows } from './renderShadows'
 import { availabilityFeatures } from './evidence'
 import { MAP_PALETTE, SHAPE_IMAGES, catalogFeatures, catalogLayerSpecs, layerSwatch, legendRows } from './catalogLayers'
 import { utcSceneTime } from './sun'
+import { THEME } from '../theme'
 import type { WeatherGeography } from '../geography'
 import type { AvailabilitySummary, CatalogLayer, CatalogMap } from '../types'
 
@@ -16,7 +17,7 @@ const initial: SceneSettings = {
   haze: 20, shadows: true,
 }
 
-type MapPoint = { id?: string; name?: string; lat: number; lon: number }
+type MapPoint = { id?: string; name?: string; lat: number; lon: number; number?: number }
 
 // isStyleLoaded() is also false while any tile is loading; overlays only need a parsed style.
 function styleParsed(map: MapLibreMap | null): map is MapLibreMap {
@@ -24,7 +25,8 @@ function styleParsed(map: MapLibreMap | null): map is MapLibreMap {
 }
 
 export function MapCanvas({ location, candidates = [], geography, resolvedPoints = [], availability, catalogMap, years = [],
-  pickMode = false, onExitPickMode, onPickPoint, onPickCandidate, onPickGeometry }: {
+  pickMode = false, onExitPickMode, onPickPoint, onPickCandidate, onPickGeometry,
+  pendingCandidate = null, onConfirmCandidate, onClearCandidate }: {
   location?: MapPoint | null
   candidates?: MapPoint[]
   geography?: WeatherGeography | null
@@ -37,6 +39,9 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
   onPickPoint?: (point: MapPoint) => void
   onPickCandidate?: (id: string) => void
   onPickGeometry?: (geography: WeatherGeography) => void
+  pendingCandidate?: string | null
+  onConfirmCandidate?: (id: string) => void
+  onClearCandidate?: () => void
 }) {
   const host = useRef<HTMLDivElement>(null)
   const map = useRef<MapLibreMap | null>(null)
@@ -199,24 +204,52 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
     const features = [
       ...candidates.map(point => ({ type: 'Feature' as const,
         geometry: { type: 'Point' as const, coordinates: [point.lon, point.lat] },
-        properties: { id: point.id ?? '', name: point.name ?? '', selected: false } })),
+        properties: { id: point.id ?? '', name: point.name ?? '', label: point.number ? String(point.number) : '',
+          selected: false, pending: point.id === pendingCandidate } })),
       ...(location ? [{ type: 'Feature' as const,
         geometry: { type: 'Point' as const, coordinates: [location.lon, location.lat] },
-        properties: { id: location.id ?? '', name: location.name ?? '', selected: true } }] : []),
+        properties: { id: location.id ?? '', name: location.name ?? '', label: '', selected: true, pending: false } }] : []),
     ]
+    const highlighted: ExpressionSpecification = ['any', ['get', 'selected'], ['get', 'pending']]
     if (!sceneMap.getSource('openepw-candidates')) {
       sceneMap.addSource('openepw-candidates', { type: 'geojson', data: { type: 'FeatureCollection', features } })
+      // Filled, numbered markers match the numbered options in chat; amber marks the chosen one.
       sceneMap.addLayer({ id: 'openepw-candidates', type: 'circle', source: 'openepw-candidates',
-        paint: { 'circle-radius': ['case', ['get', 'selected'], 7, 6],
-          'circle-color': MAP_PALETTE.HERO, 'circle-opacity': ['case', ['get', 'selected'], 1, 0],
-          'circle-stroke-width': 2,
-          'circle-stroke-color': MAP_PALETTE.CANDIDATE } })
+        paint: { 'circle-radius': ['case', ['get', 'pending'], 11, ['get', 'selected'], 7, 9],
+          'circle-color': ['case', highlighted, MAP_PALETTE.HERO, MAP_PALETTE.CANDIDATE],
+          'circle-stroke-width': 1.5,
+          'circle-stroke-color': ['case', highlighted, MAP_PALETTE.CANDIDATE, THEME.PAPER] } })
+      sceneMap.addLayer({ id: 'openepw-candidate-numbers', type: 'symbol', source: 'openepw-candidates',
+        layout: { 'text-field': ['get', 'label'], 'text-font': ['Noto Sans Bold'], 'text-size': 11,
+          'text-allow-overlap': true, 'text-ignore-placement': true },
+        paint: { 'text-color': ['case', highlighted, MAP_PALETTE.CANDIDATE, THEME.PAPER] } })
     } else {
       (sceneMap.getSource('openepw-candidates') as import('maplibre-gl').GeoJSONSource).setData({
         type: 'FeatureCollection', features,
       })
     }
-  }, [candidates, location, styleEpoch])
+  }, [candidates, location, pendingCandidate, styleEpoch])
+
+  // A chosen option rotates the globe to it; off-screen targets zoom out, travel and zoom back in.
+  const pending = candidates.find(point => point.id === pendingCandidate) ?? null
+  useEffect(() => {
+    const sceneMap = map.current
+    if (!sceneMap || !pending) return
+    const center: [number, number] = [pending.lon, pending.lat]
+    const padding = { right: window.innerWidth > 650 ? 410 : 0 }
+    if (sceneMap.getBounds().contains(center)) sceneMap.easeTo({ center, padding, duration: 700 })
+    else sceneMap.flyTo({ center, zoom: sceneMap.getZoom(), padding, duration: 1800, essential: true })
+  }, [pending?.id, pending?.lat, pending?.lon])
+
+  const [popupAt, setPopupAt] = useState<{ x: number; y: number } | null>(null)
+  useEffect(() => {
+    const sceneMap = map.current
+    if (!sceneMap || !pending) { setPopupAt(null); return }
+    const place = () => { const point = sceneMap.project([pending.lon, pending.lat]); setPopupAt({ x: point.x, y: point.y }) }
+    place()
+    sceneMap.on('move', place)
+    return () => { sceneMap.off('move', place) }
+  }, [pending?.id, pending?.lat, pending?.lon, styleEpoch])
 
   useEffect(() => {
     const sceneMap = map.current
@@ -356,6 +389,14 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
       <small className="legend-source">Stage 1 catalog · {catalogMap.snapshot?.created_at.slice(0, 10) ?? 'bundled contracts'}
         {' '}· documentary, not point eligibility</small>
     </aside>}
+    {pending && popupAt && <div className="candidate-popup" role="dialog" aria-label="Selected location"
+      style={{ left: popupAt.x, top: popupAt.y }}>
+      <button type="button" className="popup-close" aria-label="Clear selection" onClick={onClearCandidate}>×</button>
+      <span className="option-number" aria-hidden="true">{pending.number}</span>
+      <strong>{pending.name}</strong>
+      <code>{pending.lat.toFixed(4)}, {pending.lon.toFixed(4)}</code>
+      <button type="button" className="popup-confirm" onClick={() => pending.id && onConfirmCandidate?.(pending.id)}>Confirm</button>
+    </div>}
     <div className="map-status" role="status">{status}
       {status.includes('unavailable') || status.includes('could not load') ?
         <button type="button" onClick={() => map.current?.setStyle(appearanceStyle(settings.appearance))}>Retry map</button> : null}
