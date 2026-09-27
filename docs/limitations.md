@@ -33,8 +33,10 @@ and REST future services are outside this MCP suspension.
 Visualization currently prepares hourly time series, annual and monthly
 series, histograms and spatial views. Other families appear as `planned` in
 capabilities and return `VISUALIZATION_UNSUPPORTED`. Result pages are JSON,
-not plotted graphics. The standard CLI accepts an explicit JSON request;
-natural-language `openepw-chat` visualization routing is not yet implemented.
+not plotted graphics. The standard CLI accepts an explicit JSON request.
+`openepw-chat` routes simple hourly, annual, monthly, histogram and spatial
+requests using the current completed EPWs; source filtering, advanced options
+and multi-action analytical turns still require explicit MCP or CLI requests.
 Uploaded EPWs retain unverified year/provider identity, and multi-artifact
 annual trends require verified actual-year sources. Missing intervals yield
 null complete-period aggregates unless observed-only partials are requested.

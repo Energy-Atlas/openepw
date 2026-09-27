@@ -100,10 +100,17 @@ for review and `/submit` to execute a reviewed plan.
 `/save` is the current console command for writing a server artifact to the
 user's disk. The [post-retrieval plan](../plans/2026-09-26-post-download-conversations.md)
 will replace it with `/download` and reserve “retrieve” for provider requests.
-For structured visualization JSON now, use the standard `openepw visualize`
-CLI command with an explicit request file or call the MCP visualization tools
-directly. Natural-language visualization routing in `openepw-chat` remains a
-separate planned step.
+After an EPW job completes, the console accepts simple requests such as
+`visualize monthly temperature` or `plot annual GHI`. It uses the completed
+EPW artifact IDs, asks for a missing view family or variable with an arrow-key
+menu, and prints the framework-neutral JSON result. A view follow-up does not
+start provider retrieval. The selection survives a chat restart. The standard
+`openepw visualize` CLI and MCP tools remain available for explicit JSON
+requests, including source selection and options beyond the console shortcuts.
+The chat checks extracted years and product choices against the current message
+before planning; a building count does not become a weather year. Planned view
+families return an explicit unsupported response. The console does not render
+charts.
 
 Conversation references persist in the selected local thread. The reference parser currently
 requests UTC output for weather; use the Python, CLI or MCP interfaces directly

@@ -1,6 +1,7 @@
 # Post-retrieval conversations and data views — revised plan
 
-**Status:** Download and chat follow-up behavior remains planned. The temporary
+**Status:** Download and broader chat follow-up behavior remains planned; basic
+visualization follow-ups now use completed EPW artifacts. The temporary
 future-weather MCP suspension was implemented in `fa94923`. The owner then
 authorized a framework-neutral visualization contract and a smaller first
 implementation; see the [visualization design](../design/2026-09-26-weather-visualization.md)
@@ -199,7 +200,7 @@ transfer is designed; an export ID alone is not a completed user download.
 4. **Expose bounded visualization MCP and CLI tools — initial set implemented.**
    Capabilities, describe, prepare and page tools use the shared service.
    A real stdio client and the standard CLI exercise the JSON contract.
-5. **Route user follow-ups and format responses.** Extract ordered actions
+5. **Route user follow-ups and format responses — basic visualization routing implemented.** Extract ordered actions
    for listing, selecting, downloading, status, retry and data views in at
    most one model call per ordinary turn. Keep direct commands deterministic;
    pass a placeholder for user paths to the model. Test paraphrases and

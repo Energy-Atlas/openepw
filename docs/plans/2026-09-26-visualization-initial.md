@@ -2,8 +2,8 @@
 
 **Status:** The JSON contract, five initial families, shared service, immutable
 view store, MCP tools and standard CLI commands are implemented on
-`feature/mcp`. Natural-language `openepw-chat` routing is a separate follow-up;
-the initial release uses explicit JSON requests.
+`feature/mcp`. Basic `openepw-chat` follow-ups now use completed artifact IDs
+and return JSON; richer analytical dialogue remains planned.
 
 > **For agentic workers:** Use the owner-authorized visualization design as the
 > contract, write failing tests before each implementation slice, and commit
@@ -95,17 +95,16 @@ Modify `src/openepw/mcp/server.py` and `src/openepw/cli/main.py`; test with
   `view-page` commands. Let the Python service perform every calculation.
 - [x] Run interface tests and commit `fix(mcp): expose weather visualization json`.
 
-## Task 5 — Conversation routing (planned follow-up)
+## Task 5 — Initial conversation routing
 
-Route natural-language requests in the local harness after the post-retrieval
-conversation state design is reviewed. The initial JSON/MCP delivery is usable
-without this task.
+Route simple natural-language view requests in the local harness using the
+existing artifact memory. The initial JSON/MCP delivery remains usable directly.
 
-- [ ] Write failing harness tests for a simple monthly summary and for a
+- [x] Write failing harness tests for a simple monthly summary and for a
   planned family returning a useful unsupported answer without retrieval.
-- [ ] Add bounded tool/result messages and JSON/spec display in the interactive
+- [x] Add bounded tool/result messages and JSON/spec display in the interactive
   console; no chart rendering or raw hourly model prompt.
-- [ ] Commit `fix(harness): route visualization requests` after its own tests.
+- [x] Commit `fix(harness): route visualization requests` after its own tests.
 
 ## Task 6 — Initial release verification and docs
 
