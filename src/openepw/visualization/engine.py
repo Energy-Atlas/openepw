@@ -3,6 +3,7 @@
 import calendar
 import json
 from dataclasses import dataclass
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -22,6 +23,8 @@ class Source:
     dataset: WeatherDataset
     temporal_kind: str
     product: str | None
+    provider: str | None = None
+    dataset_name: str | None = None
 
     @property
     def local(self) -> pd.DatetimeIndex:
@@ -43,6 +46,8 @@ class Source:
             "sha256": self.sha256,
             "temporal_kind": self.temporal_kind,
             "product": self.product,
+            "provider": self.provider,
+            "dataset": self.dataset_name,
             "calendar": dataset.calendar,
             "years": self.years,
             "rows": len(dataset.data),
@@ -56,10 +61,15 @@ def _load(store: ArtifactStore, artifact_id: str) -> Source:
         raise OpenEPWError("INVALID_ARTIFACT", "A bounded EPW artifact is required")
     temporal_kind = "unverified"
     product = None
+    provider = None
+    dataset_name = None
     if ref.role == "weather":
+        bundle_dir = store.root / Path(ref.path).parent
         try:
             plan_ref = store.sibling(ref, "plan.json", "plan")
         except OpenEPWError:
+            if (bundle_dir / "plan.json").exists():
+                raise OpenEPWError("INVALID_ARTIFACT", "Linked plan failed verification") from None
             plan_ref = None
         if plan_ref:
             _, plan_path = store.resolve(plan_ref.id)
@@ -73,10 +83,30 @@ def _load(store: ArtifactStore, artifact_id: str) -> Source:
             temporal_kind = ("reference" if product in ("tmy", "tmyx", "published")
                              else "actual" if product in ("historical", "amy")
                              else "unverified")
+        try:
+            manifest_ref = store.sibling(ref, "manifest.json", "manifest")
+        except OpenEPWError:
+            if (bundle_dir / "manifest.json").exists():
+                raise OpenEPWError("INVALID_ARTIFACT", "Linked manifest failed verification") from None
+            manifest_ref = None
+        if manifest_ref:
+            _, manifest_path = store.resolve(manifest_ref.id)
+            try:
+                manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+                entry = next((item for item in manifest.get("outputs", [])
+                              if item.get("artifact_id") == ref.id), None)
+                native_source = entry.get("source", {}) if entry else {}
+                provider = native_source.get("provider")
+                dataset_name = native_source.get("dataset")
+            except (OSError, ValueError, TypeError, AttributeError):
+                raise OpenEPWError("INVALID_ARTIFACT", "Linked manifest is unreadable") from None
     dataset = read_epw(path)
+    if not dataset.data.index.is_unique or not dataset.data.index.is_monotonic_increasing:
+        raise OpenEPWError("INVALID_ARTIFACT", "EPW intervals are duplicate or unordered")
     if dataset.calendar == "synthetic":
         temporal_kind = "reference" if temporal_kind == "reference" else "unverified"
-    return Source(ref.id, ref.sha256, dataset, temporal_kind, product)
+    return Source(ref.id, ref.sha256, dataset, temporal_kind, product,
+                  provider, dataset_name)
 
 
 def _sources(store: ArtifactStore, artifact_ids: list[str]) -> list[Source]:
@@ -123,7 +153,9 @@ def _aggregate(values: pd.Series, expected: int, operation: str,
 
 def _period_rows(source: Source, variable: str, family: str, operation: str,
                  allow_partial: bool) -> list[dict]:
-    if source.temporal_kind == "reference" and family == "annual_series":
+    if (source.temporal_kind == "reference" or source.dataset.calendar == "synthetic") and (
+        family == "annual_series"
+    ):
         raise OpenEPWError("INCOMPATIBLE_SOURCES", "Reference months are not an actual-year trend")
     local = source.local
     values = source.dataset.data[variable]
@@ -201,7 +233,8 @@ def _spatial_rows(sources: list[Source], variable: str, operation: str,
     kinds = {source.temporal_kind for source in sources}
     years = {tuple(source.years) for source in sources}
     products = {source.product for source in sources}
-    if len(kinds) != 1 or len(years) != 1 or len(products) != 1 or any(
+    native_sources = {(source.provider, source.dataset_name) for source in sources}
+    if len(kinds) != 1 or len(years) != 1 or len(products) != 1 or len(native_sources) != 1 or any(
         len(source.years) != 1 for source in sources
     ):
         raise OpenEPWError("INCOMPATIBLE_SOURCES",
@@ -246,6 +279,11 @@ def build_view(store: ArtifactStore, request: VisualizationRequest) -> dict:
     ):
         raise OpenEPWError("INVALID_AGGREGATION", "Aggregation is not valid for this variable")
     sources = _sources(store, request.artifact_ids)
+    if request.family == "annual_series" and len(sources) > 1 and any(
+        source.temporal_kind != "actual" for source in sources
+    ):
+        raise OpenEPWError("INCOMPATIBLE_SOURCES",
+                            "Annual trends require verified actual-year source identity")
     extra_encoding: dict = {}
     shape = "rows"
     if request.family in ("annual_series", "monthly_series"):
@@ -260,7 +298,9 @@ def build_view(store: ArtifactStore, request: VisualizationRequest) -> dict:
             raise OpenEPWError("INVALID_AGGREGATION", "Histogram uses observed values")
         rows, edges = _histogram_rows(sources, request.variable,
                                       request.options.get("bins", 10))
-        extra_encoding = {"x": {"field": "bin_start", "bin_edges": edges},
+        extra_encoding = {"x": {"field": "bin_start", "end_field": "bin_end",
+                                "variable": request.variable, "unit": variable["unit"],
+                                "bin_edges": edges},
                           "y": {"field": "count", "unit": "hours"}}
     elif request.family == "spatial":
         rows, extra_encoding, shape = _spatial_rows(
@@ -277,20 +317,30 @@ def build_view(store: ArtifactStore, request: VisualizationRequest) -> dict:
     else:
         missing = sum(row["missing_hours"] for row in rows)
         expected = sum(row["expected_hours"] for row in rows)
-    encodings = {"x": {"field": "period", "kind": "local_hour" if
-                       request.family == "time_series" else "local_period"},
-                 "y": {"field": "value", "variable": request.variable,
-                       "unit": variable["unit"]}, "series": ["artifact_id"]}
-    encodings.update(extra_encoding)
+    if request.family == "histogram":
+        encodings = {**extra_encoding, "series": ["artifact_id"]}
+    elif request.family == "spatial":
+        encodings = {**extra_encoding,
+                     "value": {"field": "value", "variable": request.variable,
+                               "unit": variable["unit"]}}
+    else:
+        encodings = {"x": {"field": "period", "kind": "local_hour" if
+                           request.family == "time_series" else "local_period"},
+                     "y": {"field": "value", "variable": request.variable,
+                           "unit": variable["unit"]}, "series": ["artifact_id"]}
+    transforms = [{"operation": "select", "artifact_ids": request.artifact_ids}]
+    if request.family in ("annual_series", "monthly_series", "spatial"):
+        transforms.extend([{"operation": "group", "by": ["artifact_id", "year"] +
+                           (["month"] if request.family == "monthly_series" else [])},
+                           {"operation": "aggregate", "method": operation}])
+    elif request.family == "histogram":
+        transforms.append({"operation": "bin", "edges": encodings["x"]["bin_edges"]})
     spec = {
         "schema_version": "1", "family": request.family,
         "data_ref": {"view_id": None, "shape": shape, "total_rows": len(rows),
                      "page_tool": "weather_data_page"},
         "encodings": encodings,
-        "transforms": ([{"operation": "group", "by": ["artifact_id", "year"] +
-                        (["month"] if request.family == "monthly_series" else [])},
-                        {"operation": "aggregate", "method": operation}]
-                       if request.family != "time_series" else []),
+        "transforms": transforms,
         "sources": [source.metadata() for source in sources],
         "quality": {"expected_hours": expected, "valid_hours": expected - missing,
                     "missing_hours": missing},

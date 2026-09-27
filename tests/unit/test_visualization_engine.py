@@ -85,6 +85,9 @@ def test_histogram_excludes_missing_sentinel_and_keeps_shared_bin_edges(tmp_path
         options={"bins": 2}))
     assert [row["count"] for row in result["rows"]] == [12, 11]
     assert result["specs"][0]["encodings"]["x"]["bin_edges"] == [0.0, 5.0, 10.0]
+    assert result["specs"][0]["encodings"]["x"]["unit"] == "degC"
+    assert [step["operation"] for step in result["specs"][0]["transforms"]] == [
+        "select", "bin"]
     assert result["specs"][0]["quality"]["missing_hours"] == 1
 
 
@@ -104,6 +107,8 @@ def test_spatial_grid_requires_complete_rectilinear_coordinates(tmp_path):
     assert spec["encodings"]["latitudes"] == [0.0, 1.0]
     assert spec["encodings"]["longitudes"] == [0.0, 1.0]
     assert spec["encodings"]["values"] == [[0.0, 1.0], [2.0, 3.0]]
+    assert "x" not in spec["encodings"]
+    assert spec["encodings"]["value"]["unit"] == "degC"
 
 
 def test_missing_timestamp_is_present_as_null_in_hourly_view(tmp_path):
@@ -147,3 +152,55 @@ def test_published_tmy_months_do_not_claim_an_actual_calendar_year(tmp_path):
     assert result["specs"][0]["sources"][0]["temporal_kind"] == "reference"
     assert result["rows"][0]["year"] is None
     assert result["rows"][0]["period"] == "reference-01"
+    with pytest.raises(OpenEPWError, match="INCOMPATIBLE_SOURCES"):
+        build_view(store, VisualizationRequest(
+            artifact_ids=[ref.id], family="annual_series", variable="dry_bulb"))
+
+
+def test_spatial_map_rejects_mixed_provider_products(tmp_path):
+    store = ArtifactStore(tmp_path)
+    ids = []
+    for index, provider in enumerate(("openmeteo", "noaa")):
+        bundle = f"{index + 1:032d}"
+        data = synthetic(2023, 24)
+        data.location.lon = float(index)
+        ref = saved(store, data, bundle)
+        ids.append(ref.id)
+        store.json(bundle, "plan.json",
+                   {"kind": "weather", "request": {"product": "historical"}}, "plan")
+        store.json(bundle, "manifest.json", {"outputs": [
+            {"artifact_id": ref.id, "source": {"provider": provider,
+                                                "dataset": "test"}}]}, "manifest")
+    with pytest.raises(OpenEPWError, match="INCOMPATIBLE_SOURCES"):
+        build_view(store, VisualizationRequest(
+            artifact_ids=ids, family="spatial", variable="dry_bulb", allow_partial=True))
+
+
+def test_duplicate_epw_hours_are_rejected_before_aggregation(tmp_path):
+    store = ArtifactStore(tmp_path)
+    data = synthetic(2023, 24)
+    data.data = data.data.iloc[[0, 0, *range(1, 24)]]
+    ref = saved(store, data)
+    with pytest.raises(OpenEPWError, match="INVALID_ARTIFACT"):
+        build_view(store, VisualizationRequest(
+            artifact_ids=[ref.id], family="monthly_series", variable="dry_bulb"))
+
+
+def test_corrupt_linked_plan_cannot_be_silently_downgraded_to_unverified(tmp_path):
+    store = ArtifactStore(tmp_path)
+    ref = saved(store, synthetic(2023, 24))
+    store.json("a" * 32, "plan.json", {"kind": "weather",
+                                      "request": {"product": "historical"}}, "plan")
+    (tmp_path / "jobs" / ("a" * 32) / "plan.json").write_text("corrupted")
+    with pytest.raises(OpenEPWError, match="INVALID_ARTIFACT"):
+        describe_sources(store, [ref.id])
+
+
+def test_unverified_uploaded_epws_do_not_become_an_actual_year_trend(tmp_path):
+    store = ArtifactStore(tmp_path)
+    first = saved(store, synthetic(2023, 24), "a" * 32)
+    second = saved(store, synthetic(2024, 24), "b" * 32)
+    with pytest.raises(OpenEPWError, match="INCOMPATIBLE_SOURCES"):
+        build_view(store, VisualizationRequest(
+            artifact_ids=[first.id, second.id], family="annual_series",
+            variable="dry_bulb", allow_partial=True))

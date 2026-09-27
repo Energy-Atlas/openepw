@@ -19,6 +19,7 @@ from ..jobs.worker import JobRunner
 from ..models import OpenEPWError, WeatherPlan, WeatherRequest
 from ..qc import validate
 from ..service import WeatherService
+from ..visualization import VisualizationRequest
 
 MAX_UPLOAD = 5_000_000
 MAX_RESOURCE = 10_000_000
@@ -304,6 +305,26 @@ def create_server(service=None, *, allowed_roots: list[str | Path] | None = None
                     pass
             return result
         return call(action)
+
+    @server.tool(structured_output=True)
+    def weather_visualization_capabilities() -> dict[str, Any]:
+        """List implemented and planned framework-neutral weather view families."""
+        return call(service.visualization_capabilities)
+
+    @server.tool(structured_output=True)
+    def weather_data_describe(artifact_ids: list[str]) -> dict[str, Any]:
+        """Inspect EPW variables, units, calendar and missing counts by artifact ID."""
+        return call(service.describe_weather_data, artifact_ids)
+
+    @server.tool(structured_output=True)
+    def weather_visualize(request: dict) -> dict[str, Any]:
+        """Prepare a bounded weather view and return JSON spec, summary and first page."""
+        return call(lambda: service.visualize_weather(VisualizationRequest.model_validate(request)))
+
+    @server.tool(structured_output=True)
+    def weather_data_page(view_id: str, offset: int = 0, limit: int = 100) -> dict[str, Any]:
+        """Page immutable prepared JSON; offset zero also returns the visualization spec."""
+        return call(service.page_weather_data, view_id, offset, limit)
 
     @server.tool(structured_output=True)
     def weather_export_compact(job_id: str) -> dict[str, Any]:

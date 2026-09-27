@@ -13,6 +13,7 @@ from ..epw import read_epw
 from ..models import FutureRequest, OpenEPWError, WeatherPlan, WeatherRequest
 from ..qc import validate
 from ..service import WeatherService
+from ..visualization import VisualizationRequest
 
 
 def main(argv=None):
@@ -25,12 +26,16 @@ def main(argv=None):
     sub = parser.add_subparsers(dest="command", required=True)
     for command in ("geocode", "discover", "plan", "fetch", "execute", "future",
                     "future-plan", "register-baseline", "inspect", "availability",
-                    "export"):
+                    "export", "visualize", "data-describe", "view-page"):
         cmd = sub.add_parser(command)
         cmd.add_argument(
             "input", help="Location text, request/plan JSON path, or EPW/job ID"
         )
         cmd.add_argument("--output", help="Write compact JSON result to this path")
+        if command == "view-page":
+            cmd.add_argument("--offset", type=int, default=0)
+            cmd.add_argument("--limit", type=int, default=100)
+    sub.add_parser("visualization-capabilities")
     serve = sub.add_parser("serve")
     serve.add_argument("--host", default="127.0.0.1")
     serve.add_argument("--port", type=int, default=8000)
@@ -67,6 +72,17 @@ def main(argv=None):
             return 0
         if args.command == "geocode":
             result = service.geocode(args.input)
+        elif args.command == "visualization-capabilities":
+            result = service.visualization_capabilities()
+        elif args.command == "data-describe":
+            artifact_ids = json.loads(Path(args.input).read_text(encoding="utf-8"))
+            result = service.describe_weather_data(artifact_ids)
+        elif args.command == "visualize":
+            request = VisualizationRequest.model_validate_json(
+                Path(args.input).read_text(encoding="utf-8"))
+            result = service.visualize_weather(request)
+        elif args.command == "view-page":
+            result = service.page_weather_data(args.input, args.offset, args.limit)
         elif args.command == "catalog":
             if args.catalog_command == "status":
                 view = service.catalog_store.active()
