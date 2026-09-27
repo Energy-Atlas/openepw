@@ -68,7 +68,7 @@ Node or this UI.
   hover or focus. Tick several products, or click their map tags to select or
   deselect them, then confirm; selected tags stay bright and the rest dim.
   Actual-year and typical-year products can be ticked together; each kind
-  becomes its own plan and job, shown in one job card, and one ZIP downloads
+  (and Copernicus CDS, which queues at Copernicus) becomes its own plan and job, shown in one job card, and one ZIP downloads
   all of them. With several locations each row shows `available / sites`;
   hovering it says where the product is available. Only typical-year products
   skip the year question. Years may be written as `2012`, `2012-18`,

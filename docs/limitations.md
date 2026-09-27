@@ -179,7 +179,11 @@ product; planning re-ranks with the chosen years and may pick another. Tags are
 drawn for the first 25 locations, and at continental zoom the tag stacks of
 nearby locations can overlap. OneBuilding file families are recognised from the
 published file name. A request mixing actual-year and typical-year products runs
-one job per kind; Retry reruns only the jobs with failed outputs. Relative year
+one job per kind, and Copernicus CDS products run as a job of their own because
+each CDS request (one per month, polled up to 10 minutes) waits in Copernicus's
+queue; several years at several places can take hours. Jobs run in plan order,
+one output at a time, on two workers. Retry reruns only the jobs with failed
+outputs. Relative year
 phrases are expanded by the optional model with today's date; written years
 always win, and without the model only written years and decades are read.
 
