@@ -365,13 +365,19 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
     const size = { width: host.current?.clientWidth || window.innerWidth, height: host.current?.clientHeight || window.innerHeight }
     const markers: Array<{ x: number; y: number }> = []
     const items: LabelInput[] = []
+    // While a product is chosen, only the stations it looked up keep their names.
+    const matched = productAvailability?.locations.length ? new Set(productAvailability.locations.flatMap(item =>
+      item.products.flatMap(product => product.station
+        ? [`${product.layer}:${product.station.lon.toFixed(3)}:${product.station.lat.toFixed(3)}`] : []))) : null
     const seen = new Set<string>()
     for (const feature of features) {
       const [lon, lat] = (feature.geometry as GeoJSON.Point).coordinates
       const point = sceneMap.project([lon, lat])
       markers.push(point)
       const name = String(feature.properties?.name ?? '')
-      const color = feature.layer.id.includes('noaa') ? MAP_PALETTE.OBSERVED : MAP_PALETTE.PUBLISHED
+      const layer = feature.layer.id.includes('noaa') ? 'noaa' : 'onebuilding'
+      if (matched && !matched.has(`${layer}:${lon.toFixed(3)}:${lat.toFixed(3)}`)) continue
+      const color = layer === 'noaa' ? MAP_PALETTE.OBSERVED : MAP_PALETTE.PUBLISHED
       const key = `${color}:${name}:${lon.toFixed(4)}:${lat.toFixed(4)}`
       if (!name || seen.has(key)) continue
       seen.add(key)
@@ -400,7 +406,7 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
     calloutBoxes.current = next.tags.map(tag => ({ x: tag.x - 2, y: tag.y - 2, width: tag.width + 4, height: 21 }))
     setCallouts(next)
   }
-  useEffect(() => { updateCallouts.current() }, [productAvailability, hiddenLayers, styleEpoch])
+  useEffect(() => { updateCallouts.current(); updateLabels.current() }, [productAvailability, hiddenLayers, styleEpoch])
   // Frame the locations with their looked-up stations once, so every station link is visible.
   const calloutPoints = (productAvailability?.locations ?? []).flatMap(item => [[item.lon, item.lat],
     ...item.products.flatMap(product => product.station ? [[product.station.lon, product.station.lat]] : [])])

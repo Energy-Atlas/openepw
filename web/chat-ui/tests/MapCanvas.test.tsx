@@ -140,7 +140,7 @@ describe('map canvas overlays', () => {
     const { MapCanvas } = await import('../src/map/MapCanvas')
     const catalogWithNames: CatalogMap = { ...catalog, layers: [catalog.layers[0],
       { id: 'onebuilding', kind: 'sites', label: 'OneBuilding', caveat: 'c', count: 1, evidence_dates: [], points: [] }] }
-    render(<MapCanvas catalogMap={catalogWithNames} />)
+    const { rerender } = render(<MapCanvas catalogMap={catalogWithNames} />)
     await waitFor(() => expect(fake.maps).toHaveLength(1))
     const map = fake.maps[0] as unknown as { parsed: boolean; zoom: number; rendered: unknown[]; emit(event: string): void }
     map.parsed = true
@@ -160,6 +160,14 @@ describe('map canvas overlays', () => {
     await waitFor(() => expect(document.querySelectorAll('.station-label')).toHaveLength(3))
     expect([...document.querySelectorAll('.station-label')].map(node => node.textContent)).toContain('Boston Logan')
     expect(document.querySelectorAll('.station-callouts line').length).toBeGreaterThan(0)
+    // While a product is chosen only the looked-up stations keep their names.
+    const availability = { years: [2025], years_assumed: true, omitted_locations: 0, locations: [{ index: 0,
+      lat: 199, lon: 202, products: [{ option: 'noaa-isd', layer: 'noaa', tag: 'NOAA ISD', status: 'supported' as const,
+        station: { lat: 200, lon: 200, name: 'LOGAN INTL', distance_km: 3 } }] }] }
+    rerender(<MapCanvas catalogMap={catalogWithNames} productAvailability={availability} />)
+    map.emit('idle')
+    await waitFor(() => expect([...document.querySelectorAll('.station-label')].map(node => node.textContent))
+      .toEqual(['LOGAN INTL']))
   })
 
   it('tags each product at the location and links a looked-up station with a moving dashed line', async () => {
