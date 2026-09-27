@@ -39,6 +39,11 @@ export class ChatApi {
       { revision, idempotency_key: key })
   }
 
+  back(id: string, revision: number, key: string): Promise<SessionSnapshot> {
+    return this.request(`/v1/chat/sessions/${encodeURIComponent(id)}/back`,
+      { revision, idempotency_key: key })
+  }
+
   run(id: string, revision: number, key: string): Promise<SessionSnapshot> {
     return this.request(`/v1/chat/sessions/${encodeURIComponent(id)}/run`,
       { revision, idempotency_key: key })

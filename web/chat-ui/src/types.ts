@@ -10,7 +10,7 @@ export type ChatCard = {
   revision: number
   kind: 'choice' | 'text' | 'map' | 'plan_review'
   prompt: string
-  options?: Array<{ id: string; label: string }>
+  options?: Array<{ id: string; label: string; detail?: string }>
   data?: Record<string, unknown>
 }
 

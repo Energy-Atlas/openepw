@@ -8,6 +8,7 @@ import { availabilityFeatures } from './evidence'
 import { MAP_PALETTE, SHAPE_IMAGES, catalogFeatures, catalogLayerSpecs, layerSwatch, legendRows } from './catalogLayers'
 import { utcSceneTime } from './sun'
 import { THEME } from '../theme'
+import { TickIcon } from '../icons'
 import type { WeatherGeography } from '../geography'
 import type { AvailabilitySummary, CatalogLayer, CatalogMap } from '../types'
 
@@ -345,7 +346,11 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
       if (source) source.setData(data)
       else {
         sceneMap.addSource(id, { type: 'geojson', data })
-        for (const spec of catalogLayerSpecs(layer, id)) sceneMap.addLayer(spec, before)
+        for (const spec of catalogLayerSpecs(layer, id)) {
+          // A land-only fill sits under the basemap water layer, which then masks the oceans.
+          const under = (spec as { metadata?: Record<string, unknown> }).metadata?.['openepw:before']
+          sceneMap.addLayer(spec, typeof under === 'string' && sceneMap.getLayer(under) ? under : before)
+        }
       }
       const visibility = hiddenLayers.includes(layer.id) ? 'none' : 'visible'
       for (const suffix of ['fill', 'line', 'point'])
@@ -404,7 +409,8 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
       <span className="option-number" aria-hidden="true">{pending.number}</span>
       <strong>{pending.name}</strong>
       <code>{pending.lat.toFixed(4)}, {pending.lon.toFixed(4)}</code>
-      <button type="button" className="popup-confirm" onClick={() => pending.id && onConfirmCandidate?.(pending.id)}>Confirm</button>
+      <button type="button" className="popup-confirm" aria-label="Confirm" title="Confirm"
+        onClick={() => pending.id && onConfirmCandidate?.(pending.id)}><TickIcon /></button>
     </div>}
     <div className="map-status" role="status">{status}
       {status.includes('unavailable') || status.includes('could not load') ?

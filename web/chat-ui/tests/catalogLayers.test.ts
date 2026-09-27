@@ -77,4 +77,14 @@ describe('OpenEPW map palette', () => {
     expect(layerSwatch(layer('onebuilding', 'sites')).shape).toBe('square')
     expect(layerSwatch(layer('nsrdb', 'cells')).color).toBe(MAP_PALETTE.NSRDB)
   })
+
+  it('shows the ERA5-Land extent as a land-only fill beneath basemap water', async () => {
+    const { catalogFeatures, catalogLayerSpecs } = await import('../src/map/catalogLayers')
+    const land = { ...layer('era5-land', 'extent'), bounds: [-180, -89, 180, 89] as [number, number, number, number] }
+    const specs = catalogLayerSpecs(land, 'x') as Array<{ type: string; metadata?: Record<string, unknown> }>
+    const fill = specs.find(spec => spec.type === 'fill')
+    expect(fill?.metadata?.['openepw:before']).toBe('water')
+    expect(catalogFeatures(land).features.map(feature => feature.geometry.type)).toEqual(['MultiLineString', 'Polygon'])
+    expect(catalogLayerSpecs(layer('era5', 'extent'), 'y').map(spec => spec.type)).toEqual(['line'])
+  })
 })

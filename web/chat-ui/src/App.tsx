@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import Markdown from 'react-markdown'
 import './app.css'
 import { ChatApi } from './api'
 import { MapCanvas } from './map/MapCanvas'
@@ -6,6 +7,7 @@ import { geojsonGeography } from './geography'
 import { mergeJobManifests } from './jobs'
 import { ViewPanel } from './views/ViewPanel'
 import { transcriptItems } from './transcript'
+import { BackIcon, DownloadIcon, EnterIcon, RestartIcon, TickIcon, ToolIcon } from './icons'
 import type { AvailabilitySummary, CatalogMap, JobManifest, JobSnapshot, SessionSnapshot } from './types'
 
 const sessionKey = 'openepw-chat-session'
@@ -32,7 +34,6 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
   const acting = useRef(false)
   const [pendingTurns, setPendingTurns] = useState<Array<{ id: string; text: string }>>([])
   const [queuePaused, setQueuePaused] = useState(false)
-  const [serverQueue, setServerQueue] = useState<{ queue_id: string; state: string; position: number } | null>(null)
   const [error, setError] = useState('')
   const [openViews, setOpenViews] = useState<string[]>([])
   const [viewFamily, setViewFamily] = useState('monthly_series')
@@ -128,9 +129,16 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
   }
 
   function submitTurn(current: SessionSnapshot, text: string, key: string) {
-    setServerQueue(null)
-    return api.sendTurn(current.id, text, current.revision, key, setServerQueue)
-      .finally(() => setServerQueue(null))
+    return api.sendTurn(current.id, text, current.revision, key)
+  }
+
+  function startOver() {
+    // A new session; the previous one and its jobs and artifacts stay on the server.
+    sessionStorage.removeItem(sessionKey)
+    setSession(null); setJob(null); setManifest(null); setPastJobs([]); setPastManifests({})
+    setOpenViews([]); setMessage(''); setPendingTurns([]); setQueuePaused(false)
+    setTyping(false); setPendingChoice(null); setError('')
+    setSessionAttempt(value => value + 1)
   }
 
   useEffect(() => {
@@ -244,6 +252,8 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
   const confirmChoice = (id: string) => {
     if (card?.kind === 'choice') void act(current => api.answer(current.id, card.revision, id, randomKey()))
   }
+  const jobActive = Boolean(job && ['queued', 'running'].includes(job.state))
+  const placeholder = placeholderFor(card ?? null, typing, locationChoice)
   const coordinatesFor = (row: JobManifest['batch_rows'][number]) => {
     const point = row.metadata?.requested_location
     return point ? ` · ${point.lat.toFixed(4)}, ${point.lon.toFixed(4)}` : ''
@@ -291,37 +301,9 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
             className={`chat-event ${item.event.data?.role === 'user' ? 'user-event' : ''} assistant-event`}>
             {item.event.type === 'message' && <span className="event-kind">{item.event.data?.role === 'user' ? 'You' : 'Agent'}</span>}
             {item.event.type === 'plan' && <span className="event-kind">Plan review</span>}
-            {item.event.text && <p>{item.event.text}</p>}
+            {item.event.text && (item.event.data?.role === 'user' ? <p>{item.event.text}</p>
+              : <div className="md"><Markdown>{item.event.text}</Markdown></div>)}
           </article>)}
-        {card && <section className="action-card" aria-label="Current question">
-          <span className="event-kind">Agent</span>
-          <h2>{card.prompt}</h2>
-          {card.kind === 'plan_review' && <div>
-            {Boolean(session?.facts.location) && <p>Location: {String((session!.facts.location as Record<string, unknown>).name ??
-              `${(session!.facts.location as Record<string, unknown>).lat}, ${(session!.facts.location as Record<string, unknown>).lon}`)}</p>}
-            {Boolean(session?.facts.geography) && <p>Geography: {Array.isArray(session!.facts.geography) ? `${session!.facts.geography.length} points` : 'area'}</p>}
-            {Array.isArray(session?.facts.resolved_points) && <details><summary>
-              {session.facts.resolved_points.length} service-accepted points (show coordinates)</summary>
-              <ol className="point-list">{(session.facts.resolved_points as Array<{lat:number;lon:number}>).map((point, i) =>
-                <li key={i}>{point.lat.toFixed(5)}, {point.lon.toFixed(5)}</li>)}</ol></details>}
-            <p>Product: {String(session?.facts.product ?? 'unresolved')}{Array.isArray(session?.facts.years) ? ` · ${(session.facts.years as number[]).join(', ')}` : ''}</p>
-            {Array.isArray(card.data?.outputs) && <p>{card.data.outputs.length} planned outputs · {String(card.data.plan_hash).slice(0, 12)}…</p>}
-            {Array.isArray(card.data?.batch_rows) && (card.data.batch_rows as Array<Record<string, unknown>>).map((row, i) =>
-              <p key={i} className="plan-row">{String(row.period_start ?? 'reference')} · {String(row.status)} · {String((row.dataset_selection as Record<string, unknown>)?.provider ?? 'unknown source')}</p>)}
-            {Array.isArray(card.data?.warnings) && (card.data.warnings as string[]).map((warning, i) =>
-              <p className="warning" key={i}>{warning}</p>)}
-            {evidence && <details><summary>Catalog evidence and alternatives</summary>
-              <p>Eligibility means the source can be tried; retrieved quality still needs QC.</p>
-              <p>Checked {evidence.checked_at}.
-                Snapshot: {evidence.snapshots.map(item => item.generation_id).join(', ') || 'bundled contracts'}.</p>
-              {evidence.options.map((option, i) => <p className="availability-option" key={i}>
-                {option.provider}/{option.dataset} · {option.status} · access {option.access} ·
-                {' '}evidence {option.evidence_bases.join(', ') || 'unknown'}
-                {option.unknowns.length ? ` · unknown: ${option.unknowns.join('; ')}` : ''}
-              </p>)}
-            </details>}
-          </div>}
-        </section>}
         {job && <section className="job-card" aria-label="Current weather job">
           <h2>Weather job</h2>
           <p>{job.state} · {processed}/{job.total} outputs · {job.failed} failed</p>
@@ -335,7 +317,8 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
               {' '}{row.period_start?.slice(0, 4) ?? 'reference'} · {row.dataset_selection?.provider ?? 'source unknown'} · {row.status}
               {row.issue_codes?.length ? ` (${row.issue_codes.join(', ')})` : ''}</span>
             {row.artifact_id && mergedJobs.artifactIds.includes(row.artifact_id) &&
-              <button type="button" onClick={() => download(row.artifact_id!)}>Download EPW</button>}
+              <button type="button" className="icon-button" aria-label="Download EPW" title="Download EPW"
+                onClick={() => download(row.artifact_id!)}><DownloadIcon /></button>}
           </div>)}
           {mergedJobs.complete && <p>Simulation ready: {chain.every(item => item.manifest?.simulation_ready) ? 'yes' : 'no or requires QC review'}</p>}
           {mergedJobs.artifactIds.length > 0 && mergedJobs.complete && <button type="button"
@@ -371,12 +354,6 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
             </button>)}
           </details>}
         </section>}
-        {busy && <p role="status">Working…</p>}
-        {serverQueue?.state === 'queued' && <section className="pending-turns" aria-label="Server waiting message">
-          <p>Waiting on server · position {serverQueue.position}</p>
-          <button type="button" onClick={() => void api.withdrawTurn(serverQueue.queue_id)
-            .catch(() => setError('Waiting message could not be withdrawn.'))}>Withdraw waiting message</button>
-        </section>}
         {pendingTurns.length > 0 && <section className="pending-turns" aria-label="Waiting messages">
           <h2>Waiting messages</h2>{queuePaused && <button type="button" onClick={() =>
             setQueuePaused(false)}>Retry waiting message</button>}{pendingTurns.map(turn => <div key={turn.id}>
@@ -386,61 +363,110 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
             }}>Withdraw</button>
           </div>)}
         </section>}
+      </div>
+      <div className="chat-dock">
+        <div className="dock-tools">
+          <button type="button" className="icon-button" aria-label="Go back one step" title="Go back one step"
+            disabled={!session || busy || !session.events.length}
+            onClick={() => void act(current => api.back(current.id, current.revision, randomKey()))}><BackIcon /></button>
+          <button type="button" className="icon-button" aria-label="Start over" title="Start over"
+            disabled={busy} onClick={startOver}><RestartIcon /></button>
+        </div>
+      {card && <section className="action-card" aria-label="Current question">
+        <span className="event-kind">Agent</span>
+        <h2>{card.prompt}</h2>
+        {card.kind === 'plan_review' && <div>
+          {Boolean(session?.facts.location) && <p>Location: {String((session!.facts.location as Record<string, unknown>).name ??
+            `${(session!.facts.location as Record<string, unknown>).lat}, ${(session!.facts.location as Record<string, unknown>).lon}`)}</p>}
+          {Boolean(session?.facts.geography) && <p>Geography: {Array.isArray(session!.facts.geography) ? `${session!.facts.geography.length} points` : 'area'}</p>}
+          {Array.isArray(session?.facts.resolved_points) && <details><summary>
+            {session.facts.resolved_points.length} service-accepted points (show coordinates)</summary>
+            <ol className="point-list">{(session.facts.resolved_points as Array<{lat:number;lon:number}>).map((point, i) =>
+              <li key={i}>{point.lat.toFixed(5)}, {point.lon.toFixed(5)}</li>)}</ol></details>}
+          <p>Product: {String(session?.facts.product ?? 'unresolved')}{Array.isArray(session?.facts.years) ? ` · ${(session.facts.years as number[]).join(', ')}` : ''}</p>
+          {Array.isArray(card.data?.outputs) && <p>{card.data.outputs.length} planned outputs · {String(card.data.plan_hash).slice(0, 12)}…</p>}
+          {typeof card.data?.summary === 'string' ? <div className="md"><Markdown>{card.data.summary}</Markdown></div>
+            : Array.isArray(card.data?.batch_rows) && (card.data.batch_rows as Array<Record<string, unknown>>).map((row, i) =>
+              <p key={i} className="plan-row">{String(row.period_start ?? 'reference')} · {String(row.status)} · {String((row.dataset_selection as Record<string, unknown>)?.provider ?? 'unknown source')}</p>)}
+          {Array.isArray(card.data?.warnings) && (card.data.warnings as string[]).map((warning, i) =>
+            <p className="warning" key={i}>{warning}</p>)}
+          {evidence && <details><summary>Catalog evidence and alternatives</summary>
+            <p>Eligibility means the source can be tried; retrieved quality still needs QC.</p>
+            <p>Checked {evidence.checked_at}.
+              Snapshot: {evidence.snapshots.map(item => item.generation_id).join(', ') || 'bundled contracts'}.</p>
+            {evidence.options.map((option, i) => <p className="availability-option" key={i}>
+              {option.provider}/{option.dataset} · {option.status} · access {option.access} ·
+              {' '}evidence {option.evidence_bases.join(', ') || 'unknown'}
+              {option.unknowns.length ? ` · unknown: ${option.unknowns.join('; ')}` : ''}
+            </p>)}
+          </details>}
+        </div>}
+      </section>}
         {error && <p className="error" role="alert">{error}</p>}
         {!session && error && <button type="button" onClick={() => setSessionAttempt(value => value + 1)}>
           Reconnect to local service</button>}
+        {busy && <p className="dock-status" role="status" aria-label="Working">Working…</p>}
+        {(busy && replyMode !== 'text') || (jobActive && !card) ? null : <>
+    <form className="composer" onSubmit={send} aria-label="Reply">
+      {replyMode === 'text' ? <>
+        <label className="visually-hidden" htmlFor="chat-message">Message</label>
+        <div className="composer-row">
+          {ATTACH_AND_MAP_INPUT && <>
+            {attachControl('.epw,.geojson,.json,text/plain,application/geo+json')}
+            <button className="map-input-trigger" type="button" aria-label="Pick geography on map" aria-pressed={pickMode}
+              onClick={() => setPickMode(current => !current)}>Map</button>
+          </>}
+          <input id="chat-message" name="message" placeholder={placeholder}
+            value={message} onChange={event => setMessage(event.target.value)} />
+          {typing && card?.kind === 'choice'
+            ? <button type="submit" className="icon-submit" aria-label="Confirm" title="Confirm" disabled={!session}><TickIcon /></button>
+            : <button type="submit" className="icon-submit" aria-label="Send" title="Send" disabled={!session}><EnterIcon /></button>}
+        </div>
+        {typing && backLabel && <button className="reply-alt" type="button" onClick={() => setTyping(false)}>{backLabel}</button>}
+      </> : <div className="reply-options" role="group" aria-label="Reply options">
+        {card?.kind === 'choice' && <>
+          {card.options?.map((option, index) => locationChoice
+            ? <button key={option.id} disabled={busy} type="button" className="numbered-option"
+              aria-pressed={pendingChoice === option.id} onClick={() => setPendingChoice(option.id)}>
+              <span className="option-number" aria-hidden="true">{index + 1}</span>{option.label}</button>
+            : <button key={option.id} disabled={busy} type="button" onClick={() => confirmChoice(option.id)}>
+              {option.label}{option.detail && <span className="option-detail">{option.detail}</span>}</button>)}
+          <button className="reply-alt" type="button" onClick={() => setTyping(true)}>Other — type an answer</button>
+          {locationChoice && pendingChoice && <button className="reply-primary icon-confirm" type="button" disabled={busy}
+            aria-label="Confirm" title="Confirm" onClick={() => confirmChoice(pendingChoice)}><TickIcon /></button>}
+        </>}
+        {card?.kind === 'plan_review' && <>
+          {!card.data?.plan_hash ? <button className="reply-primary" type="button" disabled={busy}
+            onClick={() => void act(current => api.prepare(current.id, current.revision, randomKey()))}>
+            Assess and review plan</button> : <button className="reply-primary" type="button" disabled={busy}
+            onClick={() => void act(current => api.run(current.id, current.revision, randomKey()))}>
+            Run reviewed plan</button>}
+          <button className="reply-alt" type="button" onClick={() => setTyping(true)}>Type a correction</button>
+        </>}
+        {card?.kind === 'map' && <>
+          <button type="button" aria-pressed={pickMode} onClick={() => setPickMode(true)}>Choose on map</button>
+          {attachControl('.geojson,.json,application/geo+json')}
+          <button className="reply-alt" type="button" onClick={() => setTyping(true)}>Type coordinates</button>
+        </>}
+      </div>}
+    </form>
+        </>}
       </div>
-      <form className="composer" onSubmit={send} aria-label="Reply">
-        {replyMode === 'text' ? <>
-          <label className="visually-hidden" htmlFor="chat-message">Message</label>
-          <div className="composer-row">
-            {ATTACH_AND_MAP_INPUT && <>
-              {attachControl('.epw,.geojson,.json,text/plain,application/geo+json')}
-              <button className="map-input-trigger" type="button" aria-label="Pick geography on map" aria-pressed={pickMode}
-                onClick={() => setPickMode(current => !current)}>Map</button>
-            </>}
-            <input id="chat-message" name="message" placeholder="Place, years, and weather type"
-              value={message} onChange={event => setMessage(event.target.value)} />
-            <button type="submit" disabled={!session}>{typing && card?.kind === 'choice' ? 'Confirm' : 'Send'}</button>
-          </div>
-          {typing && backLabel && <button className="reply-alt" type="button" onClick={() => setTyping(false)}>{backLabel}</button>}
-        </> : <div className="reply-options" role="group" aria-label="Reply options">
-          {card?.kind === 'choice' && <>
-            {card.options?.map((option, index) => locationChoice
-              ? <button key={option.id} disabled={busy} type="button" className="numbered-option"
-                aria-pressed={pendingChoice === option.id} onClick={() => setPendingChoice(option.id)}>
-                <span className="option-number" aria-hidden="true">{index + 1}</span>{option.label}</button>
-              : <button key={option.id} disabled={busy} type="button" onClick={() => confirmChoice(option.id)}>
-                {option.label}</button>)}
-            <button className="reply-alt" type="button" onClick={() => setTyping(true)}>Other — type an answer</button>
-            {locationChoice && pendingChoice && <button className="reply-primary" type="button" disabled={busy}
-              onClick={() => confirmChoice(pendingChoice)}>Confirm</button>}
-          </>}
-          {card?.kind === 'plan_review' && <>
-            {!card.data?.plan_hash ? <button className="reply-primary" type="button" disabled={busy}
-              onClick={() => void act(current => api.prepare(current.id, current.revision, randomKey()))}>
-              Assess and review plan</button> : <button className="reply-primary" type="button" disabled={busy}
-              onClick={() => void act(current => api.run(current.id, current.revision, randomKey()))}>
-              Run reviewed plan</button>}
-            <button className="reply-alt" type="button" onClick={() => setTyping(true)}>Type a correction</button>
-          </>}
-          {card?.kind === 'map' && <>
-            <button type="button" aria-pressed={pickMode} onClick={() => setPickMode(true)}>Choose on map</button>
-            {attachControl('.geojson,.json,application/geo+json')}
-            <button className="reply-alt" type="button" onClick={() => setTyping(true)}>Type coordinates</button>
-          </>}
-        </div>}
-      </form>
     </aside>
     {openViews.map((id, index) => <ViewPanel key={id} id={id} index={index} api={api}
       onClose={() => setOpenViews(current => current.filter(item => item !== id))} />)}
   </main>
 }
 
-/** Wrench glyph for tool-call lines; the viewBox is cropped square around the path so it centres. */
-function ToolIcon() {
-  return <svg viewBox="2.08 4.72 16.4 16.4" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.1"
-    strokeLinecap="round" strokeLinejoin="round">
-    <path d="M14.7 6.3a4 4 0 0 0-5.4 5.1L3.6 17.1a1.8 1.8 0 0 0 2.5 2.5l5.7-5.7a4 4 0 0 0 5.1-5.4l-2.4 2.4-2.3-.4-.4-2.3z" />
-  </svg>
+function placeholderFor(card: SessionSnapshot['active_card'], typing: boolean, locationChoice: boolean): string {
+  if (!card) return 'Place, years, and weather type'
+  if (card.kind === 'plan_review') return 'Describe what to change'
+  if (card.kind === 'text') return /year/i.test(card.prompt) ? 'e.g. 2018 or 2016–2018'
+    : /where/i.test(card.prompt) ? 'Place, coordinates, or a list of places' : 'Type your answer'
+  if (card.kind === 'choice' && typing) {
+    const field = (card.data as { field?: string } | undefined)?.field
+    return field === 'region' ? 'Country, state or province' : field === 'definition' ? 'Minimum population, e.g. 100000'
+      : field === 'limit' ? 'How many, e.g. 25' : locationChoice ? 'Another place name or coordinates' : 'Type another answer'
+  }
+  return 'Type your answer'
 }

@@ -82,9 +82,11 @@ export function catalogFeatures(layer: CatalogLayer, years: number[] = []): Feat
     if (layer.polygon?.length) feature({ type: 'Polygon', coordinates: [layer.polygon] })
     for (const probe of layer.probes ?? []) feature({ type: 'Point', coordinates: probe }, { probe: true })
   } else if (layer.bounds) {
-    // A documented extent only carries its latitude limits; draw those as rims, not a globe-wide fill.
+    // A documented extent carries its latitude limits as rims. ERA5-Land also gets a fill that
+    // the map places beneath basemap water, so it reads as land cells only.
     const [west, south, east, north] = layer.bounds
     feature({ type: 'MultiLineString', coordinates: [[[west, south], [east, south]], [[west, north], [east, north]]] })
+    if (layer.id === 'era5-land') feature(box(layer.bounds))
   }
   return { type: 'FeatureCollection', features }
 }
@@ -127,6 +129,12 @@ export function catalogLayerSpecs(layer: CatalogLayer, id: string): AddLayerObje
       paint: { 'circle-radius': 4.5, 'circle-color': THEME.PAPER, 'circle-stroke-color': MAP_PALETTE.REGION,
         'circle-stroke-width': 1.6 } },
   ]
-  return [{ id: `${id}-line`, type: 'line', source: id,
-    paint: { 'line-color': MAP_PALETTE.EXTENT, 'line-width': 1, 'line-dasharray': [3, 3] } }]
+  const rims: AddLayerObject = { id: `${id}-line`, type: 'line', source: id,
+    filter: ['==', ['geometry-type'], 'LineString'],
+    paint: { 'line-color': MAP_PALETTE.EXTENT, 'line-width': 1, 'line-dasharray': [3, 3] } }
+  if (layer.id !== 'era5-land') return [rims]
+  return [{ id: `${id}-fill`, type: 'fill', source: id, filter: polygons,
+    metadata: { 'openepw:before': 'water' },
+    paint: { 'fill-color': MAP_PALETTE.EXTENT, 'fill-opacity': ['interpolate', ['linear'], ['zoom'], 3, .28, 9, .1] } },
+  rims]
 }
