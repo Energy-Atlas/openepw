@@ -68,7 +68,7 @@ button { cursor: pointer; }
 .tool-icon { flex: none; display: grid; place-items: center; width: 1.8rem; height: 1.8rem; border-radius: 50%; background: color-mix(in srgb, var(--oe-paper) 97%, transparent); box-shadow: var(--oe-shadow); }
 .tool-icon svg { display: block; }
 /* A paper halo keeps the line legible straight over the map without a bubble. */
-.tool-text { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-weight: 500; --o: var(--oe-paper); text-shadow: 1px 0 0 var(--o), -1px 0 0 var(--o), 0 1px 0 var(--o), 0 -1px 0 var(--o), 1px 1px 0 var(--o), -1px -1px 0 var(--o), 1px -1px 0 var(--o), -1px 1px 0 var(--o); }
+.tool-text { min-width: 0; overflow: hidden; padding: 2px 3px; line-height: 1.3; white-space: nowrap; text-overflow: ellipsis; font-weight: 500; --o: var(--oe-paper); text-shadow: 1px 0 0 var(--o), -1px 0 0 var(--o), 0 1px 0 var(--o), 0 -1px 0 var(--o), 1px 1px 0 var(--o), -1px -1px 0 var(--o), 1px -1px 0 var(--o), -1px 1px 0 var(--o); }
 .tool-result { color: var(--oe-muted); font-weight: 400; }
 .event-kind { color: var(--oe-muted); font: 500 .66rem 'IBM Plex Mono', monospace; }
 .action-card, .job-card, .view-controls { width: 92%; }

@@ -18,6 +18,18 @@ export const THEME = {
   RAMP: ['#e1e1e1', '#c4c4c4', '#7e7e7e', '#545454', '#1f1f1f'],
 } as const
 
+/**
+ * Weather-source layers are the one place colour returns (owner decision 2026-09-27): the
+ * plan's teal, deep ocean and slate on the grey basemap. Lighter variants mix toward paper.
+ */
+export const SOURCE_COLORS = {
+  OBSERVED: '#237e8b',        // NOAA station records
+  PUBLISHED: '#173849',       // OneBuilding published files
+  PUBLISHED_FAINT: '#84959e', // approximate OneBuilding positions (50% toward paper)
+  REGION: '#647782',          // NSRDB grid and PVGIS region
+  EXTENT: '#88969e',          // ERA5 documented extent rims (25% toward paper)
+} as const
+
 export const MUTED_TEXT = THEME.LADDER[6]   // 6.8:1 on paper
 
 /** Series colours by importance, darkest first; at most four, then use labels. */

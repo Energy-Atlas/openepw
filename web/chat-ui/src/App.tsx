@@ -416,7 +416,7 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
 
 /** Wrench glyph for tool-call lines; the viewBox is cropped square around the path so it centres. */
 function ToolIcon() {
-  return <svg viewBox="2.08 4.72 16.4 16.4" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.6"
+  return <svg viewBox="2.08 4.72 16.4 16.4" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.1"
     strokeLinecap="round" strokeLinejoin="round">
     <path d="M14.7 6.3a4 4 0 0 0-5.4 5.1L3.6 17.1a1.8 1.8 0 0 0 2.5 2.5l5.7-5.7a4 4 0 0 0 5.1-5.4l-2.4 2.4-2.3-.4-.4-2.3z" />
   </svg>

@@ -76,8 +76,9 @@ temporarily unavailable in this UI.
 All browser colours come from `src/theme.ts` and the matching `--oe-*`
 variables in `src/app.css`, including the recoloured Positron basemap and the
 charts. The UI is true greyscale: neutral greys from paper to ink on a dark
-grey backdrop, separated by lightness and shape. Amber is the only other colour and is
-reserved for the user's own selection. Add colours there
+grey backdrop, separated by lightness and shape. Weather-source layers keep
+their colours (`SOURCE_COLORS`: teal NOAA, deep-ocean OneBuilding, slate
+regions and extents), and amber is reserved for the user's own selection. Add colours there
 rather than inline; `tests/theme.test.ts` rejects stylesheet colours outside
 the theme.
 

@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { basemapPaint } from '../src/map/scene'
-import { BASEMAP, SERIES, THEME } from '../src/theme'
+import { BASEMAP, SERIES, SOURCE_COLORS, THEME } from '../src/theme'
 import { MAP_PALETTE } from '../src/map/catalogLayers'
 
 // One hue: paper, ink and the ladder mixed between them. Amber is the only other colour.
@@ -41,15 +41,18 @@ describe('one OpenEPW colour system', () => {
     for (const value of Object.values(BASEMAP)) expect(allowed.has(value.toLowerCase())).toBe(true)
   })
 
-  it('keeps basemap, map features, charts and backdrop on the single ink ladder', () => {
-    expect('TEAL' in THEME || 'SLATE' in THEME).toBe(false)
+  it('keeps basemap, charts, chat and backdrop grey while weather sources carry colour', () => {
     const inMono = (value: string) => mono.has(value.toLowerCase())
     expect([...THEME.RAMP, ...SERIES, ...Object.values(BASEMAP)].every(inMono)).toBe(true)
-    const { HERO, HERO_LINE, ...features } = MAP_PALETTE
+    const { HERO, HERO_LINE, CANDIDATE, ...sources } = MAP_PALETTE
     expect([HERO, HERO_LINE]).toEqual([THEME.AMBER, THEME.AMBER_LINE])
-    expect(Object.values(features).every(inMono)).toBe(true)
+    expect(inMono(CANDIDATE)).toBe(true)
+    const sourceHues = new Set(Object.values(SOURCE_COLORS).map(value => value.toLowerCase()))
+    for (const value of Object.values(sources)) expect(sourceHues.has(value.toLowerCase()) || inMono(value)).toBe(true)
+    expect(new Set([MAP_PALETTE.OBSERVED, MAP_PALETTE.PUBLISHED, MAP_PALETTE.REGION]).size).toBe(3)
+    expect([MAP_PALETTE.OBSERVED, MAP_PALETTE.PUBLISHED, MAP_PALETTE.REGION].some(inMono)).toBe(false)
     const css = readFileSync('src/app.css', 'utf8')
-    expect(css).not.toMatch(/--oe-teal|--oe-slate/)
+    for (const value of sourceHues) expect(css.toLowerCase()).not.toContain(value)
   })
 
   it('is true greyscale with a dark grey backdrop', () => {

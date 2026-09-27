@@ -1,21 +1,21 @@
 import type { Feature, FeatureCollection, Geometry } from 'geojson'
 import type { AddLayerObject, ExpressionSpecification, FilterSpecification } from 'maplibre-gl'
 import type { CatalogLayer } from '../types'
-import { THEME } from '../theme'
+import { SOURCE_COLORS, THEME } from '../theme'
 
 /**
- * Map roles on the single-hue OpenEPW ladder. Amber is the only accent and belongs to what
- * the user chose; catalog layers separate by shape and lightness.
+ * Map roles. The basemap and chrome are grey; weather-source layers carry the source colours,
+ * separated by hue and shape. Amber belongs only to what the user chose.
  */
 export const MAP_PALETTE = {
   HERO: THEME.AMBER,          // selected location, drawn/accepted geography
   HERO_LINE: THEME.AMBER_LINE,
   CANDIDATE: THEME.INK,       // geocoder candidate rings
-  OBSERVED: THEME.INK,        // NOAA station records: darkest dots
-  PUBLISHED: THEME.LADDER[5], // OneBuilding published files: mid-ladder dots
-  PUBLISHED_FAINT: THEME.LADDER[4],
-  REGION: THEME.LADDER[5],    // NSRDB grid shade and PVGIS outline
-  EXTENT: THEME.LADDER[5],
+  OBSERVED: SOURCE_COLORS.OBSERVED,   // NOAA station records: teal dots
+  PUBLISHED: SOURCE_COLORS.PUBLISHED, // OneBuilding published files: deep-ocean dots
+  PUBLISHED_FAINT: SOURCE_COLORS.PUBLISHED_FAINT,
+  REGION: SOURCE_COLORS.REGION,       // NSRDB grid shade and PVGIS outline
+  EXTENT: SOURCE_COLORS.EXTENT,
 } as const
 
 const swatches: Record<CatalogLayer['kind'], { color: string; shape: 'dot' | 'fill' | 'outline' | 'dash' }> = {
