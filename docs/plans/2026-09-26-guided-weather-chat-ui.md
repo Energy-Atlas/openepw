@@ -49,6 +49,8 @@ one-source picker. The owner then asked for one colour system across the
 whole UI and chose a **monochrome** deep-ocean ladder for basemap, map
 features, backdrop and chat, with amber kept only for the user's selection.
 This supersedes the teal/slate roles in the design-direction palette below.
+The owner then asked for a truly neutral greyscale and a dark grey
+background; the deep-ocean tint was dropped for equal-RGB greys.
 
 - Open directly on the full-canvas map. There is **one** chat experience: no
   Guided/Text mode choice, splash selector, or mode switch. Free text and
