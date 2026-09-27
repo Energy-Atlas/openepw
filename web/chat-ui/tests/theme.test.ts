@@ -5,7 +5,7 @@ import { BASEMAP, SERIES, THEME } from '../src/theme'
 import { MAP_PALETTE } from '../src/map/catalogLayers'
 
 // One hue: paper, ink and the ladder mixed between them. Amber is the only other colour.
-const mono = new Set<string>([THEME.PAPER, THEME.INK, ...THEME.LADDER].map(value => value.toLowerCase()))
+const mono = new Set<string>([THEME.PAPER, THEME.INK, THEME.BACKDROP, ...THEME.LADDER].map(value => value.toLowerCase()))
 const allowed = new Set<string>([...mono, THEME.AMBER, THEME.AMBER_LINE])
 
 describe('one OpenEPW colour system', () => {
@@ -50,5 +50,14 @@ describe('one OpenEPW colour system', () => {
     expect(Object.values(features).every(inMono)).toBe(true)
     const css = readFileSync('src/app.css', 'utf8')
     expect(css).not.toMatch(/--oe-teal|--oe-slate/)
+  })
+
+  it('is true greyscale with a dark grey backdrop', () => {
+    const grey = (value: string) => value[1] + value[2] === value[3] + value[4] && value[3] + value[4] === value[5] + value[6]
+    expect([...mono].every(grey)).toBe(true)
+    expect(BASEMAP.space).toBe(THEME.BACKDROP)
+    const css = readFileSync('src/app.css', 'utf8')
+    expect(css).toMatch(/--oe-backdrop:\s*#333333/)
+    expect(css).toMatch(/\.map-canvas \{[^}]*background: var\(--oe-backdrop\)/)
   })
 })

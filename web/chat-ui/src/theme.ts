@@ -1,22 +1,24 @@
 /**
  * The single OpenEPW colour system for the whole browser UI: chat, legend, panels, charts,
- * catalog layers, basemap and backdrop. Monochrome by owner decision (2026-09-27): one
- * deep-ocean hue from pale cloud to ink, separated by lightness and shape. Solar amber is
+ * catalog layers, basemap and backdrop. True greyscale by owner decision (2026-09-27):
+ * neutral greys from paper to ink on a dark grey backdrop, separated by lightness and
+ * shape. Solar amber is
  * the only other colour and marks the user's own selection. app.css mirrors these values
  * as CSS variables and a test keeps the two in sync.
  */
 export const THEME = {
-  PAPER: '#f3f7f7',           // pale cloud: page, bubbles, basemap roads
-  INK: '#173849',             // deep ocean: text, strong marks, actions, globe backdrop
+  PAPER: '#f2f2f2',           // light grey: page, bubbles, basemap roads
+  INK: '#1f1f1f',             // near black: text, strong marks, actions
+  BACKDROP: '#333333',        // dark grey: page and space around the globe
   AMBER: '#d69b36',           // the single accent: the user's own selection
-  AMBER_LINE: '#9d7d3c',      // amber mixed 30% toward ink for 3:1 lines on paper
+  AMBER_LINE: '#9f762f',      // amber mixed 30% toward ink for 3:1 lines on paper
   // Paper→ink ladder (4, 8, 14, 22, 35, 55, 75%): land, water, rules, secondary marks, muted text.
-  LADDER: ['#eaeff0', '#e1e8e9', '#d4dcdf', '#c3cdd1', '#a6b4ba', '#7a8e97', '#4e6874'],
+  LADDER: ['#eaeaea', '#e1e1e1', '#d4d4d4', '#c4c4c4', '#a8a8a8', '#7e7e7e', '#545454'],
   // Ordinal ramp for value encodings: light to dark along the same ladder.
-  RAMP: ['#e1e8e9', '#c3cdd1', '#7a8e97', '#4e6874', '#173849'],
+  RAMP: ['#e1e1e1', '#c4c4c4', '#7e7e7e', '#545454', '#1f1f1f'],
 } as const
 
-export const MUTED_TEXT = THEME.LADDER[6]   // 5.5:1 on paper
+export const MUTED_TEXT = THEME.LADDER[6]   // 6.8:1 on paper
 
 /** Series colours by importance, darkest first; at most four, then use labels. */
 export const SERIES = [THEME.INK, THEME.LADDER[5], THEME.LADDER[4], THEME.LADDER[3]] as const
@@ -36,5 +38,5 @@ export const BASEMAP = {
   label: THEME.INK,
   labelMinor: MUTED_TEXT,
   halo: THEME.PAPER,
-  space: THEME.INK,
+  space: THEME.BACKDROP,
 } as const

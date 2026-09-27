@@ -1,21 +1,21 @@
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
 
 :root {
-  --oe-paper: #f3f7f7; --oe-ink: #173849; --oe-amber: #d69b36;
-  --oe-amber-line: #9d7d3c;
-  --oe-l0: #eaeff0; --oe-l1: #e1e8e9; --oe-l2: #d4dcdf; --oe-l3: #c3cdd1; --oe-l4: #a6b4ba;
-  --oe-l5: #7a8e97; --oe-l6: #4e6874;
+  --oe-paper: #f2f2f2; --oe-ink: #1f1f1f; --oe-backdrop: #333333; --oe-amber: #d69b36;
+  --oe-amber-line: #9f762f;
+  --oe-l0: #eaeaea; --oe-l1: #e1e1e1; --oe-l2: #d4d4d4; --oe-l3: #c4c4c4; --oe-l4: #a8a8a8;
+  --oe-l5: #7e7e7e; --oe-l6: #545454;
   --oe-muted: var(--oe-l6); --oe-tint: var(--oe-l1);
   --oe-shadow: 0 1px 2px color-mix(in srgb, var(--oe-ink) 16%, transparent),
     0 2px 8px color-mix(in srgb, var(--oe-ink) 10%, transparent);
 }
-:root { font-family: 'IBM Plex Sans', sans-serif; color: var(--oe-ink); background: var(--oe-ink); }
+:root { font-family: 'IBM Plex Sans', sans-serif; color: var(--oe-ink); background: var(--oe-backdrop); }
 * { box-sizing: border-box; }
 html, body, #root { width: 100%; height: 100%; margin: 0; }
 button, input { font: inherit; }
 button { cursor: pointer; }
 .workspace { position: relative; width: 100vw; height: 100dvh; overflow: hidden; }
-.map-canvas { position: absolute; inset: 0; background: var(--oe-ink); }
+.map-canvas { position: absolute; inset: 0; background: var(--oe-backdrop); }
 .map-canvas > .map-engine { position: absolute; inset: 0; }
 .pick-toolbar { position: absolute; z-index: 3; left: 1rem; top: 1rem; display: flex; flex-wrap: wrap; gap: .4rem; width: min(370px, calc(100vw - 2rem)); padding: .65rem; border: 1px solid var(--oe-l3); border-radius: 12px; background: color-mix(in srgb, var(--oe-paper) 97%, transparent); box-shadow: 0 10px 30px color-mix(in srgb, var(--oe-ink) 16%, transparent); }
 .pick-toolbar strong { flex-basis: 100%; font-size: .78rem; }
