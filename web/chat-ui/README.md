@@ -34,6 +34,9 @@ Node or this UI.
   answer`; a plan review shows `Assess and review plan` or `Run reviewed plan`
   with `Type a correction`; a map question shows `Choose on map`, GeoJSON
   attachment and `Type coordinates`.
+- Attachments (`+`) and map geography input (`Map`) are hidden for now
+  (`ATTACH_AND_MAP_INPUT` in `src/App.tsx`); the notes below describe them
+  for when they return.
 - Enter a place, coordinates, years, and product in chat. Select `Map` beside
   the message field to open the point/box/polygon input toolbar; it disappears
   when the input is accepted or closed. Use `+` in the composer to attach an

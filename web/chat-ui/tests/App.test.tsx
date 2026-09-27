@@ -30,21 +30,12 @@ describe('map-first shell', () => {
     expect(screen.queryByText('Weather across places and years')).not.toBeInTheDocument()
   })
 
-  it('shows geography tools only while map input is active', () => {
+  it('hides attachment and map input for now', () => {
     render(<App />)
-    expect(screen.queryByRole('button', { name: 'Choose point' })).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Pick geography on map' }))
-    expect(screen.getByRole('toolbar', { name: 'Pick geography' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Choose point' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Close map input' }))
+    expect(screen.getByRole('textbox', { name: 'Message' })).toBeInTheDocument()
+    expect(screen.queryByLabelText('Attach EPW or GeoJSON')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Pick geography on map' })).not.toBeInTheDocument()
     expect(screen.queryByRole('toolbar', { name: 'Pick geography' })).not.toBeInTheDocument()
-  })
-
-  it('uses one chat attachment control instead of header upload buttons', () => {
-    render(<App />)
-    expect(screen.getByLabelText('Attach EPW or GeoJSON')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Upload EPW for analysis' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Upload GeoJSON area or points' })).not.toBeInTheDocument()
   })
 
   it('lists every Stage 1 catalog layer with a toggle before a request is assessed', async () => {
@@ -140,14 +131,11 @@ describe('map-first shell', () => {
     expect(screen.getByRole('textbox', { name: 'Message' })).toBeInTheDocument()
   })
 
-  it('offers map input for a map card with typed coordinates as an alternative', async () => {
+  it('answers a map card with typed text while map input is disabled', async () => {
     render(<App api={apiFor(cardState({ id: 'where', revision: 1, kind: 'map', prompt: 'Where?' }))} />)
-    await screen.findByRole('button', { name: 'Choose on map' })
-    expect(screen.queryByRole('textbox', { name: 'Message' })).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Choose on map' }))
-    expect(screen.getByRole('toolbar', { name: 'Pick geography' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Type coordinates' }))
-    expect(screen.getByRole('textbox', { name: 'Message' })).toBeInTheDocument()
+    expect(await screen.findByRole('textbox', { name: 'Message' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Choose on map' })).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Attach EPW or GeoJSON')).not.toBeInTheDocument()
   })
 
   it('queues and withdraws a second message while a turn is running', async () => {

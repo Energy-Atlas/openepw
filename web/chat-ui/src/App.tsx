@@ -9,6 +9,8 @@ import { transcriptItems } from './transcript'
 import type { AvailabilitySummary, CatalogMap, JobManifest, JobSnapshot, SessionSnapshot } from './types'
 
 const sessionKey = 'openepw-chat-session'
+// Owner decision 2026-09-27: attachments (+) and map geography input stay hidden for now.
+const ATTACH_AND_MAP_INPUT = false
 let openingSession: Promise<SessionSnapshot> | null = null
 
 function randomKey(): string { return crypto.randomUUID() }
@@ -212,7 +214,8 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
 
   const card = session?.active_card
   // The composer follows the current card: free text only when the session asks for it or the user opts to type.
-  const replyMode = !card || card.kind === 'text' || typing ? 'text' : card.kind
+  const replyMode = !card || card.kind === 'text' || typing || (card.kind === 'map' && !ATTACH_AND_MAP_INPUT)
+    ? 'text' : card.kind
   const backLabel = card?.kind === 'choice' ? 'Back to options' : card?.kind === 'plan_review' ? 'Back to review'
     : card?.kind === 'map' ? 'Back to map input' : null
   const visibleEvents = (session?.events ?? []).filter((event, index, events) =>
@@ -391,9 +394,11 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
         {replyMode === 'text' ? <>
           <label className="visually-hidden" htmlFor="chat-message">Message</label>
           <div className="composer-row">
-            {attachControl('.epw,.geojson,.json,text/plain,application/geo+json')}
-            <button className="map-input-trigger" type="button" aria-label="Pick geography on map" aria-pressed={pickMode}
-              onClick={() => setPickMode(current => !current)}>Map</button>
+            {ATTACH_AND_MAP_INPUT && <>
+              {attachControl('.epw,.geojson,.json,text/plain,application/geo+json')}
+              <button className="map-input-trigger" type="button" aria-label="Pick geography on map" aria-pressed={pickMode}
+                onClick={() => setPickMode(current => !current)}>Map</button>
+            </>}
             <input id="chat-message" name="message" placeholder="Place, years, and weather type"
               value={message} onChange={event => setMessage(event.target.value)} />
             <button type="submit" disabled={!session}>{typing && card?.kind === 'choice' ? 'Confirm' : 'Send'}</button>
