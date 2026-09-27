@@ -124,6 +124,32 @@ def test_missing_timestamp_is_present_as_null_in_hourly_view(tmp_path):
     assert result["rows"][5]["missing_hours"] == 1
 
 
+def test_hourly_row_limit_is_checked_before_rows_are_expanded(tmp_path, monkeypatch):
+    store = ArtifactStore(tmp_path)
+    refs = [saved(store, synthetic(2023, 8000), bundle=f"{index + 1:032d}")
+            for index in range(3)]
+
+    def unexpected_expansion(*_args):
+        pytest.fail("Hourly rows were expanded before the size check")
+
+    monkeypatch.setattr("openepw.visualization.engine._hourly_rows", unexpected_expansion)
+    with pytest.raises(OpenEPWError, match="RESOURCE_LIMIT"):
+        build_view(store, VisualizationRequest(
+            artifact_ids=[ref.id for ref in refs], family="time_series",
+            variable="dry_bulb"))
+
+
+def test_histogram_coverage_counts_absent_epw_hours(tmp_path):
+    store = ArtifactStore(tmp_path)
+    data = synthetic(2023, 24)
+    data.data = data.data.drop(data.data.index[5])
+    ref = saved(store, data)
+    result = build_view(store, VisualizationRequest(
+        artifact_ids=[ref.id], family="histogram", variable="dry_bulb"))
+    assert result["specs"][0]["quality"] == {
+        "expected_hours": 24, "valid_hours": 23, "missing_hours": 1}
+
+
 def test_declared_noleap_year_keeps_8760_expected_hours(tmp_path):
     store = ArtifactStore(tmp_path)
     data = without_feb_29(synthetic(2024, 8784))
@@ -176,6 +202,29 @@ def test_spatial_map_rejects_mixed_provider_products(tmp_path):
             artifact_ids=ids, family="spatial", variable="dry_bulb", allow_partial=True))
 
 
+def test_irregular_sites_remain_points_without_interpolated_matrix(tmp_path):
+    store = ArtifactStore(tmp_path)
+    ids = []
+    for index, (lat, lon) in enumerate(((0, 0), (0, 1), (1, 0))):
+        data = synthetic(2023, 24)
+        data.location.lat, data.location.lon = lat, lon
+        ids.append(saved(store, data, f"{index + 1:032d}").id)
+    result = build_view(store, VisualizationRequest(
+        artifact_ids=ids, family="spatial", variable="dry_bulb", allow_partial=True))
+    assert result["specs"][0]["data_ref"]["shape"] == "points"
+    assert "values" not in result["specs"][0]["encodings"]
+    assert len(result["rows"]) == 3
+
+
+def test_direction_cannot_use_an_arithmetic_annual_mean(tmp_path):
+    store = ArtifactStore(tmp_path)
+    ref = saved(store, synthetic(2023, 24))
+    with pytest.raises(OpenEPWError, match="INVALID_AGGREGATION"):
+        build_view(store, VisualizationRequest(
+            artifact_ids=[ref.id], family="annual_series",
+            variable="wind_direction", allow_partial=True))
+
+
 def test_duplicate_epw_hours_are_rejected_before_aggregation(tmp_path):
     store = ArtifactStore(tmp_path)
     data = synthetic(2023, 24)
@@ -204,3 +253,38 @@ def test_unverified_uploaded_epws_do_not_become_an_actual_year_trend(tmp_path):
         build_view(store, VisualizationRequest(
             artifact_ids=[first.id, second.id], family="annual_series",
             variable="dry_bulb", allow_partial=True))
+
+
+def test_spec_keeps_selected_variable_lineage_and_resolved_source_location(tmp_path):
+    store = ArtifactStore(tmp_path)
+    ref = saved(store, synthetic(2023, 24))
+    store.json("a" * 32, "plan.json",
+               {"kind": "weather", "request": {"product": "historical"}}, "plan")
+    store.json("a" * 32, "manifest.json", {"outputs": [{
+        "artifact_id": ref.id,
+        "source": {"provider": "openmeteo", "dataset": "era5",
+                   "location": {"lat": 42.5, "lon": -76.5}},
+        "lineage": {"dry_bulb": {"source": {"provider": "openmeteo",
+                                                 "dataset": "era5"},
+                                   "transforms": ["hourly mean"]}},
+    }]}, "manifest")
+    result = build_view(store, VisualizationRequest(
+        artifact_ids=[ref.id], family="monthly_series", variable="dry_bulb"))
+    source = result["specs"][0]["sources"][0]
+    assert source["provider"] == "openmeteo"
+    assert source["resolved_location"] == {"lat": 42.5, "lon": -76.5}
+    assert source["lineage"]["transforms"] == ["hourly mean"]
+
+
+def test_nonfinite_epw_numeric_value_fails_with_typed_error(tmp_path):
+    store = ArtifactStore(tmp_path)
+    body = epw_bytes(synthetic(2023, 24)).decode()
+    lines = body.splitlines()
+    fields = lines[8].split(",")
+    fields[6] = "inf"
+    lines[8] = ",".join(fields)
+    ref = store.write("a" * 32, "weather.epw", "\n".join(lines).encode(),
+                      "weather", "application/vnd.energyplus.epw")
+    with pytest.raises(OpenEPWError, match="INVALID_ARTIFACT"):
+        build_view(store, VisualizationRequest(
+            artifact_ids=[ref.id], family="time_series", variable="dry_bulb"))

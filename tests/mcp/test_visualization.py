@@ -31,7 +31,7 @@ def test_mcp_exposes_capabilities_and_a_paged_monthly_spec(tmp_path):
     assert {"weather_visualization_capabilities", "weather_data_describe",
             "weather_visualize", "weather_data_page"} <= names
     capabilities = call(server, "weather_visualization_capabilities")
-    assert any(item == {"family": "wind_rose", "status": "planned"}
+    assert any(item["family"] == "wind_rose" and item["status"] == "planned"
                for item in capabilities["families"])
     described = call(server, "weather_data_describe", artifact_ids=[ref.id])
     assert described["sources"][0]["variables"]["dry_bulb"]["unit"] == "degC"

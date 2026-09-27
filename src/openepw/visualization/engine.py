@@ -13,7 +13,7 @@ from ..dataset import WeatherDataset, local_interval_starts
 from ..epw import read_epw
 from ..models import OpenEPWError
 from .catalog import INITIAL_FAMILIES, VARIABLES
-from .models import VisualizationRequest
+from .models import VisualizationRequest, VisualizationSpec
 
 
 @dataclass
@@ -25,6 +25,8 @@ class Source:
     product: str | None
     provider: str | None = None
     dataset_name: str | None = None
+    resolved_location: dict | None = None
+    lineage: dict | None = None
 
     @property
     def local(self) -> pd.DatetimeIndex:
@@ -39,9 +41,9 @@ class Source:
             return list(set(labels))
         return sorted(set(int(year) for year in self.local.year))
 
-    def metadata(self) -> dict:
+    def metadata(self, variable: str | None = None) -> dict:
         dataset = self.dataset
-        return {
+        result = {
             "artifact_id": self.artifact_id,
             "sha256": self.sha256,
             "temporal_kind": self.temporal_kind,
@@ -53,6 +55,11 @@ class Source:
             "rows": len(dataset.data),
             "location": dataset.location.model_dump(mode="json"),
         }
+        if self.resolved_location is not None:
+            result["resolved_location"] = self.resolved_location
+        if variable and self.lineage and variable in self.lineage:
+            result["lineage"] = self.lineage[variable]
+        return result
 
 
 def _load(store: ArtifactStore, artifact_id: str) -> Source:
@@ -63,6 +70,8 @@ def _load(store: ArtifactStore, artifact_id: str) -> Source:
     product = None
     provider = None
     dataset_name = None
+    resolved_location = None
+    lineage = None
     if ref.role == "weather":
         bundle_dir = store.root / Path(ref.path).parent
         try:
@@ -98,15 +107,19 @@ def _load(store: ArtifactStore, artifact_id: str) -> Source:
                 native_source = entry.get("source", {}) if entry else {}
                 provider = native_source.get("provider")
                 dataset_name = native_source.get("dataset")
+                resolved_location = native_source.get("location")
+                lineage = entry.get("lineage") if entry else None
             except (OSError, ValueError, TypeError, AttributeError):
                 raise OpenEPWError("INVALID_ARTIFACT", "Linked manifest is unreadable") from None
     dataset = read_epw(path)
     if not dataset.data.index.is_unique or not dataset.data.index.is_monotonic_increasing:
         raise OpenEPWError("INVALID_ARTIFACT", "EPW intervals are duplicate or unordered")
+    if np.isinf(dataset.data.select_dtypes(include=[np.number]).to_numpy(dtype=float)).any():
+        raise OpenEPWError("INVALID_ARTIFACT", "EPW contains nonfinite numeric values")
     if dataset.calendar == "synthetic":
         temporal_kind = "reference" if temporal_kind == "reference" else "unverified"
     return Source(ref.id, ref.sha256, dataset, temporal_kind, product,
-                  provider, dataset_name)
+                  provider, dataset_name, resolved_location, lineage)
 
 
 def _sources(store: ArtifactStore, artifact_ids: list[str]) -> list[Source]:
@@ -121,9 +134,10 @@ def describe_sources(store: ArtifactStore, artifact_ids: list[str]) -> dict:
     descriptions = []
     for source in _sources(store, artifact_ids):
         detail = source.metadata()
+        expected = len(_expected_local(source))
         detail["variables"] = {
             variable: {"unit": entry["unit"],
-                       "missing_hours": int(source.dataset.data[variable].isna().sum()),
+                       "missing_hours": expected - int(source.dataset.data[variable].notna().sum()),
                        "valid_hours": int(source.dataset.data[variable].notna().sum())}
             for variable, entry in VARIABLES.items()
             if variable in source.dataset.data
@@ -149,6 +163,17 @@ def _aggregate(values: pd.Series, expected: int, operation: str,
     result = {"mean": observed.mean, "sum": observed.sum,
               "min": observed.min, "max": observed.max}[operation]()
     return float(result), valid, "complete" if valid == expected else "partial"
+
+
+def _expected_local(source: Source) -> pd.DatetimeIndex:
+    local = source.local
+    span = int((local[-1] - local[0]) / pd.Timedelta(hours=1)) + 1
+    if span > 20_000:
+        raise OpenEPWError("RESOURCE_LIMIT", "Source period exceeds 20,000 local hours")
+    expected = pd.date_range(local[0], local[-1], freq="h")
+    if source.dataset.calendar == "noleap":
+        expected = expected[~((expected.month == 2) & (expected.day == 29))]
+    return expected
 
 
 def _period_rows(source: Source, variable: str, family: str, operation: str,
@@ -187,17 +212,13 @@ def _period_rows(source: Source, variable: str, family: str, operation: str,
 
 def _hourly_rows(source: Source, variable: str) -> list[dict]:
     local = source.local
-    expected = pd.date_range(local[0], local[-1], freq="h")
-    if source.dataset.calendar == "noleap":
-        expected = expected[~((expected.month == 2) & (expected.day == 29))]
-    if len(expected) > 20_000:
-        raise OpenEPWError("RESOURCE_LIMIT", "Hourly view exceeds 20,000 rows")
+    expected = _expected_local(source)
     values = pd.Series(source.dataset.data[variable].to_numpy(), index=local).reindex(expected)
     rows = []
     for local_time, value in values.items():
         valid = not pd.isna(value)
         rows.append({"artifact_id": source.artifact_id,
-                     "period": local_time.isoformat(),
+                     "period": pd.Timestamp(str(local_time)).isoformat(),
                      "value": float(value) if valid else None,
                      "expected_hours": 1, "valid_hours": int(valid),
                      "missing_hours": int(not valid),
@@ -215,7 +236,7 @@ def _histogram_rows(sources: list[Source], variable: str, bins: int) -> tuple[li
     rows = []
     for source, values in zip(sources, samples):
         counts, _ = np.histogram(values, bins=edges)
-        expected = len(source.dataset.data)
+        expected = len(_expected_local(source))
         for index, count in enumerate(counts):
             rows.append({"artifact_id": source.artifact_id,
                          "bin_start": float(edges[index]),
@@ -290,9 +311,9 @@ def build_view(store: ArtifactStore, request: VisualizationRequest) -> dict:
         rows = [row for source in sources for row in _period_rows(
             source, request.variable, request.family, operation, request.allow_partial)]
     elif request.family == "time_series":
-        rows = [row for source in sources for row in _hourly_rows(source, request.variable)]
-        if len(rows) > 20_000:
+        if sum(len(_expected_local(source)) for source in sources) > 20_000:
             raise OpenEPWError("RESOURCE_LIMIT", "Hourly view exceeds 20,000 rows")
+        rows = [row for source in sources for row in _hourly_rows(source, request.variable)]
     elif request.family == "histogram":
         if request.aggregation is not None:
             raise OpenEPWError("INVALID_AGGREGATION", "Histogram uses observed values")
@@ -311,7 +332,7 @@ def build_view(store: ArtifactStore, request: VisualizationRequest) -> dict:
     if not rows:
         raise OpenEPWError("NO_MATCHING_DATA", "No weather intervals are present")
     if request.family == "histogram":
-        expected = sum(len(source.dataset.data) for source in sources)
+        expected = sum(len(_expected_local(source)) for source in sources)
         missing = expected - sum(int(source.dataset.data[request.variable].notna().sum())
                                  for source in sources)
     else:
@@ -341,12 +362,13 @@ def build_view(store: ArtifactStore, request: VisualizationRequest) -> dict:
                      "page_tool": "weather_data_page"},
         "encodings": encodings,
         "transforms": transforms,
-        "sources": [source.metadata() for source in sources],
+        "sources": [source.metadata(request.variable) for source in sources],
         "quality": {"expected_hours": expected, "valid_hours": expected - missing,
                     "missing_hours": missing},
         "summary": (f"{len(rows)} {request.family} points; {missing} missing hourly "
                     f"values across {len(sources)} source EPWs."),
     }
     return {"schema_version": "1", "request": request.model_dump(mode="json"),
-            "specs": [spec], "rows": rows, "total_rows": len(rows),
+            "specs": [VisualizationSpec.model_validate(spec).model_dump(mode="json")],
+            "rows": rows, "total_rows": len(rows),
             "warnings": ([{"code": "INCOMPLETE_PERIOD"}] if missing else [])}

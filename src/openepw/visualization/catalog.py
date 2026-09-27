@@ -34,7 +34,9 @@ def capabilities() -> dict:
         "schema_version": "1",
         "families": [
             {"family": family, "status": "implemented" if family in INITIAL_FAMILIES
-             else "planned"} for family in FAMILIES
+             else "planned", "supported_options": ["bins"] if family == "histogram" else [],
+             "accepts_aggregation": family in ("annual_series", "monthly_series", "spatial")}
+            for family in FAMILIES
         ],
         "variables": VARIABLES,
         "limits": {"source_epws": 100, "hourly_rows": 20_000,

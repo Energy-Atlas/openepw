@@ -1,6 +1,6 @@
 """Versioned declarative request accepted by the shared visualization service."""
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import Field, model_validator
 
@@ -31,4 +31,40 @@ class VisualizationRequest(Model):
         bins = self.options.get("bins")
         if bins is not None and not 2 <= bins <= 50:
             raise ValueError("Histogram bins must be between 2 and 50")
+        return self
+
+
+class VisualizationDataRef(Model):
+    view_id: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
+    shape: Literal["rows", "points", "matrix"]
+    total_rows: int = Field(ge=0)
+    page_tool: Literal["weather_data_page"] = "weather_data_page"
+
+
+class VisualizationQuality(Model):
+    expected_hours: int = Field(ge=0)
+    valid_hours: int = Field(ge=0)
+    missing_hours: int = Field(ge=0)
+
+    @model_validator(mode="after")
+    def valid(self):
+        if self.valid_hours + self.missing_hours != self.expected_hours:
+            raise ValueError("Coverage counts must sum to expected hours")
+        return self
+
+
+class VisualizationSpec(Model):
+    schema_version: Literal["1"] = "1"
+    family: str
+    data_ref: VisualizationDataRef
+    encodings: dict[str, Any]
+    transforms: list[dict[str, Any]]
+    sources: list[dict[str, Any]]
+    quality: VisualizationQuality
+    summary: str
+
+    @model_validator(mode="after")
+    def valid(self):
+        if self.family not in FAMILIES:
+            raise ValueError("Unknown visualization family")
         return self
