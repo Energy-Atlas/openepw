@@ -210,7 +210,7 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
         paint: { 'circle-radius': ['case', ['get', 'selected'], 7, 6],
           'circle-color': MAP_PALETTE.HERO, 'circle-opacity': ['case', ['get', 'selected'], 1, 0],
           'circle-stroke-width': 2,
-          'circle-stroke-color': MAP_PALETTE.PUBLISHED } })
+          'circle-stroke-color': MAP_PALETTE.CANDIDATE } })
     } else {
       (sceneMap.getSource('openepw-candidates') as import('maplibre-gl').GeoJSONSource).setData({
         type: 'FeatureCollection', features,
@@ -263,7 +263,7 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
         filter: ['==', ['geometry-type'], 'Polygon'], paint: { 'line-color': MAP_PALETTE.HERO_LINE, 'line-width': 2 } })
       sceneMap.addLayer({ id: 'openepw-selection-points', type: 'circle', source: 'openepw-selection',
         filter: ['==', ['geometry-type'], 'Point'], paint: { 'circle-radius': 4, 'circle-color': MAP_PALETTE.HERO,
-          'circle-stroke-width': 1, 'circle-stroke-color': MAP_PALETTE.PUBLISHED } })
+          'circle-stroke-width': 1, 'circle-stroke-color': MAP_PALETTE.CANDIDATE } })
     } else {
       (sceneMap.getSource('openepw-selection') as import('maplibre-gl').GeoJSONSource).setData(data)
     }

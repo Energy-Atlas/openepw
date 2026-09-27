@@ -1,26 +1,25 @@
 /**
  * The single OpenEPW colour system for the whole browser UI: chat, legend, panels, charts,
- * catalog layers and the basemap. Hues come from the approved plan palette (deep ocean,
- * pale cloud, teal, solar amber, slate). Every other value is a mix of those; no new hues.
- * app.css mirrors these values as CSS variables and a test keeps the two in sync.
+ * catalog layers, basemap and backdrop. Monochrome by owner decision (2026-09-27): one
+ * deep-ocean hue from pale cloud to ink, separated by lightness and shape. Solar amber is
+ * the only other colour and marks the user's own selection. app.css mirrors these values
+ * as CSS variables and a test keeps the two in sync.
  */
 export const THEME = {
   PAPER: '#f3f7f7',           // pale cloud: page, bubbles, basemap roads
-  INK: '#173849',             // deep ocean: text, strong marks, globe backdrop
-  TEAL: '#237e8b',            // observation: NOAA records, primary actions
+  INK: '#173849',             // deep ocean: text, strong marks, actions, globe backdrop
   AMBER: '#d69b36',           // the single accent: the user's own selection
   AMBER_LINE: '#9d7d3c',      // amber mixed 30% toward ink for 3:1 lines on paper
-  SLATE: '#647782',           // unknown/region: graphics only (4.3:1, not small text)
-  // Paper→ink ladder (4, 8, 14, 22, 35, 55, 75%): land, water, rules, muted text.
+  // Paper→ink ladder (4, 8, 14, 22, 35, 55, 75%): land, water, rules, secondary marks, muted text.
   LADDER: ['#eaeff0', '#e1e8e9', '#d4dcdf', '#c3cdd1', '#a6b4ba', '#7a8e97', '#4e6874'],
-  // Ordinal ramp for value encodings: paper-teal mixes, teal, teal-ink mix, ink.
-  RAMP: ['#cee1e4', '#95c1c6', '#237e8b', '#1d5b6a', '#173849'],
+  // Ordinal ramp for value encodings: light to dark along the same ladder.
+  RAMP: ['#e1e8e9', '#c3cdd1', '#7a8e97', '#4e6874', '#173849'],
 } as const
 
 export const MUTED_TEXT = THEME.LADDER[6]   // 5.5:1 on paper
 
-/** Series colours for unordered categories, most important first; at most four. */
-export const SERIES = [THEME.TEAL, THEME.INK, THEME.SLATE, THEME.LADDER[4]] as const
+/** Series colours by importance, darkest first; at most four, then use labels. */
+export const SERIES = [THEME.INK, THEME.LADDER[5], THEME.LADDER[4], THEME.LADDER[3]] as const
 
 /** Basemap roles derived from the theme; the only basemap appearance the UI uses. */
 export const BASEMAP = {

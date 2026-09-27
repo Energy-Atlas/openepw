@@ -4,16 +4,17 @@ import type { CatalogLayer } from '../types'
 import { THEME } from '../theme'
 
 /**
- * One map palette built from the approved OpenEPW tokens. Amber is the single accent and
- * belongs only to what the user chose; catalog layers separate by shape first, hue second.
+ * Map roles on the single-hue OpenEPW ladder. Amber is the only accent and belongs to what
+ * the user chose; catalog layers separate by shape and lightness.
  */
 export const MAP_PALETTE = {
   HERO: THEME.AMBER,          // selected location, drawn/accepted geography
   HERO_LINE: THEME.AMBER_LINE,
-  OBSERVED: THEME.TEAL,       // NOAA station records (measured actual years)
-  PUBLISHED: THEME.INK,       // OneBuilding published files; geocoder candidate rings
+  CANDIDATE: THEME.INK,       // geocoder candidate rings
+  OBSERVED: THEME.INK,        // NOAA station records: darkest dots
+  PUBLISHED: THEME.LADDER[5], // OneBuilding published files: mid-ladder dots
   PUBLISHED_FAINT: THEME.LADDER[4],
-  REGION: THEME.SLATE,        // NSRDB grid and PVGIS region
+  REGION: THEME.LADDER[5],    // NSRDB grid shade and PVGIS outline
   EXTENT: THEME.LADDER[5],
 } as const
 

@@ -1,10 +1,12 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { basemapPaint } from '../src/map/scene'
-import { BASEMAP, THEME } from '../src/theme'
+import { BASEMAP, SERIES, THEME } from '../src/theme'
+import { MAP_PALETTE } from '../src/map/catalogLayers'
 
-const allowed = new Set<string>([THEME.PAPER, THEME.INK, THEME.TEAL, THEME.AMBER, THEME.AMBER_LINE, THEME.SLATE,
-  ...THEME.LADDER, ...THEME.RAMP].map(value => value.toLowerCase()))
+// One hue: paper, ink and the ladder mixed between them. Amber is the only other colour.
+const mono = new Set<string>([THEME.PAPER, THEME.INK, ...THEME.LADDER].map(value => value.toLowerCase()))
+const allowed = new Set<string>([...mono, THEME.AMBER, THEME.AMBER_LINE])
 
 describe('one OpenEPW colour system', () => {
   it('mirrors every theme token as a CSS variable', () => {
@@ -13,10 +15,8 @@ describe('one OpenEPW colour system', () => {
       .map(([, name, value]) => [name, value.toLowerCase()]))
     expect(vars['oe-paper']).toBe(THEME.PAPER)
     expect(vars['oe-ink']).toBe(THEME.INK)
-    expect(vars['oe-teal']).toBe(THEME.TEAL)
     expect(vars['oe-amber']).toBe(THEME.AMBER)
     expect(vars['oe-amber-line']).toBe(THEME.AMBER_LINE)
-    expect(vars['oe-slate']).toBe(THEME.SLATE)
     THEME.LADDER.forEach((value, index) => expect(vars[`oe-l${index}`]).toBe(value))
   })
 
@@ -39,5 +39,16 @@ describe('one OpenEPW colour system', () => {
     expect(paint('symbol', 'water_name_point_label', 'water_name'))
       .toEqual({ 'text-color': BASEMAP.labelMinor, 'text-halo-color': BASEMAP.halo })
     for (const value of Object.values(BASEMAP)) expect(allowed.has(value.toLowerCase())).toBe(true)
+  })
+
+  it('keeps basemap, map features, charts and backdrop on the single ink ladder', () => {
+    expect('TEAL' in THEME || 'SLATE' in THEME).toBe(false)
+    const inMono = (value: string) => mono.has(value.toLowerCase())
+    expect([...THEME.RAMP, ...SERIES, ...Object.values(BASEMAP)].every(inMono)).toBe(true)
+    const { HERO, HERO_LINE, ...features } = MAP_PALETTE
+    expect([HERO, HERO_LINE]).toEqual([THEME.AMBER, THEME.AMBER_LINE])
+    expect(Object.values(features).every(inMono)).toBe(true)
+    const css = readFileSync('src/app.css', 'utf8')
+    expect(css).not.toMatch(/--oe-teal|--oe-slate/)
   })
 })

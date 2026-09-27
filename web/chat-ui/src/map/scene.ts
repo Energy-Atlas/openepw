@@ -27,7 +27,7 @@ const styleNames: Record<Appearance, string> = {
 export const appearanceTokens: Record<Appearance, { background: string; water: string;
   road: string; building: string; accent: string }> = {
   light: { background: BASEMAP.land, water: BASEMAP.water, road: BASEMAP.road,
-    building: BASEMAP.buildingExtrusion, accent: THEME.TEAL },
+    building: BASEMAP.buildingExtrusion, accent: THEME.INK },
   dark: { background: '#15313d', water: '#122d3b', road: '#566d75', building: '#718991', accent: '#59b9c1' },
   monochrome: { background: '#ecefee', water: '#c9d0d0', road: '#fcfdfb', building: '#7e898a', accent: '#576d70' },
   landform: { background: '#e4e9e1', water: '#8fb6c2', road: '#e5e9dc', building: '#869780', accent: '#b27831' },
@@ -105,8 +105,8 @@ export function applyLighting(map: MapLibreMap, settings: SceneSettings): void {
   const intensity = Math.min(0.9, settings.lightIntensity / 200) * daylight * (1 - settings.haze / 400)
   map.setLight({ anchor: 'map', position: [1.5, sun.azimuthDeg, Math.max(0, 90 - sun.elevationDeg)],
     color: THEME.PAPER, intensity })
-  map.setSky({ 'sky-color': daylight > 0 ? THEME.RAMP[1] : THEME.INK,
-    'horizon-color': daylight > 0 ? THEME.LADDER[1] : THEME.RAMP[3],
+  map.setSky({ 'sky-color': daylight > 0 ? THEME.LADDER[3] : THEME.INK,
+    'horizon-color': daylight > 0 ? THEME.LADDER[1] : THEME.LADDER[6],
     'fog-color': THEME.LADDER[2], 'sky-horizon-blend': 0.35 + settings.diffusion / 500,
     'horizon-fog-blend': 0.4, 'fog-ground-blend': settings.haze / 200,
     'atmosphere-blend': 0.55 })
