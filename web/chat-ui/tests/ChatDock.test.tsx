@@ -138,11 +138,14 @@ describe('chat dock and controls', () => {
     await waitFor(() => expect(approveLocation).toHaveBeenCalledWith('test', 6, expect.any(String)))
   })
 
-  it('ticks several products of one kind in a dialog with info popups instead of descriptions', async () => {
+  it('ticks actual and typical products together and counts availability across the sites', async () => {
     const card: Card = { id: 'p', revision: 8, kind: 'choice', prompt: 'Which weather product?', options: [
-      { id: 'era5-openmeteo', label: 'ERA5 actual year · Open-Meteo', detail: '25 km grid', group: 'actual' },
-      { id: 'nsrdb-actual', label: 'NSRDB actual year · GOES v4', detail: '4 km grid', group: 'actual' },
-      { id: 'onebuilding:TMYx.2009-2023', label: 'OneBuilding TMYx.2009-2023', detail: 'station file', group: 'typical' }],
+      { id: 'era5-openmeteo', label: 'ERA5 actual year · Open-Meteo', detail: '25 km grid', group: 'actual',
+        available: 3, unverified: 0, sites: 3 },
+      { id: 'nsrdb-actual', label: 'NSRDB actual year · GOES v4', detail: '4 km grid', group: 'actual',
+        available: 1, unverified: 2, sites: 3 },
+      { id: 'onebuilding:TMYx.2009-2023', label: 'OneBuilding TMYx.2009-2023', detail: 'station file', group: 'typical',
+        available: 2, unverified: 0, sites: 3 }],
     data: { field: 'product', availability: { years: [2025], years_assumed: true, omitted_locations: 0, locations: [
       { index: 0, lat: 42.4, lon: -76.5, products: [] }] } } }
     const chooseProducts = vi.fn(async () => ({ ...state(card), revision: 9, active_card: null }))
@@ -151,25 +154,39 @@ describe('chat dock and controls', () => {
     expect(within(dialog).getByText('Actual year')).toBeInTheDocument()
     expect(within(dialog).getByText('Typical year')).toBeInTheDocument()
     expect(within(dialog).queryByText('4 km grid')).not.toBeInTheDocument()          // no descriptions inline
+    const nsrdbRow = within(dialog).getByRole('checkbox', { name: 'NSRDB actual year · GOES v4' }).closest('.product-row')!
     const info = within(dialog).getByRole('button', { name: 'About NSRDB actual year · GOES v4' })
+    expect(nsrdbRow.querySelector('label')!.nextElementSibling).toBe(info)            // right after the name
     fireEvent.mouseEnter(info)
     expect(screen.getByRole('tooltip')).toHaveTextContent('4 km grid')
     fireEvent.mouseLeave(info)
-    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
+    const count = within(nsrdbRow as HTMLElement).getByText('1 / 3')
+    expect(nsrdbRow.lastElementChild).toBe(count)                                      // right-aligned column
+    fireEvent.mouseEnter(count)
+    expect(screen.getByRole('tooltip')).toHaveTextContent(
+      'NSRDB actual year · GOES v4 is available at 1 of the 3 sites selected. 2 more are not verified')
+    fireEvent.mouseLeave(count)
     expect(screen.getByLabelText('Current question')).toHaveTextContent('Map tags show availability for 2025')
-    const confirm = within(dialog).getByRole('button', { name: 'Confirm product' })
-    expect(confirm).toBeDisabled()
-    fireEvent.click(within(dialog).getByRole('checkbox', { name: 'ERA5 actual year · Open-Meteo' }))
+    expect(within(dialog).getByRole('button', { name: 'Confirm product' })).toBeDisabled()
     fireEvent.click(within(dialog).getByRole('checkbox', { name: 'NSRDB actual year · GOES v4' }))
-    fireEvent.click(within(dialog).getByRole('checkbox', { name: 'OneBuilding TMYx.2009-2023' }))    // other kind
-    expect(within(dialog).getByRole('checkbox', { name: 'ERA5 actual year · Open-Meteo' })).not.toBeChecked()
-    expect(within(dialog).getByRole('status')).toHaveTextContent('separate requests')
-    fireEvent.click(within(dialog).getByRole('checkbox', { name: 'OneBuilding TMYx.2009-2023' }))
-    fireEvent.click(within(dialog).getByRole('checkbox', { name: 'ERA5 actual year · Open-Meteo' }))
-    fireEvent.click(within(dialog).getByRole('checkbox', { name: 'NSRDB actual year · GOES v4' }))
+    fireEvent.click(within(dialog).getByRole('checkbox', { name: 'OneBuilding TMYx.2009-2023' }))    // both kinds
+    expect(within(dialog).getByRole('checkbox', { name: 'NSRDB actual year · GOES v4' })).toBeChecked()
     fireEvent.click(within(dialog).getByRole('button', { name: 'Confirm 2 products' }))
-    await waitFor(() => expect(chooseProducts).toHaveBeenCalledWith('test', 8, ['era5-openmeteo', 'nsrdb-actual'],
-      expect.any(String)))
+    await waitFor(() => expect(chooseProducts).toHaveBeenCalledWith('test', 8,
+      ['nsrdb-actual', 'onebuilding:TMYx.2009-2023'], expect.any(String)))
+  })
+
+  it('shows one card for the jobs of a mixed request with their combined progress', async () => {
+    const running = state(null, { job_id: 'a', job_ids: ['a', 'b'], job_groups: [['a'], ['b']] })
+    const job = vi.fn(async (id: string) => id === 'a'
+      ? { id: 'a', state: 'completed', total: 2, completed: 2, failed: 0 }
+      : { id: 'b', state: 'running', total: 1, completed: 0, failed: 0 })
+    render(<App api={api(running, { job })} />)
+    const card = await screen.findByLabelText('Current weather job')
+    await waitFor(() => expect(card).toHaveTextContent('running · 2/3 outputs · 0 failed'))
+    expect(card).toHaveTextContent('Weather jobs (2)')
+    expect(job).toHaveBeenCalledWith('a')
+    expect(job).toHaveBeenCalledWith('b')
   })
 })
 

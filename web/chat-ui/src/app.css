@@ -80,11 +80,10 @@ button { cursor: pointer; }
 .job-card button:hover { background: var(--oe-tint); }
 .composer { flex: none; pointer-events: auto; }
 /* The dock keeps the current question, its options and the input fixed; the log above scrolls. */
-.chat-dock { flex: none; display: flex; flex-direction: column; gap: .45rem; min-height: 0; max-height: 62dvh; }
+/* Input and options take the height they need; only the transcript above scrolls. */
+.chat-dock { flex: none; display: flex; flex-direction: column; gap: .45rem; min-height: 0; }
 .chat-dock > * { pointer-events: auto; }
 .chat-dock .action-card { flex: none; width: 100%; max-height: 40dvh; overflow: auto; }
-/* A long option list scrolls inside the dock; the padding keeps option shadows unclipped. */
-.chat-dock .composer { flex: 0 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; margin: -4px; padding: 4px; }
 .chat-dock .error { margin: 0; padding: .4rem .7rem; border-radius: 10px; background: var(--oe-paper); box-shadow: var(--oe-shadow); }
 .dock-tools { display: flex; justify-content: flex-end; gap: .35rem; }
 .icon-button { display: inline-grid; place-items: center; width: 2rem; height: 2rem; padding: 0; border: 0; border-radius: 50%; background: var(--oe-paper); color: var(--oe-ink); box-shadow: var(--oe-shadow); }
@@ -182,13 +181,15 @@ button { cursor: pointer; }
 .availability-callouts .availability-tag:disabled { cursor: default; }
 .availability-callouts .availability-tag:focus-visible { outline: 2px solid var(--oe-ink); outline-offset: 1px; }
 /* The product dialog: ticked names, info popups, one confirm. */
-.product-dialog { box-sizing: border-box; width: 100%; display: flex; flex-direction: column; gap: .5rem; padding: .7rem .8rem; border-radius: 16px; background: var(--oe-paper); box-shadow: var(--oe-shadow); }
-.product-dialog .product-list { display: flex; flex-direction: column; gap: .35rem; }
+.product-dialog { box-sizing: border-box; width: 100%; display: flex; flex-direction: column; gap: .35rem; padding: .7rem .8rem; border-radius: 16px; background: var(--oe-paper); box-shadow: var(--oe-shadow); }
 .product-dialog fieldset { margin: 0; padding: 0; border: 0; }
 .product-dialog legend.option-group { padding: 0; margin: .15rem 0 .2rem; text-align: left; }
 .product-row { display: flex; align-items: center; gap: .4rem; min-height: 2rem; padding: 0 .3rem; border-radius: 9px; }
 .product-row:hover { background: var(--oe-tint); }
-.product-row label { flex: 1; display: flex; align-items: center; gap: .55rem; min-width: 0; font-size: .86rem; cursor: pointer; }
+.product-row label { flex: 0 1 auto; display: flex; align-items: center; gap: .55rem; min-width: 0; font-size: .86rem; cursor: pointer; }
+/* The count column sits at the row's right edge; the info icon stays right after the name. */
+.product-row .site-count { margin-left: auto; padding: .1rem .45rem; border-radius: 999px; color: var(--oe-muted); font: 500 .76rem 'Geist', system-ui, sans-serif; font-variant-numeric: tabular-nums; white-space: nowrap; cursor: default; }
+.product-row .site-count:hover, .product-row .site-count:focus-visible { background: var(--oe-l1); color: var(--oe-ink); outline: none; }
 .product-row input[type="checkbox"] { flex: none; width: 1rem; height: 1rem; margin: 0; accent-color: var(--oe-ink); }
 .info-button { flex: none; display: grid; place-items: center; width: 1.6rem; height: 1.6rem; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--oe-muted); }
 .info-button:hover, .info-button:focus-visible { background: var(--oe-l1); color: var(--oe-ink); }

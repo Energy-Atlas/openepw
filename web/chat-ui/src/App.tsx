@@ -24,17 +24,15 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
   const [session, setSession] = useState<SessionSnapshot | null>(null)
   const [catalogMap, setCatalogMap] = useState<CatalogMap | null>(null)
   const [sessionAttempt, setSessionAttempt] = useState(0)
-  const [job, setJob] = useState<JobSnapshot | null>(null)
-  const [manifest, setManifest] = useState<JobManifest | null>(null)
-  const [pastJobs, setPastJobs] = useState<JobSnapshot[]>([])
-  const [pastManifests, setPastManifests] = useState<Record<string, JobManifest>>({})
+  // Every job in the session: one per product kind, each with its retries.
+  const [jobs, setJobs] = useState<Record<string, JobSnapshot>>({})
+  const [manifests, setManifests] = useState<Record<string, JobManifest>>({})
   const [message, setMessage] = useState('')
   const [pickMode, setPickMode] = useState(false)
   const [typing, setTyping] = useState(false)
   const [pendingChoice, setPendingChoice] = useState<string | null>(null)
   // Products ticked in the dialog or clicked on the map, confirmed together.
   const [checkedProducts, setCheckedProducts] = useState<string[]>([])
-  const [productNote, setProductNote] = useState('')
   const [busy, setBusy] = useState(false)
   const acting = useRef(false)
   const [pendingTurns, setPendingTurns] = useState<Array<{ id: string; text: string }>>([])
@@ -70,53 +68,37 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
     return () => { live = false }
   }, [api, sessionAttempt])
 
+  const jobIds = (session?.job_ids?.length ? session.job_ids : session?.job_id ? [session.job_id] : []).join(',')
   useEffect(() => {
-    if (!session?.job_id) return
-    setJob(null)
-    setManifest(null)
+    const ids = jobIds ? jobIds.split(',') : []
+    if (!ids.length) { setJobs({}); setManifests({}); return }
     let live = true
     let timer: number | undefined
-    const poll = () => { void api.job(session.job_id!).then(value => {
+    const poll = () => { void Promise.all(ids.map(id => api.job(id))).then(values => {
       if (!live) return
-      setJob(value)
-      if (['queued', 'running'].includes(value.state)) timer = window.setTimeout(poll, 1800)
+      setJobs(Object.fromEntries(values.map(value => [value.id, value])))
+      if (values.some(value => ['queued', 'running'].includes(value.state))) timer = window.setTimeout(poll, 1800)
     }).catch(() => { if (live) { setError('Job status could not be refreshed.');
       timer = window.setTimeout(poll, 5000) } }) }
     poll()
     return () => { live = false; window.clearTimeout(timer) }
-  }, [session?.job_id])
+  }, [jobIds])
 
+  const manifestIds = Object.values(jobs).map(item => item.bundle?.manifest?.id ? `${item.id}=${item.bundle.manifest.id}` : '')
+    .filter(Boolean).join(',')
   useEffect(() => {
-    if (!job?.bundle?.manifest?.id) return
+    const wanted = manifestIds ? manifestIds.split(',').map(item => item.split('=') as [string, string]) : []
+    const missing = wanted.filter(([id]) => !manifests[id])
+    if (!missing.length) return
     let live = true
-    void api.manifest(job.bundle.manifest.id).then(value => { if (live) setManifest(value) })
+    void Promise.all(missing.map(async ([id, manifestId]) => [id, await api.manifest(manifestId)] as const))
+      .then(values => { if (live) setManifests(current => ({ ...current, ...Object.fromEntries(values) })) })
       .catch(() => { if (live) setError('Verified job manifest could not be read.') })
     return () => { live = false }
-  }, [job?.bundle?.manifest?.id])
-
-  const historyIds = (session?.job_ids ?? []).filter(id => id !== session?.job_id).join(',')
-  useEffect(() => {
-    const ids = historyIds ? historyIds.split(',') : []
-    if (!ids.length) { setPastJobs([]); setPastManifests({}); return }
-    let live = true
-    void Promise.all(ids.map(id => api.job(id))).then(values => {
-      if (live) setPastJobs(values)
-    }).catch(() => { if (live) setError('Earlier retry jobs could not be loaded.') })
-    return () => { live = false }
-  }, [historyIds])
-
-  useEffect(() => {
-    if (!pastJobs.length) return
-    let live = true
-    void Promise.all(pastJobs.map(async item => item.bundle?.manifest?.id
-      ? [item.id, await api.manifest(item.bundle.manifest.id)] as const : null)).then(values => {
-      if (live) setPastManifests(Object.fromEntries(values.filter(item => item !== null)))
-    }).catch(() => { if (live) setError('Earlier job manifests could not be read.') })
-    return () => { live = false }
-  }, [pastJobs])
+  }, [manifestIds])
 
   useEffect(() => { transcript.current?.scrollTo?.(0, transcript.current.scrollHeight) }, [session?.events.length])
-  useEffect(() => { setTyping(false); setPendingChoice(null); setCheckedProducts([]); setProductNote('') },
+  useEffect(() => { setTyping(false); setPendingChoice(null); setCheckedProducts([]) },
     [session?.active_card?.id, session?.active_card?.revision])
   useEffect(() => { if (typing) document.getElementById('chat-message')?.focus() }, [typing])
 
@@ -141,7 +123,7 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
   function startOver() {
     // A new session; the previous one and its jobs and artifacts stay on the server.
     sessionStorage.removeItem(sessionKey)
-    setSession(null); setJob(null); setManifest(null); setPastJobs([]); setPastManifests({})
+    setSession(null); setJobs({}); setManifests({})
     setOpenViews([]); setMessage(''); setPendingTurns([]); setQueuePaused(false)
     setTyping(false); setPendingChoice(null); setError('')
     setSessionAttempt(value => value + 1)
@@ -239,9 +221,16 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
       ((event.type === 'question' && event.text === card.prompt)
         || (event.type === 'plan' && card.kind === 'plan_review'))))
   const evidence = card?.data?.availability as AvailabilitySummary | undefined
-  const chain = [...pastJobs.map(item => ({ job: item, manifest: pastManifests[item.id] ?? null })),
-    ...(job ? [{ job, manifest }] : [])]
+  const chain = (jobIds ? jobIds.split(',') : []).filter(id => jobs[id])
+    .map(id => ({ job: jobs[id], manifest: manifests[id] ?? null }))
   const mergedJobs = mergeJobManifests(chain)
+  // The latest job of each group (one group per product kind) gives the progress shown.
+  const heads = (session?.job_groups ?? (jobIds ? [jobIds.split(',')] : []))
+    .map(group => jobs[group[group.length - 1]]).filter(Boolean)
+  const running = heads.filter(item => ['queued', 'running'].includes(item.state))
+  const job = heads.length ? { state: running.length ? running[0].state : [...new Set(heads.map(item => item.state))].join(', '),
+    total: heads.reduce((sum, item) => sum + item.total, 0), completed: heads.reduce((sum, item) => sum + item.completed, 0),
+    failed: heads.reduce((sum, item) => sum + item.failed, 0) } : null
   const processed = (job?.completed ?? 0) + (job?.failed ?? 0)
   const uploaded = (session?.facts.uploaded_artifact_ids ?? []) as string[]
   const availableIds = [...mergedJobs.artifactIds, ...uploaded]
@@ -255,20 +244,10 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
   // Location and weather-product choices are selected first, then confirmed with the tick beside them.
   const productChoice = card?.kind === 'choice' && card.data?.field === 'product'
   const productAvailability = productChoice ? card.data?.availability as ProductAvailability | undefined : undefined
-  const groupOf = (id: string) => card?.options?.find(option => option.id === id)?.group ?? 'actual'
+  // Actual-year and typical-year products may be mixed; each kind becomes its own plan and job.
   const toggleProduct = (id: string) => {
     if (!card?.options?.some(option => option.id === id)) return
-    if (checkedProducts.includes(id)) {
-      setCheckedProducts(checkedProducts.filter(item => item !== id))
-      setProductNote('')
-    } else if (checkedProducts.length && groupOf(checkedProducts[0]) !== groupOf(id)) {
-      // One request has one weather type, so a product of the other kind starts a new selection.
-      setCheckedProducts([id])
-      setProductNote('Actual-year and typical-year products are separate requests; the selection now holds this kind only.')
-    } else {
-      setCheckedProducts([...checkedProducts, id])
-      setProductNote('')
-    }
+    setCheckedProducts(current => current.includes(id) ? current.filter(item => item !== id) : [...current, id])
   }
   const confirmFirst = locationChoice || productChoice
   const lastEventId = session?.events.at(-1)?.id
@@ -280,7 +259,7 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
   const confirmChoice = (id: string) => {
     if (card?.kind === 'choice') void act(current => api.answer(current.id, card.revision, id, randomKey()))
   }
-  const jobActive = Boolean(job && ['queued', 'running'].includes(job.state))
+  const jobActive = running.length > 0
   const placeholder = placeholderFor(card ?? null, typing, locationChoice)
   const coordinatesFor = (row: JobManifest['batch_rows'][number]) => {
     const point = row.metadata?.requested_location
@@ -338,10 +317,12 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
               : <div className="md"><Markdown>{item.event.text}</Markdown></div>)}
           </article>)}
         {job && <section className="job-card" aria-label="Current weather job">
-          <h2>Weather job</h2>
+          <h2>{heads.length > 1 ? `Weather jobs (${heads.length})` : 'Weather job'}</h2>
           <p>{job.state} · {processed}/{job.total} outputs · {job.failed} failed</p>
           <progress value={processed} max={Math.max(job.total, 1)} aria-label="Processed outputs" />
-          {['queued', 'running'].includes(job.state) && <button type="button" onClick={() => void api.cancel(job.id).then(setJob)}>Cancel job</button>}
+          {running.length > 0 && <button type="button" onClick={() => void Promise.all(running.map(item => api.cancel(item.id)))
+            .then(values => setJobs(current => ({ ...current, ...Object.fromEntries(values.map(value => [value.id, value])) })))}>
+            Cancel job</button>}
           {job.failed > 0 && <button type="button" disabled={busy} onClick={() =>
             void act(current => api.retrySession(current.id, current.revision, randomKey()))}>Retry failed</button>}
           {!mergedJobs.complete && <p className="warning">Verified output mapping is loading or unavailable; downloads wait for the manifest.</p>}
@@ -465,7 +446,7 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
             : <button type="submit" className="icon-submit" aria-label="Send" title="Send" disabled={!session}><EnterIcon /></button>}
         </div>
         {typing && backLabel && <button className="reply-alt" type="button" onClick={() => setTyping(false)}>{backLabel}</button>}
-      </> : productChoice ? <ProductDialog options={card.options ?? []} selected={checkedProducts} note={productNote}
+      </> : productChoice ? <ProductDialog options={card.options ?? []} selected={checkedProducts}
         busy={busy} onToggle={toggleProduct} onType={() => setTyping(true)}
         onConfirm={() => void act(current => api.chooseProducts(current.id, card.revision, checkedProducts, randomKey()))} />
       : <div className="reply-options" role="group" aria-label="Reply options">

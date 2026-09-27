@@ -10,7 +10,8 @@ export type ChatCard = {
   revision: number
   kind: 'choice' | 'text' | 'map' | 'plan_review' | 'location_review'
   prompt: string
-  options?: Array<{ id: string; label: string; detail?: string; group?: 'actual' | 'typical' }>
+  options?: Array<{ id: string; label: string; detail?: string; group?: 'actual' | 'typical'
+    available?: number; unverified?: number; sites?: number }>
   data?: Record<string, unknown>
 }
 
@@ -22,6 +23,7 @@ export type SessionSnapshot = {
   active_card: ChatCard | null
   job_id?: string | null
   job_ids?: string[]
+  job_groups?: string[][]
   plan_hash?: string | null
   view_ids?: string[]
 }
