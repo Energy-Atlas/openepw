@@ -29,7 +29,7 @@ const swatches: Record<CatalogLayer['kind'], Swatch> = {
 }
 
 // Station names are drawn by the map overlay (placeLabels) from this zoom.
-export const STATION_LABEL_ZOOM = 7
+export const STATION_LABEL_ZOOM = 8.5
 
 export function layerSwatch(layer: Pick<CatalogLayer, 'id' | 'kind'>): Swatch {
   return layer.id === 'nsrdb' ? { ...swatches[layer.kind], color: MAP_PALETTE.NSRDB } : swatches[layer.kind]

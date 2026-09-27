@@ -130,7 +130,7 @@ describe('map canvas overlays', () => {
     expect(map.getSource('openepw-selection')!.data.features.map(feature => feature.properties?.label)).toEqual(['1', '2'])
   })
 
-  it('draws station names as pills from zoom 7 and callouts when crowded', async () => {
+  it('draws station names as pills from zoom 8.5 and callouts when crowded', async () => {
     const { MapCanvas } = await import('../src/map/MapCanvas')
     const catalogWithNames: CatalogMap = { ...catalog, layers: [catalog.layers[0],
       { id: 'onebuilding', kind: 'sites', label: 'OneBuilding', caveat: 'c', count: 1, evidence_dates: [], points: [] }] }
@@ -145,8 +145,11 @@ describe('map canvas overlays', () => {
       feature('Boston Logan', 201, 201, 'openepw-catalog-onebuilding-point'),
       feature('Hanscom', 203, 199, 'openepw-catalog-noaa-point')]
     map.emit('idle')
-    expect(document.querySelectorAll('.station-label')).toHaveLength(0)       // below zoom 7
-    map.zoom = 7.5
+    expect(document.querySelectorAll('.station-label')).toHaveLength(0)       // globe zoom
+    map.zoom = 8.2
+    map.emit('idle')
+    expect(document.querySelectorAll('.station-label')).toHaveLength(0)       // still below 8.5
+    map.zoom = 8.6
     map.emit('idle')
     await waitFor(() => expect(document.querySelectorAll('.station-label')).toHaveLength(3))
     expect([...document.querySelectorAll('.station-label')].map(node => node.textContent)).toContain('Boston Logan')
