@@ -144,9 +144,12 @@ class WeatherService:
     def geonames(self) -> GeoNamesStore:
         return GeoNamesStore(self.config.data_root / "places" / "geonames", self.http)
 
-    def interpret_places(self, text: str) -> dict:
-        """Classify place text; descriptive sets return questions before any enumeration."""
-        return places_preview.interpret_places(text, self.geonames)
+    def interpret_places(self, text: str, draft: dict | None = None) -> dict:
+        """Classify place text; descriptive sets return questions before any enumeration.
+
+        Pass the previous ``draft`` to merge a clarification reply into a pending set.
+        """
+        return places_preview.interpret_places(text, self.geonames, draft)
 
     def preview_places(self, items: list[str]) -> PlacePreview:
         """Resolve names and coordinates to numbered points without per-place confirmation."""

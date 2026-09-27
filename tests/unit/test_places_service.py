@@ -90,3 +90,26 @@ def test_place_set_preview_carries_geonames_attribution(tmp_path):
     assert preview.rows[0].population == 2_300_000 and preview.rows[0].source == "geonames"
     assert any("GeoNames" in item for item in preview.attribution)
     assert any(issue.code == "PLACE_SET_TRUNCATED" for issue in preview.issues)
+
+
+def test_clarification_answers_fill_the_pending_set_in_order(tmp_path):
+    service = _service(tmp_path)
+    vague = service.interpret_places("all cities in America")
+    step = service.interpret_places("United States", draft=vague["draft"])
+    assert [question["field"] for question in step["questions"]] == ["definition", "limit"]
+    step = service.interpret_places("over 100k", draft=step["draft"])
+    assert [question["field"] for question in step["questions"]] == ["limit"]
+    done = service.interpret_places("top 2", draft=step["draft"])
+    assert done["questions"] == [] and done["query"] == {
+        "kind": "city", "country": "US", "admin1": None, "min_population": 100000, "limit": 2}
+
+
+def test_bare_numbers_and_numbered_region_options_answer_the_right_field(tmp_path):
+    service = _service(tmp_path)
+    georgia = service.interpret_places("all cities in Georgia")
+    step = service.interpret_places("2", draft=georgia["draft"])      # option 2: Georgia, United States
+    assert step["draft"]["region"] == {"country": "US", "admin1": "GA", "label": "Georgia, United States"}
+    step = service.interpret_places("50000", draft=step["draft"])     # >= 1000 fills the population
+    assert step["draft"]["min_population"] == 50000
+    step = service.interpret_places("all", draft=step["draft"])       # "all" means the cap
+    assert step["query"]["limit"] == 1000

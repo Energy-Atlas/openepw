@@ -102,7 +102,7 @@ class PlaceSetDraft:
 AMBIGUOUS_REGIONS = {"america", "the americas", "americas"}
 _SET_KIND = re.compile(r"\b(state capitals?|capitals?|cities|towns|municipalities)\b", re.I)
 _QUANTIFIER = re.compile(r"\b(?:all|every|each|top\s+\d+|largest|biggest|major|list of)\b", re.I)
-_POPULATION = re.compile(r"(?:over|above|more than|at least|exceeding|>=?)\s+([\d,.]+)\s*(k|thousand|m|million)?",
+POPULATION = re.compile(r"(?:over|above|more than|at least|exceeding|>=?)\s+([\d,.]+)\s*(k|thousand|m|million)?",
                          re.I)
 _REGION = re.compile(r"\b(?:in|across|within|throughout)\s+((?:the\s+)?[A-Z][\w.'\- ]*?)"
                      r"(?=\s*(?:,|;|\.|$|\btop\b|\bwith\b|\bover\b|\babove\b))")
@@ -112,7 +112,7 @@ _LIMIT = re.compile(r"\btop\s+(\d+)\b|\b(\d+)\s+(?:largest|biggest)\b", re.I)
 def describe_place_set(text: str) -> PlaceSetDraft | None:
     """Recognise 'all cities in X'-style requests and list what still needs clarifying."""
     kind_match = _SET_KIND.search(text)
-    population = _POPULATION.search(text)
+    population = POPULATION.search(text)
     if not kind_match or not (_QUANTIFIER.search(text) or population):
         return None
     kind = "capital" if "capital" in kind_match.group(1).lower() else "city"

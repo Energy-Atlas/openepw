@@ -51,7 +51,9 @@ def test_interpret_asks_before_a_set_is_enumerated_and_place_set_previews(tmp_pa
     server = _server(tmp_path)
     vague = _call(server, "weather_places_interpret", text="all cities in America")
     assert vague["kind"] == "descriptive" and vague["query"] is None
+    answered = _call(server, "weather_places_interpret", text="Texas, over 100k, top 2", draft=vague["draft"])
     complete = _call(server, "weather_places_interpret", text="top 2 cities over 100k in Texas")
+    assert answered["query"] == complete["query"]
     preview = _call(server, "weather_place_set", query=complete["query"])
     assert [row["name"] for row in preview["rows"]] == ["Houston, Texas, United States",
                                                         "Dallas, Texas, United States"]

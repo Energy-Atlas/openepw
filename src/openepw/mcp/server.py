@@ -143,12 +143,15 @@ def create_server(service=None, *, allowed_roots: list[str | Path] | None = None
         return call(action)
 
     @server.tool(structured_output=True)
-    def weather_places_interpret(text: str) -> dict[str, Any]:
-        """Classify place text: coordinates, a list, one place, or a set needing clarification."""
+    def weather_places_interpret(text: str, draft: dict | None = None) -> dict[str, Any]:
+        """Classify place text: coordinates, a list, one place, or a set needing clarification.
+
+        Pass the returned ``draft`` back with the user's reply to answer its questions.
+        """
         def action():
             if not text.strip() or len(text) > 4000:
                 raise OpenEPWError("INVALID_REQUEST", "Place text must be 1–4000 characters")
-            return service.interpret_places(text)
+            return service.interpret_places(text, draft)
         return call(action)
 
     @server.tool(structured_output=True)
