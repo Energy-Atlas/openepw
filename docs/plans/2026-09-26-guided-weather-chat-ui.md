@@ -52,6 +52,11 @@ This supersedes the teal/slate roles in the design-direction palette below.
 The owner then asked for a truly neutral greyscale and a dark grey
 background; the deep-ocean tint was dropped for equal-RGB greys. Colour was
 then reinstated for the weather-source feature layers only.
+The owner then asked that a single location, whether a chosen geocoder
+candidate or typed coordinates, is summarised for approval before the request
+goes on: the user approves it or types a correction that steers it. Place
+lists keep the earlier decision: they are previewed and corrected by text
+without an approval step.
 
 - Open directly on the full-canvas map. There is **one** chat experience: no
   Guided/Text mode choice, splash selector, or mode switch. Free text and
@@ -128,8 +133,10 @@ and required attribution.
    confirmed facts across turns and present only unresolved ambiguities.
    “Historical” and “AMY” mean the same actual-year path in this UI.
 3. **Locate:** Geocoder candidates appear as numbered choices in chat, markers
-   on the map, and an accessible list. A selected candidate is retained when
-   the user next supplies year or product. Point lists, bbox, polygon drawing,
+   on the map, and an accessible list. A chosen candidate or typed
+   coordinates are summarised for approval; a typed reply corrects the
+   location instead. The approved location is retained when the user next
+   supplies year or product. Point lists, bbox, polygon drawing,
    and GeoJSON upload serialize to existing `WeatherRequest` geography types.
    Show requested versus resolved or sampled points and output count.
 4. **Choose and assess:** Ask one actionable question at a time where needed;
