@@ -63,7 +63,14 @@ Node or this UI.
   colour of its catalog layer. Solid tags are listed in the catalog; outlined
   tags with `?` are checked when planning. Station products (NOAA, OneBuilding)
   draw a dashed line, moving away from the location, to the looked-up station,
-  with their tags beside the line. Selecting an option highlights its tags.
+  with their tags beside the line. The products are a list of tick boxes with
+  names only; the info icon at the end of each row opens its description on
+  hover or focus. Tick several products, or click their map tags to select or
+  deselect them, then confirm; selected tags stay bright and the rest dim.
+  Products of one kind go into one request, so ticking an actual-year product
+  after typical-year ones (or the reverse) starts a new selection. While the
+  question is open only the looked-up stations keep their name pills, and every
+  station name carries a `NOAA` or `One` prefix pill.
 - Select a geocoder candidate or type an alternative. `Assess and review plan`
   reads catalog and planning evidence. `Run reviewed plan` starts provider work.
 - The job card shows processed outputs. Download one successful EPW or a compact

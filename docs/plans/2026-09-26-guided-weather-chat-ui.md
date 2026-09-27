@@ -64,7 +64,12 @@ exactly what is downloaded (no "Other" or "x or y"), and availability on the
 map while the product is chosen: per location, one tag per product in the
 colour of its catalog layer, left aligned, at all zoom levels, with station
 products drawn as a moving dashed line to the looked-up station and their tags
-by the line.
+by the line. Then: station names carry a NOAA or One prefix pill; only the
+looked-up stations are named during product choice; the product options are a
+tick-box list (names only, extended information behind an info icon), several
+products may be chosen, and map tags toggle them. Several products must be of
+one kind (actual year or typical year), because one request has one weather
+type; choosing both kinds would need two plans and is not offered yet.
 
 - Open directly on the full-canvas map. There is **one** chat experience: no
   Guided/Text mode choice, splash selector, or mode switch. Free text and
