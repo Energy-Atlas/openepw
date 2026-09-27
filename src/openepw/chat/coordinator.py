@@ -10,11 +10,13 @@ import threading
 import uuid
 from contextlib import contextmanager
 from datetime import date
+from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any
 
 from ..availability import WeatherAvailabilityQuery
 from ..harness.agent import safe_prompt
+from ..harness.model import ModelUnavailable
 from ..models import Location, OpenEPWError, WeatherRequest
 from ..places.models import PlacePreview, PlaceSetQuery
 from ..places.parse import apply_edit, classify_places, describe_place_set
@@ -139,6 +141,15 @@ def request_location_summary(facts: dict) -> str:
 
 
 HISTORY_LIMIT = 50
+# "X should be Y", "X is Y", "X -> Y": a correction of one listed place.
+CORRECTION = re.compile(r"^\s*(?:no,?\s*)?['\"]?(.+?)['\"]?\s+(?:should be|is|means|=|->|→)\s+(.+?)\s*[.!]?\s*$", re.I)
+# Words that make a place reply replace the list instead of patching it.
+OVERRIDE = re.compile(r"\b(?:only|instead|just|start over|replace (?:the|all|everything))\b", re.I)
+
+
+def compact_name(text: str) -> str:
+    """Letters and digits only, so "sanfrancisco" matches "San Francisco"."""
+    return re.sub(r"[^0-9a-z]", "", text.casefold())
 # Providers whose retrievals queue on the provider's side (one CDS request per month).
 QUEUED_PROVIDERS = {"cds"}
 
@@ -527,7 +538,46 @@ class ChatCoordinator:
 
     def _preview(self, state: dict, items: list) -> None:
         self._event(state, "tool", "Previewing places", {"tool": "places", "phase": "call"})
-        self._apply_preview(state, self.service.preview_places(items))
+        preview = self.service.preview_places(items)
+        # A "place, region" pair that was not found may be two places ("los angeles, hawaii");
+        # try its parts once, keeping every row that did resolve as it is.
+        if any(row.status != "resolved" and isinstance(item, str) and "," in item
+               for item, row in zip(items, preview.rows)):
+            expanded = []
+            for item, row in zip(items, preview.rows):
+                if row.status != "resolved" and isinstance(item, str) and "," in item:
+                    expanded.extend(part.strip() for part in item.split(",") if part.strip())
+                else:
+                    expanded.append(row.model_dump(mode="json", exclude_none=True)
+                                    if row.status == "resolved" else item)
+            if len(expanded) <= 1000:
+                preview = self.service.preview_places(expanded)
+        self._apply_preview(state, preview)
+
+    def _patch_place(self, state: dict, place: str, text: str = "") -> None:
+        """Fix the listed place a reply most likely means, or add the place to the list."""
+        rows = state["facts"]["place_rows"]
+        target = compact_name(place)
+        # A reply that names one listed place ("Honolulu for hawaii") replaces that row.
+        said = compact_name(text)
+        named = [index for index, row in enumerate(rows)
+                 if any(len(name) >= 3 and name in said and name not in target
+                        for name in (compact_name(row["input"]), compact_name((row.get("name") or "").split(",")[0])))]
+        if len(named) == 1:
+            items = list(rows)
+            items[named[0]] = place
+            self._preview(state, items)
+            return
+        scores = [max(SequenceMatcher(None, target, compact_name(text)).ratio()
+                      for text in (row["input"], (row.get("name") or "").split(",")[0]))
+                  for row in rows]
+        best = max(range(len(rows)), key=lambda index: scores[index]) if rows else None
+        items: list = list(rows)
+        if best is not None and scores[best] >= 0.75:
+            items[best] = place
+        else:
+            items.append(place)
+        self._preview(state, items)
 
     def _continue_place_set(self, state: dict, reply: str) -> None:
         facts = state["facts"]
@@ -545,26 +595,37 @@ class ChatCoordinator:
         self._event(state, "tool", "Listing GeoNames places", {"tool": "places", "phase": "call"})
         self._apply_preview(state, self.service.place_set(PlaceSetQuery.model_validate(result["query"])))
 
-    def _route_places(self, state: dict, text: str) -> bool:
-        """Handle place lists, coordinate lists, sets and edits; False leaves the old flow."""
+    def _route_places(self, state: dict, text: str) -> bool | str:
+        """Handle place lists, coordinate lists, sets and edits; False leaves the old flow.
+
+        Returns "edit" when the message only changed the current list or set.
+        """
         facts = state["facts"]
         if facts.get("place_set"):
             self._continue_place_set(state, text)
-            return True
+            return "edit"
         rows = facts.get("place_rows")
         if rows:
             labels = [row.get("name") or row["input"] for row in rows]
             edited = apply_edit(labels, text)
+            if edited is None and (match := CORRECTION.match(text)):
+                # "sanfrancisco should be San Francisco" fixes that row and keeps the others.
+                wrong = compact_name(match.group(1))
+                hits = [index for index, row in enumerate(rows)
+                        if wrong in (compact_name(row["input"]), compact_name((row.get("name") or "").split(",")[0]))]
+                if hits:
+                    edited = list(labels)
+                    edited[hits[0]] = match.group(2).strip(" '\"")
             if edited is not None:
                 if not edited:
                     for key in ("place_rows", "geography", "resolved_points"):
                         facts.pop(key, None)
                     self._event(state, "message", "The place list is now empty; give places or coordinates.",
                                 {"role": "assistant"})
-                    return True
+                    return "edit"
                 by_label = dict(zip(labels, rows))
                 self._preview(state, [by_label.get(label, label) for label in edited])
-                return True
+                return "edit"
         if describe_place_set(text):
             self._set_questions(state, self.service.interpret_places(text))
             return True
@@ -631,9 +692,10 @@ class ChatCoordinator:
                 self._event(state, "message", error.issue.message, {"role": "assistant"})
                 self._question(state)
                 return
-            if places_handled and reply_or_edit:
+            if places_handled == "edit" or (places_handled and reply_or_edit):
                 self._question(state)
                 return
+            patched = False
             # A reply to a location review is read as a correction of that location.
             reviewed = ((state.get("active_card") or {}).get("kind") == "location_review"
                         and facts.get("location"))
@@ -647,7 +709,15 @@ class ChatCoordinator:
                       "place, give that place's full name as the place (for example keep the town name when "
                       "only the region changes); if it does not change the place, give no place. "
                       f"Reply: {text}") if reviewed else text
-            intents = self.parser.parse_many(safe_prompt(dated_prompt(prompt), limit=4000))
+            try:
+                intents = self.parser.parse_many(safe_prompt(dated_prompt(prompt), limit=4000))
+            except ModelUnavailable as error:
+                # A list already previewed stands; otherwise say the message could not be read.
+                intents = []
+                if not places_handled:
+                    self._event(state, "message", "I could not read that message (" + str(error).rstrip(".")
+                                + "). Try a shorter message, or one place, product or year at a time.",
+                                {"role": "assistant"})
             chosen = (facts.get("product"), facts.get("provider"))
             grounded_years = explicit_weather_years(text)
             years_from_model = False
@@ -668,6 +738,11 @@ class ChatCoordinator:
                     facts["provider"] = intent.provider
                 if places_handled:
                     pass  # the place preview already set the geography for this message
+                elif (getattr(intent, "place", None) and facts.get("place_rows")
+                      and not OVERRIDE.search(text) and not patched):
+                    # A reply to a previewed list patches it; "only …" or "instead" replaces it.
+                    self._patch_place(state, intent.place, text)
+                    patched = True
                 elif getattr(intent, "lat", None) is not None and getattr(intent, "lon", None) is not None \
                         and not (reviewed and abs(intent.lat - facts["location"]["lat"]) < 1e-4
                                  and abs(intent.lon - facts["location"]["lon"]) < 1e-4):
@@ -686,6 +761,7 @@ class ChatCoordinator:
                 elif getattr(intent, "place", None) and not (
                         # The model may repeat the reviewed place; that is not a new location.
                         reviewed and intent.place.casefold() in reviewed_name.casefold()):
+                    facts.pop("place_rows", None)                # a new place replaces the old list
                     self._event(state, "tool", "Geocoding place", {"tool": "geocode", "phase": "call"})
                     geocoded = self.service.geocode(intent.place)
                     candidates = [c.model_dump(mode="json") for c in geocoded.candidates]
