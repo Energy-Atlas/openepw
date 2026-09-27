@@ -5,7 +5,7 @@ import { MapCanvas } from './map/MapCanvas'
 import { geojsonGeography } from './geography'
 import { mergeJobManifests } from './jobs'
 import { ViewPanel } from './views/ViewPanel'
-import type { AvailabilitySummary, CatalogScopes, JobManifest, JobSnapshot, SessionSnapshot } from './types'
+import type { AvailabilitySummary, CatalogMap, JobManifest, JobSnapshot, SessionSnapshot } from './types'
 
 const sessionKey = 'openepw-chat-session'
 let openingSession: Promise<SessionSnapshot> | null = null
@@ -15,7 +15,7 @@ function randomKey(): string { return crypto.randomUUID() }
 export function App({ api: suppliedApi }: { api?: ChatApi }) {
   const api = useRef(suppliedApi ?? new ChatApi()).current
   const [session, setSession] = useState<SessionSnapshot | null>(null)
-  const [catalogScopes, setCatalogScopes] = useState<CatalogScopes | null>(null)
+  const [catalogMap, setCatalogMap] = useState<CatalogMap | null>(null)
   const [sessionAttempt, setSessionAttempt] = useState(0)
   const [job, setJob] = useState<JobSnapshot | null>(null)
   const [manifest, setManifest] = useState<JobManifest | null>(null)
@@ -55,8 +55,8 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
 
   useEffect(() => {
     let live = true
-    void api.catalogScopes().then(value => { if (live) setCatalogScopes(value) })
-      .catch(() => { if (live) setCatalogScopes(null) })
+    void api.catalogMap().then(value => { if (live) setCatalogMap(value) })
+      .catch(() => { if (live) setCatalogMap(null) })
     return () => { live = false }
   }, [api, sessionAttempt])
 
@@ -250,7 +250,7 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
 
   return <main className="workspace">
     <MapCanvas location={selected} candidates={candidates} pickMode={pickMode}
-      catalogScopes={catalogScopes}
+      catalogMap={catalogMap} years={(session?.facts.years ?? []) as number[]}
       onExitPickMode={() => setPickMode(false)}
       geography={session?.facts.geography as import('./geography').WeatherGeography | undefined}
       resolvedPoints={resolvedPoints}

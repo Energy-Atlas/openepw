@@ -11,7 +11,7 @@ function cardState(card: NonNullable<SessionSnapshot['active_card']>): SessionSn
 
 function apiFor(state: SessionSnapshot): ChatApi {
   return { create: async () => state, get: async () => state,
-    catalogScopes: async () => ({ snapshot: null, scopes: [], unmapped: [] }) } as unknown as ChatApi
+    catalogMap: async () => ({ schema: 'catalog-map-1', snapshot: null, layers: [], unmapped: [] }) } as unknown as ChatApi
 }
 
 describe('map-first shell', () => {
@@ -47,17 +47,21 @@ describe('map-first shell', () => {
     expect(screen.queryByRole('button', { name: 'Upload GeoJSON area or points' })).not.toBeInTheDocument()
   })
 
-  it('lists catalog scope layers before a weather request is assessed', async () => {
+  it('lists every Stage 1 catalog layer with a toggle before a request is assessed', async () => {
     const state: SessionSnapshot = { id: 'test', revision: 0, facts: {}, events: [],
       active_card: null, view_ids: [] }
+    const layer = (id: string, kind: string, label: string) => ({ id, kind, label, caveat: `${label} caveat`,
+      count: 3, evidence_dates: ['2026-09-23'], points: [], rects: [], bounds: [-180, -89, 180, 89] })
     const api = { create: async () => state, get: async () => state,
-      catalogScopes: async () => ({ snapshot: null, unmapped: [{ provider: 'noaa', dataset: 'isd' }],
-        scopes: [{ provider: 'cds', dataset: 'era5', footprint: [0, -89, 360, 89],
-          longitude_convention: '0_360', evidence_bases: ['documentation'],
-          evidence_dates: ['2026-09-25'] }] }) } as unknown as ChatApi
+      catalogMap: async () => ({ schema: 'catalog-map-1', snapshot: null,
+        layers: [layer('noaa', 'stations', 'NOAA ISD stations'), layer('onebuilding', 'sites', 'OneBuilding published EPWs'),
+          layer('era5', 'extent', 'ERA5 global reanalysis')],
+        unmapped: [{ provider: 'nsrdb', dataset: 'aggregate', reason: 'none' }] }) } as unknown as ChatApi
     render(<App api={api} />)
-    expect(await screen.findByLabelText('Data availability scope')).toHaveTextContent('cds/era5')
-    expect(screen.getByLabelText('Data availability scope')).toHaveTextContent('1 source dataset lacks mapped scope')
+    const legend = await screen.findByLabelText('Data availability scope')
+    for (const name of ['NOAA ISD stations', 'OneBuilding published EPWs', 'ERA5 global reanalysis'])
+      expect(screen.getByRole('checkbox', { name: new RegExp(name) })).toBeChecked()
+    expect(legend).toHaveTextContent('No reviewed geometry: nsrdb/aggregate')
   })
 
   it('shows the current choice once as an agent turn', async () => {
@@ -104,7 +108,7 @@ describe('map-first shell', () => {
     const first = new Promise<SessionSnapshot>(resolve => { finish = resolve })
     const sendTurn = vi.fn().mockReturnValue(first)
     const api = { create: async () => state, get: async () => state, sendTurn,
-      catalogScopes: async () => ({ snapshot: null, scopes: [], unmapped: [] }) } as unknown as ChatApi
+      catalogMap: async () => ({ schema: 'catalog-map-1', snapshot: null, layers: [], unmapped: [] }) } as unknown as ChatApi
     render(<App api={api} />)
     const input = await screen.findByRole('textbox', { name: 'Message' })
     await waitFor(() => expect(screen.getByRole('button', { name: 'Send' })).toBeEnabled())

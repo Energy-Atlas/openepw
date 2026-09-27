@@ -13,9 +13,14 @@ button { cursor: pointer; }
 .pick-toolbar button { border: 1px solid #adc9ca; border-radius: 7px; padding: .35rem .5rem; background: white; color: #173849; font-size: .76rem; }
 .pick-toolbar button[aria-pressed="true"] { background: #237e8b; color: white; }
 .pick-toolbar .draw-actions { flex-basis: 100%; display: flex; align-items: center; flex-wrap: wrap; gap: .35rem; font-size: .7rem; }
-.evidence-legend { position: absolute; left: 1rem; bottom: 6.8rem; z-index: 2; display: flex; flex-direction: column; gap: .25rem; max-width: min(240px, 30vw); max-height: 180px; overflow: auto; padding: .55rem .7rem; border: 1px solid rgba(100,119,130,.2); border-radius: 9px; background: rgba(243,247,247,.88); color: #173849; font-size: .68rem; }
+.evidence-legend { position: absolute; left: 1rem; bottom: 6.8rem; z-index: 2; display: flex; flex-direction: column; gap: .25rem; max-width: min(270px, 34vw); max-height: min(340px, 50dvh); overflow: auto; padding: .55rem .7rem; border: 1px solid rgba(100,119,130,.2); border-radius: 9px; background: rgba(243,247,247,.88); color: #173849; font-size: .68rem; }
 .evidence-legend strong { font-size: .72rem; }
-.evidence-legend span { display: flex; align-items: center; gap: .4rem; overflow-wrap: anywhere; }
+.evidence-legend .scope-row { display: grid; grid-template-columns: auto auto 1fr; align-items: center; column-gap: .4rem; cursor: pointer; }
+.evidence-legend .scope-row input { margin: 0; accent-color: #237e8b; }
+.evidence-legend .scope-row small { grid-column: 3; margin-top: -.1rem; font: .62rem 'IBM Plex Mono', monospace; }
+.evidence-legend details { color: #415963; }
+.evidence-legend details summary { cursor: pointer; color: #255b67; }
+.evidence-legend details p { margin: .35rem 0; line-height: 1.4; }
 .evidence-legend i { flex: none; width: .55rem; height: .55rem; border-radius: 2px; opacity: .7; }
 .evidence-legend small { color: #647782; line-height: 1.4; }
 .map-status { position: absolute; bottom: 2.3rem; left: 3.2rem; max-width: 40ch; padding: .3rem .5rem; border-radius: 6px; background: rgba(243,247,247,.92); font-size: .7rem; }

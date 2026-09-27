@@ -1,6 +1,6 @@
-import { render, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { CatalogScopes } from '../src/types'
+import type { CatalogMap } from '../src/types'
 
 // A parsed style whose tiles are still loading: MapLibre accepts sources and
 // layers, but isStyleLoaded() stays false until every tile source finishes.
@@ -26,8 +26,9 @@ vi.mock('maplibre-gl', () => {
     }
     addLayer(layer: { id: string }) { this.layers.push(layer) }
     getLayer(id: string) { return this.layers.find(layer => layer.id === id) }
+    visibility = new Map<string, string>()
     setPaintProperty() {}
-    setLayoutProperty() {}
+    setLayoutProperty(id: string, _name: string, value: string) { this.visibility.set(id, value) }
     setProjection() {}
     setLight() {}
     setSky() {}
@@ -46,10 +47,14 @@ vi.mock('maplibre-gl', () => {
   return { ...api, default: api }
 })
 
-const scopes: CatalogScopes = {
-  snapshot: { generation_id: 'g', created_at: '2026-09-25T03:29:20+00:00' },
-  scopes: [{ provider: 'cds', dataset: 'reanalysis-era5-land', footprint: [0, -89, 360, 89],
-    longitude_convention: '0_360', evidence_bases: ['inventory'], evidence_dates: ['2026-09-23'] }],
+const catalog: CatalogMap = {
+  schema: 'catalog-map-1', snapshot: { generation_id: 'g', created_at: '2026-09-25T03:29:20+00:00' },
+  layers: [
+    { id: 'noaa', kind: 'stations', label: 'NOAA ISD stations', caveat: 'c', count: 2, evidence_dates: [],
+      points: [[-76, 42, 'A', [[2016, 2018]]], [10, 10, 'B', [[2000, 2001]]]] },
+    { id: 'era5', kind: 'extent', label: 'ERA5 global reanalysis', caveat: 'c', count: 2, evidence_dates: [],
+      bounds: [-180, -89, 180, 89] },
+  ],
   unmapped: [],
 }
 
@@ -57,17 +62,21 @@ describe('map canvas overlays', () => {
   beforeEach(() => { fake.maps.length = 0; vi.stubGlobal('WebGLRenderingContext', function WebGL() {}) })
   afterEach(() => vi.unstubAllGlobals())
 
-  it('draws catalog scopes once the style is parsed even while tiles are still loading', async () => {
+  it('draws catalog layers with toggles once the style is parsed even while tiles are still loading', async () => {
     const { MapCanvas } = await import('../src/map/MapCanvas')
-    render(<MapCanvas catalogScopes={scopes} />)
+    render(<MapCanvas catalogMap={catalog} years={[2017]} />)
     await waitFor(() => expect(fake.maps).toHaveLength(1))
     const map = fake.maps[0] as unknown as { parsed: boolean; emit(event: string): void;
-      getSource(id: string): unknown; getLayer(id: string): unknown }
+      getSource(id: string): unknown; getLayer(id: string): unknown; visibility: Map<string, string> }
     map.parsed = true
     map.emit('style.load')
-    await waitFor(() => expect(map.getSource('openepw-evidence')).toBeTruthy())
-    expect(map.getLayer('openepw-evidence-fill')).toBeTruthy()
-    expect(map.getLayer('openepw-evidence-line')).toBeTruthy()
+    await waitFor(() => expect(map.getSource('openepw-catalog-noaa')).toBeTruthy())
+    expect(map.getLayer('openepw-catalog-noaa-point')).toBeTruthy()
+    expect(map.getLayer('openepw-catalog-era5-fill')).toBeTruthy()
+    expect(map.getSource('openepw-evidence')).toBeTruthy()
+    expect(screen.getByLabelText('Data availability scope')).toHaveTextContent('1 reporting 2017')
+    fireEvent.click(screen.getByRole('checkbox', { name: /NOAA ISD stations/ }))
+    await waitFor(() => expect(map.visibility.get('openepw-catalog-noaa-point')).toBe('none'))
     expect(map.getSource('openepw-candidates')).toBeTruthy()
     expect(map.getSource('openepw-selection')).toBeTruthy()
   })

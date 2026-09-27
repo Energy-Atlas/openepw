@@ -1,4 +1,4 @@
-import type { CatalogScopes, JobManifest, JobSnapshot, SessionSnapshot, ViewPage } from './types'
+import type { CatalogMap, CatalogScopes, JobManifest, JobSnapshot, SessionSnapshot, ViewPage } from './types'
 
 export class ApiError extends Error {
   constructor(public code: string, message: string, public status: number,
@@ -27,6 +27,7 @@ export class ChatApi {
   }
 
   catalogScopes(): Promise<CatalogScopes> { return this.request('/v1/catalog/scopes') }
+  catalogMap(): Promise<CatalogMap> { return this.request('/v1/catalog/map') }
 
   answer(id: string, revision: number, choice_id: string, key: string): Promise<SessionSnapshot> {
     return this.request(`/v1/chat/sessions/${encodeURIComponent(id)}/choices`,

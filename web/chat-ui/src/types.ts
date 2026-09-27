@@ -82,3 +82,27 @@ export type CatalogScopes = {
     evidence_dates: string[] }>
   unmapped: Array<{ provider: string; dataset: string }>
 }
+
+export type CatalogLayer = {
+  id: string
+  kind: 'stations' | 'sites' | 'cells' | 'area' | 'extent'
+  label: string
+  caveat: string
+  count: number
+  evidence_dates: string[]
+  points?: Array<[number, number, string, unknown, ...unknown[]]>
+  rects?: Array<[number, number, number, number]>
+  polygon?: Array<[number, number]>
+  probes?: Array<[number, number]>
+  bounds?: [number, number, number, number]
+  members?: string[]
+  omitted?: Record<string, number>
+  source_url?: string
+}
+
+export type CatalogMap = {
+  schema: string
+  snapshot: { generation_id: string; created_at: string } | null
+  layers: CatalogLayer[]
+  unmapped: Array<{ provider: string; dataset: string; reason: string }>
+}

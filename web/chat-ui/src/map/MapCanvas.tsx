@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
-import type { Map as MapLibreMap } from 'maplibre-gl'
+import type { AddLayerObject, ExpressionSpecification, FilterSpecification, Map as MapLibreMap } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
 import { appearanceStyle, applyAppearance, applyLighting, applyScene, autoView3d, scenePitch, type SceneSettings } from './scene'
 import { renderShadows } from './renderShadows'
 import { availabilityFeatures } from './evidence'
+import { catalogFeatures, layerColor } from './catalogLayers'
 import { utcSceneTime } from './sun'
 import type { WeatherGeography } from '../geography'
-import type { AvailabilitySummary, CatalogScopes } from '../types'
+import type { AvailabilitySummary, CatalogLayer, CatalogMap } from '../types'
 
 const initial: SceneSettings = {
   appearance: 'light', view3d: false, terrain: false, terrainExaggeration: 1,
@@ -22,14 +23,15 @@ function styleParsed(map: MapLibreMap | null): map is MapLibreMap {
   return Boolean(map?.getStyle())
 }
 
-export function MapCanvas({ location, candidates = [], geography, resolvedPoints = [], availability, catalogScopes,
+export function MapCanvas({ location, candidates = [], geography, resolvedPoints = [], availability, catalogMap, years = [],
   pickMode = false, onExitPickMode, onPickPoint, onPickCandidate, onPickGeometry }: {
   location?: MapPoint | null
   candidates?: MapPoint[]
   geography?: WeatherGeography | null
   resolvedPoints?: MapPoint[]
   availability?: AvailabilitySummary | null
-  catalogScopes?: CatalogScopes | null
+  catalogMap?: CatalogMap | null
+  years?: number[]
   pickMode?: boolean
   onExitPickMode?: () => void
   onPickPoint?: (point: MapPoint) => void
@@ -47,6 +49,7 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
   const shadowTimer = useRef<number | null>(null)
   const scheduleShadowsRef = useRef<() => void>(() => {})
   const [picking, setPicking] = useState(false)
+  const [hiddenLayers, setHiddenLayers] = useState<string[]>([])
   const [drawMode, setDrawMode] = useState<'polygon' | 'box' | null>(null)
   const [vertices, setVertices] = useState<Array<[number, number]>>([])
   const drawRef = useRef<'polygon' | 'box' | null>(null)
@@ -267,7 +270,7 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
   useEffect(() => {
     const sceneMap = map.current
     if (!styleParsed(sceneMap)) return
-    const data = availabilityFeatures(availability, catalogScopes)
+    const data = availabilityFeatures(availability)
     if (!sceneMap.getSource('openepw-evidence')) {
       sceneMap.addSource('openepw-evidence', { type: 'geojson', data })
       sceneMap.addLayer({ id: 'openepw-evidence-fill', type: 'fill', source: 'openepw-evidence',
@@ -278,7 +281,31 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
     } else {
       (sceneMap.getSource('openepw-evidence') as import('maplibre-gl').GeoJSONSource).setData(data)
     }
-  }, [availability, catalogScopes, styleEpoch])
+  }, [availability, styleEpoch])
+
+  const yearKey = years.join(',')
+  useEffect(() => {
+    const sceneMap = map.current
+    if (!styleParsed(sceneMap) || !catalogMap) return
+    // Catalog context sits under the user's selection, candidates and drawing; broad extents lowest.
+    const own = new Set(['openepw-selection-fill', 'openepw-drawing', 'openepw-candidates', 'openepw-evidence-fill'])
+    const before = sceneMap.getStyle().layers.find(item => own.has(item.id))?.id
+    const stack = ['extent', 'cells', 'area', 'sites', 'stations']
+    const ordered = [...catalogMap.layers].sort((a, b) => stack.indexOf(a.kind) - stack.indexOf(b.kind))
+    for (const layer of ordered) {
+      const id = `openepw-catalog-${layer.id}`
+      const data = catalogFeatures(layer, layer.kind === 'stations' ? years : [])
+      const source = sceneMap.getSource(id) as import('maplibre-gl').GeoJSONSource | undefined
+      if (source) source.setData(data)
+      else {
+        sceneMap.addSource(id, { type: 'geojson', data })
+        for (const spec of catalogLayerSpecs(layer, id)) sceneMap.addLayer(spec, before)
+      }
+      const visibility = hiddenLayers.includes(layer.id) ? 'none' : 'visible'
+      for (const suffix of ['fill', 'line', 'point'])
+        if (sceneMap.getLayer(`${id}-${suffix}`)) sceneMap.setLayoutProperty(`${id}-${suffix}`, 'visibility', visibility)
+    }
+  }, [catalogMap, yearKey, hiddenLayers, styleEpoch])
 
   return <div className="map-canvas" aria-label="Weather map">
     <div ref={host} className="map-engine" aria-hidden="true" />
@@ -301,16 +328,25 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
           if (map.current) map.current.getCanvas().dataset.picking = 'true' }}>Reset drawing</button></div>}
       <button type="button" onClick={onExitPickMode}>Close map input</button>
     </section>}
-    {(availability || catalogScopes) && <aside className="evidence-legend" aria-label="Data availability scope">
-      <strong>Source scopes</strong>
-      {[...new Map(availabilityFeatures(availability, catalogScopes).features.map(feature => [String(feature.properties?.key),
-        String(feature.properties?.color)])).entries()].map(([key, color]) =>
-        <span key={key}><i style={{ background: color }} />{key}</span>)}
-      {!availabilityFeatures(availability, catalogScopes).features.length &&
-        <small>No documented polygons are available in this map response.</small>}
-      {catalogScopes?.unmapped.length ? <small>{catalogScopes.unmapped.length} source dataset{catalogScopes.unmapped.length === 1 ? '' : 's'} {catalogScopes.unmapped.length === 1 ? 'lacks' : 'lack'} mapped scope.</small> : null}
-      <small>Faint areas are documented scope. Point availability may be unknown.
-        {' '}Checked {(availability?.checked_at ?? catalogScopes?.snapshot?.created_at ?? 'unknown').slice(0, 10)}.</small>
+    {catalogMap && <aside className="evidence-legend" aria-label="Data availability scope">
+      <strong>Data availability</strong>
+      {catalogMap.layers.map(layer => <label key={layer.id} className="scope-row" title={layer.caveat}>
+        <input type="checkbox" checked={!hiddenLayers.includes(layer.id)} onChange={() => setHiddenLayers(current =>
+          current.includes(layer.id) ? current.filter(item => item !== layer.id) : [...current, layer.id])} />
+        <i style={{ background: layerColor(layer.id) }} />
+        <span>{layer.label}</span>
+        <small>{layerCount(layer, years)}</small>
+      </label>)}
+      <details><summary>What these layers mean</summary>
+        {catalogMap.layers.map(layer => <p key={layer.id}><b>{layer.label}.</b> {layer.caveat}
+          {layer.evidence_dates.length ? ` Evidence ${layer.evidence_dates.at(-1)}.` : ''}</p>)}
+        {catalogMap.unmapped.length > 0 && <p>No reviewed geometry: {catalogMap.unmapped
+          .map(item => `${item.provider}/${item.dataset}`).join(', ')}.</p>}
+        <p>Credits: NOAA NCEI ISD; OneBuilding.org; NLR NSRDB (CC BY 3.0 US); PVGIS © European Union/JRC;
+          Copernicus ERA5 and Open-Meteo.</p>
+      </details>
+      <small>Catalog {catalogMap.snapshot?.created_at.slice(0, 10) ?? 'bundled contracts'}. Documentary context,
+        not point eligibility.</small>
     </aside>}
     <div className="map-status" role="status">{status}
       {status.includes('unavailable') || status.includes('could not load') ?
@@ -325,4 +361,38 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
       {settings.terrain && <> · <a href="https://mapterhorn.com/attribution/" target="_blank" rel="noreferrer">Mapterhorn</a></>}
     </div>
   </div>
+}
+
+function layerCount(layer: CatalogLayer, years: number[]): string {
+  if (layer.kind === 'stations') return years.length
+    ? `${catalogFeatures(layer, years).features.length.toLocaleString()} reporting ${years.length === 1 ? years[0] : `${years[0]}–${years.at(-1)}`}`
+    : `${layer.count.toLocaleString()} stations`
+  if (layer.kind === 'sites') return `${layer.count.toLocaleString()} files`
+  if (layer.kind === 'cells') return `${layer.count.toLocaleString()} cells`
+  if (layer.kind === 'area') return 'approximate'
+  return 'documented extent'
+}
+
+function catalogLayerSpecs(layer: CatalogLayer, id: string): AddLayerObject[] {
+  const color = layerColor(layer.id)
+  const radius: ExpressionSpecification = ['interpolate', ['linear'], ['zoom'], 1, 1.1, 4, 2, 8, 3.5, 12, 5]
+  const polygons: FilterSpecification = ['==', ['geometry-type'], 'Polygon']
+  const points: FilterSpecification = ['==', ['geometry-type'], 'Point']
+  if (layer.kind === 'stations') return [{ id: `${id}-point`, type: 'circle', source: id,
+    paint: { 'circle-radius': radius, 'circle-color': color, 'circle-opacity': .75 } }]
+  if (layer.kind === 'sites') return [{ id: `${id}-point`, type: 'circle', source: id,
+    paint: { 'circle-radius': radius, 'circle-color': color,
+      'circle-opacity': ['case', ['get', 'approximate'], 0, .75],
+      'circle-stroke-color': color, 'circle-stroke-width': ['case', ['get', 'approximate'], 1.2, 0] } }]
+  // Area fills fade at district zoom so they tint rather than hide the local map.
+  const peak = layer.kind === 'cells' ? .32 : layer.kind === 'area' ? .16 : .04
+  const specs: AddLayerObject[] = [{ id: `${id}-fill`, type: 'fill', source: id, filter: polygons,
+    paint: { 'fill-color': color, 'fill-antialias': layer.kind !== 'cells',
+      'fill-opacity': ['interpolate', ['linear'], ['zoom'], 4, peak, 9, Math.min(peak, .06)] } }]
+  if (layer.kind !== 'cells') specs.push({ id: `${id}-line`, type: 'line', source: id, filter: polygons,
+    paint: { 'line-color': color, 'line-width': 1.1, 'line-opacity': .45,
+      ...(layer.kind === 'extent' ? { 'line-dasharray': [2, 2] } : {}) } })
+  if (layer.kind === 'area') specs.push({ id: `${id}-point`, type: 'circle', source: id, filter: points,
+    paint: { 'circle-radius': 5, 'circle-color': '#ffffff', 'circle-stroke-color': color, 'circle-stroke-width': 2 } })
+  return specs
 }
