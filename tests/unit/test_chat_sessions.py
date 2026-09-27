@@ -80,6 +80,9 @@ def test_chat_redacts_bearer_and_generic_key_assignments(tmp_path):
     assert "example-secret" not in serialized
     assert "another-secret" not in serialized
     assert "[redacted]" in serialized
+    next_state = coordinator.turn(state["id"], '{"api_key":"json-secret"}',
+                                  result["revision"], "two")
+    assert "json-secret" not in str(next_state)
 
 
 def test_offline_coordinate_entry_accepts_integer_degrees(tmp_path):

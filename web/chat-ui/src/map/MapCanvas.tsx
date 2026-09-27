@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { Map as MapLibreMap } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
-import { appearanceStyle, applyAppearance, applyScene, scenePitch, type Appearance, type SceneSettings } from './scene'
+import { appearanceStyle, applyAppearance, applyLighting, applyScene, scenePitch, type Appearance, type SceneSettings } from './scene'
 import { renderShadows } from './renderShadows'
 import type { WeatherGeography } from '../geography'
 import type { AvailabilitySummary } from '../types'
@@ -115,7 +115,7 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
       sceneMap.on('moveend', () => {
         setStatus(`Map ready · zoom ${sceneMap.getZoom().toFixed(1)}`)
         if (sceneMap.isStyleLoaded() && !awaitingStyleIdle.current) {
-          try { applyScene(sceneMap, settingsRef.current) }
+          try { applyLighting(sceneMap, settingsRef.current) }
           catch { setStatus('Scene lighting unavailable; map and chat remain usable.') }
         }
         scheduleShadows()

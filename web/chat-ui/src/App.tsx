@@ -205,19 +205,19 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
   const uploaded = (session?.facts.uploaded_artifact_ids ?? []) as string[]
   const availableIds = [...mergedJobs.artifactIds, ...uploaded]
 
-  const selected = session?.facts.location as { id?: string; name?: string; lat: number; lon: number } | undefined
+  const resolvedPoints = (session?.facts.resolved_points ?? []) as Array<{ lat: number; lon: number }>
+  const selected = (session?.facts.location as { id?: string; name?: string; lat: number; lon: number } | undefined)
+    ?? (resolvedPoints.length === 1 ? resolvedPoints[0] : undefined)
   const candidates = (session?.facts.candidates ?? []) as Array<{ id: string; name?: string; lat: number; lon: number }>
-  const requestedPoints = (session?.facts.resolved_points as Array<{lat:number;lon:number}> | undefined)
-    ?? (selected ? [selected] : [])
-  const coordinatesFor = (index: number) => {
-    const point = requestedPoints[index]
+  const coordinatesFor = (row: JobManifest['batch_rows'][number]) => {
+    const point = row.metadata?.requested_location
     return point ? ` · ${point.lat.toFixed(4)}, ${point.lon.toFixed(4)}` : ''
   }
 
   return <main className="workspace">
     <MapCanvas location={selected} candidates={candidates}
       geography={session?.facts.geography as import('./geography').WeatherGeography | undefined}
-      resolvedPoints={(session?.facts.resolved_points ?? []) as Array<{lat:number;lon:number}>}
+      resolvedPoints={resolvedPoints}
       availability={session?.facts.availability as AvailabilitySummary | undefined}
       onPickPoint={point => void act(current => api.setGeography(current.id, current.revision, point, randomKey()))}
       onPickGeometry={geography => void act(current => api.setGeography(current.id, current.revision, geography, randomKey()))}
@@ -303,7 +303,7 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
             void act(current => api.retrySession(current.id, current.revision, randomKey()))}>Retry failed</button>}
           {!mergedJobs.complete && <p className="warning">Verified output mapping is loading or unavailable; downloads wait for the manifest.</p>}
           {mergedJobs.rows.map((row, index) => <div className="artifact-row" key={`${row.output_id ?? index}`}>
-            <span>Location {row.occurrence_index + 1}{coordinatesFor(row.occurrence_index)} ·
+            <span>Location {row.occurrence_index + 1}{coordinatesFor(row)} ·
               {' '}{row.period_start?.slice(0, 4) ?? 'reference'} · {row.dataset_selection?.provider ?? 'source unknown'} · {row.status}
               {row.issue_codes?.length ? ` (${row.issue_codes.join(', ')})` : ''}</span>
             {row.artifact_id && mergedJobs.artifactIds.includes(row.artifact_id) &&

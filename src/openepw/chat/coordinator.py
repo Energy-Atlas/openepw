@@ -482,6 +482,8 @@ class ChatCoordinator:
             previous = state.get("job_id")
             if not previous:
                 raise ChatActionError("No current weather job to retry")
+            if len(state.get("job_ids") or [previous]) >= 10:
+                raise ChatActionError("Retry chain limit reached; start a new plan")
             job = runner.retry_failed(previous, f"chat-retry:{session_id}:{key}")
             state["job_id"] = job.id
             state.setdefault("job_ids", [previous]).append(job.id)

@@ -52,6 +52,24 @@ export function applyAppearance(map: MapLibreMap, appearance: Appearance): void 
   }
 }
 
+export function applyLighting(map: MapLibreMap, settings: SceneSettings): void {
+  if (!settings.view3d) return
+  const center = map.getCenter()
+  const sun = solarPosition(settings.dayOfYear, settings.utcMinutes, center.lat, center.lng)
+  const daylight = Math.max(0, Math.min(1, (sun.elevationDeg + settings.diffusion / 12) / 15))
+  const intensity = Math.min(0.9, settings.lightIntensity / 200) * daylight * (1 - settings.haze / 400)
+  map.setLight({ anchor: 'map', position: [1.5, sun.azimuthDeg, Math.max(0, 90 - sun.elevationDeg)],
+    color: '#eeddbb', intensity })
+  map.setSky({ 'sky-color': daylight > 0 ? '#85b0bb' : '#122d42',
+    'horizon-color': daylight > 0 ? '#dce4dc' : '#274253',
+    'fog-color': '#c7d9d5', 'sky-horizon-blend': 0.35 + settings.diffusion / 500,
+    'horizon-fog-blend': 0.4, 'fog-ground-blend': settings.haze / 200,
+    'atmosphere-blend': 0.55 })
+  if (map.getLayer('openepw-hillshade')) {
+    map.setPaintProperty('openepw-hillshade', 'hillshade-illumination-direction', sun.azimuthDeg)
+  }
+}
+
 export function applyScene(map: MapLibreMap, settings: SceneSettings): void {
   map.setProjection({ type: 'globe' })
   const hidden = hiddenBuildingLayers.get(map) ?? new Map<string, VisibilitySpecification | undefined>()
@@ -67,22 +85,7 @@ export function applyScene(map: MapLibreMap, settings: SceneSettings): void {
       hidden.delete(layer.id)
     }
   }
-  if (settings.view3d) {
-    const center = map.getCenter()
-    const sun = solarPosition(settings.dayOfYear, settings.utcMinutes, center.lat, center.lng)
-    const daylight = Math.max(0, Math.min(1, (sun.elevationDeg + settings.diffusion / 12) / 15))
-    const intensity = Math.min(0.9, settings.lightIntensity / 200) * daylight * (1 - settings.haze / 400)
-    map.setLight({ anchor: 'map', position: [1.5, sun.azimuthDeg, Math.max(0, 90 - sun.elevationDeg)],
-      color: '#eeddbb', intensity })
-    map.setSky({ 'sky-color': daylight > 0 ? '#85b0bb' : '#122d42',
-      'horizon-color': daylight > 0 ? '#dce4dc' : '#274253',
-      'fog-color': '#c7d9d5', 'sky-horizon-blend': 0.35 + settings.diffusion / 500,
-      'horizon-fog-blend': 0.4, 'fog-ground-blend': settings.haze / 200,
-      'atmosphere-blend': 0.55 })
-    if (map.getLayer('openepw-hillshade')) {
-      map.setPaintProperty('openepw-hillshade', 'hillshade-illumination-direction', sun.azimuthDeg)
-    }
-  }
+  applyLighting(map, settings)
   if (settings.view3d && map.getSource('openmaptiles') && !map.getLayer('openepw-buildings')) {
     map.addLayer({
       id: 'openepw-buildings', type: 'fill-extrusion', source: 'openmaptiles',

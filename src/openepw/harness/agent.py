@@ -84,7 +84,7 @@ def safe_prompt(text: str, *, limit: int = 1000) -> str:
     text = re.sub(
         r"(?i)\b(?:[A-Z][A-Z0-9_]*(?:API_KEY|TOKEN|SECRET|PASSWORD)|"
         r"api[_-]?key|bearer[_-]?token|access[_-]?token|secret|password)"
-        r"\s*[=:]\s*\S+|\bBearer\s+\S+|\bsk-[A-Za-z0-9_-]{8,}\b",
+        r"[\"']?\s*[=:]\s*[\"']?\S+|\bBearer\s+\S+|\bsk-[A-Za-z0-9_-]{8,}\b",
         "[redacted]", text,
     )
     text = re.sub(r"[A-Za-z]:\\[^\s]+|/(?:home|Users)/[^\s]+",

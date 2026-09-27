@@ -39,8 +39,10 @@ export type JobSnapshot = {
 export type JobManifest = {
   simulation_ready?: boolean
   batch_rows: Array<{ artifact_id?: string | null; output_id?: string | null;
-    occurrence_index: number; period_start?: string | null; period_end?: string | null;
-    status: string; dataset_selection?: { provider: string; dataset: string }; issue_codes?: string[] }>
+    occurrence_index: number; requested_location_id?: string;
+    period_start?: string | null; period_end?: string | null;
+    status: string; dataset_selection?: { provider: string; dataset: string }; issue_codes?: string[];
+    metadata?: { requested_location?: { lat: number; lon: number } } }>
   output_mapping: Array<{ id: string; name: string; occurrence_index: number }>
 }
 
