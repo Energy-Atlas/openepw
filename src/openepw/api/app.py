@@ -65,6 +65,10 @@ class ChatAction(BaseModel):
     idempotency_key: str
 
 
+class ChatProducts(ChatAction):
+    product_ids: list[str]
+
+
 class ChatGeography(ChatAction):
     geography: dict | list
 
@@ -215,6 +219,10 @@ def create_app(service=None, *, remote=False, chat_parser=None):
     @app.post("/v1/chat/sessions/{session_id}/back")
     def chat_back(session_id: str, payload: ChatAction, to_event: int | None = None):
         return chat.back(session_id, payload.revision, payload.idempotency_key, to_event)
+
+    @app.post("/v1/chat/sessions/{session_id}/products")
+    def chat_choose_products(session_id: str, payload: ChatProducts):
+        return chat.choose_products(session_id, payload.revision, payload.product_ids, payload.idempotency_key)
 
     @app.post("/v1/chat/sessions/{session_id}/location/approve")
     def chat_approve_location(session_id: str, payload: ChatAction):

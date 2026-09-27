@@ -153,6 +153,7 @@ def plan_summary_markdown(request: dict, rows: list[dict]) -> str:
         period = str(start)[:4] if start else "reference"
         selection = row.get("dataset_selection") or {}
         source = f"{selection['provider']}/{selection['dataset']}" if selection.get("provider") else "no source"
+        source += f" {selection['variant']}" if selection.get("variant") else ""
         status = row.get("status", "unknown")
         codes = f" ({', '.join(row['issue_codes'])})" if row.get("issue_codes") else ""
         lines.append(f"- **{label}** · {period} · {source} · {status}{codes}")
@@ -447,7 +448,7 @@ class ChatCoordinator:
             card = {"kind": "location_review",
                     "prompt": "Are these the right locations?" if several else "Is this the right location?",
                     "data": {"summary": request_location_summary(facts), "several": several}}
-        elif not facts.get("selection"):
+        elif not facts.get("selections"):
             # Each option names one downloadable product; the map shows where each is available.
             offers = product_offers(self.service, request_location(facts), facts)
             card = {"kind": "choice", "prompt": "Which weather product?", "options": offers["options"],
@@ -457,7 +458,7 @@ class ChatCoordinator:
         else:
             card = {"kind": "plan_review", "prompt": "Assess options and review a plan",
                     "data": {"facts": {key: facts.get(key) for key in
-                                       ("location", "geography", "product", "product_label", "years",
+                                       ("location", "geography", "product", "product_labels", "years",
                                         "provider")}}}
         if card:
             card.update({"id": uuid.uuid4().hex, "revision": state["revision"]})
@@ -668,10 +669,10 @@ class ChatCoordinator:
             if intents or years_from_text:
                 state["plan_hash"] = None
                 facts.pop("availability", None)
-            if facts.get("selection") and (facts.get("product"), facts.get("provider")) != chosen:
-                # A newly typed weather type or provider asks for the named product again.
-                facts.pop("selection", None)
-                facts.pop("product_label", None)
+            if facts.get("selections") and (facts.get("product"), facts.get("provider")) != chosen:
+                # A newly typed weather type or provider asks for the named products again.
+                facts.pop("selections", None)
+                facts.pop("product_labels", None)
             # Say so rather than silently asking the same question again.
             if len(state["events"]) == mark and json.dumps(facts, sort_keys=True) == before:
                 card = state["active_card"] or ({"prompt": "Where do you need weather?"} if not facts else None)
@@ -706,18 +707,49 @@ class ChatCoordinator:
                 state["facts"].pop("geography", None)
                 state["facts"].pop("resolved_points", None)
             elif (product := product_for(choice_id)) is not None:
-                state["facts"].update({"product": product.product, "selection": product.selection(),
-                                       "product_label": product.label})
-                if not product.actual:
-                    state["facts"].pop("years", None)       # a typical year has no actual years
-                for stale in ("provider", "product_id"):
-                    state["facts"].pop(stale, None)
+                self._apply_products(state, [product])
             else:
                 raise ChatActionError("Unknown choice")
             state["plan_hash"] = None
             state["facts"].pop("availability", None)
             self._event(state, "message", labels[choice_id],
                         {"role": "user", "choice": True, "choice_id": choice_id})
+            self._question(state)
+
+        return self._change(session_id, question_revision, key, update)
+
+    @staticmethod
+    def _apply_products(state: dict, products: list) -> None:
+        facts = state["facts"]
+        kinds = {product.product for product in products}
+        # One request has one weather type; typical-year products share "tmy" when mixed.
+        facts.update({"product": kinds.pop() if len(kinds) == 1 else "tmy",
+                      "selections": [product.selection() for product in products],
+                      "product_labels": [product.label for product in products]})
+        if not products[0].actual:
+            facts.pop("years", None)                     # a typical year has no actual years
+        for stale in ("provider", "product_id"):
+            facts.pop(stale, None)
+        state["plan_hash"] = None
+        facts.pop("availability", None)
+
+    def choose_products(self, session_id: str, question_revision: int, product_ids: list[str],
+                        key: str) -> dict:
+        """Answer the product card with one or more named products of one kind."""
+        products = [product_for(item) for item in dict.fromkeys(product_ids)]
+        if not products or len(products) > 20 or any(product is None for product in products):
+            raise ChatActionError("Choose one or more listed weather products")
+        if len({product.actual for product in products}) > 1:
+            raise ChatActionError("Choose actual-year or typical-year products, one kind at a time")
+
+        def update(state):
+            card = state["active_card"]
+            if (not card or card["revision"] != question_revision
+                    or (card.get("data") or {}).get("field") != "product"):
+                raise StaleSession(state)
+            self._apply_products(state, products)
+            self._event(state, "message", "; ".join(product.label for product in products),
+                        {"role": "user", "choice": True, "choice_ids": [product.id for product in products]})
             self._question(state)
 
         return self._change(session_id, question_revision, key, update)
@@ -742,14 +774,14 @@ class ChatCoordinator:
             raise ChatActionError("Location and weather product are required")
         if facts.get("location_approved") != location_key(location):
             raise ChatActionError("Approve the location first")
-        if not facts.get("selection"):
+        if not facts.get("selections"):
             raise ChatActionError("Choose a weather product first")
         return WeatherRequest.model_validate({
             "locations": location, "product": facts["product"],
             "years": facts.get("years", []) if facts["product"] in ("historical", "amy") else [],
-            "providers": [facts["provider"]] if facts.get("provider") and not facts.get("selection") else [],
-            "product_id": None if facts.get("selection") else facts.get("product_id"),
-            "dataset_selections": [facts["selection"]] if facts.get("selection") else [],
+            "providers": [facts["provider"]] if facts.get("provider") and not facts.get("selections") else [],
+            "product_id": None if facts.get("selections") else facts.get("product_id"),
+            "dataset_selections": facts.get("selections") or [],
         })
 
     def set_geography(self, session_id: str, geography: Any, revision: int, key: str) -> dict:

@@ -118,8 +118,8 @@ class Reanalysis(StationProvider):
 def _choose_era5(client, sid, state):
     card = state["active_card"]
     assert card["prompt"] == "Which weather product?"
-    return client.post(f"/v1/chat/sessions/{sid}/choices", json={
-        "choice_id": "era5-openmeteo", "revision": card["revision"], "idempotency_key": "product"}).json()
+    return client.post(f"/v1/chat/sessions/{sid}/products", json={
+        "product_ids": ["era5-openmeteo"], "revision": card["revision"], "idempotency_key": "product"}).json()
 
 
 def test_chat_rest_prepares_and_runs_only_after_explicit_action(tmp_path):
@@ -149,7 +149,7 @@ def test_chat_rest_prepares_and_runs_only_after_explicit_action(tmp_path):
             "revision": state["revision"], "idempotency_key": "unchosen"})
         assert unchosen.status_code >= 400 and "weather product" in unchosen.text
         state = _choose_era5(client, sid, state)
-        assert state["facts"]["selection"] == {"provider": "openmeteo", "dataset": "era5", "product_id": None}
+        assert state["facts"]["selections"] == [{"provider": "openmeteo", "dataset": "era5", "product_id": None}]
         assert state["active_card"]["kind"] == "plan_review"
         stale = client.post(f"/v1/chat/sessions/{sid}/prepare", json={
             "revision": 0, "idempotency_key": "stale"})

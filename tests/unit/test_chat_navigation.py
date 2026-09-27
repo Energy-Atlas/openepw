@@ -59,11 +59,11 @@ def test_product_choices_each_name_one_downloadable_product(tmp_path):
     assert not any(" or " in label or "Other" in label for label in labels.values())
     chosen = chat.answer(state["id"], card["revision"], "nsrdb-actual", "nsrdb")
     assert chosen["facts"]["product"] == "historical"
-    assert chosen["facts"]["selection"] == {"provider": "nsrdb", "dataset": "nsrdb-GOES-aggregated-v4-0-0",
-                                            "product_id": None}
+    assert chosen["facts"]["selections"] == [{"provider": "nsrdb", "dataset": "nsrdb-GOES-aggregated-v4-0-0",
+                                              "product_id": None}]
     assert chosen["active_card"]["prompt"] == "Which actual year or years?"
     retyped = chat.turn(state["id"], "tmy instead", chosen["revision"], "tmy")
-    assert "selection" not in retyped["facts"]                     # a new type asks for the product again
+    assert "selections" not in retyped["facts"]                     # a new type asks for the product again
     assert all(option["group"] == "typical" for option in retyped["active_card"]["options"])
 
 
@@ -215,3 +215,28 @@ def test_a_location_correction_is_read_against_the_location_under_review(tmp_pat
     england = chat.turn(state["id"], "actually the one in England", years["revision"], "four")
     assert "Cambridge, Massachusetts" in prompts[-1] and "actually the one in England" in prompts[-1]
     assert england["active_card"]["kind"] == "choice" and england["facts"]["candidates"]
+
+def test_several_products_of_one_kind_are_chosen_together(tmp_path):
+    chat = ChatCoordinator(Service(), parser=Parser(), path=tmp_path / "chat.sqlite")
+    state = chat.create()
+    first = chat.turn(state["id"], "Historical Cambridge, MA 2012–2014", 0, "one")
+    chosen = chat.answer(state["id"], first["active_card"]["revision"], "cambridge", "two")
+    card = chat.approve_location(state["id"], chosen["revision"], "three")["active_card"]
+    assert card["prompt"] == "Which weather product?"
+    both = chat.choose_products(state["id"], card["revision"], ["nsrdb-actual", "noaa-isd"], "four")
+    assert [item["provider"] for item in both["facts"]["selections"]] == ["nsrdb", "noaa"]
+    assert both["facts"]["product_labels"] == ["NSRDB actual year · GOES v4", "NOAA ISD station observations"]
+    assert both["facts"]["product"] == "historical" and both["active_card"]["kind"] == "plan_review"
+    assert both["events"][-2]["text"] == "NSRDB actual year · GOES v4; NOAA ISD station observations"
+    request = chat._request(both["facts"])
+    assert [(s.provider, s.dataset) for s in request.dataset_selections] == [
+        ("nsrdb", "nsrdb-GOES-aggregated-v4-0-0"), ("noaa", "ISD global-hourly")]
+    back = chat.back(state["id"], both["revision"], "five")
+    with pytest.raises(ChatActionError, match="one kind"):
+        chat.choose_products(state["id"], back["active_card"]["revision"], ["noaa-isd", "pvgis-tmy"], "six")
+    with pytest.raises(ChatActionError):
+        chat.choose_products(state["id"], back["active_card"]["revision"], [], "seven")
+    typical = chat.choose_products(state["id"], back["active_card"]["revision"],
+                                   ["nsrdb-tmy", "onebuilding:TMYx.2009-2023"], "eight")
+    assert typical["facts"]["product"] == "tmy" and "years" not in typical["facts"]
+    assert typical["facts"]["selections"][1]["variant"] == "TMYx.2009-2023"
