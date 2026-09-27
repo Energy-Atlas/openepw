@@ -68,3 +68,87 @@ def test_model_years_must_be_grounded_in_weather_request(tmp_path):
     result = coordinator.turn(state["id"],
                               "UBEM for 2012 buildings in Cambridge for 2021–2023", 0, "one")
     assert result["facts"]["years"] == [2021, 2022, 2023]
+
+
+def test_chat_redacts_bearer_and_generic_key_assignments(tmp_path):
+    coordinator = ChatCoordinator(Service(), parser=Parser(), path=tmp_path / "chat.sqlite")
+    state = coordinator.create()
+    result = coordinator.turn(state["id"],
+                              "api_key=example-secret OPENEPW_BEARER_TOKEN=another-secret",
+                              0, "one")
+    serialized = str(result)
+    assert "example-secret" not in serialized
+    assert "another-secret" not in serialized
+    assert "[redacted]" in serialized
+
+
+def test_offline_coordinate_entry_accepts_integer_degrees(tmp_path):
+    from openepw.chat.coordinator import OfflineParser
+
+    coordinator = ChatCoordinator(Service(), parser=OfflineParser(),
+                                  path=tmp_path / "chat.sqlite")
+    state = coordinator.create()
+    result = coordinator.turn(state["id"], "40,-105 historical 2018", 0, "one")
+    assert result["facts"]["location"]["lat"] == 40
+    assert result["facts"]["location"]["lon"] == -105
+    assert result["facts"]["years"] == [2018]
+
+
+def test_retry_replaces_durable_session_job_and_is_idempotent(tmp_path):
+    from types import SimpleNamespace
+
+    coordinator = ChatCoordinator(Service(), parser=Parser(), path=tmp_path / "chat.sqlite")
+    state = coordinator.create()
+    started = coordinator._change(state["id"], 0, "seed", lambda item: item.update(job_id="old"))
+
+    class Runner:
+        calls = 0
+
+        def retry_failed(self, job_id, key):
+            assert job_id == "old"
+            assert key.startswith("chat-retry:")
+            self.calls += 1
+            return SimpleNamespace(id="new")
+
+    runner = Runner()
+    retried = coordinator.retry(state["id"], started["revision"], "retry", runner)
+    assert retried["job_id"] == "new"
+    assert coordinator.get(state["id"])["job_id"] == "new"
+    assert coordinator.retry(state["id"], started["revision"], "retry", runner) == retried
+    assert runner.calls == 1
+
+
+def test_durable_turn_queue_is_ordered_withdrawable_and_redacted(tmp_path):
+    import threading
+    import time
+
+    entered, release = threading.Event(), threading.Event()
+
+    class SlowParser:
+        def parse_many(self, text):
+            if text == "first":
+                entered.set()
+                release.wait(timeout=3)
+            return []
+
+    coordinator = ChatCoordinator(Service(), parser=SlowParser(), path=tmp_path / "chat.sqlite")
+    state = coordinator.create()
+    first = coordinator.enqueue_turn(state["id"], "first", "first-key")
+    assert entered.wait(timeout=2)
+    second = coordinator.enqueue_turn(state["id"], "second", "second-key")
+    assert second["state"] == "queued" and second["position"] == 2
+    assert coordinator.enqueue_turn(state["id"], "second", "second-key")["queue_id"] == second["queue_id"]
+    assert coordinator.withdraw_turn(second["queue_id"])["state"] == "cancelled"
+    release.set()
+    deadline = time.monotonic() + 3
+    while coordinator.queued_turn(first["queue_id"])["state"] != "completed":
+        assert time.monotonic() < deadline
+        time.sleep(0.02)
+    assert [event["text"] for event in coordinator.get(state["id"])["events"]
+            if event["type"] == "message"] == ["first"]
+    secret = coordinator.enqueue_turn(state["id"], "api_key=synthetic-secret", "third-key")
+    deadline = time.monotonic() + 3
+    while coordinator.queued_turn(secret["queue_id"])["state"] != "completed":
+        assert time.monotonic() < deadline
+        time.sleep(0.02)
+    assert "synthetic-secret" not in coordinator.queue_path.read_bytes().decode(errors="ignore")

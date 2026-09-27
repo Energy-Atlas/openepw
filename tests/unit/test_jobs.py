@@ -271,6 +271,22 @@ def test_retry_failed_uses_only_missing_output_identities(tmp_path):
     runner.run(retry.id)
     assert store.get(retry.id).state == "completed"
     assert store.get(original.id).bundle.weather[0].id == original_artifact_id
+    from csv import DictReader
+    from io import StringIO
+    from zipfile import ZipFile
+
+    from openepw.artifacts.export import export_compact_chain
+
+    archive_ref = export_compact_chain(runner, [original.id, retry.id])
+    _, archive_path = service.artifacts.resolve(archive_ref.id)
+    with ZipFile(archive_path) as archive:
+        mapping = list(DictReader(StringIO(archive.read("mapping.csv").decode())))
+        assert len(mapping) == 2
+        assert {row["status"] for row in mapping} == {"succeeded"}
+        assert {row["artifact_id"] for row in mapping} == {
+            original_artifact_id, store.get(retry.id).bundle.weather[0].id,
+        }
+        assert len([name for name in archive.namelist() if name.startswith("weather/")]) == 2
     with pytest.raises(OpenEPWError, match="NOTHING_TO_RETRY"):
         runner.retry_failed(retry.id)
 

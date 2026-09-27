@@ -23,6 +23,10 @@ class StaleSession(Exception):
         super().__init__("Session changed; review the current question")
 
 
+class ChatActionError(ValueError):
+    """Safe, controlled feedback for a user action in the local chat API."""
+
+
 class SimpleIntent:
     def __init__(self, **values):
         self.__dict__.update(values)
@@ -48,7 +52,8 @@ class OfflineParser:
             if re.search(rf"\b{token}\b", text, re.I):
                 product = token
                 break
-        coordinates = re.search(r"(?<!\d)(-?\d{1,2}\.\d+)\s*,\s*(-?\d{1,3}\.\d+)", text)
+        coordinates = re.search(r"(?<!\d)(-?\d{1,2}(?:\.\d+)?)\s*,\s*"
+                                r"(-?\d{1,3}(?:\.\d+)?)(?!\d)", text)
         place = None
         match = re.search(r"\b(?:in|for|at|near)\s+([A-Za-z][A-Za-z ]{2,35})(?:,\s*([A-Za-z]{2}))?", text, re.I)
         if match:
@@ -90,6 +95,18 @@ class ChatCoordinator:
             db.execute("CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY, state TEXT NOT NULL)")
             db.execute("CREATE TABLE IF NOT EXISTS actions (session_id TEXT, key TEXT, response TEXT, "
                        "PRIMARY KEY (session_id, key))")
+        self.queue_path = self.path.with_name("turns.sqlite")
+        self.queue_lock = threading.Lock()
+        self.queue_wake = threading.Event()
+        self.queue_worker: threading.Thread | None = None
+        with self._queue_db() as db:
+            db.execute("CREATE TABLE IF NOT EXISTS turns (seq INTEGER PRIMARY KEY AUTOINCREMENT, "
+                       "id TEXT UNIQUE, session_id TEXT, key TEXT, text TEXT, state TEXT, "
+                       "error_code TEXT, UNIQUE(session_id, key))")
+            db.execute("UPDATE turns SET state='queued' WHERE state='running'")
+            pending = db.execute("SELECT 1 FROM turns WHERE state='queued' LIMIT 1").fetchone()
+        if pending:
+            self._ensure_queue_worker()
 
     @contextmanager
     def _db(self):
@@ -101,10 +118,113 @@ class ChatCoordinator:
         finally:
             db.close()
 
+    @contextmanager
+    def _queue_db(self):
+        db = sqlite3.connect(self.queue_path, timeout=30)
+        db.row_factory = sqlite3.Row
+        try:
+            with db:
+                yield db
+        finally:
+            db.close()
+
+    def enqueue_turn(self, session_id: str, text: str, key: str) -> dict:
+        if not text.strip() or len(text) > 4000:
+            raise ChatActionError("Message must contain 1–4000 characters")
+        if not key or len(key) > 100:
+            raise ChatActionError("An idempotency key is required")
+        if not re.fullmatch(r"[0-9a-f]{32}", session_id):
+            raise ChatActionError("Invalid session ID")
+        with self._queue_db() as db:
+            previous = db.execute("SELECT id, state FROM turns WHERE session_id=? AND key=?",
+                                  (session_id, key)).fetchone()
+            if previous:
+                if previous["state"] == "failed":
+                    db.execute("UPDATE turns SET state='queued', error_code=NULL WHERE id=?",
+                               (previous["id"],))
+                queue_id = previous["id"]
+            else:
+                count = db.execute("SELECT COUNT(*) FROM turns WHERE session_id=? AND "
+                                   "state IN ('queued', 'running')", (session_id,)).fetchone()[0]
+                if count >= 10:
+                    raise ChatActionError("Too many waiting messages")
+                queue_id = uuid.uuid4().hex
+                db.execute("INSERT INTO turns (id, session_id, key, text, state) "
+                           "VALUES (?, ?, ?, ?, 'queued')",
+                           (queue_id, session_id, key, safe_prompt(text, limit=4000)))
+        self._ensure_queue_worker()
+        self.queue_wake.set()
+        return self.queued_turn(queue_id)
+
+    def queued_turn(self, queue_id: str) -> dict:
+        with self._queue_db() as db:
+            row = db.execute("SELECT seq, id, session_id, state, error_code FROM turns "
+                             "WHERE id=?", (queue_id,)).fetchone()
+            if row is None:
+                raise KeyError(queue_id)
+            position = db.execute("SELECT COUNT(*) FROM turns WHERE session_id=? AND "
+                                  "state IN ('queued', 'running') AND seq<=?",
+                                  (row["session_id"], row["seq"])).fetchone()[0]
+        return {"queue_id": row["id"], "session_id": row["session_id"],
+                "state": row["state"], "position": position,
+                "error_code": row["error_code"]}
+
+    def withdraw_turn(self, queue_id: str) -> dict:
+        with self._queue_db() as db:
+            row = db.execute("SELECT state FROM turns WHERE id=?", (queue_id,)).fetchone()
+            if row is None:
+                raise KeyError(queue_id)
+            if row["state"] == "queued":
+                db.execute("UPDATE turns SET state='cancelled' WHERE id=?", (queue_id,))
+            elif row["state"] == "running":
+                raise ChatActionError("This message is already running")
+        return self.queued_turn(queue_id)
+
+    def _ensure_queue_worker(self):
+        with self.queue_lock:
+            if self.queue_worker and self.queue_worker.is_alive():
+                return
+            self.queue_worker = threading.Thread(target=self._drain_turns,
+                                                  name="openepw-chat-turns", daemon=True)
+            self.queue_worker.start()
+
+    def _drain_turns(self):
+        while True:
+            with self._queue_db() as db:
+                db.execute("BEGIN IMMEDIATE")
+                row = db.execute("SELECT id, session_id, key, text FROM turns AS candidate "
+                                 "WHERE state='queued' AND NOT EXISTS (SELECT 1 FROM turns "
+                                 "AS active WHERE active.session_id=candidate.session_id "
+                                 "AND active.state='running') ORDER BY seq LIMIT 1").fetchone()
+                if row:
+                    db.execute("UPDATE turns SET state='running' WHERE id=? AND state='queued'",
+                               (row["id"],))
+            if row is None:
+                self.queue_wake.wait(timeout=2)
+                self.queue_wake.clear()
+                continue
+            state = "completed"
+            error_code = None
+            try:
+                for attempt in range(2):
+                    try:
+                        revision = self.get(row["session_id"])["revision"]
+                        self.turn(row["session_id"], row["text"], revision, row["key"])
+                        break
+                    except StaleSession:
+                        if attempt:
+                            raise
+            except Exception:
+                state = "failed"
+                error_code = "TURN_FAILED"
+            with self._queue_db() as db:
+                db.execute("UPDATE turns SET state=?, error_code=? WHERE id=?",
+                           (state, error_code, row["id"]))
+
     def create(self) -> dict:
         state = {"schema_version": "0.1", "id": uuid.uuid4().hex, "revision": 0,
                  "facts": {}, "events": [], "active_card": None, "plan_hash": None,
-                 "job_id": None, "view_ids": []}
+                 "job_id": None, "job_ids": [], "view_ids": []}
         with self.lock, self._db() as db:
             db.execute("INSERT INTO sessions VALUES (?, ?)", (state["id"], json.dumps(state)))
         return state
@@ -126,7 +246,7 @@ class ChatCoordinator:
 
     def _change(self, session_id: str, revision: int, key: str, update):
         if not key or len(key) > 100:
-            raise ValueError("An idempotency key is required")
+            raise ChatActionError("An idempotency key is required")
         with self.lock, self._db() as db:
             db.execute("BEGIN IMMEDIATE")
             previous = db.execute("SELECT response FROM actions WHERE session_id=? AND key=?",
@@ -176,7 +296,7 @@ class ChatCoordinator:
 
     def turn(self, session_id: str, text: str, revision: int, key: str) -> dict:
         if not text.strip() or len(text) > 4000:
-            raise ValueError("Message must contain 1–4000 characters")
+            raise ChatActionError("Message must contain 1–4000 characters")
 
         def update(state):
             self._event(state, "message", text, {"role": "user"})
@@ -247,7 +367,7 @@ class ChatCoordinator:
             if not card or card["revision"] != question_revision or card["kind"] != "choice":
                 raise StaleSession(state)
             if choice_id not in [option["id"] for option in card["options"]]:
-                raise ValueError("Unknown choice")
+                raise ChatActionError("Unknown choice")
             if state["facts"].get("candidates"):
                 state["facts"]["location"] = next(item for item in state["facts"]["candidates"]
                                                   if item["id"] == choice_id)
@@ -267,7 +387,7 @@ class ChatCoordinator:
     def _request(facts: dict) -> WeatherRequest:
         location = facts.get("geography") or facts.get("location")
         if not location or not facts.get("product"):
-            raise ValueError("Location and weather product are required")
+            raise ChatActionError("Location and weather product are required")
         return WeatherRequest.model_validate({
             "locations": location, "product": facts["product"],
             "years": facts.get("years", []), "providers": [facts["provider"]]
@@ -344,10 +464,11 @@ class ChatCoordinator:
             plan_hash = state.get("plan_hash")
             card = state.get("active_card")
             if not plan_hash or not card or card.get("data", {}).get("plan_hash") != plan_hash:
-                raise ValueError("A current reviewed plan is required")
+                raise ChatActionError("A current reviewed plan is required")
             plan = self.service.plan_store.get(plan_hash)
             job = runner.submit(plan, f"chat:{session_id}:{key}")
             state["job_id"] = job.id
+            state["job_ids"] = [job.id]
             self._event(state, "tool", "Submitting reviewed plan", {"tool": "weather_jobs", "phase": "call",
                                                                 "plan_hash": plan_hash})
             self._event(state, "job", "Weather job started", {"job_id": job.id,
@@ -356,11 +477,38 @@ class ChatCoordinator:
 
         return self._change(session_id, revision, key, update)
 
+    def retry(self, session_id: str, revision: int, key: str, runner: Any) -> dict:
+        def update(state):
+            previous = state.get("job_id")
+            if not previous:
+                raise ChatActionError("No current weather job to retry")
+            job = runner.retry_failed(previous, f"chat-retry:{session_id}:{key}")
+            state["job_id"] = job.id
+            state.setdefault("job_ids", [previous]).append(job.id)
+            self._event(state, "tool", "Retrying failed outputs",
+                        {"tool": "weather_jobs", "phase": "call", "retry_of": previous})
+            self._event(state, "job", "Retry job started",
+                        {"job_id": job.id, "retry_of": previous})
+
+        return self._change(session_id, revision, key, update)
+
+    def compact(self, session_id: str, runner: Any):
+        state = self.get(session_id)
+        job_ids = state.get("job_ids") or [state.get("job_id")]
+        job_ids = [job_id for job_id in job_ids if job_id]
+        if not job_ids:
+            raise ChatActionError("No current weather job to download")
+        if len(job_ids) == 1:
+            return runner.export_compact(job_ids[0])
+        from ..artifacts.export import export_compact_chain
+
+        return export_compact_chain(runner, job_ids)
+
     def attach_upload(self, session_id: str, revision: int, key: str,
                       artifact_id: str) -> dict:
         ref, _ = self.service.artifacts.resolve(artifact_id)
         if ref.role != "baseline":
-            raise ValueError("Upload must refer to a registered user EPW")
+            raise ChatActionError("Upload must refer to a registered user EPW")
 
         def update(state):
             ids = state["facts"].setdefault("uploaded_artifact_ids", [])
@@ -377,12 +525,14 @@ class ChatCoordinator:
             if prompt:
                 self._event(state, "message", prompt, {"role": "user"})
             allowed = set(state["facts"].get("uploaded_artifact_ids", []))
-            if state.get("job_id"):
-                job = runner.store.get(state["job_id"])
+            for job_id in state.get("job_ids") or [state.get("job_id")]:
+                if not job_id:
+                    continue
+                job = runner.store.get(job_id)
                 if job.bundle:
                     allowed.update(ref.id for ref in job.bundle.weather)
             if not set(request.artifact_ids) <= allowed:
-                raise ValueError("View artifacts must come from this session's job or upload")
+                raise ChatActionError("View artifacts must come from this session's job or upload")
             self._event(state, "tool", "Preparing existing weather data",
                         {"tool": "weather_visualize", "phase": "call"})
             page = self.service.visualize_weather(request)

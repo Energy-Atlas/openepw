@@ -82,8 +82,9 @@ def _batch_row_label(row: dict[str, Any]) -> str:
 def safe_prompt(text: str, *, limit: int = 1000) -> str:
     """Remove credential assignments and absolute paths before model input."""
     text = re.sub(
-        r"(?i)\b(?:OPENAI_API_KEY|LANGCHAIN_API_KEY|LANGSMITH_API_KEY|OPENEPW_[A-Z_]*KEY)"
-        r"\s*[=:]\s*\S+|\bsk-[A-Za-z0-9_-]{8,}\b",
+        r"(?i)\b(?:[A-Z][A-Z0-9_]*(?:API_KEY|TOKEN|SECRET|PASSWORD)|"
+        r"api[_-]?key|bearer[_-]?token|access[_-]?token|secret|password)"
+        r"\s*[=:]\s*\S+|\bBearer\s+\S+|\bsk-[A-Za-z0-9_-]{8,}\b",
         "[redacted]", text,
     )
     text = re.sub(r"[A-Za-z]:\\[^\s]+|/(?:home|Users)/[^\s]+",

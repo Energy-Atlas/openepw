@@ -130,3 +130,31 @@ def test_chat_rest_prepares_and_runs_only_after_explicit_action(tmp_path):
         assert view.json()["view_ids"]
         page = client.get(f"/v1/views/{view.json()['view_ids'][0]}/page").json()
         assert page["specs"][0]["family"] == "monthly_series"
+        compact = client.post(f"/v1/chat/sessions/{sid}/export/compact")
+        assert compact.status_code == 200
+        assert client.get(f"/v1/artifacts/{compact.json()['id']}").content.startswith(b"PK")
+
+
+def test_chat_turn_queue_completes_and_resumes_session(tmp_path):
+    import time
+
+    from openepw.chat.coordinator import OfflineParser
+
+    service = WeatherService(RuntimeConfig(data_root=tmp_path), providers=[StationProvider()])
+    with TestClient(create_app(service, chat_parser=OfflineParser())) as client:
+        sid = client.post("/v1/chat/sessions").json()["id"]
+        queued = client.post(f"/v1/chat/sessions/{sid}/turns/queue", json={
+            "text": "40,-105 historical 2018", "revision": 0,
+            "idempotency_key": "queued-one"})
+        assert queued.status_code == 202
+        queue_id = queued.json()["queue_id"]
+        deadline = time.monotonic() + 3
+        while True:
+            status = client.get(f"/v1/chat/turns/{queue_id}").json()
+            if status["state"] == "completed":
+                break
+            assert time.monotonic() < deadline, status
+            time.sleep(0.02)
+        state = client.get(f"/v1/chat/sessions/{sid}").json()
+        assert state["facts"]["location"]["lat"] == 40
+        assert state["facts"]["years"] == [2018]

@@ -7,7 +7,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, ValidationError, model_validator
 
 from ..availability import AvailabilityQuery
-from ..chat.coordinator import ChatCoordinator, OfflineParser, StaleSession
+from ..chat.coordinator import ChatActionError, ChatCoordinator, OfflineParser, StaleSession
 from ..epw import read_epw
 from ..jobs.worker import JobRunner
 from ..models import FutureRequest, OpenEPWError, WeatherPlan, WeatherRequest
@@ -164,7 +164,7 @@ def create_app(service=None, *, remote=False, chat_parser=None):
     async def missing_chat(request, exc):
         return JSONResponse({"code": "NOT_FOUND", "message": "Session not found"}, status_code=404)
 
-    @app.exception_handler(ValueError)
+    @app.exception_handler(ChatActionError)
     async def invalid_chat_action(request, exc):
         return JSONResponse({"code": "INVALID_REQUEST", "message": str(exc)}, status_code=400)
 
@@ -187,6 +187,18 @@ def create_app(service=None, *, remote=False, chat_parser=None):
         return {"events": [event for event in state["events"] if event["id"] > after],
                 "cursor": len(state["events"]), "revision": state["revision"]}
 
+    @app.post("/v1/chat/sessions/{session_id}/turns/queue", status_code=202)
+    def chat_enqueue_turn(session_id: str, payload: ChatTurn):
+        return chat.enqueue_turn(session_id, payload.text, payload.idempotency_key)
+
+    @app.get("/v1/chat/turns/{queue_id}")
+    def chat_queued_turn(queue_id: str):
+        return chat.queued_turn(queue_id)
+
+    @app.delete("/v1/chat/turns/{queue_id}")
+    def chat_withdraw_turn(queue_id: str):
+        return chat.withdraw_turn(queue_id)
+
     @app.post("/v1/chat/sessions/{session_id}/turns")
     def chat_turn(session_id: str, payload: ChatTurn):
         return chat.turn(session_id, payload.text, payload.revision, payload.idempotency_key)
@@ -207,6 +219,14 @@ def create_app(service=None, *, remote=False, chat_parser=None):
     @app.post("/v1/chat/sessions/{session_id}/run", status_code=202)
     def chat_run(session_id: str, payload: ChatAction):
         return chat.run(session_id, payload.revision, payload.idempotency_key, runner)
+
+    @app.post("/v1/chat/sessions/{session_id}/retry", status_code=202)
+    def chat_retry(session_id: str, payload: ChatAction):
+        return chat.retry(session_id, payload.revision, payload.idempotency_key, runner)
+
+    @app.post("/v1/chat/sessions/{session_id}/export/compact")
+    def chat_compact(session_id: str):
+        return chat.compact(session_id, runner)
 
     @app.post("/v1/chat/sessions/{session_id}/uploads")
     def chat_attach_upload(session_id: str, payload: ChatUpload):
