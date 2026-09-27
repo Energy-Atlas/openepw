@@ -17,11 +17,18 @@ button { cursor: pointer; }
 .scene-controls select, .scene-controls input[type="number"], .scene-controls input[type="time"] { max-width: 130px; }
 .scene-controls details label { margin: .5rem 0; }
 .scene-controls details p { max-width: 25ch; color: #647782; }
+.time-presets { display: flex; flex-wrap: wrap; gap: .25rem; }
+.scene-controls .time-presets button { padding: .2rem .3rem; font-size: .68rem; }
 .map-status { position: absolute; bottom: .7rem; left: .7rem; max-width: 40ch; padding: .3rem .5rem; border-radius: 6px; background: rgba(243,247,247,.92); font-size: .7rem; }
-.chat-rail { position: absolute; right: 1rem; top: 1rem; bottom: 1rem; width: min(390px, calc(100vw - 2rem)); display: flex; flex-direction: column; border: 1px solid rgba(19, 64, 76, .15); border-radius: 18px; background: rgba(243, 247, 247, .96); box-shadow: 0 18px 70px rgba(10, 47, 61, .23); backdrop-filter: blur(18px); }
+.shadow-status { position: absolute; bottom: 2.6rem; left: .7rem; max-width: 38ch; padding: .3rem .5rem; border-radius: 6px; background: rgba(243,247,247,.92); font-size: .7rem; }
+.scene-attribution { position: absolute; bottom: .6rem; left: 4rem; max-width: min(430px, calc(100vw - 5rem)); padding: .25rem .4rem; border-radius: 4px; background: rgba(243,247,247,.88); font-size: .62rem; }
+.scene-attribution a { color: #173849; }
+.chat-rail { position: absolute; z-index: 5; right: 1rem; top: 1rem; bottom: 1rem; width: min(390px, calc(100vw - 2rem)); display: flex; flex-direction: column; border: 1px solid rgba(19, 64, 76, .15); border-radius: 18px; background: rgba(243, 247, 247, .96); box-shadow: 0 18px 70px rgba(10, 47, 61, .23); backdrop-filter: blur(18px); }
 .chat-heading { display: flex; flex-direction: column; gap: .2rem; padding: 1.25rem 1.3rem 1rem; border-bottom: 1px solid #d8e4e3; }
 .wordmark { font-size: 1.3rem; font-weight: 600; letter-spacing: -.04em; }
 .chat-subtitle { color: #647782; font-size: .82rem; }
+.upload-control { margin-top: .7rem; width: fit-content; padding: .35rem .6rem; border: 1px solid #b5ccce; border-radius: 6px; background: white; font-size: .75rem; cursor: pointer; }
+.upload-control input { position: absolute; width: 1px; height: 1px; opacity: 0; }
 .chat-transcript { flex: 1; overflow: auto; padding: 1.5rem 1.3rem; }
 .welcome { max-width: 16ch; font-size: 1.7rem; line-height: 1.22; letter-spacing: -.04em; font-weight: 500; }
 .welcome-hint { color: #647782; font-size: .85rem; line-height: 1.5; }
@@ -39,10 +46,32 @@ button { cursor: pointer; }
 .job-card progress { width: 100%; accent-color: #237e8b; }
 .artifact-row { display: flex; align-items: center; justify-content: space-between; gap: .4rem; }
 .artifact-row code { font: .72rem 'IBM Plex Mono', monospace; }
+.view-controls { margin-top: 1rem; padding: 1rem; border: 1px solid #b9d3d4; border-radius: 12px; background: white; font-size: .8rem; }
+.view-controls h2 { margin: 0 0 .6rem; font-size: 1rem; }
+.view-controls > label { display: flex; flex-direction: column; gap: .25rem; margin-bottom: .5rem; }
+.view-controls select { min-width: 0; max-width: 100%; padding: .35rem; border: 1px solid #b5ccce; border-radius: 6px; background: white; }
+.view-controls fieldset { max-height: 110px; overflow: auto; border: 1px solid #d8e4e3; }
+.view-controls fieldset label { display: block; }
+.view-controls button { margin-top: .6rem; padding: .45rem .7rem; border: 0; border-radius: 7px; background: #237e8b; color: white; }
+.view-panel { position: absolute; z-index: 4; min-width: 300px; min-height: 220px; max-width: min(90vw, 840px); max-height: 85dvh; display: flex; flex-direction: column; resize: both; overflow: auto; border: 1px solid #b9d3d4; border-radius: 13px; background: rgba(250,253,252,.97); box-shadow: 0 16px 55px rgba(10,47,61,.28); }
+.view-handle { flex: none; display: flex; justify-content: space-between; align-items: center; gap: .5rem; padding: .55rem .8rem; background: #173849; color: white; cursor: grab; touch-action: none; }
+.view-handle:active { cursor: grabbing; }
+.view-handle strong { font-size: .82rem; text-transform: capitalize; }
+.view-handle button { margin-left: .3rem; padding: .2rem .35rem; border: 1px solid #9ebbc0; border-radius: 4px; background: #255364; color: white; font-size: .7rem; }
+.view-content { flex: 1; min-height: 0; overflow: auto; padding: .6rem .8rem; font-size: .75rem; }
+.view-content p { margin: .3rem 0; }
+.view-summary { font-weight: 500; }
+.view-quality { color: #647782; }
+.view-chart { width: 100%; height: min(50vh, 250px); min-height: 170px; }
+.view-content button { margin: .4rem .3rem .4rem 0; padding: .3rem .5rem; border: 1px solid #b5ccce; border-radius: 5px; background: white; }
+.view-table { max-height: 170px; overflow: auto; }
+.view-table table { border-collapse: collapse; font: .65rem 'IBM Plex Mono', monospace; }
+.view-table td, .view-table th { border: 1px solid #d8e4e3; padding: .2rem; white-space: nowrap; }
+.view-content pre { max-height: 170px; overflow: auto; font-size: .63rem; }
 .composer { padding: 1rem; border-top: 1px solid #d8e4e3; }
 .composer label { display: block; margin: 0 0 .4rem .3rem; color: #647782; font-size: .78rem; }
 .composer-row { display: flex; gap: .5rem; }
 .composer input { min-width: 0; flex: 1; padding: .7rem .8rem; border: 1px solid #b7cdcd; border-radius: 10px; background: #fff; color: #173849; }
 .composer button { padding: .7rem .9rem; border: 0; border-radius: 10px; color: white; background: #237e8b; font-weight: 600; }
 :focus-visible { outline: 3px solid #d69b36; outline-offset: 2px; }
-@media (max-width: 650px) { .chat-rail { top: auto; left: .6rem; right: .6rem; bottom: .6rem; width: auto; height: min(42dvh, 340px); } .map-brand { left: .6rem; top: .6rem; } .scene-controls { left: .6rem; top: 4.7rem; } .map-status { bottom: calc(min(42dvh, 340px) + 1rem); } }
+@media (max-width: 650px) { .chat-rail { top: auto; left: .6rem; right: .6rem; bottom: .6rem; width: auto; height: min(42dvh, 340px); } .map-brand { left: .6rem; top: .6rem; } .scene-controls { left: .6rem; top: 4.7rem; } .map-status { bottom: calc(min(42dvh, 340px) + 1rem); } .view-panel { max-width: calc(100vw - 1.2rem); max-height: 45dvh; } }

@@ -1,4 +1,4 @@
-import type { JobSnapshot, SessionSnapshot } from './types'
+import type { JobManifest, JobSnapshot, SessionSnapshot, ViewPage } from './types'
 
 export class ApiError extends Error {
   constructor(public code: string, message: string, public status: number) {
@@ -65,14 +65,35 @@ export class ChatApi {
 
   artifactUrl(id: string): string { return `${this.base}/v1/artifacts/${encodeURIComponent(id)}` }
 
+  manifest(id: string): Promise<JobManifest> { return this.request(this.artifactUrl(id).slice(this.base.length)) }
+
   viewCapabilities(): Promise<Record<string, unknown>> { return this.request('/v1/views/capabilities') }
 
   prepareView(request: Record<string, unknown>): Promise<Record<string, unknown>> {
     return this.request('/v1/views/prepare', request)
   }
 
-  pageView(id: string, offset = 0, limit = 1000): Promise<Record<string, unknown>> {
+  pageView(id: string, offset = 0, limit = 200): Promise<ViewPage> {
     return this.request(`/v1/views/${encodeURIComponent(id)}/page?offset=${offset}&limit=${limit}`)
+  }
+
+  sessionView(id: string, revision: number, key: string, request: Record<string, unknown>, prompt?: string): Promise<SessionSnapshot> {
+    return this.request(`/v1/chat/sessions/${encodeURIComponent(id)}/views`,
+      { revision, idempotency_key: key, request, prompt })
+  }
+
+  attachUpload(id: string, revision: number, key: string, artifact_id: string): Promise<SessionSnapshot> {
+    return this.request(`/v1/chat/sessions/${encodeURIComponent(id)}/uploads`,
+      { revision, idempotency_key: key, artifact_id })
+  }
+
+  async upload(file: File): Promise<{ id: string }> {
+    const form = new FormData()
+    form.append('file', file)
+    const response = await this.fetcher(`${this.base}/v1/artifacts`, { method: 'POST', body: form })
+    const result = await response.json()
+    if (!response.ok) throw new ApiError(result.code || 'HTTP_ERROR', result.message || 'Upload failed', response.status)
+    return result as { id: string }
   }
 
   async sendTurn(id: string, text: string, revision: number, key: string): Promise<SessionSnapshot> {
