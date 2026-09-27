@@ -508,6 +508,20 @@ class ChatCoordinator:
             return True
         return False
 
+    @staticmethod
+    def _unchanged_notice(card: dict | None) -> str:
+        """What to say when a message left the current question unanswered."""
+        prompt = (card or {}).get("prompt")
+        if prompt == "Where do you need weather?":
+            return "I couldn't find a place in that — try a city, an address or coordinates like “42.36, -71.06”."
+        if prompt == "Choose a location":
+            return "I couldn't match that to a candidate — pick one on the map or in the list, or type another place."
+        if prompt == "Which weather product?":
+            return "I couldn't tell which weather product you meant — pick one of the options."
+        if prompt == "Which actual year or years?":
+            return "I couldn't find a year in that — try “2015” or “2015–2017”."
+        return "That didn't change the request — change a place, product or years, or continue with the plan."
+
     def turn(self, session_id: str, text: str, revision: int, key: str) -> dict:
         if not text.strip() or len(text) > 4000:
             raise ChatActionError("Message must contain 1–4000 characters")
@@ -515,6 +529,8 @@ class ChatCoordinator:
         def update(state):
             self._event(state, "message", text, {"role": "user"})
             facts = state["facts"]
+            before = json.dumps(facts, sort_keys=True)
+            mark = len(state["events"])
             lower = text.casefold().strip().rstrip("?!. ")
             if lower in ("hello", "hi", "hey", "ok", "okay", "thanks", "thank you"):
                 self._event(state, "message", "Tell me a place, years, or a weather question.",
@@ -593,6 +609,11 @@ class ChatCoordinator:
             if intents or years_from_text:
                 state["plan_hash"] = None
                 facts.pop("availability", None)
+            # Say so rather than silently asking the same question again.
+            if len(state["events"]) == mark and json.dumps(facts, sort_keys=True) == before:
+                card = state["active_card"] or ({"prompt": "Where do you need weather?"} if not facts else None)
+                self._event(state, "message", self._unchanged_notice(card),
+                            {"role": "assistant", "unchanged": True})
             self._question(state)
 
         return self._change(session_id, revision, key, update)

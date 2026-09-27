@@ -96,3 +96,26 @@ def test_explicit_years_in_the_message_count_even_when_the_model_omits_them(tmp_
     assert ranged["facts"]["years"] == [2016, 2017, 2018]
     buildings = chat.turn(state["id"], "for 2012 buildings", ranged["revision"], "five")
     assert buildings["facts"]["years"] == [2016, 2017, 2018]      # a building count is not a year
+
+
+def test_a_reply_that_changes_nothing_says_what_was_missing(tmp_path):
+    class Coordinates(Parser):
+        def parse_many(self, text):
+            from openepw.harness.agent import AgentIntent
+            if text.startswith("42"):
+                return [AgentIntent(kind="weather", lat=42.0, lon=-71.0, product="historical")]
+            return []
+
+    chat = ChatCoordinator(Service(), parser=Coordinates(), path=tmp_path / "chat.sqlite")
+    state = chat.create()
+    vague = chat.turn(state["id"], "somewhere nice", 0, "one")
+    assert vague["active_card"]["prompt"] == "Where do you need weather?"
+    assert "couldn't find a place" in vague["events"][-2]["text"]
+    asked = chat.turn(state["id"], "42, -71", vague["revision"], "two")
+    assert asked["active_card"]["prompt"] == "Which actual year or years?"
+    assert not any("couldn't" in (event.get("text") or "") for event in asked["events"][len(vague["events"]):])
+    missed = chat.turn(state["id"], "the dry one", asked["revision"], "three")
+    notice = missed["events"][-2]
+    assert notice["data"] == {"role": "assistant", "unchanged": True}
+    assert notice["text"] == "I couldn't find a year in that — try “2015” or “2015–2017”."
+    assert missed["facts"] == asked["facts"]

@@ -160,7 +160,7 @@ def test_durable_turn_queue_is_ordered_withdrawable_and_redacted(tmp_path):
         assert time.monotonic() < deadline
         time.sleep(0.02)
     assert [event["text"] for event in coordinator.get(state["id"])["events"]
-            if event["type"] == "message"] == ["first"]
+            if (event.get("data") or {}).get("role") == "user"] == ["first"]
     secret = coordinator.enqueue_turn(state["id"], "api_key=synthetic-secret", "third-key")
     deadline = time.monotonic() + 3
     while coordinator.queued_turn(secret["queue_id"])["state"] != "completed":
