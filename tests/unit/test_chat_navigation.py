@@ -240,3 +240,38 @@ def test_several_products_of_one_kind_are_chosen_together(tmp_path):
                                    ["nsrdb-tmy", "onebuilding:TMYx.2009-2023"], "eight")
     assert typical["facts"]["product"] == "tmy" and "years" not in typical["facts"]
     assert typical["facts"]["selections"][1]["variant"] == "TMYx.2009-2023"
+
+@pytest.mark.parametrize("text, years", [
+    ("2012", [2012]),
+    ("2012-18", list(range(2012, 2019))),
+    ("2012-2018", list(range(2012, 2019))),
+    ("2012, 2013, 2015-16, 2020", [2012, 2013, 2015, 2016, 2020]),
+    ("[2012, 2013, 2016, 2020]", [2012, 2013, 2016, 2020]),
+    ("1998-02", [1998, 1999, 2000, 2001, 2002]),
+])
+def test_written_year_lists_and_ranges_are_read(text, years):
+    from openepw.chat.coordinator import explicit_weather_years
+    assert sorted(explicit_weather_years(text)) == years
+
+
+def test_model_years_count_for_relative_phrases_but_not_invented_ones(tmp_path):
+    class Relative(Parser):
+        def parse_many(self, text):
+            from openepw.harness.agent import AgentIntent
+            if "Cambridge" in text:
+                return super().parse_many(text)
+            if "last three" in text:
+                return [AgentIntent(kind="unknown", years=[2023, 2024, 2025])]
+            if "since 2021" in text:
+                return [AgentIntent(kind="unknown", years=[2021, 2022, 2023, 2024, 2025])]
+            return [AgentIntent(kind="unknown", years=[1990])]            # nothing temporal was written
+
+    chat = ChatCoordinator(Service(), parser=Relative(), path=tmp_path / "chat.sqlite")
+    state = chat.create()
+    first = chat.turn(state["id"], "Historical Cambridge, MA 2012–2014", 0, "one")
+    last = chat.turn(state["id"], "the last three years", first["revision"], "two")
+    assert last["facts"]["years"] == [2023, 2024, 2025]
+    since = chat.turn(state["id"], "everything since 2021", last["revision"], "three")
+    assert since["facts"]["years"] == [2021, 2022, 2023, 2024, 2025]
+    invented = chat.turn(state["id"], "sounds good", since["revision"], "four")
+    assert invented["facts"]["years"] == [2021, 2022, 2023, 2024, 2025]

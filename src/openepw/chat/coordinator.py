@@ -9,6 +9,7 @@ import sqlite3
 import threading
 import uuid
 from contextlib import contextmanager
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -167,11 +168,32 @@ def explicit_weather_years(text: str) -> set[int]:
         if not re.match(r"\s+buildings?\b", text[match.end():], re.I):
             years.add(int(match.group()))
     for match in re.finditer(r"\b((?:18|19|20|21)\d{2})\s*(?:-|–|—|to|through)\s*"
-                             r"((?:18|19|20|21)\d{2})\b", text, re.I):
-        start, end = int(match.group(1)), int(match.group(2))
+                             r"((?:18|19|20|21)\d{2}|\d{2})\b", text, re.I):
+        start, tail = int(match.group(1)), match.group(2)
+        end = int(tail)
+        if len(tail) == 2:                 # "2012-18" and "1998-02" abbreviate the end year
+            end += start // 100 * 100
+            end += 100 if end < start else 0
         if 0 <= end - start <= 30:
             years.update(range(start, end + 1))
     return years
+
+
+# Relative phrases the model may turn into years ("the last five years", "since 2015").
+_TEMPORAL_CUE = re.compile(r"\b(?:last|past|previous|recent|since|through|until|till|decade|years?)\b", re.I)
+
+
+def model_years(text: str, proposed: list[int], written: set[int], *, today: date | None = None) -> list[int]:
+    """Model years, used only when they keep every written year and the text is temporal."""
+    current = (today or date.today()).year
+    years = sorted(set(proposed))
+    if not years or len(years) > 50 or not all(1900 <= year <= current for year in years):
+        return []
+    if not written <= set(years) or not (written or _TEMPORAL_CUE.search(text)):
+        return []
+    # A number written as a count ("2012 buildings") is never a year, whatever the model says.
+    counts = {int(match.group(1)) for match in re.finditer(r"\b(\d{4})\s+buildings?\b", text, re.I)}
+    return [] if counts & set(years) else years
 
 
 class ChatCoordinator:
@@ -624,7 +646,8 @@ class ChatCoordinator:
                 if getattr(intent, "product", None):
                     facts["product"] = "historical" if intent.product == "amy" else intent.product
                 if getattr(intent, "years", None):
-                    confirmed = [year for year in intent.years if year in grounded_years]
+                    confirmed = model_years(text, intent.years, grounded_years) or [
+                        year for year in intent.years if year in grounded_years]
                     if confirmed:
                         facts["years"] = confirmed
                         years_from_model = True
