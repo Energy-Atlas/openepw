@@ -42,6 +42,14 @@ def test_catalog_scopes_route_is_read_only(tmp_path):
         assert "unmapped" in response.json()
 
 
+def test_catalog_map_route_is_read_only(tmp_path):
+    service = WeatherService(RuntimeConfig(data_root=tmp_path), providers=[StationProvider()])
+    with TestClient(create_app(service)) as client:
+        response = client.get("/v1/catalog/map")
+        assert response.status_code == 200
+        assert response.json()["schema"] == "catalog-map-1"
+
+
 def test_retry_route_submits_only_failed_outputs(tmp_path):
     from openepw.models import Location, OpenEPWError, WeatherRequest
 

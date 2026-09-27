@@ -22,6 +22,7 @@ from .availability import (
 from .availability.bootstrap import bundled_contracts
 from .availability.evaluate import evaluate
 from .availability.importers import normalize_source
+from .availability.map_layers import catalog_map
 from .availability.recommend import rank
 from .availability.refresh import refresh_if_relevant
 from .availability.store import CatalogStore, CatalogView
@@ -172,6 +173,19 @@ class WeatherService:
             "unmapped": [{"provider": provider, "dataset": dataset}
                          for provider, dataset in sorted(unmapped)],
         }
+
+    def catalog_map(self) -> dict:
+        """Return Stage 1 catalog detail as documentary display layers."""
+        view = self.catalog_store.active()
+        bundle = view.bundle if view is not None else bundled_contracts()
+        key = view.snapshot.generation_id if view is not None else None
+        cached = getattr(self, "_catalog_map_cache", None)
+        if cached is None or cached[0] != key:
+            layers = catalog_map(bundle, self.config.data_root / "footprints")
+            cached = self._catalog_map_cache = (key, layers)
+        return {"snapshot": {"generation_id": view.snapshot.generation_id,
+                             "created_at": view.snapshot.created_at.isoformat()} if view else None,
+                **cached[1]}
 
     def visualization_capabilities(self) -> dict:
         return capabilities()

@@ -270,6 +270,10 @@ def create_app(service=None, *, remote=False, chat_parser=None):
     def catalog_scopes():
         return service.catalog_scopes()
 
+    @app.get("/v1/catalog/map")
+    def catalog_map():
+        return service.catalog_map()
+
     @app.post("/v1/weather/plan")
     def plan(request: WeatherRequest):
         return service.plan(request)
