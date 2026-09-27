@@ -4,6 +4,7 @@ import './app.css'
 import { ChatApi } from './api'
 import { MapCanvas } from './map/MapCanvas'
 import type { ProductAvailability } from './map/availabilityCallouts'
+import { ProductDialog } from './ProductDialog'
 import { geojsonGeography } from './geography'
 import { mergeJobManifests } from './jobs'
 import { ViewPanel } from './views/ViewPanel'
@@ -31,6 +32,9 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
   const [pickMode, setPickMode] = useState(false)
   const [typing, setTyping] = useState(false)
   const [pendingChoice, setPendingChoice] = useState<string | null>(null)
+  // Products ticked in the dialog or clicked on the map, confirmed together.
+  const [checkedProducts, setCheckedProducts] = useState<string[]>([])
+  const [productNote, setProductNote] = useState('')
   const [busy, setBusy] = useState(false)
   const acting = useRef(false)
   const [pendingTurns, setPendingTurns] = useState<Array<{ id: string; text: string }>>([])
@@ -112,7 +116,8 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
   }, [pastJobs])
 
   useEffect(() => { transcript.current?.scrollTo?.(0, transcript.current.scrollHeight) }, [session?.events.length])
-  useEffect(() => { setTyping(false); setPendingChoice(null) }, [session?.active_card?.id, session?.active_card?.revision])
+  useEffect(() => { setTyping(false); setPendingChoice(null); setCheckedProducts([]); setProductNote('') },
+    [session?.active_card?.id, session?.active_card?.revision])
   useEffect(() => { if (typing) document.getElementById('chat-message')?.focus() }, [typing])
 
   async function act(operation: (current: SessionSnapshot) => Promise<SessionSnapshot>,
@@ -250,6 +255,21 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
   // Location and weather-product choices are selected first, then confirmed with the tick beside them.
   const productChoice = card?.kind === 'choice' && card.data?.field === 'product'
   const productAvailability = productChoice ? card.data?.availability as ProductAvailability | undefined : undefined
+  const groupOf = (id: string) => card?.options?.find(option => option.id === id)?.group ?? 'actual'
+  const toggleProduct = (id: string) => {
+    if (!card?.options?.some(option => option.id === id)) return
+    if (checkedProducts.includes(id)) {
+      setCheckedProducts(checkedProducts.filter(item => item !== id))
+      setProductNote('')
+    } else if (checkedProducts.length && groupOf(checkedProducts[0]) !== groupOf(id)) {
+      // One request has one weather type, so a product of the other kind starts a new selection.
+      setCheckedProducts([id])
+      setProductNote('Actual-year and typical-year products are separate requests; the selection now holds this kind only.')
+    } else {
+      setCheckedProducts([...checkedProducts, id])
+      setProductNote('')
+    }
+  }
   const confirmFirst = locationChoice || productChoice
   const lastEventId = session?.events.at(-1)?.id
   const optionNumber = (id: string) => (card?.options?.findIndex(option => option.id === id) ?? -1) + 1
@@ -291,7 +311,8 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
       onPickPoint={point => void act(current => api.setGeography(current.id, current.revision, point, randomKey()))}
       onPickGeometry={geography => void act(current => api.setGeography(current.id, current.revision, geography, randomKey()))}
       pendingCandidate={locationChoice ? pendingChoice : null} onConfirmCandidate={confirmChoice}
-      productAvailability={productAvailability ?? null} highlightProduct={productChoice ? pendingChoice : null}
+      productAvailability={productAvailability ?? null} selectedProducts={productChoice ? checkedProducts : []}
+      onToggleProduct={productChoice && !busy ? toggleProduct : undefined}
       onPickCandidate={id => { if (locationChoice) setPendingChoice(id) }} />
     <aside className="chat-rail" aria-label="Weather chat">
       <div className="chat-transcript" role="log" aria-live="polite" ref={transcript}>
@@ -388,7 +409,7 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
           Map tags show availability{productAvailability.years_assumed
             ? ` for ${productAvailability.years.join(', ')}; you choose the years next`
             : ` for ${productAvailability.years.join(', ')}`}. Solid tags are listed in the catalog; outlined
-          tags with ? are checked when planning.{productAvailability.omitted_locations > 0
+          tags with ? are checked when planning. Click a tag to select or deselect its product.{productAvailability.omitted_locations > 0
             ? ` Tags cover the first ${productAvailability.locations.length} places.` : ''}</p>}
         {card.kind === 'location_review' && typeof card.data?.summary === 'string' &&
           <div className="md"><Markdown>{card.data.summary}</Markdown></div>}
@@ -400,7 +421,8 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
             {session.facts.resolved_points.length} service-accepted points (show coordinates)</summary>
             <ol className="point-list">{(session.facts.resolved_points as Array<{lat:number;lon:number}>).map((point, i) =>
               <li key={i}>{point.lat.toFixed(5)}, {point.lon.toFixed(5)}</li>)}</ol></details>}
-          <p>Product: {String(session?.facts.product ?? 'unresolved')}{Array.isArray(session?.facts.years) ? ` · ${(session.facts.years as number[]).join(', ')}` : ''}</p>
+          <p>Product: {Array.isArray(session?.facts.product_labels) ? (session.facts.product_labels as string[]).join('; ')
+            : String(session?.facts.product ?? 'unresolved')}{Array.isArray(session?.facts.years) ? ` · ${(session.facts.years as number[]).join(', ')}` : ''}</p>
           {Array.isArray(card.data?.outputs) && <p>{card.data.outputs.length} planned outputs · {String(card.data.plan_hash).slice(0, 12)}…</p>}
           {typeof card.data?.summary === 'string' ? <div className="md"><Markdown>{card.data.summary}</Markdown></div>
             : Array.isArray(card.data?.batch_rows) && (card.data.batch_rows as Array<Record<string, unknown>>).map((row, i) =>
@@ -443,7 +465,10 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
             : <button type="submit" className="icon-submit" aria-label="Send" title="Send" disabled={!session}><EnterIcon /></button>}
         </div>
         {typing && backLabel && <button className="reply-alt" type="button" onClick={() => setTyping(false)}>{backLabel}</button>}
-      </> : <div className="reply-options" role="group" aria-label="Reply options">
+      </> : productChoice ? <ProductDialog options={card.options ?? []} selected={checkedProducts} note={productNote}
+        busy={busy} onToggle={toggleProduct} onType={() => setTyping(true)}
+        onConfirm={() => void act(current => api.chooseProducts(current.id, card.revision, checkedProducts, randomKey()))} />
+      : <div className="reply-options" role="group" aria-label="Reply options">
         {card?.kind === 'choice' && <>
           {card.options?.map((option, index) => confirmFirst
             ? <Fragment key={option.id}>{productChoice && option.group && option.group !== card.options?.[index - 1]?.group

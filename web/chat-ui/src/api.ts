@@ -34,6 +34,11 @@ export class ChatApi {
       { revision, choice_id, idempotency_key: key })
   }
 
+  chooseProducts(id: string, revision: number, productIds: string[], key: string): Promise<SessionSnapshot> {
+    return this.request(`/v1/chat/sessions/${encodeURIComponent(id)}/products`,
+      { revision, product_ids: productIds, idempotency_key: key })
+  }
+
   approveLocation(id: string, revision: number, key: string): Promise<SessionSnapshot> {
     return this.request(`/v1/chat/sessions/${encodeURIComponent(id)}/location/approve`,
       { revision, idempotency_key: key })

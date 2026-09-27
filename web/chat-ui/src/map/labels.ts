@@ -1,6 +1,6 @@
 /** Screen-space placement for station name pills, shared across NOAA and OneBuilding. */
 
-export type LabelInput = { id: string; x: number; y: number; text: string; color: string; width: number; height: number }
+export type LabelInput = { id: string; x: number; y: number; text: string; prefix?: string; color: string; width: number; height: number }
 export type PlacedLabel = LabelInput & { anchor: { x: number; y: number }; callout: boolean }
 type Box = { x: number; y: number; width: number; height: number }
 

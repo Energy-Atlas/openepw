@@ -30,7 +30,7 @@ function styleParsed(map: MapLibreMap | null): map is MapLibreMap {
 
 export function MapCanvas({ location, candidates = [], geography, resolvedPoints = [], availability, catalogMap, years = [],
   pickMode = false, onExitPickMode, onPickPoint, onPickCandidate, onPickGeometry,
-  pendingCandidate = null, onConfirmCandidate, productAvailability = null, highlightProduct = null }: {
+  pendingCandidate = null, onConfirmCandidate, productAvailability = null, selectedProducts = [], onToggleProduct }: {
   location?: MapPoint | null
   candidates?: MapPoint[]
   geography?: WeatherGeography | null
@@ -47,7 +47,9 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
   onConfirmCandidate?: (id: string) => void
   /** Where each weather product is available, shown while a product is chosen. */
   productAvailability?: ProductAvailability | null
-  highlightProduct?: string | null
+  /** Products ticked for download; clicking a tag toggles its product. */
+  selectedProducts?: string[]
+  onToggleProduct?: (option: string) => void
 }) {
   const host = useRef<HTMLDivElement>(null)
   const map = useRef<MapLibreMap | null>(null)
@@ -382,7 +384,9 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
       if (!name || seen.has(key)) continue
       seen.add(key)
       const text = name.length > 30 ? `${name.slice(0, 29)}…` : name
-      items.push({ id: key, x: point.x, y: point.y, text, color, width: textWidth(text) + 16, height: 17 })
+      const prefix = layer === 'noaa' ? 'NOAA' : 'One'
+      items.push({ id: key, x: point.x, y: point.y, text, prefix, color,
+        width: textWidth(text) + textWidth(prefix) + 24, height: 17 })
     }
     // Stations nearest the middle of the view win when space is short.
     items.sort((a, b) => Math.hypot(a.x - size.width / 2, a.y - size.height / 2)
@@ -499,17 +503,20 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
     {(callouts.tags.length > 0 || callouts.lines.length > 0) && <div className="availability-callouts"
       aria-label="Product availability at your locations" role="group">
       <svg width="100%" height="100%" aria-hidden="true">
-        {callouts.lines.map(line => <line key={line.id} className={`station-link${highlightProduct &&
-          !line.option.includes(highlightProduct) ? ' dim' : ''}`} x1={line.x1} y1={line.y1} x2={line.x2} y2={line.y2}
-          stroke={line.color} />)}
+        {callouts.lines.map(line => <line key={line.id} className={`station-link${selectedProducts.length &&
+          !line.option.some(option => selectedProducts.includes(option)) ? ' dim' : ''}`} x1={line.x1} y1={line.y1}
+          x2={line.x2} y2={line.y2} stroke={line.color} />)}
       </svg>
-      {callouts.tags.map(tag => <span key={tag.id} data-option={tag.option}
-        className={`availability-tag ${tag.status}${highlightProduct ? tag.option === highlightProduct ? ' chosen' : ' dim' : ''}`}
+      {callouts.tags.map(tag => <button type="button" key={tag.id} data-option={tag.option}
+        aria-pressed={selectedProducts.includes(tag.option)} disabled={!onToggleProduct}
+        onClick={() => onToggleProduct?.(tag.option)}
+        className={`availability-tag ${tag.status}${selectedProducts.length ? selectedProducts.includes(tag.option)
+          ? ' chosen' : ' dim' : ''}`}
         title={tag.status === 'unknown' ? `${tag.text.slice(0, -2)}: not verified in the catalog; checked when planning`
           : `${tag.text}: listed in the catalog`}
         style={{ left: tag.x, top: tag.y, width: tag.width, ...(tag.status === 'unknown'
           ? { boxShadow: `inset 0 0 0 1.5px ${tag.color}, 0 1px 2px rgba(31, 31, 31, .25)` }
-          : { background: tag.color, color: tag.textColor }) }}>{tag.text}</span>)}
+          : { background: tag.color, color: tag.textColor }) }}>{tag.text}</button>)}
     </div>}
     {labels.length > 0 && <div className="station-labels" aria-hidden="true">
       <svg className="station-callouts" width="100%" height="100%">
@@ -519,7 +526,8 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
         })}
       </svg>
       {labels.map(label => <span key={label.id} className="station-label"
-        style={{ left: label.x, top: label.y, width: label.width, background: label.color }}>{label.text}</span>)}
+        style={{ left: label.x, top: label.y, width: label.width, background: label.color }}>
+        {label.prefix && <span className="station-prefix">{label.prefix}</span>}{label.text}</span>)}
     </div>}
     {pending && popupAt && !popupMinimized && <div className="candidate-popup" role="dialog" aria-label="Selected location"
       style={{ left: popupAt.x, top: popupAt.y }}>

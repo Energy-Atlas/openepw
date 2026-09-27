@@ -174,3 +174,28 @@ button { cursor: pointer; }
 .reply-options .option-group { flex-basis: 100%; margin-top: .3rem; text-align: right; color: var(--oe-muted); font-size: .72rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
 .action-card .card-note { margin: .35rem 0 0; color: var(--oe-muted); font-size: .76rem; line-height: 1.35; }
 
+/* Station names: a source prefix pill ("NOAA" or "One") inside the name pill. */
+.station-label { display: flex; align-items: center; text-align: left; padding: 0 8px 0 2px; }
+.station-prefix { flex: none; margin-right: 5px; padding: 0 5px; height: 13px; border-radius: 999px; background: color-mix(in srgb, var(--oe-paper) 24%, transparent); font: 600 9px/13px 'Geist', system-ui, sans-serif; letter-spacing: .02em; }
+/* Map tags toggle products while the product question is open. */
+.availability-callouts .availability-tag { pointer-events: auto; cursor: pointer; border: 0; margin: 0; }
+.availability-callouts .availability-tag:disabled { cursor: default; }
+.availability-callouts .availability-tag:focus-visible { outline: 2px solid var(--oe-ink); outline-offset: 1px; }
+/* The product dialog: ticked names, info popups, one confirm. */
+.product-dialog { box-sizing: border-box; width: 100%; display: flex; flex-direction: column; gap: .5rem; padding: .7rem .8rem; border-radius: 16px; background: var(--oe-paper); box-shadow: var(--oe-shadow); }
+.product-dialog .product-list { display: flex; flex-direction: column; gap: .35rem; }
+.product-dialog fieldset { margin: 0; padding: 0; border: 0; }
+.product-dialog legend.option-group { padding: 0; margin: .15rem 0 .2rem; text-align: left; }
+.product-row { display: flex; align-items: center; gap: .4rem; min-height: 2rem; padding: 0 .3rem; border-radius: 9px; }
+.product-row:hover { background: var(--oe-tint); }
+.product-row label { flex: 1; display: flex; align-items: center; gap: .55rem; min-width: 0; font-size: .86rem; cursor: pointer; }
+.product-row input[type="checkbox"] { flex: none; width: 1rem; height: 1rem; margin: 0; accent-color: var(--oe-ink); }
+.info-button { flex: none; display: grid; place-items: center; width: 1.6rem; height: 1.6rem; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--oe-muted); }
+.info-button:hover, .info-button:focus-visible { background: var(--oe-l1); color: var(--oe-ink); }
+.info-popup { position: fixed; z-index: 30; transform: translate(calc(-100% - 10px), -50%); box-sizing: border-box; width: max-content; max-width: 260px; padding: .55rem .7rem; border-radius: 10px; background: var(--oe-ink); color: var(--oe-paper); font-size: .78rem; line-height: 1.35; box-shadow: var(--oe-shadow); pointer-events: none; }
+.dialog-note { margin: 0; color: var(--oe-muted); font-size: .76rem; }
+.dialog-actions { display: flex; justify-content: flex-end; align-items: center; gap: .4rem; }
+.dialog-actions .reply-alt { box-shadow: none; }
+.confirm-products { display: inline-flex; align-items: center; gap: .35rem; min-height: 2.25rem; padding: .5rem .9rem .5rem .65rem; border: 0; border-radius: 999px; background: var(--oe-ink); color: var(--oe-paper); font-weight: 500; font-size: .82rem; }
+.confirm-products:disabled { opacity: .45; }
+.confirm-products svg { display: block; width: 16px; height: 16px; }

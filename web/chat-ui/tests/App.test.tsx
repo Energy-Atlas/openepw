@@ -97,20 +97,17 @@ describe('map-first shell', () => {
     expect(screen.queryByRole('button', { name: 'Send' })).not.toBeInTheDocument()
   })
 
-  it('asks for the tick beside a weather product before answering', async () => {
+  it('answers the product question only when the ticked products are confirmed', async () => {
     const state = cardState({ id: 'product', revision: 2, kind: 'choice', prompt: 'Which weather product?',
-      options: [{ id: 'era5-openmeteo', label: 'ERA5 actual year · Open-Meteo' }, { id: 'tmy', label: 'TMY reference' }],
+      options: [{ id: 'era5-openmeteo', label: 'ERA5 actual year · Open-Meteo', group: 'actual' },
+        { id: 'noaa-isd', label: 'NOAA ISD station observations', group: 'actual' }],
       data: { field: 'product' } })
-    const answer = vi.fn().mockResolvedValue({ ...state, active_card: null })
-    render(<App api={{ ...apiFor(state), answer } as unknown as ChatApi} />)
-    const option = await screen.findByRole('button', { name: /TMY reference/ })
-    fireEvent.click(option)
-    expect(answer).not.toHaveBeenCalled()
-    const tick = screen.getByRole('button', { name: 'Confirm' })
-    expect(option.closest('.option-row')).not.toBeNull()
-    expect(tick.closest('.option-row')).toBe(option.closest('.option-row'))   // right beside the choice
-    fireEvent.click(tick)
-    await waitFor(() => expect(answer).toHaveBeenCalledWith('test', 2, 'tmy', expect.any(String)))
+    const chooseProducts = vi.fn().mockResolvedValue({ ...state, active_card: null })
+    render(<App api={{ ...apiFor(state), chooseProducts } as unknown as ChatApi} />)
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'NOAA ISD station observations' }))
+    expect(chooseProducts).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm product' }))
+    await waitFor(() => expect(chooseProducts).toHaveBeenCalledWith('test', 2, ['noaa-isd'], expect.any(String)))
   })
 
   it('still answers other choices immediately', async () => {

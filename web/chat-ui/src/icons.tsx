@@ -37,3 +37,8 @@ export function ToolIcon() {
 export function MinimizeIcon() {
   return <svg {...iconProps} width={14} height={14}><path d="M6 12h12" /></svg>
 }
+
+/** Info glyph: opens a product's extended description. */
+export function InfoIcon() {
+  return <svg {...iconProps} width={16} height={16}><circle cx="12" cy="12" r="8.5" /><path d="M12 11v5.5" /><path d="M12 7.6v.1" /></svg>
+}

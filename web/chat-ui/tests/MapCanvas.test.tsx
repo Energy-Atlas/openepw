@@ -158,7 +158,9 @@ describe('map canvas overlays', () => {
     map.zoom = 8.6
     map.emit('idle')
     await waitFor(() => expect(document.querySelectorAll('.station-label')).toHaveLength(3))
-    expect([...document.querySelectorAll('.station-label')].map(node => node.textContent)).toContain('Boston Logan')
+    expect([...document.querySelectorAll('.station-label')].map(node => node.textContent)).toContain('OneBoston Logan')
+    expect([...document.querySelectorAll('.station-prefix')].map(node => node.textContent).sort())
+      .toEqual(['NOAA', 'NOAA', 'One'])                                     // source prefix inside each name pill
     expect(document.querySelectorAll('.station-callouts line').length).toBeGreaterThan(0)
     // While a product is chosen only the looked-up stations keep their names.
     const availability = { years: [2025], years_assumed: true, omitted_locations: 0, locations: [{ index: 0,
@@ -167,7 +169,7 @@ describe('map canvas overlays', () => {
     rerender(<MapCanvas catalogMap={catalogWithNames} productAvailability={availability} />)
     map.emit('idle')
     await waitFor(() => expect([...document.querySelectorAll('.station-label')].map(node => node.textContent))
-      .toEqual(['LOGAN INTL']))
+      .toEqual(['NOAALOGAN INTL']))
   })
 
   it('tags each product at the location and links a looked-up station with a moving dashed line', async () => {
@@ -178,7 +180,8 @@ describe('map canvas overlays', () => {
         { option: 'nsrdb-actual', layer: 'nsrdb', tag: 'NSRDB actual year', status: 'unknown' as const },
         { option: 'noaa-isd', layer: 'noaa', tag: 'NOAA ISD', status: 'supported' as const,
           station: { lat: 40, lon: -60, name: 'Airport', distance_km: 5.2 } }] }] }
-    const { rerender } = render(<MapCanvas catalogMap={catalog} productAvailability={availability} />)
+    const toggle = vi.fn()
+    const { rerender } = render(<MapCanvas catalogMap={catalog} productAvailability={availability} onToggleProduct={toggle} />)
     await waitFor(() => expect(fake.maps).toHaveLength(1))
     const map = fake.maps[0] as unknown as { parsed: boolean; emit(event: string): void }
     map.parsed = true
@@ -193,7 +196,11 @@ describe('map canvas overlays', () => {
     const link = group.querySelector('line.station-link')!
     expect([link.getAttribute('x1'), link.getAttribute('y1'), link.getAttribute('x2'), link.getAttribute('y2')])
       .toEqual(['124', '258', '140', '260'])                               // from the location to the station
-    rerender(<MapCanvas catalogMap={catalog} productAvailability={availability} highlightProduct="noaa-isd" />)
+    fireEvent.click(group.querySelector('[data-option="noaa-isd"]')!)
+    expect(toggle).toHaveBeenCalledWith('noaa-isd')                          // a tag click toggles its product
+    rerender(<MapCanvas catalogMap={catalog} productAvailability={availability} selectedProducts={['noaa-isd']}
+      onToggleProduct={toggle} />)
+    expect(group.querySelector('[data-option="noaa-isd"]')).toHaveAttribute('aria-pressed', 'true')
     expect(group.querySelector('[data-option="noaa-isd"]')).toHaveClass('chosen')
     expect(group.querySelector('[data-option="era5-openmeteo"]')).toHaveClass('dim')
     fireEvent.click(screen.getByRole('checkbox', { name: /NOAA ISD stations/ }))
