@@ -7,11 +7,13 @@ from pathlib import Path
 
 from openepw.artifacts.store import ArtifactStore
 from openepw.epw import read_epw
+from openepw.epw.writer import epw_bytes
 from openepw.harness.agent import AgentIntent, ReferenceAgent
 from openepw.harness.chat import ChatSession
 from openepw.harness.mcp_client import StdioMCPPort
 
 sys.path.insert(0, str(Path(__file__).parents[1] / "unit"))
+from test_epw import synthetic
 from test_future import signal
 
 
@@ -88,5 +90,29 @@ def test_real_stdio_cambridge_choice_resumes_one_weather_job(tmp_path):
             result = await chat.handle("1")
             assert "[completed]" in result
             assert model.calls == 1
+
+    asyncio.run(journey())
+
+
+def test_real_stdio_chat_prepares_monthly_json_from_existing_epw(tmp_path):
+    ref = ArtifactStore(tmp_path).write(
+        "a" * 32, "weather.epw", epw_bytes(synthetic(2024, 8784)), "weather",
+        "application/vnd.energyplus.epw")
+
+    class NoModel:
+        def parse(self, prompt):
+            raise AssertionError("Visualization follow-up must not need model parsing")
+
+    async def journey():
+        async with StdioMCPPort(tmp_path) as mcp:
+            model = NoModel()
+            chat = ChatSession(ReferenceAgent(mcp, model), mcp, model)
+            chat.weather_artifacts = (ref.id,)
+            answer = await chat.handle("visualize monthly temperature")
+            assert answer.startswith("[visualization] ")
+            view = json.loads(answer.partition(" ")[2])
+            assert view["specs"][0]["family"] == "monthly_series"
+            assert view["total_rows"] == 12
+            assert view["specs"][0]["sources"][0]["artifact_id"] == ref.id
 
     asyncio.run(journey())

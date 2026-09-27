@@ -1,6 +1,8 @@
 import asyncio
 from pathlib import Path
 
+import pytest
+
 from openepw.harness.agent import AgentIntent, ReferenceAgent
 from openepw.harness.graph_chat import GraphChatSession
 from openepw.harness.mcp_client import StdioMCPPort
@@ -46,6 +48,125 @@ class Port:
         if name == "weather_assess":
             return {"options": [], "locations": [], "issues": [], "snapshots": []}
         raise AssertionError(name)
+
+
+@pytest.mark.parametrize("building_count", [200, 2012])
+@pytest.mark.parametrize("invented_product", ["historical", "tmy"])
+def test_graph_rejects_model_invented_weather_years(
+        tmp_path, building_count, invented_product):
+    parser = Parser([AgentIntent(kind="weather", place="Singapore",
+                                 product=invented_product, years=[2012, 2016])])
+    port = Port()
+
+    async def journey():
+        async with GraphChatSession(ReferenceAgent(port, parser), port, parser,
+                                    tmp_path / "chat.sqlite") as chat:
+            assert "product" in (await chat.handle(
+                f"I would like UBEM for {building_count} buildings in Singapore")).lower()
+            assert chat.draft.years == []
+            assert chat.draft.product is None
+
+    asyncio.run(journey())
+    assert not any(name == "weather_plan" for name, _ in port.calls)
+
+
+def test_graph_routes_monthly_view_to_completed_artifacts_without_new_weather_plan(tmp_path):
+    parser = Parser([AgentIntent(kind="weather", place="Singapore")])
+
+    class ViewPort(Port):
+        async def call(self, name, **arguments):
+            if name == "weather_visualization_capabilities":
+                self.calls.append((name, arguments))
+                return {"families": [
+                    {"family": "monthly_series", "status": "implemented"},
+                    {"family": "wind_rose", "status": "planned"}],
+                    "variables": {"dry_bulb": {"unit": "degC"},
+                                      "ghi": {"unit": "Wh/m2"}}}
+            if name == "weather_visualize":
+                self.calls.append((name, arguments))
+                return {"view_id": "d" * 64, "rows": [], "total_rows": 24,
+                        "specs": [{"family": "monthly_series",
+                                   "summary": "24 monthly points"}]}
+            return await super().call(name, **arguments)
+
+    port = ViewPort()
+    artifacts = ("a" * 32, "b" * 32)
+
+    async def journey():
+        async with GraphChatSession(ReferenceAgent(port, parser), port, parser,
+                                    tmp_path / "chat.sqlite") as chat:
+            chat.chat.weather_artifacts = artifacts
+            answer = await chat.handle("visualize monthly weather trend")
+            assert "variable" in answer.lower()
+            assert "dry_bulb" in answer
+            assert "variable:dry_bulb" in [choice for choice, _ in chat.menu()]
+            assert "variable" in (await chat.handle("you have them")).lower()
+            answer = await chat.handle_choice("variable:dry_bulb")
+            assert '"view_id"' in answer
+            assert '"family": "monthly_series"' in answer
+            assert "planned" in (await chat.handle("visualize wind rose")).lower()
+
+    asyncio.run(journey())
+    assert parser.calls == []
+    assert not any(name in ("weather_plan", "weather_submit") for name, _ in port.calls)
+    call = next(arguments for name, arguments in port.calls if name == "weather_visualize")
+    assert call["request"] == {"artifact_ids": list(artifacts),
+                               "family": "monthly_series", "variable": "dry_bulb"}
+
+
+def test_visualization_choice_and_artifacts_survive_chat_restart(tmp_path):
+    class ViewPort(Port):
+        async def call(self, name, **arguments):
+            self.calls.append((name, arguments))
+            if name == "weather_visualization_capabilities":
+                return {"variables": {"dry_bulb": {"unit": "degC"}}}
+            if name == "weather_visualize":
+                return {"view_id": "d" * 64, "rows": [], "total_rows": 12,
+                        "specs": [{"family": "monthly_series"}]}
+            raise AssertionError(name)
+
+    port = ViewPort()
+    parser = Parser()
+    checkpoint = tmp_path / "chat.sqlite"
+
+    async def journey():
+        async with GraphChatSession(ReferenceAgent(port, parser), port, parser,
+                                    checkpoint) as chat:
+            chat.chat.weather_artifacts = ("a" * 32,)
+            assert "variable" in (await chat.handle("visualize monthly weather")).lower()
+        async with GraphChatSession(ReferenceAgent(port, parser), port, parser,
+                                    checkpoint) as chat:
+            assert chat.chat.weather_artifacts == ("a" * 32,)
+            assert "variable:dry_bulb" in [value for value, _ in chat.menu()]
+            assert '"view_id"' in await chat.handle_choice("variable:dry_bulb")
+
+    asyncio.run(journey())
+    assert parser.calls == []
+    assert [name for name, _ in port.calls].count("weather_visualize") == 1
+
+
+def test_time_grounding_keeps_named_weather_range_but_not_building_count():
+    intent = AgentIntent(kind="weather", product="historical",
+                         years=[2012, 2021, 2022, 2023])
+    grounded = GraphChatSession._ground_weather_time(
+        intent, "UBEM for 2012 buildings, weather years 2021-2023")
+    assert grounded.years == [2021, 2022, 2023]
+
+
+def test_future_plot_request_stays_suspended(tmp_path):
+    parser = Parser()
+    port = Port()
+
+    async def journey():
+        async with GraphChatSession(ReferenceAgent(port, parser), port, parser,
+                                    tmp_path / "chat.sqlite") as chat:
+            assert "FEATURE_SUSPENDED" in await chat.handle(
+                "plot future weather for 2050")
+            assert not chat.chat.pending_view_active
+
+    asyncio.run(journey())
+    assert parser.calls == []
+    assert port.calls == []
 
 
 def test_graph_remembers_location_product_and_year_across_restart(tmp_path):
@@ -231,7 +352,7 @@ def test_manual_batch_waits_for_submission_before_next_request(tmp_path):
     async def journey():
         async with GraphChatSession(ReferenceAgent(port, parser), port, parser,
                                     tmp_path / "chat.sqlite", auto_submit=False) as chat:
-            assert "review_required" in await chat.handle("Historical and TMYx")
+            assert "review_required" in await chat.handle("Historical 2018 and TMYx")
             assert [name for name, _ in port.calls].count("weather_plan") == 1
             answer = await chat.handle("/submit")
             assert "[completed]" in answer

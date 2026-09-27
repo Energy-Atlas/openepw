@@ -92,6 +92,16 @@ class GraphChatSession:
         return self.chat.pending_choices
 
     def menu(self) -> list[tuple[str, str]]:
+        if self.chat.pending_view_family:
+            return [("variable:" + key, label)
+                    for key, label in self.chat.pending_view_options] + [("other", "Other…")]
+        if self.chat.pending_view_active:
+            return [("family:" + key, label) for key, label in (
+                ("time_series", "Hourly time series"),
+                ("monthly_series", "Monthly series"),
+                ("annual_series", "Annual series"),
+                ("histogram", "Histogram"),
+                ("spatial", "Spatial comparison"))] + [("other", "Other…")]
         if self.chat.pending_choices:
             choices = [("location:" + str(item.get("id", index)),
                         str(item.get("name", "unnamed")))
@@ -109,6 +119,12 @@ class GraphChatSession:
         return []
 
     async def handle_choice(self, choice_id: str) -> str:
+        if choice_id.startswith("family:") and any(
+                value == choice_id for value, _ in self.menu()):
+            return await self.handle(choice_id.partition(":")[2].replace("_", " "))
+        if choice_id.startswith("variable:") and any(
+                value == choice_id for value, _ in self.menu()):
+            return await self.handle(choice_id.partition(":")[2])
         if choice_id.startswith("location:"):
             for index, item in enumerate(self.chat.pending_choices, start=1):
                 if choice_id == "location:" + str(item.get("id", index)):
@@ -147,6 +163,8 @@ class GraphChatSession:
         line = self._line
         if line.startswith("/"):
             return True
+        if self.chat.pending_view_active or self.chat.is_view_request(line):
+            return True
         if self.chat.pending_choices and re.fullmatch(r"(?:18|19|20|21)\d{2}", line):
             return False
         if self.chat.pending_choices and (line.isdecimal() or
@@ -175,6 +193,8 @@ class GraphChatSession:
                    if self.tracer else None)
             try:
                 intents = self.parser.parse_many(safe_prompt(self._line, limit=4000))
+                intents = [self._ground_weather_time(intent, self._line)
+                           for intent in intents]
             except Exception as error:
                 if self.tracer:
                     self.tracer.end_step(run, error=type(error).__name__)
@@ -187,6 +207,40 @@ class GraphChatSession:
                 })
         return {"intents": [item.model_dump(mode="json") for item in intents],
                 "direct": direct}
+
+    @staticmethod
+    def _ground_weather_time(intent: AgentIntent, line: str) -> AgentIntent:
+        """Do not let model-only years or dates initiate provider retrieval."""
+        explicit = set()
+        for match in re.finditer(r"\b(?:18|19|20|21)\d{2}\b", line):
+            if not re.match(r"\s+buildings?\b", line[match.end():], re.I):
+                explicit.add(int(match.group()))
+        for match in re.finditer(
+                r"\b((?:18|19|20|21)\d{2})\s*(?:-|–|—|to|through)\s*"
+                r"((?:18|19|20|21)\d{2})\b", line, re.I):
+            start, end = int(match.group(1)), int(match.group(2))
+            if 0 <= end - start <= 100:
+                explicit.update(range(start, end + 1))
+        grounded = intent.model_copy(deep=True)
+        grounded.years = [year for year in intent.years if year in explicit]
+        if grounded.start and not any(grounded.start.startswith(str(year))
+                                     for year in explicit):
+            grounded.start = None
+        if grounded.end and not any(grounded.end.startswith(str(year))
+                                   for year in explicit):
+            grounded.end = None
+        product_evidence = {
+            "historical": bool(explicit or re.search(
+                r"\b(?:historical|amy|actual.year)\b", line, re.I)),
+            "tmy": bool(re.search(
+                r"\b(?:tmy|typical (?:meteorological )?(?:weather )?year)\b",
+                line, re.I)),
+            "tmyx": bool(re.search(r"\btmyx\b", line, re.I)),
+            "published": bool(re.search(r"\bpublished\b", line, re.I)),
+        }
+        if grounded.product and not product_evidence.get(grounded.product, False):
+            grounded.product = None
+        return grounded
 
     async def _respond(self, state: GraphState) -> GraphState:
         if state.get("chat"):
@@ -240,7 +294,8 @@ class GraphChatSession:
     @staticmethod
     def _finished(answer: str) -> bool:
         return answer.startswith(("[completed]", "[partially_completed]",
-                                  "[no_executable_output]", "[blocked]"))
+                                  "[no_executable_output]", "[blocked]",
+                                  "[visualization]", "[unsupported]"))
 
     @staticmethod
     def _refers_to_prior_location(line: str) -> bool:

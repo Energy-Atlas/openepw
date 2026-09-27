@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import re
 from pathlib import Path
@@ -58,6 +59,9 @@ class ChatSession:
         self.pending_choices: tuple[dict[str, Any], ...] = ()
         self.pending_exploration = False
         self.pending_question: str | None = None
+        self.pending_view_active = False
+        self.pending_view_family: str | None = None
+        self.pending_view_options: tuple[tuple[str, str], ...] = ()
         self.reviewed_intent: AgentIntent | None = None
         self.reviewed_location: dict[str, Any] | None = None
         self.reviewed_reply: str | None = None
@@ -72,6 +76,9 @@ class ChatSession:
             "pending_choices": list(self.pending_choices),
             "pending_exploration": self.pending_exploration,
             "pending_question": self.pending_question,
+            "pending_view_active": self.pending_view_active,
+            "pending_view_family": self.pending_view_family,
+            "pending_view_options": list(self.pending_view_options),
             "reviewed_intent": (self.reviewed_intent.model_dump(mode="json")
                                 if self.reviewed_intent else None),
             "reviewed_location": self.reviewed_location,
@@ -90,6 +97,10 @@ class ChatSession:
         self.pending_choices = tuple(state.get("pending_choices") or ())
         self.pending_exploration = bool(state.get("pending_exploration"))
         self.pending_question = state.get("pending_question")
+        self.pending_view_active = bool(state.get("pending_view_active"))
+        self.pending_view_family = state.get("pending_view_family")
+        self.pending_view_options = tuple(tuple(item) for item in
+                                          state.get("pending_view_options") or ())
         self.reviewed_intent = (AgentIntent.model_validate(state["reviewed_intent"])
                                 if state.get("reviewed_intent") else None)
         self.reviewed_location = state.get("reviewed_location")
@@ -291,6 +302,9 @@ class ChatSession:
         self.draft = None
         self.pending_choices = ()
         self.pending_exploration = False
+        self.pending_view_active = False
+        self.pending_view_family = None
+        self.pending_view_options = ()
         return "[blocked] FEATURE_SUSPENDED: Future-weather MCP workflows are temporarily unavailable."
 
     @staticmethod
@@ -299,6 +313,83 @@ class ChatSession:
         if len(value) >= 2 and value[0] == value[-1] and value[0] in ('"', "'"):
             return value[1:-1]
         return value
+
+    @staticmethod
+    def is_view_request(line: str) -> bool:
+        return bool(re.search(r"\b(?:visuali[sz]\w*|plot|chart|graph)\b", line,
+                              re.IGNORECASE))
+
+    @staticmethod
+    def _view_family(line: str) -> str | None:
+        lowered = line.casefold().replace("_", " ")
+        if "wind rose" in lowered:
+            return "wind_rose"
+        if "monthly" in lowered or "month by month" in lowered:
+            return "monthly_series"
+        if "annual" in lowered or "yearly" in lowered or "year over year" in lowered:
+            return "annual_series"
+        if "histogram" in lowered or "distribution" in lowered:
+            return "histogram"
+        if "spatial" in lowered or "map" in lowered or "across locations" in lowered:
+            return "spatial"
+        if "hourly" in lowered or "time series" in lowered:
+            return "time_series"
+        return None
+
+    @staticmethod
+    def _view_variable(line: str) -> str | None:
+        aliases = (
+            ("dry_bulb", r"\b(?:dry[ _-]?bulb|air temperature|temperature)\b"),
+            ("dew_point", r"\bdew[ _-]?point\b"),
+            ("relative_humidity", r"\b(?:relative[ _-]?humidity|humidity)\b"),
+            ("pressure", r"\bpressure\b"),
+            ("wind_speed", r"\bwind[ _-]?speed\b"),
+            ("wind_direction", r"\bwind[ _-]?direction\b"),
+            ("ghi", r"\b(?:ghi|global horizontal irradiance)\b"),
+            ("dni", r"\b(?:dni|direct normal irradiance)\b"),
+            ("dhi", r"\b(?:dhi|diffuse horizontal irradiance)\b"),
+        )
+        return next((key for key, pattern in aliases if re.search(pattern, line, re.I)), None)
+
+    async def _handle_view(self, line: str) -> str:
+        if re.search(r"\b(?:future|climate scenario|ssp126|ssp245|ssp370|ssp585|"
+                     r"rcp45|rcp85)\b", line, re.I):
+            return self._block_future()
+        family = self._view_family(line) or self.pending_view_family
+        if family is None:
+            self.pending_view_active = True
+            return ("Which view do you need: hourly time series, monthly or annual "
+                    "series, histogram, or spatial comparison?")
+        capabilities = await self.mcp.call("weather_visualization_capabilities")
+        families = {item["family"]: item["status"]
+                    for item in capabilities.get("families", [])}
+        if families.get(family) == "planned":
+            self.pending_view_active = False
+            self.pending_view_family = None
+            self.pending_view_options = ()
+            return (f"[unsupported] {family} is planned. Available views: hourly "
+                    "time series, monthly or annual series, histogram, and spatial.")
+        variable = self._view_variable(line)
+        variables = capabilities.get("variables", {})
+        if variable not in variables:
+            self.pending_view_active = True
+            self.pending_view_family = family
+            self.pending_view_options = tuple(
+                (key, f"{key} ({item['unit']})") for key, item in variables.items())
+            options = ", ".join(key for key, _ in self.pending_view_options)
+            return (f"Which weather variable should I use for the {family} view? "
+                    f"Choose: {options}.")
+        artifact_ids = list(self.weather_artifacts)
+        if not artifact_ids and self.selected_baseline_id:
+            artifact_ids = [self.selected_baseline_id]
+        if not artifact_ids:
+            return "No completed EPW artifact is selected. Retrieve or upload an EPW first."
+        result = await self.mcp.call("weather_visualize", request={
+            "artifact_ids": artifact_ids, "family": family, "variable": variable})
+        self.pending_view_active = False
+        self.pending_view_family = None
+        self.pending_view_options = ()
+        return "[visualization] " + json.dumps(result, sort_keys=True, allow_nan=False)
 
     async def handle(self, line: str) -> str:
         if self.tracer and line.strip():
@@ -312,6 +403,8 @@ class ChatSession:
         try:
             if line.startswith("/"):
                 return await self._command(line)
+            if self.pending_view_active or self.is_view_request(line):
+                return await self._handle_view(line)
             if re.search(r"\b(?:status|progress)\b", line, re.IGNORECASE) and re.search(
                     r"\b(?:my|job|download|request)\b", line, re.IGNORECASE):
                 return await self._command("/status")
@@ -420,6 +513,8 @@ class ChatSession:
                 "Ask 'what do you have?' for read-only catalog options. New plans execute automatically.\n"
                 "/auto off|on  /submit  /status [job_id]  /cancel  /retry\n"
                 "/upload <EPW path>  /inspect [id|last]\n"
+                "Ask to visualize monthly, annual, hourly, histogram, or spatial "
+                "weather from completed EPWs.\n"
                 "/save <id|last> <path>  /reset  /quit\n"
                 "Ctrl+C exits the console and requests cancellation of an active job.\n"
                 "EPW bytes stay outside model prompts; inspect QC before simulation."
@@ -429,6 +524,9 @@ class ChatSession:
             self.pending_choices = ()
             self.selected_location = None
             self.pending_question = None
+            self.pending_view_active = False
+            self.pending_view_family = None
+            self.pending_view_options = ()
             self.pending_exploration = False
             self.reviewed_intent = None
             self.reviewed_reply = None
