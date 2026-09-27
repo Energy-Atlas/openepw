@@ -31,13 +31,20 @@ def test_place_list_previews_points_without_a_location_choice(tmp_path):
     assert "1. Boston, Massachusetts, United States" in listing and "top of 2 matches" in listing
     assert "3. 'Nowhereville' not found" in listing
     assert "Previewed 2 of 3 places" in _texts(state, kind="tool")[-1]
-    assert state["active_card"]["kind"] == "plan_review"          # Run still needs review
+    review = state["active_card"]                                  # the list is approved first
+    assert review["kind"] == "location_review" and review["prompt"] == "Are these the right locations?"
+    assert review["data"]["summary"].startswith("**2 places** · 1 not found and left out · Boston")
     service.http.calls.clear()
     edited = chat.turn(state["id"], "remove 3", state["revision"], "two")
     assert len(edited["facts"]["place_rows"]) == 2 and service.http.calls == []   # pinned, not re-geocoded
-    replaced = chat.turn(state["id"], "replace 1 with Denver", edited["revision"], "three")
+    assert edited["active_card"]["kind"] == "location_review"
+    approved = chat.approve_location(state["id"], edited["revision"], "approve")
+    assert approved["active_card"]["kind"] == "plan_review"        # Run still needs review
+    assert _texts(approved, role="user")[-1].startswith("Approved 2 places")
+    replaced = chat.turn(state["id"], "replace 1 with Denver", approved["revision"], "three")
     assert replaced["facts"]["geography"][0]["name"] == "Denver, Colorado, United States"
     assert service.http.calls == ["geocode:Denver"]
+    assert replaced["active_card"]["kind"] == "location_review"   # an edited list is approved again
 
 
 def test_coordinate_lists_preview_and_single_places_keep_the_choice_flow(tmp_path):

@@ -127,4 +127,14 @@ describe('chat dock and controls', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Approve location' }))
     await waitFor(() => expect(approveLocation).toHaveBeenCalledWith('test', 4, expect.any(String)))
   })
+
+  it('asks to approve a place list, with list edits as the correction', async () => {
+    const review = state({ id: 'l', revision: 6, kind: 'location_review', prompt: 'Are these the right locations?',
+      data: { summary: '**2 places** · Boston; Denver', several: true } })
+    const approveLocation = vi.fn(async () => ({ ...review, revision: 7, active_card: null }))
+    render(<App api={api(review, { approveLocation })} />)
+    expect(await screen.findByRole('textbox', { name: 'Message' })).toHaveAttribute('placeholder', 'Or edit the list, e.g. remove 3')
+    fireEvent.click(screen.getByRole('button', { name: 'Approve locations' }))
+    await waitFor(() => expect(approveLocation).toHaveBeenCalledWith('test', 6, expect.any(String)))
+  })
 })

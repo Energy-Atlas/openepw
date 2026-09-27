@@ -117,6 +117,25 @@ def location_summary(location: dict) -> str:
     return f"**{coordinates}** · typed coordinates"
 
 
+def request_location(facts: dict):
+    """The geography the request would use: a point list or area, else one location."""
+    return facts.get("geography") or facts.get("location")
+
+
+def request_location_summary(facts: dict) -> str:
+    geography = facts.get("geography")
+    if not geography:
+        return location_summary(facts["location"])
+    if not isinstance(geography, list):
+        return "**Selected area** · sampled points are shown on the map"
+    count = len(geography)
+    summary = f"**{count} {'place' if count == 1 else 'places'}**"
+    missing = sum(row.get("status") != "resolved" for row in facts.get("place_rows") or [])
+    summary += f" · {missing} not found and left out" if missing else ""
+    names = [point.get("name") or f"{point['lat']:.4f}, {point['lon']:.4f}" for point in geography[:3]]
+    return summary + " · " + "; ".join(names) + (f" and {count - 3} more" if count > 3 else "")
+
+
 HISTORY_LIMIT = 50
 # The products behind each weather type, as named in the local catalog and adapters.
 PRODUCT_DETAILS = {
@@ -427,11 +446,13 @@ class ChatCoordinator:
                 for item in facts["candidates"]]}
         elif not facts.get("location") and not facts.get("geography"):
             card = {"kind": "text", "prompt": "Where do you need weather?"}
-        elif facts.get("location") and facts.get("location_approved") != location_key(facts["location"]):
-            # One chosen or typed location is approved before the request goes on;
-            # place lists are corrected by text from their preview instead.
-            card = {"kind": "location_review", "prompt": "Is this the right location?",
-                    "data": {"summary": location_summary(facts["location"])}}
+        elif facts.get("location_approved") != location_key(request_location(facts)):
+            # Every location is approved before the request goes on; a typed reply corrects it
+            # (a place list by edits such as "remove 3").
+            several = isinstance(facts.get("geography"), list) and len(facts["geography"]) > 1
+            card = {"kind": "location_review",
+                    "prompt": "Are these the right locations?" if several else "Is this the right location?",
+                    "data": {"summary": request_location_summary(facts), "several": several}}
         elif not facts.get("product"):
             card = {"kind": "choice", "prompt": "Which weather product?", "options": [
                 {"id": key, "label": label, "detail": PRODUCT_DETAILS[key]}
@@ -539,6 +560,9 @@ class ChatCoordinator:
             return "I couldn't match that to a candidate — pick one on the map or in the list, or type another place."
         if prompt == "Is this the right location?":
             return "I couldn't tell how to change the location — give another place or coordinates, or approve it."
+        if prompt == "Are these the right locations?":
+            return ("I couldn't tell how to change the list — edit it by text, for example "
+                    "“remove 3” or “add Reno”, or approve it.")
         if prompt == "Which weather product?":
             return "I couldn't tell which weather product you meant — pick one of the options."
         if prompt == "Which actual year or years?":
@@ -697,9 +721,9 @@ class ChatCoordinator:
             card = state["active_card"]
             if not card or card["kind"] != "location_review":
                 raise StaleSession(state)
-            location = state["facts"]["location"]
-            state["facts"]["location_approved"] = location_key(location)
-            self._event(state, "message", f"Approved {location_summary(location).replace('**', '')}",
+            facts = state["facts"]
+            facts["location_approved"] = location_key(request_location(facts))
+            self._event(state, "message", f"Approved {request_location_summary(facts).replace('**', '')}",
                         {"role": "user", "choice": True, "choice_id": "approve_location"})
             self._question(state)
 
@@ -710,7 +734,7 @@ class ChatCoordinator:
         location = facts.get("geography") or facts.get("location")
         if not location or not facts.get("product"):
             raise ChatActionError("Location and weather product are required")
-        if not facts.get("geography") and facts.get("location_approved") != location_key(location):
+        if facts.get("location_approved") != location_key(location):
             raise ChatActionError("Approve the location first")
         return WeatherRequest.model_validate({
             "locations": location, "product": facts["product"],

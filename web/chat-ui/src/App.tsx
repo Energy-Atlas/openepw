@@ -420,7 +420,7 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
       {replyMode === 'text' ? <>
         {card?.kind === 'location_review' && <button className="reply-primary approve-location" type="button"
           disabled={busy} onClick={() => void act(current => api.approveLocation(current.id, current.revision, randomKey()))}>
-          <TickIcon />Approve location</button>}
+          <TickIcon />{card.data?.several ? 'Approve locations' : 'Approve location'}</button>}
         <label className="visually-hidden" htmlFor="chat-message">Message</label>
         <div className="composer-row">
           {ATTACH_AND_MAP_INPUT && <>
@@ -476,7 +476,7 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
 function placeholderFor(card: SessionSnapshot['active_card'], typing: boolean, locationChoice: boolean): string {
   if (!card) return 'Place, years, and weather type'
   if (card.kind === 'plan_review') return 'Describe what to change'
-  if (card.kind === 'location_review') return 'Or describe a correction'
+  if (card.kind === 'location_review') return card.data?.several ? 'Or edit the list, e.g. remove 3' : 'Or describe a correction'
   if (card.kind === 'text') return /year/i.test(card.prompt) ? 'e.g. 2018 or 2016–2018'
     : /where/i.test(card.prompt) ? 'Place, coordinates, or a list of places' : 'Type your answer'
   if (card.kind === 'choice' && typing) {
