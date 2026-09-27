@@ -26,14 +26,14 @@ button { cursor: pointer; }
 .pick-toolbar button { border: 1px solid #adc9ca; border-radius: 7px; padding: .35rem .5rem; background: white; color: #173849; font-size: .76rem; }
 .pick-toolbar button[aria-pressed="true"] { background: #237e8b; color: white; }
 .pick-toolbar .draw-actions { flex-basis: 100%; display: flex; align-items: center; flex-wrap: wrap; gap: .35rem; font-size: .7rem; }
-.evidence-legend { position: absolute; left: 1rem; bottom: 5rem; z-index: 2; display: flex; flex-direction: column; gap: .25rem; max-width: min(240px, 30vw); max-height: 180px; overflow: auto; padding: .55rem .7rem; border: 1px solid rgba(100,119,130,.2); border-radius: 9px; background: rgba(243,247,247,.88); color: #173849; font-size: .68rem; }
+.evidence-legend { position: absolute; left: 1rem; bottom: 6.8rem; z-index: 2; display: flex; flex-direction: column; gap: .25rem; max-width: min(240px, 30vw); max-height: 180px; overflow: auto; padding: .55rem .7rem; border: 1px solid rgba(100,119,130,.2); border-radius: 9px; background: rgba(243,247,247,.88); color: #173849; font-size: .68rem; }
 .evidence-legend strong { font-size: .72rem; }
 .evidence-legend span { display: flex; align-items: center; gap: .4rem; overflow-wrap: anywhere; }
 .evidence-legend i { flex: none; width: .55rem; height: .55rem; border-radius: 2px; opacity: .7; }
 .evidence-legend small { color: #647782; line-height: 1.4; }
-.map-status { position: absolute; bottom: .7rem; left: .7rem; max-width: 40ch; padding: .3rem .5rem; border-radius: 6px; background: rgba(243,247,247,.92); font-size: .7rem; }
-.shadow-status { position: absolute; bottom: 2.6rem; left: .7rem; max-width: 38ch; padding: .3rem .5rem; border-radius: 6px; background: rgba(243,247,247,.92); font-size: .7rem; }
-.scene-attribution { position: absolute; bottom: .6rem; left: 4rem; max-width: min(430px, calc(100vw - 5rem)); padding: .25rem .4rem; border-radius: 4px; background: rgba(243,247,247,.88); font-size: .62rem; }
+.map-status { position: absolute; bottom: 2.3rem; left: 3.2rem; max-width: 40ch; padding: .3rem .5rem; border-radius: 6px; background: rgba(243,247,247,.92); font-size: .7rem; }
+.shadow-status { position: absolute; bottom: 4.1rem; left: 3.2rem; max-width: 38ch; padding: .3rem .5rem; border-radius: 6px; background: rgba(243,247,247,.92); font-size: .7rem; }
+.scene-attribution { position: absolute; bottom: .6rem; left: 3.2rem; max-width: min(430px, calc(100vw - 4.2rem)); padding: .25rem .4rem; border-radius: 4px; background: rgba(243,247,247,.88); font-size: .62rem; }
 .scene-attribution a { color: #173849; }
 .chat-rail { position: absolute; z-index: 5; right: 1rem; top: 1rem; bottom: 1rem; width: min(390px, calc(100vw - 2rem)); display: flex; flex-direction: column; border: 1px solid rgba(19, 64, 76, .15); border-radius: 18px; background: rgba(243, 247, 247, .96); box-shadow: 0 18px 70px rgba(10, 47, 61, .23); backdrop-filter: blur(18px); }
 .chat-heading { display: flex; flex-direction: column; gap: .2rem; padding: .9rem 1.1rem .8rem; border-bottom: 1px solid #d8e4e3; }
@@ -90,4 +90,4 @@ button { cursor: pointer; }
 .attach-control { position: relative; flex: none; display: grid; place-items: center; width: 2.15rem; height: 2.15rem; border: 1px solid #b7cdcd; border-radius: 9px; background: white; color: #255b67; cursor: pointer; font-size: 1.2rem; line-height: 1; }
 .attach-control input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
 :focus-visible { outline: 3px solid #d69b36; outline-offset: 2px; }
-@media (max-width: 650px) { .chat-rail { top: auto; left: .6rem; right: .6rem; bottom: .6rem; width: auto; height: min(42dvh, 340px); } .map-brand { left: .6rem; top: .6rem; } .scene-controls { left: .6rem; top: 4.7rem; max-height: 35dvh; overflow: auto; } .pick-toolbar { left: .6rem; top: 4.7rem; } .evidence-legend { left: .6rem; bottom: calc(min(42dvh, 340px) + 2rem); max-width: 45vw; max-height: 100px; } .map-status { bottom: calc(min(42dvh, 340px) + 1rem); } .view-panel { max-width: calc(100vw - 1.2rem); max-height: 45dvh; } }
+@media (max-width: 650px) { .chat-rail { top: auto; left: .6rem; right: .6rem; bottom: .6rem; width: auto; height: min(42dvh, 340px); } .map-brand { left: .6rem; top: .6rem; } .scene-controls { left: .6rem; top: 4.7rem; max-height: 35dvh; overflow: auto; } .pick-toolbar { left: .6rem; top: 4.7rem; } .evidence-legend { left: .6rem; bottom: calc(min(42dvh, 340px) + 6.4rem); max-width: 45vw; max-height: 100px; } .map-status { left: .6rem; bottom: calc(min(42dvh, 340px) + 2.6rem); } .shadow-status { left: .6rem; bottom: calc(min(42dvh, 340px) + 4.4rem); } .scene-attribution { left: .6rem; bottom: calc(min(42dvh, 340px) + 1rem); } .view-panel { max-width: calc(100vw - 1.2rem); max-height: 45dvh; } }

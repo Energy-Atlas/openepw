@@ -22,6 +22,11 @@ const appearances: Array<[Appearance, string]> = [
 
 type MapPoint = { id?: string; name?: string; lat: number; lon: number }
 
+// isStyleLoaded() is also false while any tile is loading; overlays only need a parsed style.
+function styleParsed(map: MapLibreMap | null): map is MapLibreMap {
+  return Boolean(map?.getStyle())
+}
+
 export function MapCanvas({ location, candidates = [], geography, resolvedPoints = [], availability, catalogScopes,
   pickMode = false, onExitPickMode, onPickPoint, onPickCandidate, onPickGeometry }: {
   location?: MapPoint | null
@@ -134,7 +139,7 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
       sceneMap.on('error', () => setStatus('Some map tiles could not load. Chat remains available.'))
       sceneMap.on('moveend', () => {
         setStatus(`Map ready · zoom ${sceneMap.getZoom().toFixed(1)}`)
-        if (sceneMap.isStyleLoaded() && !awaitingStyleIdle.current) {
+        if (styleParsed(sceneMap) && !awaitingStyleIdle.current) {
           try { applyLighting(sceneMap, settingsRef.current) }
           catch { setStatus('Scene lighting unavailable; map and chat remain usable.') }
         }
@@ -181,7 +186,7 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
   useEffect(() => {
     settingsRef.current = settings
     if (!map.current) return
-    try { if (map.current.isStyleLoaded()) applyAppearance(map.current, settings.appearance);
+    try { if (styleParsed(map.current)) applyAppearance(map.current, settings.appearance);
       applyScene(map.current, awaitingStyleIdle.current ? { ...settings, terrain: false } : settings) }
     catch { setStatus('Map scene unavailable; chat and coordinates remain usable.') }
     scheduleShadowsRef.current()
@@ -198,7 +203,7 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
 
   useEffect(() => {
     const sceneMap = map.current
-    if (!sceneMap?.isStyleLoaded()) return
+    if (!styleParsed(sceneMap)) return
     const features = [
       ...candidates.map(point => ({ type: 'Feature' as const,
         geometry: { type: 'Point' as const, coordinates: [point.lon, point.lat] },
@@ -221,7 +226,7 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
 
   useEffect(() => {
     const sceneMap = map.current
-    if (!sceneMap?.isStyleLoaded()) return
+    if (!styleParsed(sceneMap)) return
     const data = { type: 'FeatureCollection' as const, features: vertices.length ? [{
       type: 'Feature' as const, properties: {}, geometry: {
         type: 'LineString' as const, coordinates: vertices,
@@ -238,7 +243,7 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
 
   useEffect(() => {
     const sceneMap = map.current
-    if (!sceneMap?.isStyleLoaded()) return
+    if (!styleParsed(sceneMap)) return
     const features: Array<GeoJSON.Feature> = []
     if (geography && !Array.isArray(geography) && 'type' in geography && geography.type === 'Polygon') {
       features.push({ type: 'Feature', properties: {}, geometry: geography })
@@ -272,7 +277,7 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
 
   useEffect(() => {
     const sceneMap = map.current
-    if (!sceneMap?.isStyleLoaded()) return
+    if (!styleParsed(sceneMap)) return
     const data = availabilityFeatures(availability, catalogScopes)
     if (!sceneMap.getSource('openepw-evidence')) {
       sceneMap.addSource('openepw-evidence', { type: 'geojson', data })

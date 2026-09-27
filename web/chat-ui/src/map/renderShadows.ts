@@ -128,7 +128,8 @@ function put(map: MapLibreMap, id: string, collection: FeatureCollection, layer:
 }
 
 export function renderShadows(map: MapLibreMap, settings: SceneSettings): string {
-  if (!map.isStyleLoaded()) return 'Shadows waiting for map style.'
+  // Tiles may still be loading; sourcedata events re-run this as buildings arrive.
+  if (!map.getStyle()) return 'Shadows waiting for map style.'
   if (!settings.view3d || !settings.shadows || map.getZoom() < 14) {
     for (const id of ['openepw-ground-shadows', 'openepw-roof-shadows']) {
       if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', 'none')
@@ -182,6 +183,7 @@ export function renderShadows(map: MapLibreMap, settings: SceneSettings): string
   for (const id of ['openepw-ground-shadows', 'openepw-roof-shadows']) {
     map.setLayoutProperty(id, 'visibility', 'visible')
   }
-  return sources.length ? `${sources.length} decorative buildings sampled; geometric shadows approximate.`
-    : 'Building geometry unavailable at this location; terrain shadows may still appear.'
+  if (sources.length) return `${sources.length} decorative buildings sampled; geometric shadows approximate.`
+  return map.areTilesLoaded() ? 'Building geometry unavailable at this location; terrain shadows may still appear.'
+    : 'Loading district tiles for shadows.'
 }
