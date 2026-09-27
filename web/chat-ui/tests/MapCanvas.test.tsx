@@ -26,6 +26,9 @@ vi.mock('maplibre-gl', () => {
     }
     addLayer(layer: { id: string }) { this.layers.push(layer) }
     getLayer(id: string) { return this.layers.find(layer => layer.id === id) }
+    images = new Set<string>()
+    hasImage(name: string) { return this.images.has(name) }
+    addImage(name: string) { this.images.add(name) }
     visibility = new Map<string, string>()
     setPaintProperty() {}
     setLayoutProperty(id: string, _name: string, value: string) { this.visibility.set(id, value) }

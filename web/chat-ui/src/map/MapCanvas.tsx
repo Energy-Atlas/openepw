@@ -5,7 +5,7 @@ import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
 import { appearanceStyle, applyAppearance, applyLighting, applyScene, autoView3d, scenePitch, type SceneSettings } from './scene'
 import { renderShadows } from './renderShadows'
 import { availabilityFeatures } from './evidence'
-import { MAP_PALETTE, catalogFeatures, catalogLayerSpecs, layerSwatch, legendRows } from './catalogLayers'
+import { MAP_PALETTE, SHAPE_IMAGES, catalogFeatures, catalogLayerSpecs, layerSwatch, legendRows } from './catalogLayers'
 import { utcSceneTime } from './sun'
 import type { WeatherGeography } from '../geography'
 import type { AvailabilitySummary, CatalogLayer, CatalogMap } from '../types'
@@ -294,6 +294,8 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
     const before = sceneMap.getStyle().layers.find(item => own.has(item.id))?.id
     const stack = ['extent', 'cells', 'area', 'sites', 'stations']
     const ordered = [...catalogMap.layers].sort((a, b) => stack.indexOf(a.kind) - stack.indexOf(b.kind))
+    for (const image of SHAPE_IMAGES)
+      if (!sceneMap.hasImage(image.name)) sceneMap.addImage(image.name, image, { pixelRatio: 2 })
     for (const layer of ordered) {
       const id = `openepw-catalog-${layer.id}`
       const data = catalogFeatures(layer, layer.kind === 'stations' ? years : [])
@@ -339,7 +341,7 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
         <input type="checkbox" checked={!row.ids.every(id => hiddenLayers.includes(id))} onChange={() =>
           setHiddenLayers(current => row.ids.every(id => current.includes(id))
             ? current.filter(item => !row.ids.includes(item)) : [...new Set([...current, ...row.ids])])} />
-        <i className={`swatch swatch-${layerSwatch(row.kind).shape}`} style={{ color: layerSwatch(row.kind).color }} />
+        <i className={`swatch swatch-${layerSwatch(row.layers[0]).shape}`} style={{ color: layerSwatch(row.layers[0]).color }} />
         <span>{row.label}</span>
         <small>{layerCount(row.layers[0], years)}</small>
       </label>)}

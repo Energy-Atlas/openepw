@@ -26,7 +26,8 @@ export const SOURCE_COLORS = {
   OBSERVED: '#237e8b',        // NOAA station records
   PUBLISHED: '#173849',       // OneBuilding published files
   PUBLISHED_FAINT: '#84959e', // approximate OneBuilding positions (50% toward paper)
-  REGION: '#647782',          // NSRDB grid and PVGIS region
+  NSRDB: '#f07c2e',           // NSRDB source grid: bright orange, redder than the amber accent
+  REGION: '#647782',          // PVGIS region
   EXTENT: '#88969e',          // ERA5 documented extent rims (25% toward paper)
 } as const
 

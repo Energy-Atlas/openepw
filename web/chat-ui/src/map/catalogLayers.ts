@@ -12,21 +12,45 @@ export const MAP_PALETTE = {
   HERO_LINE: THEME.AMBER_LINE,
   CANDIDATE: THEME.INK,       // geocoder candidate rings
   OBSERVED: SOURCE_COLORS.OBSERVED,   // NOAA station records: teal dots
-  PUBLISHED: SOURCE_COLORS.PUBLISHED, // OneBuilding published files: deep-ocean dots
+  PUBLISHED: SOURCE_COLORS.PUBLISHED, // OneBuilding published files: deep-ocean squares
   PUBLISHED_FAINT: SOURCE_COLORS.PUBLISHED_FAINT,
-  REGION: SOURCE_COLORS.REGION,       // NSRDB grid shade and PVGIS outline
+  NSRDB: SOURCE_COLORS.NSRDB,         // NSRDB grid shade: orange
+  REGION: SOURCE_COLORS.REGION,       // PVGIS outline
   EXTENT: SOURCE_COLORS.EXTENT,
 } as const
 
-const swatches: Record<CatalogLayer['kind'], { color: string; shape: 'dot' | 'fill' | 'outline' | 'dash' }> = {
+type Swatch = { color: string; shape: 'dot' | 'square' | 'fill' | 'outline' | 'dash' }
+const swatches: Record<CatalogLayer['kind'], Swatch> = {
   stations: { color: MAP_PALETTE.OBSERVED, shape: 'dot' },
-  sites: { color: MAP_PALETTE.PUBLISHED, shape: 'dot' },
+  sites: { color: MAP_PALETTE.PUBLISHED, shape: 'square' },
   cells: { color: MAP_PALETTE.REGION, shape: 'fill' },
   area: { color: MAP_PALETTE.REGION, shape: 'outline' },
   extent: { color: MAP_PALETTE.EXTENT, shape: 'dash' },
 }
 
-export function layerSwatch(kind: CatalogLayer['kind']) { return swatches[kind] }
+export function layerSwatch(layer: Pick<CatalogLayer, 'id' | 'kind'>): Swatch {
+  return layer.id === 'nsrdb' ? { ...swatches[layer.kind], color: MAP_PALETTE.NSRDB } : swatches[layer.kind]
+}
+
+function rgb(hex: string): [number, number, number] {
+  return [1, 3, 5].map(index => parseInt(hex.slice(index, index + 2), 16)) as [number, number, number]
+}
+
+/** 12×12 px (drawn at pixel ratio 2) square markers, so OneBuilding differs from NOAA by shape too. */
+function square(name: string, hex: string, hollow: boolean) {
+  const size = 12
+  const data = new Uint8Array(size * size * 4)
+  const [r, g, b] = rgb(hex)
+  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+    const edge = x < 2 || y < 2 || x >= size - 2 || y >= size - 2
+    if (hollow && !edge) continue
+    data.set([r, g, b, 235], (y * size + x) * 4)
+  }
+  return { name, width: size, height: size, data }
+}
+
+export const SHAPE_IMAGES = [square('oe-square', SOURCE_COLORS.PUBLISHED, false),
+  square('oe-square-hollow', SOURCE_COLORS.PUBLISHED_FAINT, true)]
 
 /** True when every requested year falls in one of the station's reported-year ranges. */
 export function reportsEveryYear(ranges: number[][], years: number[]): boolean {
@@ -87,13 +111,13 @@ export function catalogLayerSpecs(layer: CatalogLayer, id: string): AddLayerObje
   const fade = (peak: number): ExpressionSpecification => ['interpolate', ['linear'], ['zoom'], 4, peak, 9, .04]
   if (layer.kind === 'stations') return [{ id: `${id}-point`, type: 'circle', source: id,
     paint: { 'circle-radius': radius, 'circle-color': MAP_PALETTE.OBSERVED, 'circle-opacity': .85 } }]
-  if (layer.kind === 'sites') return [{ id: `${id}-point`, type: 'circle', source: id,
-    paint: { 'circle-radius': radius, 'circle-color': MAP_PALETTE.PUBLISHED,
-      'circle-opacity': ['case', ['get', 'approximate'], 0, .85],
-      'circle-stroke-color': MAP_PALETTE.PUBLISHED_FAINT,
-      'circle-stroke-width': ['case', ['get', 'approximate'], 1.2, 0] } }]
+  if (layer.kind === 'sites') return [{ id: `${id}-point`, type: 'symbol', source: id,
+    layout: { 'icon-image': ['case', ['get', 'approximate'], 'oe-square-hollow', 'oe-square'],
+      'icon-size': ['interpolate', ['linear'], ['zoom'], 1, .3, 4, .5, 8, .8, 12, 1.1],
+      'icon-allow-overlap': true, 'icon-ignore-placement': true } }]
   if (layer.kind === 'cells') return [{ id: `${id}-fill`, type: 'fill', source: id, filter: polygons,
-    paint: { 'fill-color': MAP_PALETTE.REGION, 'fill-antialias': false, 'fill-opacity': fade(.18) } }]
+    paint: { 'fill-color': layer.id === 'nsrdb' ? MAP_PALETTE.NSRDB : MAP_PALETTE.REGION,
+      'fill-antialias': false, 'fill-opacity': fade(.22) } }]
   if (layer.kind === 'area') return [
     { id: `${id}-fill`, type: 'fill', source: id, filter: polygons,
       paint: { 'fill-color': MAP_PALETTE.REGION, 'fill-opacity': fade(.07) } },

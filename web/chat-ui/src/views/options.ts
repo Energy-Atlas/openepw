@@ -10,7 +10,7 @@ const ramp = { inRange: { color: [...THEME.RAMP] }, textStyle: { color: MUTED_TE
 function themed(option: Record<string, unknown>): Record<string, unknown> {
   const withAxis = (value: unknown) => value && typeof value === 'object' ? { ...axis, ...value } : value
   return { color: [...SERIES], backgroundColor: 'transparent',
-    textStyle: { color: THEME.INK, fontFamily: "'IBM Plex Sans', sans-serif" },
+    textStyle: { color: THEME.INK, fontFamily: "'Geist', system-ui, sans-serif" },
     tooltip: { backgroundColor: THEME.INK, borderWidth: 0, textStyle: { color: THEME.PAPER } },
     ...option, xAxis: withAxis(option.xAxis), yAxis: withAxis(option.yAxis),
     ...(option.tooltip ? { tooltip: { backgroundColor: THEME.INK, borderWidth: 0,

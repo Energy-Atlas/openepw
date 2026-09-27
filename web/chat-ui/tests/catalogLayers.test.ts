@@ -47,7 +47,7 @@ describe('OpenEPW map palette', () => {
         .filter(([key]) => key.endsWith('color')).map(([, value]) => JSON.stringify(value)))
     expect(colors.join()).not.toContain(MAP_PALETTE.HERO)
     const allowed = [MAP_PALETTE.OBSERVED, MAP_PALETTE.PUBLISHED, MAP_PALETTE.PUBLISHED_FAINT,
-      MAP_PALETTE.REGION, MAP_PALETTE.EXTENT, THEME.PAPER]
+      MAP_PALETTE.REGION, MAP_PALETTE.EXTENT, MAP_PALETTE.NSRDB, THEME.PAPER]
     for (const value of colors) expect(allowed.some(color => value.includes(color))).toBe(true)
   })
 
@@ -63,5 +63,18 @@ describe('OpenEPW map palette', () => {
       { ...layer('era5-land', 'extent'), label: 'ERA5-Land reanalysis' }])
     expect(rows.map(row => row.ids)).toEqual([['noaa'], ['era5', 'era5-land']])
     expect(rows[1].label).toBe('ERA5 · ERA5-Land extent')
+  })
+
+  it('gives NSRDB its own orange and OneBuilding a square symbol', async () => {
+    const { MAP_PALETTE, catalogLayerSpecs, SHAPE_IMAGES, layerSwatch } = await import('../src/map/catalogLayers')
+    const cells = catalogLayerSpecs(layer('nsrdb', 'cells'), 'x')[0] as { paint: Record<string, unknown> }
+    expect(cells.paint['fill-color']).toBe(MAP_PALETTE.NSRDB)
+    expect(MAP_PALETTE.NSRDB).not.toBe(MAP_PALETTE.HERO)
+    const sites = catalogLayerSpecs(layer('onebuilding', 'sites'), 'y')[0] as { type: string; layout: Record<string, unknown> }
+    expect(sites.type).toBe('symbol')
+    expect(JSON.stringify(sites.layout['icon-image'])).toContain('oe-square')
+    expect(SHAPE_IMAGES.map(image => image.name)).toEqual(['oe-square', 'oe-square-hollow'])
+    expect(layerSwatch(layer('onebuilding', 'sites')).shape).toBe('square')
+    expect(layerSwatch(layer('nsrdb', 'cells')).color).toBe(MAP_PALETTE.NSRDB)
   })
 })

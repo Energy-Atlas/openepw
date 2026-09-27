@@ -63,4 +63,11 @@ describe('one OpenEPW colour system', () => {
     expect(css).toMatch(/--oe-backdrop:\s*#333333/)
     expect(css).toMatch(/\.map-canvas \{[^}]*background: var\(--oe-backdrop\)/)
   })
+
+  it('uses Geist everywhere except monospace', () => {
+    const css = readFileSync('src/app.css', 'utf8')
+    expect(css).toMatch(/family=Geist/)
+    expect(css).toMatch(/:root \{[^}]*font-family: 'Geist'/)
+    expect(css).not.toContain('IBM Plex Sans')
+  })
 })
