@@ -216,7 +216,7 @@ def test_a_location_correction_is_read_against_the_location_under_review(tmp_pat
     assert "Cambridge, Massachusetts" in prompts[-1] and "actually the one in England" in prompts[-1]
     assert england["active_card"]["kind"] == "choice" and england["facts"]["candidates"]
 
-def test_several_products_of_one_kind_are_chosen_together(tmp_path):
+def test_several_products_are_chosen_together_and_split_by_kind(tmp_path):
     chat = ChatCoordinator(Service(), parser=Parser(), path=tmp_path / "chat.sqlite")
     state = chat.create()
     first = chat.turn(state["id"], "Historical Cambridge, MA 2012–2014", 0, "one")
@@ -232,8 +232,12 @@ def test_several_products_of_one_kind_are_chosen_together(tmp_path):
     assert [(s.provider, s.dataset) for s in request.dataset_selections] == [
         ("nsrdb", "nsrdb-GOES-aggregated-v4-0-0"), ("noaa", "ISD global-hourly")]
     back = chat.back(state["id"], both["revision"], "five")
-    with pytest.raises(ChatActionError, match="one kind"):
-        chat.choose_products(state["id"], back["active_card"]["revision"], ["noaa-isd", "pvgis-tmy"], "six")
+    mixed = chat.choose_products(state["id"], back["active_card"]["revision"], ["noaa-isd", "pvgis-tmy"], "six")
+    assert mixed["facts"]["product"] == "historical" and mixed["facts"]["years"] == [2012, 2013, 2014]
+    assert [(request.product, request.years, [s.provider for s in request.dataset_selections])
+            for request in chat._requests(mixed["facts"])] == [
+        ("historical", [2012, 2013, 2014], ["noaa"]), ("tmy", [], ["pvgis"])]   # one request per kind
+    back = chat.back(state["id"], mixed["revision"], "six-back")
     with pytest.raises(ChatActionError):
         chat.choose_products(state["id"], back["active_card"]["revision"], [], "seven")
     typical = chat.choose_products(state["id"], back["active_card"]["revision"],

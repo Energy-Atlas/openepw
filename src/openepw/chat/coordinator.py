@@ -745,11 +745,12 @@ class ChatCoordinator:
     def _apply_products(state: dict, products: list) -> None:
         facts = state["facts"]
         kinds = {product.product for product in products}
-        # One request has one weather type; typical-year products share "tmy" when mixed.
-        facts.update({"product": kinds.pop() if len(kinds) == 1 else "tmy",
+        # "historical" whenever an actual-year product is included, so the years are asked for.
+        facts.update({"product": "historical" if "historical" in kinds else kinds.pop() if len(kinds) == 1 else "tmy",
                       "selections": [product.selection() for product in products],
+                      "selection_products": [product.product for product in products],
                       "product_labels": [product.label for product in products]})
-        if not products[0].actual:
+        if not any(product.actual for product in products):
             facts.pop("years", None)                     # a typical year has no actual years
         for stale in ("provider", "product_id"):
             facts.pop(stale, None)
@@ -758,12 +759,10 @@ class ChatCoordinator:
 
     def choose_products(self, session_id: str, question_revision: int, product_ids: list[str],
                         key: str) -> dict:
-        """Answer the product card with one or more named products of one kind."""
+        """Answer the product card with one or more named products, actual or typical year."""
         products = [product_for(item) for item in dict.fromkeys(product_ids)]
         if not products or len(products) > 20 or any(product is None for product in products):
             raise ChatActionError("Choose one or more listed weather products")
-        if len({product.actual for product in products}) > 1:
-            raise ChatActionError("Choose actual-year or typical-year products, one kind at a time")
 
         def update(state):
             card = state["active_card"]
@@ -792,20 +791,30 @@ class ChatCoordinator:
 
     @staticmethod
     def _request(facts: dict) -> WeatherRequest:
+        return ChatCoordinator._requests(facts)[0]
+
+    @staticmethod
+    def _requests(facts: dict) -> list[WeatherRequest]:
+        """One request per kind: actual-year products need years, typical-year products have none."""
         location = facts.get("geography") or facts.get("location")
         if not location or not facts.get("product"):
             raise ChatActionError("Location and weather product are required")
         if facts.get("location_approved") != location_key(location):
             raise ChatActionError("Approve the location first")
-        if not facts.get("selections"):
+        selections = facts.get("selections") or []
+        if not selections:
             raise ChatActionError("Choose a weather product first")
-        return WeatherRequest.model_validate({
-            "locations": location, "product": facts["product"],
-            "years": facts.get("years", []) if facts["product"] in ("historical", "amy") else [],
-            "providers": [facts["provider"]] if facts.get("provider") and not facts.get("selections") else [],
-            "product_id": None if facts.get("selections") else facts.get("product_id"),
-            "dataset_selections": facts.get("selections") or [],
-        })
+        kinds = facts.get("selection_products") or [facts["product"]] * len(selections)
+        actual = [selection for selection, kind in zip(selections, kinds) if kind in ("historical", "amy")]
+        typical = [(selection, kind) for selection, kind in zip(selections, kinds) if kind not in ("historical", "amy")]
+        groups = [("historical", actual)] if actual else []
+        if typical:
+            types = {kind for _, kind in typical}
+            groups.append((types.pop() if len(types) == 1 else "tmy", [selection for selection, _ in typical]))
+        return [WeatherRequest.model_validate({
+            "locations": location, "product": product,
+            "years": facts.get("years", []) if product == "historical" else [],
+            "dataset_selections": group}) for product, group in groups]
 
     def set_geography(self, session_id: str, geography: Any, revision: int, key: str) -> dict:
         # Validate through the canonical service request model, including sampling caps.
@@ -827,12 +836,15 @@ class ChatCoordinator:
 
     def prepare(self, session_id: str, revision: int, key: str) -> dict:
         def update(state):
-            request = self._request(state["facts"])
+            requests = self._requests(state["facts"])
             self._event(state, "tool", "Assessing catalog", {"tool": "availability", "phase": "call"})
-            availability = self.service.assess_availability(WeatherAvailabilityQuery(request=request))
+            results = [self.service.assess_availability(WeatherAvailabilityQuery(request=request))
+                       for request in requests]
+            options = sorted((option for result in results for option in result.options),
+                             key=lambda item: (item.occurrence_index, item.rank or 9999))
             assessment = {
-                "checked_at": availability.checked_at.isoformat(),
-                "snapshots": [snapshot.model_dump(mode="json") for snapshot in availability.snapshots],
+                "checked_at": results[0].checked_at.isoformat(),
+                "snapshots": [snapshot.model_dump(mode="json") for snapshot in results[0].snapshots],
                 "options": [{"provider": option.product.provider,
                              "dataset": option.product.dataset,
                              "footprint": option.product.footprint,
@@ -845,31 +857,40 @@ class ChatCoordinator:
                              "reasons": option.eligibility.reasons,
                              "rank": option.rank,
                              "occurrence_index": option.occurrence_index}
-                            for option in sorted(availability.options,
-                                                 key=lambda item: (item.occurrence_index,
-                                                                   item.rank or 9999))[:30]],
-                "issues": [issue.model_dump(mode="json") for issue in availability.issues],
+                            for option in options[:30]],
+                "issues": [issue.model_dump(mode="json") for result in results for issue in result.issues],
             }
             state["facts"]["availability"] = assessment
             self._event(state, "tool", "Catalog assessment complete",
                         {"tool": "availability", "phase": "result",
                          "checked_at": assessment["checked_at"],
-                         "option_count": len(availability.options),
+                         "option_count": len(options),
                          "issues": assessment["issues"]})
             self._event(state, "tool", "Preparing weather plan", {"tool": "weather_plan", "phase": "call"})
-            plan = self.service.plan(request)
-            state["plan_hash"] = plan.plan_hash
-            rows = [row.model_dump(mode="json") for row in plan.batch_rows]
-            summary = plan_summary_markdown(request.model_dump(mode="json"), rows)
+            plans = [self.service.plan(request) for request in requests]
+            hashes = [plan.plan_hash for plan in plans]
+            # Mixed actual-year and typical-year products run as one reviewed plan per kind.
+            plan_hash = hashes[0] if len(hashes) == 1 else hashlib.sha256("+".join(hashes).encode()).hexdigest()
+            state["plan_hash"] = plan_hash
+            state["plan_hashes"] = hashes
+            summaries = [plan_summary_markdown(request.model_dump(mode="json"),
+                                               [row.model_dump(mode="json") for row in plan.batch_rows])
+                         for request, plan in zip(requests, plans)]
+            summary = summaries[0] if len(plans) == 1 else "\n\n".join(
+                f"**{'Actual year' if request.product == 'historical' else 'Typical year'}**\n\n{text}"
+                for request, text in zip(requests, summaries))
             card = {"id": uuid.uuid4().hex, "revision": state["revision"],
                     "kind": "plan_review", "prompt": "Review these outputs, then select Run",
-                    "data": {"plan_hash": plan.plan_hash, "request": request.model_dump(mode="json"),
+                    "data": {"plan_hash": plan_hash, "request": requests[0].model_dump(mode="json"),
+                             "plans": [{"product": request.product, "plan_hash": plan.plan_hash,
+                                        "output_count": len(plan.outputs)}
+                                       for request, plan in zip(requests, plans)],
                              "summary": summary,
-                             "outputs": [output.model_dump(mode="json") for output in plan.outputs],
-                             "batch_rows": [row.model_dump(mode="json") for row in plan.batch_rows],
+                             "outputs": [output.model_dump(mode="json") for plan in plans for output in plan.outputs],
+                             "batch_rows": [row.model_dump(mode="json") for plan in plans for row in plan.batch_rows],
                              "availability": assessment,
-                             "warnings": plan.warnings, "issues": [issue.model_dump(mode="json")
-                                                                      for issue in plan.issues]}}
+                             "warnings": [warning for plan in plans for warning in plan.warnings],
+                             "issues": [issue.model_dump(mode="json") for plan in plans for issue in plan.issues]}}
             state["active_card"] = card
             self._event(state, "plan", "Plan ready for review", card["data"])
 
@@ -881,46 +902,68 @@ class ChatCoordinator:
             card = state.get("active_card")
             if not plan_hash or not card or card.get("data", {}).get("plan_hash") != plan_hash:
                 raise ChatActionError("A current reviewed plan is required")
-            plan = self.service.plan_store.get(plan_hash)
-            job = runner.submit(plan, f"chat:{session_id}:{key}")
-            state["job_id"] = job.id
-            state["job_ids"] = [job.id]
+            hashes = state.get("plan_hashes") or [plan_hash]
+            jobs = [runner.submit(self.service.plan_store.get(item),
+                                  f"chat:{session_id}:{key}" + (f":{index}" if index else ""))
+                    for index, item in enumerate(hashes)]
+            # One retry chain per job; a mixed request has one job per kind.
+            state["job_groups"] = [[job.id] for job in jobs]
+            state["job_ids"] = [job.id for job in jobs]
+            state["job_id"] = jobs[0].id
             self._event(state, "tool", "Submitting reviewed plan", {"tool": "weather_jobs", "phase": "call",
                                                                 "plan_hash": plan_hash})
-            self._event(state, "job", "Weather job started", {"job_id": job.id,
-                                                                "plan_hash": plan_hash})
+            for job, item in zip(jobs, hashes):
+                self._event(state, "job", "Weather job started", {"job_id": job.id, "plan_hash": item})
             state["active_card"] = None
 
         return self._change(session_id, revision, key, update)
 
+    @staticmethod
+    def _job_groups(state: dict) -> list[list[str]]:
+        groups = state.get("job_groups")
+        if groups:
+            return groups
+        chain = [job_id for job_id in (state.get("job_ids") or [state.get("job_id")]) if job_id]
+        return [chain] if chain else []
+
     def retry(self, session_id: str, revision: int, key: str, runner: Any) -> dict:
         def update(state):
-            previous = state.get("job_id")
-            if not previous:
+            groups = self._job_groups(state)
+            if not groups:
                 raise ChatActionError("No current weather job to retry")
-            if len(state.get("job_ids") or [previous]) >= 10:
-                raise ChatActionError("Retry chain limit reached; start a new plan")
-            job = runner.retry_failed(previous, f"chat-retry:{session_id}:{key}")
-            state["job_id"] = job.id
-            state.setdefault("job_ids", [previous]).append(job.id)
-            self._event(state, "tool", "Retrying failed outputs",
-                        {"tool": "weather_jobs", "phase": "call", "retry_of": previous})
-            self._event(state, "job", "Retry job started",
-                        {"job_id": job.id, "retry_of": previous})
+            retried = []
+            for index, group in enumerate(groups):
+                previous = group[-1]
+                if len(groups) > 1 and not runner.store.get(previous).failed:
+                    continue                             # only jobs with failed outputs are retried
+                if len(group) >= 10:
+                    raise ChatActionError("Retry chain limit reached; start a new plan")
+                job = runner.retry_failed(previous, f"chat-retry:{session_id}:{key}" + (f":{index}" if index else ""))
+                group.append(job.id)
+                retried.append((job, previous))
+            if not retried:
+                raise ChatActionError("No failed outputs to retry")
+            state["job_groups"] = groups
+            state["job_ids"] = [job_id for group in groups for job_id in group]
+            state["job_id"] = groups[0][-1]
+            for job, previous in retried:
+                self._event(state, "tool", "Retrying failed outputs",
+                            {"tool": "weather_jobs", "phase": "call", "retry_of": previous})
+                self._event(state, "job", "Retry job started", {"job_id": job.id, "retry_of": previous})
 
         return self._change(session_id, revision, key, update)
 
     def compact(self, session_id: str, runner: Any):
-        state = self.get(session_id)
-        job_ids = state.get("job_ids") or [state.get("job_id")]
-        job_ids = [job_id for job_id in job_ids if job_id]
-        if not job_ids:
+        groups = self._job_groups(self.get(session_id))
+        if not groups:
             raise ChatActionError("No current weather job to download")
-        if len(job_ids) == 1:
-            return runner.export_compact(job_ids[0])
-        from ..artifacts.export import export_compact_chain
+        from ..artifacts.export import export_compact_chain, export_compact_groups
 
-        return export_compact_chain(runner, job_ids)
+        if len(groups) > 1:
+            return export_compact_groups(runner, groups)
+        if len(groups[0]) == 1:
+            return runner.export_compact(groups[0][0])
+        return export_compact_chain(runner, groups[0])
 
     def attach_upload(self, session_id: str, revision: int, key: str,
                       artifact_id: str) -> dict:

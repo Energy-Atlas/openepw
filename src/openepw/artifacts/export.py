@@ -113,17 +113,36 @@ def export_compact_chain(runner, job_ids: list[str]) -> ArtifactRef:
     """Export the verified union of an original weather job and its retries."""
     if not 2 <= len(job_ids) <= 10 or len(set(job_ids)) != len(job_ids):
         raise OpenEPWError("EXPORT_UNAVAILABLE", "A bounded retry chain is required")
+    return _export_union(runner, [job_ids], "openepw-compact-chain-v1:" + ":".join(job_ids))
+
+
+def export_compact_groups(runner, groups: list[list[str]]) -> ArtifactRef:
+    """Export the verified union of independent weather jobs, each with its own retry chain.
+
+    A chat request that mixes actual-year and typical-year products runs one job per kind.
+    """
+    flat = [job_id for group in groups for job_id in group]
+    if (not 2 <= len(groups) <= 4 or any(not 1 <= len(group) <= 10 for group in groups)
+            or len(set(flat)) != len(flat)):
+        raise OpenEPWError("EXPORT_UNAVAILABLE", "Bounded independent weather jobs are required")
+    return _export_union(runner, groups, "openepw-compact-groups-v1:" + "|".join(
+        ":".join(group) for group in groups))
+
+
+def _export_union(runner, groups: list[list[str]], identity: str) -> ArtifactRef:
+    job_ids = [job_id for group in groups for job_id in group]
     artifacts = runner.service.artifacts
     rows_by_key: dict[str, dict] = {}
     refs = {}
     sources = []
-    for index, job_id in enumerate(job_ids):
+    chained = [(group, index, job_id) for group in groups for index, job_id in enumerate(group)]
+    for group, index, job_id in chained:
         job = runner.store.get(job_id)
         if job.kind != "weather" or job.state not in (
             "completed", "partially_completed", "failed", "cancelled"
         ) or job.bundle is None:
             raise OpenEPWError("EXPORT_UNAVAILABLE", "Finished weather jobs are required")
-        if index and job.retry_of != job_ids[index - 1]:
+        if index and job.retry_of != group[index - 1]:
             raise OpenEPWError("EXPORT_UNAVAILABLE", "Jobs are not one retry chain")
         _, manifest_path = artifacts.resolve(job.bundle.manifest.id)
         _, qc_path = artifacts.resolve(job.bundle.qc.id)
@@ -144,9 +163,7 @@ def export_compact_chain(runner, job_ids: list[str]) -> ArtifactRef:
             ):
                 rows_by_key[key] = row
 
-    export_id = hashlib.sha256(
-        ("openepw-compact-chain-v1:" + ":".join(job_ids)).encode()
-    ).hexdigest()[:32]
+    export_id = hashlib.sha256(identity.encode()).hexdigest()[:32]
     record = artifacts.root / "artifacts" / f"{export_id}.json"
     if record.exists():
         ref, _ = artifacts.resolve(export_id)
@@ -192,6 +209,7 @@ def export_compact_chain(runner, job_ids: list[str]) -> ArtifactRef:
             archive.writestr("mapping.csv", stream.getvalue())
             archive.writestr("manifest.json", json.dumps({
                 "job_ids": job_ids, "batch_rows": list(rows_by_key.values()),
+                **({"job_groups": groups} if len(groups) > 1 else {}),
             }, sort_keys=True))
             for job_id, manifest_path, qc_path in sources:
                 archive.write(manifest_path, f"manifests/{job_id}.json")

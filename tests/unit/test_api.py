@@ -231,3 +231,46 @@ def test_chat_back_route_undoes_a_step_but_not_a_started_job(tmp_path):
         refused = client.post(f"/v1/chat/sessions/{sid}/back", json={
             "revision": run["revision"], "idempotency_key": "f"})
         assert refused.status_code >= 400 and "job" in refused.text
+
+
+class Typical(StationProvider):
+    """The synthetic provider under the PVGIS TMY name."""
+    name = "pvgis"
+
+    def discover(self, request, location, http):
+        return [candidate.model_copy(update={"source": candidate.source.model_copy(update={"dataset": "PVGIS TMY"}),
+                                             "weather_types": ["tmy"]})
+                for candidate in super().discover(request, location, http)]
+
+
+def test_chat_runs_actual_and_typical_year_products_as_one_job_each(tmp_path):
+    from openepw.chat.coordinator import OfflineParser
+
+    service = WeatherService(RuntimeConfig(data_root=tmp_path), providers=[Reanalysis(), Typical()])
+    app = create_app(service, chat_parser=OfflineParser())
+    with TestClient(app) as client:
+        app.state.runner.enqueue = lambda _: None
+        sid = client.post("/v1/chat/sessions").json()["id"]
+        state = client.post(f"/v1/chat/sessions/{sid}/turns", json={
+            "text": "42.37, -71.11", "revision": 0, "idempotency_key": "a"}).json()
+        state = client.post(f"/v1/chat/sessions/{sid}/location/approve", json={
+            "revision": state["revision"], "idempotency_key": "approve"}).json()
+        state = client.post(f"/v1/chat/sessions/{sid}/products", json={
+            "product_ids": ["era5-openmeteo", "pvgis-tmy"], "revision": state["active_card"]["revision"],
+            "idempotency_key": "products"}).json()
+        assert state["active_card"]["prompt"] == "Which actual year or years?"   # asked for the actual-year part
+        state = client.post(f"/v1/chat/sessions/{sid}/turns", json={
+            "text": "2018", "revision": state["revision"], "idempotency_key": "years"}).json()
+        prepared = client.post(f"/v1/chat/sessions/{sid}/prepare", json={
+            "revision": state["revision"], "idempotency_key": "prepare"}).json()
+        data = prepared["active_card"]["data"]
+        assert [plan["product"] for plan in data["plans"]] == ["historical", "tmy"]
+        assert len(data["outputs"]) == 2 and "Typical year" in data["summary"]
+        run = client.post(f"/v1/chat/sessions/{sid}/run", json={
+            "revision": prepared["revision"], "idempotency_key": "run"}).json()
+        assert [len(group) for group in run["job_groups"]] == [1, 1]
+        assert run["job_ids"] == [group[0] for group in run["job_groups"]]
+        for job_id in run["job_ids"]:
+            app.state.runner.run(job_id)
+        exported = client.post(f"/v1/chat/sessions/{sid}/export/compact")
+        assert exported.status_code == 200
