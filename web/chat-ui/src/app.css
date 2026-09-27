@@ -154,3 +154,6 @@ button { cursor: pointer; }
 .reply-options .option-tick { display: grid; place-items: center; flex: none; width: 2.25rem; max-width: 2.25rem; height: 2.25rem; min-height: 0; padding: 0; border-radius: 50%; overflow: hidden; background: var(--oe-ink); color: var(--oe-paper); animation: option-tick-in .22s ease-out; }
 @keyframes option-tick-in { from { max-width: 0; opacity: 0; transform: scale(.5); margin-left: -.35rem; } to { max-width: 2.25rem; opacity: 1; transform: scale(1); margin-left: 0; } }
 @media (prefers-reduced-motion: reduce) { .reply-options .option-tick { animation: none; } .chat-event .rollback { transition: none; } }
+/* Location review: approve sits above the open input, which steers the location by text. */
+.composer .approve-location { display: flex; align-items: center; gap: .4rem; margin: 0 0 .4rem auto; min-height: 2.25rem; padding: .5rem .9rem .5rem .6rem; border: 0; border-radius: 999px; background: var(--oe-ink); color: var(--oe-paper); font-weight: 500; font-size: .82rem; box-shadow: var(--oe-shadow); }
+.composer .approve-location svg { display: block; width: 16px; height: 16px; }

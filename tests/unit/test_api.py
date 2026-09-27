@@ -123,6 +123,13 @@ def test_chat_rest_prepares_and_runs_only_after_explicit_action(tmp_path):
         assert state["facts"]["years"] == [2018]
         assert state["job_id"] is None
         assert client.get(f"/v1/chat/sessions/{sid}").json()["facts"] == state["facts"]
+        assert state["active_card"]["kind"] == "location_review"
+        unapproved = client.post(f"/v1/chat/sessions/{sid}/prepare", json={
+            "revision": state["revision"], "idempotency_key": "unapproved"})
+        assert unapproved.status_code >= 400 and "Approve the location" in unapproved.text
+        state = client.post(f"/v1/chat/sessions/{sid}/location/approve", json={
+            "revision": state["revision"], "idempotency_key": "approve"}).json()
+        assert state["active_card"]["kind"] == "plan_review"
         stale = client.post(f"/v1/chat/sessions/{sid}/prepare", json={
             "revision": 0, "idempotency_key": "stale"})
         assert stale.status_code == 409
@@ -187,6 +194,8 @@ def test_chat_back_route_undoes_a_step_but_not_a_started_job(tmp_path):
         sid = client.post("/v1/chat/sessions").json()["id"]
         state = client.post(f"/v1/chat/sessions/{sid}/turns", json={
             "text": "42.37, -71.11 historical 2018", "revision": 0, "idempotency_key": "a"}).json()
+        state = client.post(f"/v1/chat/sessions/{sid}/location/approve", json={
+            "revision": state["revision"], "idempotency_key": "approve"}).json()
         prepared = client.post(f"/v1/chat/sessions/{sid}/prepare", json={
             "revision": state["revision"], "idempotency_key": "b"}).json()
         assert prepared["active_card"]["data"]["summary"].startswith("- **42.3700, -71.1100** · 2018 ·")

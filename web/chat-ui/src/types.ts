@@ -8,7 +8,7 @@ export type ChatEvent = {
 export type ChatCard = {
   id: string
   revision: number
-  kind: 'choice' | 'text' | 'map' | 'plan_review'
+  kind: 'choice' | 'text' | 'map' | 'plan_review' | 'location_review'
   prompt: string
   options?: Array<{ id: string; label: string; detail?: string }>
   data?: Record<string, unknown>

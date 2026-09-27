@@ -222,7 +222,9 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
 
   const card = session?.active_card
   // The composer follows the current card: free text only when the session asks for it or the user opts to type.
-  const replyMode = !card || card.kind === 'text' || typing || (card.kind === 'map' && !ATTACH_AND_MAP_INPUT)
+  // A location review keeps the input open so the user can steer the location by text.
+  const replyMode = !card || card.kind === 'text' || card.kind === 'location_review' || typing
+    || (card.kind === 'map' && !ATTACH_AND_MAP_INPUT)
     ? 'text' : card.kind
   const backLabel = card?.kind === 'choice' ? 'Back to options' : card?.kind === 'plan_review' ? 'Back to review'
     : card?.kind === 'map' ? 'Back to map input' : null
@@ -380,6 +382,8 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
       {card && <section className="action-card" aria-label="Current question">
         <span className="event-kind">Agent</span>
         <h2>{card.prompt}</h2>
+        {card.kind === 'location_review' && typeof card.data?.summary === 'string' &&
+          <div className="md"><Markdown>{card.data.summary}</Markdown></div>}
         {card.kind === 'plan_review' && <div>
           {Boolean(session?.facts.location) && <p>Location: {String((session!.facts.location as Record<string, unknown>).name ??
             `${(session!.facts.location as Record<string, unknown>).lat}, ${(session!.facts.location as Record<string, unknown>).lon}`)}</p>}
@@ -414,6 +418,9 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
         {(busy && replyMode !== 'text') || (jobActive && !card) ? null : <>
     <form className="composer" onSubmit={send} aria-label="Reply">
       {replyMode === 'text' ? <>
+        {card?.kind === 'location_review' && <button className="reply-primary approve-location" type="button"
+          disabled={busy} onClick={() => void act(current => api.approveLocation(current.id, current.revision, randomKey()))}>
+          <TickIcon />Approve location</button>}
         <label className="visually-hidden" htmlFor="chat-message">Message</label>
         <div className="composer-row">
           {ATTACH_AND_MAP_INPUT && <>
@@ -469,6 +476,7 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
 function placeholderFor(card: SessionSnapshot['active_card'], typing: boolean, locationChoice: boolean): string {
   if (!card) return 'Place, years, and weather type'
   if (card.kind === 'plan_review') return 'Describe what to change'
+  if (card.kind === 'location_review') return 'Or describe a correction'
   if (card.kind === 'text') return /year/i.test(card.prompt) ? 'e.g. 2018 or 2016–2018'
     : /where/i.test(card.prompt) ? 'Place, coordinates, or a list of places' : 'Type your answer'
   if (card.kind === 'choice' && typing) {

@@ -111,4 +111,20 @@ describe('chat dock and controls', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Start over' }))
     await waitFor(() => expect(client.create).toHaveBeenCalledTimes(2))
   })
+
+  it('summarises a chosen location for approval or a typed correction', async () => {
+    const review = state({ id: 'l', revision: 4, kind: 'location_review', prompt: 'Is this the right location?',
+      data: { summary: '**Cambridge, Massachusetts** · 42.3700, -71.1100' } },
+    { facts: { location: { id: 'cambridge', name: 'Cambridge, Massachusetts', lat: 42.37, lon: -71.11 } } })
+    const approveLocation = vi.fn(async () => ({ ...review, revision: 5, active_card: null }))
+    const sendTurn = vi.fn(async () => ({ ...review, revision: 5 }))
+    render(<App api={api(review, { approveLocation, sendTurn })} />)
+    const question = await screen.findByLabelText('Current question')
+    expect(within(question).getByText('Cambridge, Massachusetts').tagName).toBe('STRONG')
+    expect(within(question).getByText(/42\.3700, -71\.1100/)).toBeInTheDocument()
+    const message = screen.getByRole('textbox', { name: 'Message' })
+    expect(message).toHaveAttribute('placeholder', 'Or describe a correction')
+    fireEvent.click(screen.getByRole('button', { name: 'Approve location' }))
+    await waitFor(() => expect(approveLocation).toHaveBeenCalledWith('test', 4, expect.any(String)))
+  })
 })

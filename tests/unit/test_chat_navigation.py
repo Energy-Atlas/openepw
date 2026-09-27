@@ -3,7 +3,12 @@
 import pytest
 from test_chat_sessions import Parser, Service
 
-from openepw.chat.coordinator import ChatActionError, ChatCoordinator, plan_summary_markdown
+from openepw.chat.coordinator import (
+    ChatActionError,
+    ChatCoordinator,
+    StaleSession,
+    plan_summary_markdown,
+)
 
 
 def test_back_restores_the_previous_step_as_a_new_revision(tmp_path):
@@ -42,7 +47,8 @@ def test_product_choices_name_the_products_behind_each_type(tmp_path):
 
     chat = ChatCoordinator(Service(), parser=NoProduct(), path=tmp_path / "chat.sqlite")
     state = chat.create()
-    card = chat.turn(state["id"], "42, -71", 0, "one")["active_card"]
+    typed = chat.turn(state["id"], "42, -71", 0, "one")
+    card = chat.approve_location(state["id"], typed["revision"], "approve")["active_card"]
     assert card["prompt"] == "Which weather product?"
     details = {option["id"]: option["detail"] for option in card["options"]}
     assert "ERA5" in details["historical"] and "NOAA ISD" in details["historical"]
@@ -111,7 +117,8 @@ def test_a_reply_that_changes_nothing_says_what_was_missing(tmp_path):
     vague = chat.turn(state["id"], "somewhere nice", 0, "one")
     assert vague["active_card"]["prompt"] == "Where do you need weather?"
     assert "couldn't find a place" in vague["events"][-2]["text"]
-    asked = chat.turn(state["id"], "42, -71", vague["revision"], "two")
+    typed = chat.turn(state["id"], "42, -71", vague["revision"], "two")
+    asked = chat.approve_location(state["id"], typed["revision"], "approve")
     assert asked["active_card"]["prompt"] == "Which actual year or years?"
     assert not any("couldn't" in (event.get("text") or "") for event in asked["events"][len(vague["events"]):])
     missed = chat.turn(state["id"], "the dry one", asked["revision"], "three")
@@ -119,3 +126,77 @@ def test_a_reply_that_changes_nothing_says_what_was_missing(tmp_path):
     assert notice["data"] == {"role": "assistant", "unchanged": True}
     assert notice["text"] == "I couldn't find a year in that — try “2015” or “2015–2017”."
     assert missed["facts"] == asked["facts"]
+
+def test_a_chosen_or_typed_location_is_summarised_for_approval(tmp_path):
+    class Coordinates(Parser):
+        def parse_many(self, text):
+            import re
+
+            from openepw.harness.agent import AgentIntent
+            if match := re.search(r"(4[\d.]*), (-[\d.]+)$", text):
+                lat, lon = float(match.group(1)), float(match.group(2))
+                return [AgentIntent(kind="weather", lat=lat, lon=lon)]
+            return super().parse_many(text)
+
+    chat = ChatCoordinator(Service(), parser=Coordinates(), path=tmp_path / "chat.sqlite")
+    state = chat.create()
+    first = chat.turn(state["id"], "Historical Cambridge, MA 2012–2014", 0, "one")
+    chosen = chat.answer(state["id"], first["active_card"]["revision"], "cambridge", "two")
+    review = chosen["active_card"]
+    assert review["kind"] == "location_review" and review["prompt"] == "Is this the right location?"
+    assert "**Cambridge, Massachusetts**" in review["data"]["summary"]
+    assert "42.3700, -71.1100" in review["data"]["summary"]
+    with pytest.raises(ChatActionError):
+        chat.prepare(state["id"], chosen["revision"], "early")        # nothing runs before approval
+    steered = chat.turn(state["id"], "41.5, -70.9", chosen["revision"], "three")
+    assert steered["facts"]["location"]["lat"] == 41.5
+    assert steered["active_card"]["kind"] == "location_review"
+    assert "41.5000, -70.9000" in steered["active_card"]["data"]["summary"]
+    with pytest.raises(StaleSession):
+        chat.approve_location(state["id"], chosen["revision"], "stale")
+    approved = chat.approve_location(state["id"], steered["revision"], "four")
+    assert approved["active_card"]["kind"] == "plan_review"          # product and years were already given
+    assert approved["events"][-2]["data"]["role"] == "user"
+    assert approved["events"][-2]["text"] == "Approved 41.5000, -70.9000 · typed coordinates"
+    moved = chat.turn(state["id"], "40.7, -74.0", approved["revision"], "five")
+    assert moved["active_card"]["kind"] == "location_review"         # a new location needs approval again
+
+def test_a_card_restored_by_roll_back_can_be_answered(tmp_path):
+    chat = ChatCoordinator(Service(), parser=Parser(), path=tmp_path / "chat.sqlite")
+    state = chat.create()
+    first = chat.turn(state["id"], "Historical Cambridge, MA 2012–2014", 0, "one")
+    chosen = chat.answer(state["id"], first["active_card"]["revision"], "cambridge", "two")
+    back = chat.back(state["id"], chosen["revision"], "three")
+    assert back["active_card"]["revision"] == back["revision"]
+    again = chat.answer(state["id"], back["active_card"]["revision"], "cambridgeport", "four")
+    assert again["facts"]["location"]["id"] == "cambridgeport"
+
+def test_a_location_correction_is_read_against_the_location_under_review(tmp_path):
+    prompts = []
+
+    class Steered(Parser):
+        def parse_many(self, text):
+            from openepw.harness.agent import AgentIntent
+            prompts.append(text)
+            if "Correcting" in text and "England" in text:
+                return [AgentIntent(kind="weather", place="Cambridge, England")]
+            if "Correcting" in text and "2019" in text:          # the model repeats the reviewed place
+                return [AgentIntent(kind="weather", place="Cambridge, Massachusetts", years=[2019])]
+            if "Correcting" in text and "tmy" in text:           # or repeats its coordinates
+                return [AgentIntent(kind="weather", lat=42.37, lon=-71.11, product="tmy")]
+            return super().parse_many(text)
+
+    chat = ChatCoordinator(Service(), parser=Steered(), path=tmp_path / "chat.sqlite")
+    state = chat.create()
+    first = chat.turn(state["id"], "Historical Cambridge, MA 2012–2014", 0, "one")
+    chosen = chat.answer(state["id"], first["active_card"]["revision"], "cambridge", "two")
+    years = chat.turn(state["id"], "2019 instead", chosen["revision"], "three")
+    assert years["facts"]["years"] == [2019]
+    assert years["facts"]["location"]["id"] == "cambridge"            # not geocoded again
+    assert years["active_card"]["kind"] == "location_review"
+    product = chat.turn(state["id"], "tmy please", years["revision"], "echo")
+    assert product["facts"]["product"] == "tmy" and product["facts"]["location"]["id"] == "cambridge"
+    years = product
+    england = chat.turn(state["id"], "actually the one in England", years["revision"], "four")
+    assert "Cambridge, Massachusetts" in prompts[-1] and "actually the one in England" in prompts[-1]
+    assert england["active_card"]["kind"] == "choice" and england["facts"]["candidates"]

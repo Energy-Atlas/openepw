@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import sqlite3
@@ -102,6 +103,18 @@ def preview_listing(preview: PlacePreview) -> str:
         lines.append(f"... and {len(rows) - PREVIEW_LINES} more")
     # A blank line keeps the attribution out of the numbered markdown list.
     return "\n".join(lines + ([""] + preview.attribution if preview.attribution else []))
+
+
+def location_key(location: dict) -> str:
+    """Identifies the reviewed location, so a changed one needs approval again."""
+    return hashlib.sha256(json.dumps(location, sort_keys=True).encode()).hexdigest()[:16]
+
+
+def location_summary(location: dict) -> str:
+    coordinates = f"{location['lat']:.4f}, {location['lon']:.4f}"
+    if location.get("name"):
+        return f"**{location['name']}** · {coordinates}"
+    return f"**{coordinates}** · typed coordinates"
 
 
 HISTORY_LIMIT = 50
@@ -394,6 +407,9 @@ class ChatCoordinator:
                     or restored.get("job_ids") != current.get("job_ids")):
                 raise ChatActionError("A weather job already started in that step; start over instead")
             restored["revision"] = current["revision"] + 1
+            if restored.get("active_card"):
+                # The restored question is answerable at the new revision.
+                restored["active_card"]["revision"] = restored["revision"]
             serialized = json.dumps(restored, allow_nan=False)
             db.executemany("DELETE FROM history WHERE seq=?", [(seq,) for seq in popped])
             db.execute("UPDATE sessions SET state=? WHERE id=?", (serialized, session_id))
@@ -411,6 +427,11 @@ class ChatCoordinator:
                 for item in facts["candidates"]]}
         elif not facts.get("location") and not facts.get("geography"):
             card = {"kind": "text", "prompt": "Where do you need weather?"}
+        elif facts.get("location") and facts.get("location_approved") != location_key(facts["location"]):
+            # One chosen or typed location is approved before the request goes on;
+            # place lists are corrected by text from their preview instead.
+            card = {"kind": "location_review", "prompt": "Is this the right location?",
+                    "data": {"summary": location_summary(facts["location"])}}
         elif not facts.get("product"):
             card = {"kind": "choice", "prompt": "Which weather product?", "options": [
                 {"id": key, "label": label, "detail": PRODUCT_DETAILS[key]}
@@ -516,6 +537,8 @@ class ChatCoordinator:
             return "I couldn't find a place in that — try a city, an address or coordinates like “42.36, -71.06”."
         if prompt == "Choose a location":
             return "I couldn't match that to a candidate — pick one on the map or in the list, or type another place."
+        if prompt == "Is this the right location?":
+            return "I couldn't tell how to change the location — give another place or coordinates, or approve it."
         if prompt == "Which weather product?":
             return "I couldn't tell which weather product you meant — pick one of the options."
         if prompt == "Which actual year or years?":
@@ -557,7 +580,20 @@ class ChatCoordinator:
             if places_handled and reply_or_edit:
                 self._question(state)
                 return
-            intents = self.parser.parse_many(safe_prompt(text, limit=4000))
+            # A reply to a location review is read as a correction of that location.
+            reviewed = ((state.get("active_card") or {}).get("kind") == "location_review"
+                        and facts.get("location"))
+            reviewed_name = ""
+            if reviewed:
+                current = facts["location"]
+                reviewed_name = current.get("name") or f"{current['lat']:.4f}, {current['lon']:.4f}"
+            # Wording checked against the configured model: it keeps the town when only the region
+            # changes and gives no place when the reply leaves the place alone.
+            prompt = (f"Correcting the proposed location {reviewed_name}. If the reply means a different "
+                      "place, give that place's full name as the place (for example keep the town name when "
+                      "only the region changes); if it does not change the place, give no place. "
+                      f"Reply: {text}") if reviewed else text
+            intents = self.parser.parse_many(safe_prompt(prompt, limit=4000))
             grounded_years = explicit_weather_years(text)
             years_from_model = False
             for intent in intents[:5]:
@@ -576,7 +612,9 @@ class ChatCoordinator:
                     facts["provider"] = intent.provider
                 if places_handled:
                     pass  # the place preview already set the geography for this message
-                elif getattr(intent, "lat", None) is not None and getattr(intent, "lon", None) is not None:
+                elif getattr(intent, "lat", None) is not None and getattr(intent, "lon", None) is not None \
+                        and not (reviewed and abs(intent.lat - facts["location"]["lat"]) < 1e-4
+                                 and abs(intent.lon - facts["location"]["lon"]) < 1e-4):
                     facts["location"] = Location(lat=intent.lat, lon=intent.lon).model_dump(mode="json")
                     facts.pop("candidates", None)
                     facts.pop("geography", None)
@@ -589,7 +627,9 @@ class ChatCoordinator:
                                                 for item in self.service.locations(request)]
                     facts.pop("location", None)
                     facts.pop("candidates", None)
-                elif getattr(intent, "place", None):
+                elif getattr(intent, "place", None) and not (
+                        # The model may repeat the reviewed place; that is not a new location.
+                        reviewed and intent.place.casefold() in reviewed_name.casefold()):
                     self._event(state, "tool", "Geocoding place", {"tool": "geocode", "phase": "call"})
                     geocoded = self.service.geocode(intent.place)
                     candidates = [c.model_dump(mode="json") for c in geocoded.candidates]
@@ -652,11 +692,26 @@ class ChatCoordinator:
 
         return self._change(session_id, question_revision, key, update)
 
+    def approve_location(self, session_id: str, revision: int, key: str) -> dict:
+        def update(state):
+            card = state["active_card"]
+            if not card or card["kind"] != "location_review":
+                raise StaleSession(state)
+            location = state["facts"]["location"]
+            state["facts"]["location_approved"] = location_key(location)
+            self._event(state, "message", f"Approved {location_summary(location).replace('**', '')}",
+                        {"role": "user", "choice": True, "choice_id": "approve_location"})
+            self._question(state)
+
+        return self._change(session_id, revision, key, update)
+
     @staticmethod
     def _request(facts: dict) -> WeatherRequest:
         location = facts.get("geography") or facts.get("location")
         if not location or not facts.get("product"):
             raise ChatActionError("Location and weather product are required")
+        if not facts.get("geography") and facts.get("location_approved") != location_key(location):
+            raise ChatActionError("Approve the location first")
         return WeatherRequest.model_validate({
             "locations": location, "product": facts["product"],
             "years": facts.get("years", []), "providers": [facts["provider"]]
