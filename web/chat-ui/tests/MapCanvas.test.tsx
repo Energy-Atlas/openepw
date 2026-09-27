@@ -207,5 +207,22 @@ describe('map canvas overlays', () => {
     await waitFor(() => expect(group.querySelector('[data-option="noaa-isd"]')).toBeNull())
     expect(group.querySelector('line.station-link')).toBeNull()
   })
+
+  it('draws the chosen locations above the station names and availability tags', async () => {
+    const { MapCanvas } = await import('../src/map/MapCanvas')
+    const points = [{ id: 'place-1', lat: 42, lon: -76 }, { id: 'place-2', lat: 40, lon: -60 }]
+    render(<MapCanvas catalogMap={catalog} resolvedPoints={points} />)
+    await waitFor(() => expect(fake.maps).toHaveLength(1))
+    const map = fake.maps[0] as unknown as { parsed: boolean; emit(event: string): void }
+    map.parsed = true
+    map.emit('style.load')
+    map.emit('idle')
+    const layer = await screen.findByTestId('location-markers')
+    const markers = [...layer.querySelectorAll<HTMLElement>('.location-marker')]
+    expect(markers.map(marker => [marker.style.left, marker.style.top, marker.textContent]))
+      .toEqual([['124px', '258px', '1'], ['140px', '260px', '2']])        // projected, numbered like the list
+    const overlays = [...document.querySelectorAll('.map-canvas > div')].map(node => node.className)
+    expect(overlays.indexOf('location-markers')).toBeGreaterThan(overlays.indexOf('station-labels'))
+  })
 })
 

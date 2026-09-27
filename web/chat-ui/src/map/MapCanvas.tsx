@@ -66,6 +66,8 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
   const [labels, setLabels] = useState<PlacedLabel[]>([])
   const updateLabels = useRef<() => void>(() => {})
   const updateCallouts = useRef<() => void>(() => {})
+  const updateMarkers = useRef<() => void>(() => {})
+  const [markers, setMarkers] = useState<Array<{ id: string; x: number; y: number; label: string }>>([])
   const calloutBoxes = useRef<Array<{ x: number; y: number; width: number; height: number }>>([])
   const [callouts, setCallouts] = useState<{ tags: CalloutTag[]; lines: CalloutLine[] }>({ tags: [], lines: [] })
   const restorePopup = useRef<() => void>(() => {})
@@ -149,10 +151,10 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
       const scheduleLabels = () => {
         if (labelFrame) return
         const next = window.requestAnimationFrame ?? ((callback: FrameRequestCallback) => window.setTimeout(callback, 16))
-        labelFrame = next(() => { labelFrame = 0; updateCallouts.current(); updateLabels.current() }) as number
+        labelFrame = next(() => { labelFrame = 0; updateCallouts.current(); updateLabels.current(); updateMarkers.current() }) as number
       }
       sceneMap.on('move', scheduleLabels)
-      sceneMap.on('idle', () => { updateCallouts.current(); updateLabels.current() })
+      sceneMap.on('idle', () => { updateCallouts.current(); updateLabels.current(); updateMarkers.current() })
       sceneMap.on('moveend', () => {
         setStatus(`Map ready · zoom ${sceneMap.getZoom().toFixed(1)}`)
         const view3d = autoView3d(sceneMap.getZoom(), settingsRef.current.view3d)
@@ -424,6 +426,25 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
       padding: { top: 90, bottom: 90, left: 90, right: window.innerWidth > 650 ? 470 : 60 }, maxZoom: 12, duration: 900 })
   }, [calloutKey, styleEpoch])
 
+  // The chosen locations are redrawn above the HTML station names and tags, which would
+  // otherwise cover the canvas markers. Many points stay canvas-only to keep moves cheap.
+  updateMarkers.current = () => {
+    const sceneMap = map.current
+    const points = location ? [{ ...location, id: location.id ?? 'location' }] : resolvedPoints
+    if (!sceneMap || !styleParsed(sceneMap) || !points.length) {
+      setMarkers(current => current.length ? [] : current)
+      return
+    }
+    const size = { width: host.current?.clientWidth || window.innerWidth, height: host.current?.clientHeight || window.innerHeight }
+    const placed = points.map((point, index) => {
+      const at = sceneMap.project([point.lon, point.lat])
+      return { id: `${point.id ?? index}`, x: at.x, y: at.y,
+        label: location ? '' : /^place-(\d+)$/.exec(point.id ?? '')?.[1] ?? '' }
+    }).filter(point => point.x >= -20 && point.y >= -20 && point.x <= size.width + 20 && point.y <= size.height + 20)
+    setMarkers(placed.length <= 60 ? placed : [])
+  }
+  useEffect(() => { updateMarkers.current() }, [location?.lat, location?.lon, resolvedPoints, styleEpoch])
+
   const yearKey = years.join(',')
   useEffect(() => {
     const sceneMap = map.current
@@ -528,6 +549,10 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
       {labels.map(label => <span key={label.id} className="station-label"
         style={{ left: label.x, top: label.y, width: label.width, background: label.color }}>
         {label.prefix && <span className="station-prefix">{label.prefix}</span>}{label.text}</span>)}
+    </div>}
+    {markers.length > 0 && <div className="location-markers" data-testid="location-markers" aria-hidden="true">
+      {markers.map(marker => <span key={marker.id} className={`location-marker${marker.label ? ' numbered' : ''}`}
+        style={{ left: marker.x, top: marker.y }}>{marker.label}</span>)}
     </div>}
     {pending && popupAt && !popupMinimized && <div className="candidate-popup" role="dialog" aria-label="Selected location"
       style={{ left: popupAt.x, top: popupAt.y }}>

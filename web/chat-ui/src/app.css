@@ -22,7 +22,7 @@ button { cursor: pointer; }
 .pick-toolbar button { border: 1px solid var(--oe-l3); border-radius: 7px; padding: .35rem .5rem; background: var(--oe-paper); color: var(--oe-ink); font-size: .76rem; }
 .pick-toolbar button[aria-pressed="true"] { background: var(--oe-ink); color: var(--oe-paper); }
 .pick-toolbar .draw-actions { flex-basis: 100%; display: flex; align-items: center; flex-wrap: wrap; gap: .35rem; font-size: .7rem; }
-.evidence-legend { position: absolute; left: 1rem; bottom: 6.8rem; z-index: 2; display: flex; flex-direction: column; gap: .25rem; max-width: min(270px, 34vw); max-height: min(340px, 50dvh); overflow: auto; padding: .55rem .7rem; border: 1px solid color-mix(in srgb, var(--oe-l5) 20%, transparent); border-radius: 9px; background: color-mix(in srgb, var(--oe-paper) 88%, transparent); color: var(--oe-ink); font-size: .68rem; }
+.evidence-legend { position: absolute; left: 1rem; bottom: 6.8rem; z-index: 4; display: flex; flex-direction: column; gap: .25rem; max-width: min(270px, 34vw); max-height: min(340px, 50dvh); overflow: auto; padding: .55rem .7rem; border: 1px solid color-mix(in srgb, var(--oe-l5) 20%, transparent); border-radius: 9px; background: color-mix(in srgb, var(--oe-paper) 88%, transparent); color: var(--oe-ink); font-size: .68rem; }
 .evidence-legend strong { font-size: .72rem; }
 .evidence-legend .scope-row { display: grid; grid-template-columns: auto auto 1fr; align-items: center; column-gap: .4rem; cursor: pointer; }
 .evidence-legend .scope-row input { margin: 0; accent-color: var(--oe-ink); }
@@ -202,3 +202,8 @@ button { cursor: pointer; }
 .confirm-products { display: inline-flex; align-items: center; gap: .35rem; min-height: 2.25rem; padding: .5rem .9rem .5rem .65rem; border: 0; border-radius: 999px; background: var(--oe-ink); color: var(--oe-paper); font-weight: 500; font-size: .82rem; }
 .confirm-products:disabled { opacity: .45; }
 .confirm-products svg { display: block; width: 16px; height: 16px; }
+/* The chosen locations sit above station names and availability tags. */
+.location-markers { position: absolute; inset: 0; z-index: 3; pointer-events: none; overflow: hidden; }
+.location-marker { position: absolute; box-sizing: border-box; width: 14px; height: 14px; transform: translate(-50%, -50%); border-radius: 50%; background: var(--oe-amber); box-shadow: 0 0 0 1.5px var(--oe-ink), 0 1px 3px color-mix(in srgb, var(--oe-ink) 35%, transparent); }
+.location-marker.numbered { width: 18px; height: 18px; color: var(--oe-ink); font: 700 10px/18px 'Geist', system-ui, sans-serif; text-align: center; }
+
