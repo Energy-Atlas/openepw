@@ -52,9 +52,19 @@ Node or this UI.
   out below 13 returns to the flat globe. The scene uses the light appearance,
   terrain off, and the UTC time at page load; moving the map recomputes the
   local sun angle while keeping that UTC time fixed.
-  Every catalog product with a documented footprint receives a faint source
-  scope layer. Unmapped products are counted in the legend. These documentary
-  scopes are evidence context, not verified coverage promises.
+  The bottom-left legend lists every Stage 1 availability layer with its own
+  toggle, all on by default: NOAA ISD stations (filtered to stations with
+  reports in every year the conversation names), OneBuilding published EPWs
+  (approximate positions as rings), the NSRDB `tdy-2023` source grid, the
+  approximate PVGIS SARAH3 region with its London probe, and ERA5/ERA5-Land
+  documented extents. `What these layers mean` gives each caveat, the
+  unmapped products and credits. All layers are documentary context, not point
+  eligibility or weather completeness.
+- The NSRDB grid layer needs the reviewed derived mask. Copy `manifest.json` and
+  `mask.json` (not `meta.bin`) from the `feature/data-avail` acquisition into
+  `.local/openepw/footprints/nsrdb/nsrdb-GOES-tmy-v4-0-0/tdy-2023/`. The service
+  checks the mask SHA-256 against the manifest and skips stale or mismatched
+  masks; without it, NSRDB is listed as unmapped.
 
 The UI resumes its session and current job after refresh in the same browser
 session. Browser storage holds only the session ID. Server-side SQLite and

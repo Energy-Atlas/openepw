@@ -46,7 +46,12 @@ map rendering contain no weather aggregation. See the
 [scene decision](docs/decisions/0004-map-first-chat-scene.md) and
 [local setup](web/chat-ui/README.md).
 
-The read-only `/v1/catalog/scopes` route exposes documented product footprints
+The read-only `/v1/catalog/map` route (`availability/map_layers.py`) turns the
+active Stage 1 catalog into display layers: NOAA stations with inventory years,
+OneBuilding sites with product/period/position, a verified NSRDB source-grid
+mask from `<data_root>/footprints/`, the approximate PVGIS SARAH3 envelope with
+its saved probe, and catalog ERA5/ERA5-Land extents. Products without reviewed
+geometry stay listed as unmapped. The older `/v1/catalog/scopes` route exposes documented product footprints
 from the active local catalog for the initial map. It also reports products
 without mappable footprints; the browser never turns missing geometry into an
 availability polygon. The scene uses one UTC day/time and recomputes local sun

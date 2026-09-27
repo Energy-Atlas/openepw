@@ -43,6 +43,9 @@ expects free text, otherwise show the current card's input (options, review
 actions, or map input) with an explicit switch to typing. The owner chose
 automatic 3D: district zoom enables decorative buildings and shadows without
 controls; terrain and alternate appearances are not exposed in the UI.
+Later the same day the owner asked for the Stage 1 availability mapping on
+the map and chose **all sources at once with per-source toggles** over a
+one-source picker.
 
 - Open directly on the full-canvas map. There is **one** chat experience: no
   Guided/Text mode choice, splash selector, or mode switch. Free text and
