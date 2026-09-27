@@ -18,6 +18,7 @@ from ..models import Location, OpenEPWError, WeatherRequest
 from ..places.models import PlacePreview, PlaceSetQuery
 from ..places.parse import apply_edit, classify_places, describe_place_set
 from ..visualization.models import VisualizationRequest
+from .products import product_for, product_offers
 
 
 class StaleSession(Exception):
@@ -137,13 +138,6 @@ def request_location_summary(facts: dict) -> str:
 
 
 HISTORY_LIMIT = 50
-# The products behind each weather type, as named in the local catalog and adapters.
-PRODUCT_DETAILS = {
-    "historical": "ERA5 and ERA5-Land (CDS, Open-Meteo), NSRDB actual years, NOAA ISD stations",
-    "tmy": "NSRDB TMY/TDY/TGY, PVGIS TMY",
-    "tmyx": "OneBuilding TMYx files",
-    "published": "OneBuilding TMY3, TMY2 and other published EPWs",
-}
 
 
 def plan_summary_markdown(request: dict, rows: list[dict]) -> str:
@@ -453,18 +447,18 @@ class ChatCoordinator:
             card = {"kind": "location_review",
                     "prompt": "Are these the right locations?" if several else "Is this the right location?",
                     "data": {"summary": request_location_summary(facts), "several": several}}
-        elif not facts.get("product"):
-            card = {"kind": "choice", "prompt": "Which weather product?", "options": [
-                {"id": key, "label": label, "detail": PRODUCT_DETAILS[key]}
-                for key, label in (("historical", "Actual-year weather"), ("tmy", "TMY reference"),
-                                   ("tmyx", "TMYx published reference"),
-                                   ("published", "Other published EPW"))]}
+        elif not facts.get("selection"):
+            # Each option names one downloadable product; the map shows where each is available.
+            offers = product_offers(self.service, request_location(facts), facts)
+            card = {"kind": "choice", "prompt": "Which weather product?", "options": offers["options"],
+                    "data": {"field": "product", "availability": offers["availability"]}}
         elif facts["product"] == "historical" and not facts.get("years"):
             card = {"kind": "text", "prompt": "Which actual year or years?"}
         else:
             card = {"kind": "plan_review", "prompt": "Assess options and review a plan",
                     "data": {"facts": {key: facts.get(key) for key in
-                                       ("location", "geography", "product", "years", "provider")}}}
+                                       ("location", "geography", "product", "product_label", "years",
+                                        "provider")}}}
         if card:
             card.update({"id": uuid.uuid4().hex, "revision": state["revision"]})
         state["active_card"] = card
@@ -618,6 +612,7 @@ class ChatCoordinator:
                       "only the region changes); if it does not change the place, give no place. "
                       f"Reply: {text}") if reviewed else text
             intents = self.parser.parse_many(safe_prompt(prompt, limit=4000))
+            chosen = (facts.get("product"), facts.get("provider"))
             grounded_years = explicit_weather_years(text)
             years_from_model = False
             for intent in intents[:5]:
@@ -673,6 +668,10 @@ class ChatCoordinator:
             if intents or years_from_text:
                 state["plan_hash"] = None
                 facts.pop("availability", None)
+            if facts.get("selection") and (facts.get("product"), facts.get("provider")) != chosen:
+                # A newly typed weather type or provider asks for the named product again.
+                facts.pop("selection", None)
+                facts.pop("product_label", None)
             # Say so rather than silently asking the same question again.
             if len(state["events"]) == mark and json.dumps(facts, sort_keys=True) == before:
                 card = state["active_card"] or ({"prompt": "Where do you need weather?"} if not facts else None)
@@ -706,8 +705,15 @@ class ChatCoordinator:
                 state["facts"].pop("candidates", None)
                 state["facts"].pop("geography", None)
                 state["facts"].pop("resolved_points", None)
+            elif (product := product_for(choice_id)) is not None:
+                state["facts"].update({"product": product.product, "selection": product.selection(),
+                                       "product_label": product.label})
+                if not product.actual:
+                    state["facts"].pop("years", None)       # a typical year has no actual years
+                for stale in ("provider", "product_id"):
+                    state["facts"].pop(stale, None)
             else:
-                state["facts"]["product"] = choice_id
+                raise ChatActionError("Unknown choice")
             state["plan_hash"] = None
             state["facts"].pop("availability", None)
             self._event(state, "message", labels[choice_id],
@@ -736,10 +742,14 @@ class ChatCoordinator:
             raise ChatActionError("Location and weather product are required")
         if facts.get("location_approved") != location_key(location):
             raise ChatActionError("Approve the location first")
+        if not facts.get("selection"):
+            raise ChatActionError("Choose a weather product first")
         return WeatherRequest.model_validate({
             "locations": location, "product": facts["product"],
-            "years": facts.get("years", []), "providers": [facts["provider"]]
-            if facts.get("provider") else [], "product_id": facts.get("product_id"),
+            "years": facts.get("years", []) if facts["product"] in ("historical", "amy") else [],
+            "providers": [facts["provider"]] if facts.get("provider") and not facts.get("selection") else [],
+            "product_id": None if facts.get("selection") else facts.get("product_id"),
+            "dataset_selections": [facts["selection"]] if facts.get("selection") else [],
         })
 
     def set_geography(self, session_id: str, geography: Any, revision: int, key: str) -> dict:

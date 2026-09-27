@@ -106,10 +106,26 @@ def test_stored_hash_job_and_compact_export_share_service_identities(tmp_path):
         assert downloaded.content.startswith(b"PK")
 
 
+class Reanalysis(StationProvider):
+    """The synthetic provider under the Open-Meteo ERA5 name the chat product card offers."""
+    name = "openmeteo"
+
+    def discover(self, request, location, http):
+        return [candidate.model_copy(update={"source": candidate.source.model_copy(update={"dataset": "era5"})})
+                for candidate in super().discover(request, location, http)]
+
+
+def _choose_era5(client, sid, state):
+    card = state["active_card"]
+    assert card["prompt"] == "Which weather product?"
+    return client.post(f"/v1/chat/sessions/{sid}/choices", json={
+        "choice_id": "era5-openmeteo", "revision": card["revision"], "idempotency_key": "product"}).json()
+
+
 def test_chat_rest_prepares_and_runs_only_after_explicit_action(tmp_path):
     from openepw.chat.coordinator import OfflineParser
 
-    service = WeatherService(RuntimeConfig(data_root=tmp_path), providers=[StationProvider()])
+    service = WeatherService(RuntimeConfig(data_root=tmp_path), providers=[Reanalysis()])
     app = create_app(service, chat_parser=OfflineParser())
     with TestClient(app) as client:
         app.state.runner.enqueue = lambda _: None
@@ -129,6 +145,11 @@ def test_chat_rest_prepares_and_runs_only_after_explicit_action(tmp_path):
         assert unapproved.status_code >= 400 and "Approve the location" in unapproved.text
         state = client.post(f"/v1/chat/sessions/{sid}/location/approve", json={
             "revision": state["revision"], "idempotency_key": "approve"}).json()
+        unchosen = client.post(f"/v1/chat/sessions/{sid}/prepare", json={
+            "revision": state["revision"], "idempotency_key": "unchosen"})
+        assert unchosen.status_code >= 400 and "weather product" in unchosen.text
+        state = _choose_era5(client, sid, state)
+        assert state["facts"]["selection"] == {"provider": "openmeteo", "dataset": "era5", "product_id": None}
         assert state["active_card"]["kind"] == "plan_review"
         stale = client.post(f"/v1/chat/sessions/{sid}/prepare", json={
             "revision": 0, "idempotency_key": "stale"})
@@ -187,7 +208,7 @@ def test_chat_turn_queue_completes_and_resumes_session(tmp_path):
 def test_chat_back_route_undoes_a_step_but_not_a_started_job(tmp_path):
     from openepw.chat.coordinator import OfflineParser
 
-    service = WeatherService(RuntimeConfig(data_root=tmp_path), providers=[StationProvider()])
+    service = WeatherService(RuntimeConfig(data_root=tmp_path), providers=[Reanalysis()])
     app = create_app(service, chat_parser=OfflineParser())
     with TestClient(app) as client:
         app.state.runner.enqueue = lambda _: None
@@ -196,6 +217,7 @@ def test_chat_back_route_undoes_a_step_but_not_a_started_job(tmp_path):
             "text": "42.37, -71.11 historical 2018", "revision": 0, "idempotency_key": "a"}).json()
         state = client.post(f"/v1/chat/sessions/{sid}/location/approve", json={
             "revision": state["revision"], "idempotency_key": "approve"}).json()
+        state = _choose_era5(client, sid, state)
         prepared = client.post(f"/v1/chat/sessions/{sid}/prepare", json={
             "revision": state["revision"], "idempotency_key": "b"}).json()
         assert prepared["active_card"]["data"]["summary"].startswith("- **42.3700, -71.1100** · 2018 ·")

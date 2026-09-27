@@ -39,10 +39,12 @@ def test_back_is_refused_once_the_step_started_a_job(tmp_path):
         chat.back(state["id"], after["revision"], "two")
 
 
-def test_product_choices_name_the_products_behind_each_type(tmp_path):
+def test_product_choices_each_name_one_downloadable_product(tmp_path):
     class NoProduct(Parser):
         def parse_many(self, text):
             from openepw.harness.agent import AgentIntent
+            if "tmy" in text:
+                return [AgentIntent(kind="weather", product="tmy")]
             return [AgentIntent(kind="weather", lat=42.0, lon=-71.0)]
 
     chat = ChatCoordinator(Service(), parser=NoProduct(), path=tmp_path / "chat.sqlite")
@@ -50,10 +52,19 @@ def test_product_choices_name_the_products_behind_each_type(tmp_path):
     typed = chat.turn(state["id"], "42, -71", 0, "one")
     card = chat.approve_location(state["id"], typed["revision"], "approve")["active_card"]
     assert card["prompt"] == "Which weather product?"
-    details = {option["id"]: option["detail"] for option in card["options"]}
-    assert "ERA5" in details["historical"] and "NOAA ISD" in details["historical"]
-    assert "NSRDB" in details["tmy"] and "PVGIS" in details["tmy"]
-    assert "OneBuilding" in details["tmyx"] and "OneBuilding" in details["published"]
+    labels = {option["id"]: option["label"] for option in card["options"]}
+    assert labels["nsrdb-actual"] == "NSRDB actual year · GOES v4"
+    assert labels["noaa-isd"] == "NOAA ISD station observations"
+    assert labels["pvgis-tmy"] == "PVGIS TMY 5.3 · SARAH3"
+    assert not any(" or " in label or "Other" in label for label in labels.values())
+    chosen = chat.answer(state["id"], card["revision"], "nsrdb-actual", "nsrdb")
+    assert chosen["facts"]["product"] == "historical"
+    assert chosen["facts"]["selection"] == {"provider": "nsrdb", "dataset": "nsrdb-GOES-aggregated-v4-0-0",
+                                            "product_id": None}
+    assert chosen["active_card"]["prompt"] == "Which actual year or years?"
+    retyped = chat.turn(state["id"], "tmy instead", chosen["revision"], "tmy")
+    assert "selection" not in retyped["facts"]                     # a new type asks for the product again
+    assert all(option["group"] == "typical" for option in retyped["active_card"]["options"])
 
 
 def test_plan_summary_is_a_markdown_bullet_per_planned_download():
@@ -118,7 +129,8 @@ def test_a_reply_that_changes_nothing_says_what_was_missing(tmp_path):
     assert vague["active_card"]["prompt"] == "Where do you need weather?"
     assert "couldn't find a place" in vague["events"][-2]["text"]
     typed = chat.turn(state["id"], "42, -71", vague["revision"], "two")
-    asked = chat.approve_location(state["id"], typed["revision"], "approve")
+    approved = chat.approve_location(state["id"], typed["revision"], "approve")
+    asked = chat.answer(state["id"], approved["active_card"]["revision"], "era5-openmeteo", "product")
     assert asked["active_card"]["prompt"] == "Which actual year or years?"
     assert not any("couldn't" in (event.get("text") or "") for event in asked["events"][len(vague["events"]):])
     missed = chat.turn(state["id"], "the dry one", asked["revision"], "three")
@@ -155,9 +167,12 @@ def test_a_chosen_or_typed_location_is_summarised_for_approval(tmp_path):
     with pytest.raises(StaleSession):
         chat.approve_location(state["id"], chosen["revision"], "stale")
     approved = chat.approve_location(state["id"], steered["revision"], "four")
-    assert approved["active_card"]["kind"] == "plan_review"          # product and years were already given
+    assert approved["active_card"]["prompt"] == "Which weather product?"   # historical was typed
+    assert all(option["group"] == "actual" for option in approved["active_card"]["options"])
     assert approved["events"][-2]["data"]["role"] == "user"
     assert approved["events"][-2]["text"] == "Approved 41.5000, -70.9000 · typed coordinates"
+    approved = chat.answer(state["id"], approved["active_card"]["revision"], "era5-openmeteo", "product")
+    assert approved["active_card"]["kind"] == "plan_review"          # the years were already given
     moved = chat.turn(state["id"], "40.7, -74.0", approved["revision"], "five")
     assert moved["active_card"]["kind"] == "location_review"         # a new location needs approval again
 

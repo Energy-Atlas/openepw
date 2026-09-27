@@ -39,8 +39,10 @@ def test_place_list_previews_points_without_a_location_choice(tmp_path):
     assert len(edited["facts"]["place_rows"]) == 2 and service.http.calls == []   # pinned, not re-geocoded
     assert edited["active_card"]["kind"] == "location_review"
     approved = chat.approve_location(state["id"], edited["revision"], "approve")
-    assert approved["active_card"]["kind"] == "plan_review"        # Run still needs review
     assert _texts(approved, role="user")[-1].startswith("Approved 2 places")
+    assert approved["active_card"]["prompt"] == "Which weather product?"
+    approved = chat.answer(state["id"], approved["active_card"]["revision"], "era5-openmeteo", "product")
+    assert approved["active_card"]["kind"] == "plan_review"        # Run still needs review
     replaced = chat.turn(state["id"], "replace 1 with Denver", approved["revision"], "three")
     assert replaced["facts"]["geography"][0]["name"] == "Denver, Colorado, United States"
     assert service.http.calls == ["geocode:Denver"]
