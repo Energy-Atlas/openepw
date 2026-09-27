@@ -227,7 +227,7 @@ def test_several_products_are_chosen_together_and_split_by_kind(tmp_path):
     assert [item["provider"] for item in both["facts"]["selections"]] == ["nsrdb", "noaa"]
     assert both["facts"]["product_labels"] == ["NSRDB actual year · GOES v4", "NOAA ISD station observations"]
     assert both["facts"]["product"] == "historical" and both["active_card"]["kind"] == "plan_review"
-    assert both["events"][-2]["text"] == "NSRDB actual year · GOES v4; NOAA ISD station observations"
+    assert both["events"][-2]["text"] == "- NSRDB actual year · GOES v4\n- NOAA ISD station observations"
     request = chat._request(both["facts"])
     assert [(s.provider, s.dataset) for s in request.dataset_selections] == [
         ("nsrdb", "nsrdb-GOES-aggregated-v4-0-0"), ("noaa", "ISD global-hourly")]
@@ -237,7 +237,15 @@ def test_several_products_are_chosen_together_and_split_by_kind(tmp_path):
     assert [(request.product, request.years, [s.provider for s in request.dataset_selections])
             for request in chat._requests(mixed["facts"])] == [
         ("historical", [2012, 2013, 2014], ["noaa"]), ("tmy", [], ["pvgis"])]   # one request per kind
-    back = chat.back(state["id"], mixed["revision"], "six-back")
+    queued = chat.choose_products(state["id"], chat.back(state["id"], mixed["revision"], "queued-back")[
+        "active_card"]["revision"], ["era5land-cds", "era5-openmeteo", "noaa-isd", "pvgis-tmy"], "queued")
+    assert queued["events"][-2]["text"] == ("- ERA5-Land actual year · Copernicus CDS\n- ERA5 actual year · Open-Meteo\n"
+                                            "- NOAA ISD station observations\n- PVGIS TMY 5.3 · SARAH3")
+    # Copernicus CDS queues on its side, so it gets its own job and never holds back the others.
+    assert [(request.product, [s.provider for s in request.dataset_selections])
+            for request in chat._requests(queued["facts"])] == [
+        ("historical", ["openmeteo", "noaa"]), ("historical", ["cds"]), ("tmy", ["pvgis"])]
+    back = chat.back(state["id"], queued["revision"], "six-back")
     with pytest.raises(ChatActionError):
         chat.choose_products(state["id"], back["active_card"]["revision"], [], "seven")
     typical = chat.choose_products(state["id"], back["active_card"]["revision"],

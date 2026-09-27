@@ -46,13 +46,15 @@ FIXED_PRODUCTS = (
             "ERA5 · Open-Meteo", "era5", "25 km reanalysis grid, all EPW weather fields"),
     Product("era5-cds", "historical", "cds", "reanalysis-era5-single-levels",
             "ERA5 actual year · Copernicus CDS", "ERA5 · CDS", "era5",
-            "Reanalysis grid from Copernicus; needs CDS terms; no DNI or DHI"),
+            "Reanalysis grid from Copernicus; needs CDS terms; no DNI or DHI; requests queue at "
+            "Copernicus one month at a time, so several years can take hours"),
     Product("era5land-openmeteo", "historical", "openmeteo", "era5_land",
             "ERA5-Land actual year · Open-Meteo", "ERA5-Land · Open-Meteo", "era5-land",
             "11 km land grid; temperature, humidity and pressure only"),
     Product("era5land-cds", "historical", "cds", "reanalysis-era5-land",
             "ERA5-Land actual year · Copernicus CDS", "ERA5-Land · CDS", "era5-land",
-            "Land grid from Copernicus; needs CDS terms; no DNI or DHI"),
+            "Land grid from Copernicus; needs CDS terms; no DNI or DHI; requests queue at Copernicus "
+            "one month at a time, so several years can take hours"),
     Product("nsrdb-actual", "historical", "nsrdb", "nsrdb-GOES-aggregated-v4-0-0",
             "NSRDB actual year · GOES v4", "NSRDB actual year", "nsrdb",
             "4 km satellite solar grid, hourly; needs an NLR key"),

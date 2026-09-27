@@ -139,6 +139,8 @@ def request_location_summary(facts: dict) -> str:
 
 
 HISTORY_LIMIT = 50
+# Providers whose retrievals queue on the provider's side (one CDS request per month).
+QUEUED_PROVIDERS = {"cds"}
 
 
 def plan_summary_markdown(request: dict, rows: list[dict]) -> str:
@@ -781,7 +783,7 @@ class ChatCoordinator:
                     or (card.get("data") or {}).get("field") != "product"):
                 raise StaleSession(state)
             self._apply_products(state, products)
-            self._event(state, "message", "; ".join(product.label for product in products),
+            self._event(state, "message", "\n".join(f"- {product.label}" for product in products),
                         {"role": "user", "choice": True, "choice_ids": [product.id for product in products]})
             self._question(state)
 
@@ -818,7 +820,11 @@ class ChatCoordinator:
         kinds = facts.get("selection_products") or [facts["product"]] * len(selections)
         actual = [selection for selection, kind in zip(selections, kinds) if kind in ("historical", "amy")]
         typical = [(selection, kind) for selection, kind in zip(selections, kinds) if kind not in ("historical", "amy")]
-        groups = [("historical", actual)] if actual else []
+        # Copernicus CDS requests wait in Copernicus's queue, so they run as their own job
+        # and the other actual-year products are not held behind them.
+        direct = [selection for selection in actual if selection["provider"] not in QUEUED_PROVIDERS]
+        queued = [selection for selection in actual if selection["provider"] in QUEUED_PROVIDERS]
+        groups = [("historical", group) for group in (direct, queued) if group]
         if typical:
             types = {kind for _, kind in typical}
             groups.append((types.pop() if len(types) == 1 else "tmy", [selection for selection, _ in typical]))
@@ -887,14 +893,21 @@ class ChatCoordinator:
             summaries = [plan_summary_markdown(request.model_dump(mode="json"),
                                                [row.model_dump(mode="json") for row in plan.batch_rows])
                          for request, plan in zip(requests, plans)]
+            def heading(request):
+                if request.product != "historical":
+                    return "Typical year"
+                queued = any(item.provider in QUEUED_PROVIDERS for item in request.dataset_selections)
+                return "Actual year · Copernicus CDS (queued at Copernicus)" if queued else "Actual year"
+
             summary = summaries[0] if len(plans) == 1 else "\n\n".join(
-                f"**{'Actual year' if request.product == 'historical' else 'Typical year'}**\n\n{text}"
-                for request, text in zip(requests, summaries))
+                f"**{heading(request)}**\n\n{text}" for request, text in zip(requests, summaries))
             card = {"id": uuid.uuid4().hex, "revision": state["revision"],
                     "kind": "plan_review", "prompt": "Review these outputs, then select Run",
                     "data": {"plan_hash": plan_hash, "request": requests[0].model_dump(mode="json"),
                              "plans": [{"product": request.product, "plan_hash": plan.plan_hash,
-                                        "output_count": len(plan.outputs)}
+                                        "output_count": len(plan.outputs),
+                                        "selections": [selection.model_dump(mode="json")
+                                                       for selection in request.dataset_selections]}
                                        for request, plan in zip(requests, plans)],
                              "summary": summary,
                              "outputs": [output.model_dump(mode="json") for plan in plans for output in plan.outputs],
@@ -923,8 +936,11 @@ class ChatCoordinator:
             state["job_id"] = jobs[0].id
             self._event(state, "tool", "Submitting reviewed plan", {"tool": "weather_jobs", "phase": "call",
                                                                 "plan_hash": plan_hash})
-            for job, item in zip(jobs, hashes):
-                self._event(state, "job", "Weather job started", {"job_id": job.id, "plan_hash": item})
+            queued = [any(selection["provider"] in QUEUED_PROVIDERS for selection in plan.get("selections", []))
+                      for plan in (card.get("data", {}).get("plans") or [{}] * len(jobs))]
+            for job, item, waits in zip(jobs, hashes, queued):
+                self._event(state, "job", "Weather job started", {"job_id": job.id, "plan_hash": item,
+                                                                    **({"queued": True} if waits else {})})
             state["active_card"] = None
 
         return self._change(session_id, revision, key, update)
