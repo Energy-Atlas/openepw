@@ -1,99 +1,431 @@
-# Guided weather chat UI — feature plan
+# Map-first guided weather chat UI — revised feature and implementation plan
 
-**Status:** Product direction agreed in chat on 2026-09-26; implementation has not started. This document records the proposed delivery slices and acceptance criteria. It does not authorize future-weather UI work.
+> **For agentic workers:** Implement this plan task by task after owner review. Use
+> the repository's verification and commit rules; keep the work on
+> `feature/chat-ui`. This document proposes the product and delivery contract,
+> not a claim that the rendering approach has already been proved.
 
-**Goal:** Give a user a guided, resumable chat interface for discovering and retrieving existing weather data, inspecting results, and downloading artifacts. A text request enters the same workflow and receives the same structured clarifications.
+**Status:** Draft for owner review, 2026-09-26. No chat UI implementation has
+started. The owner requested this revision after reviewing the earlier chat-first
+plan. Do not start implementation merely because this draft exists.
 
-**Implementation base:** The current `feature/mcp` work and the canonical Python service, REST, MCP, job, artifact, and visualization contracts. Do **not** use, merge, cherry-pick, copy components from, or model the interaction on `feature/webui`. Build the chat-first interface independently. Preserve that branch and other contributors' work.
+**Goal:** Provide an optional browser experience in which a full-canvas globe
+and map are the persistent workspace; a fixed chat overlay guides existing-
+weather retrieval, and freely floating visualization panels inspect completed
+weather artifacts. The close-range scene includes decorative buildings, optional
+terrain, and real geometric cast shadows.
 
-## Product contract
+**Architecture:** The Python service remains the authority for weather,
+availability, plans, jobs, artifacts, QC, and prepared visualization JSON. A
+durable Python conversation coordinator exposes versioned REST events; a separate
+React/TypeScript browser renders the map, chat, overlays, downloads, and charts.
+The map scene and its lighting never change scientific outputs.
 
-- The first screen offers **Guided workflow** and **Describe what I need**. Neither choice starts provider retrieval.
-- Guided mode asks one actionable question at a time. Text mode extracts candidate request fields, shows what it understood, and asks the same question cards for missing or ambiguous fields. Users may switch modes without losing confirmed answers.
-- The transcript scrolls upward and retains user answers, question cards, tool activity summaries, job events, visualizations, and artifact cards. The active question is visually distinct; old cards remain readable.
-- A question can accept one option, multiple options, **Other…** with text, a map action, or open text. Suggested prompts insert a complete editable message into the input. Show the message box only for an open answer, **Other…**, or an explicit new text request. Sending queues a message and displays its pending state.
-- A map card may accept a point, drawn area, or GeoJSON upload; show geocoder candidates as selectable points. Display availability overlays only with their evidence type, source/date, and uncertainty. A documented footprint must never be presented as verified availability at every location.
-- Tool activity appears as a compact event such as `Used tool: weather_assess`, with a safe result summary and optional detail. Do not put secrets, raw provider responses, EPW bytes, or full hourly tables in the transcript.
-- Results may include interactive charts from prepared visualization JSON and cards for one, several, or all downloadable artifacts. Retrieval, viewing, and downloading have distinct labels and effects.
-- This workflow covers actual-year/historical and published reference weather products. It does not offer future-weather generation, future scenarios, or future-output visualizations while MCP future access is suspended.
+**Tech stack:** Python 3.11+, FastAPI/Pydantic/SQLite from the current package;
+an optional React/TypeScript/Vite browser build using MapLibre GL JS, OpenFreeMap
+vector tiles, Mapterhorn Terrarium DEM, and a browser chart renderer. A focused
+rendering prototype selects the cast-shadow implementation and records its
+dependency and compatibility choices before production integration.
 
-## Guided journey
+**References:** [existing visualization contract](../design/2026-09-26-weather-visualization.md),
+[post-retrieval conversation plan](2026-09-26-post-download-conversations.md),
+[external Eaui map-scene handoff](../references/eaui-globe-terrain-shadows-handoff.md),
+[architecture](../../ARCHITECTURE.md), [features](../../FEATURES.md).
 
-1. **Start:** choose guided or text. Offer brief example requests; the free-text path parses once, then confirms the proposed fields.
-2. **Locate:** search a place, enter coordinates, select a point, draw an area, or upload valid GeoJSON. Ambiguous geocoding shows named candidates on a map and in an accessible list. An area is converted to the service's supported polygon, bbox, or sampled point request with a visible point-count estimate and cap.
-3. **Choose weather meaning:** choose actual calendar years/date range or an available published reference product. Explain AMY/actual year versus TMY/TMYx/reference year before collecting incompatible period fields.
-4. **Assess and select:** call read-only availability/discovery, show eligible, unavailable, unknown, credential-gated, and source alternatives. Multi-select only where the service can produce separate, explicit outputs. Never silently substitute a provider or shorten a period.
-5. **Review:** show location input and resolved source positions, product and period, selected datasets, output count, access requirements, warnings, plan hash, and what will happen on Run. Corrections invalidate dependent answers and refresh the plan. Submission requires an explicit Run action on the current reviewed plan.
-6. **Retrieve:** show queued/running/completed/partial/failed/cancelled job state, processed output count, and actionable errors. A browser refresh reattaches to the same job; it does not submit another. Stopping client waiting is separate from cancelling the server job.
-7. **Use results:** list each output by location, dataset, and actual year or reference label. Offer inspect/QC, visualization, individual download, and a clear all-outputs option. A view request must consume existing artifacts and make no provider call.
+## Owner decisions and branch boundary
 
-At any point, users may revisit a confirmed answer. Later answers and a reviewed plan become stale only where their dependencies changed. Completed jobs and artifacts remain in immutable history.
+- Open directly on the full-canvas map. There is **one** chat experience: no
+  Guided/Text mode choice, splash selector, or mode switch. Free text and
+  structured choices feed the same request state.
+- Chat stays visible in a fixed position on one side of the map. A requested
+  chart is a freely movable, resizable overlay; chat and chart remain visible
+  together. The map remains the canvas underneath both.
+- Include a globe, optional 3D terrain, and geometric cast shadows. Use
+  buildings available from the basemap as decorative scene geometry. Their
+  heights and shadows are visual approximations, never building-model inputs,
+  weather evidence, solar potential, or simulation results.
+- “All features” covers the guided chat workflow, geographic input, evidence
+  layers, weather retrieval, job progress, artifact download, and the currently
+  supported prepared-data visualizations, as well as the globe scene above.
+- This plan is edited and reviewed on `feature/mcp`. **After review, create
+  `feature/chat-ui` from the then-current `feature/mcp` tip and put every new
+  implementation commit there.** Do not implement on `feature/mcp`, use a
+  worktree, or merge/cherry-pick/copy `feature/webui`. Preserve both branches.
+  The Eaui checkout is a read-only design reference, not a code source.
+- The owner's explicit UI request supersedes the older handoff's “no frontend”
+  default for this optional browser client. Python, REST, MCP, and CLI still work
+  without Node or a browser build. Future-weather UI remains suspended.
 
-## Architecture and ownership
+## Experience and visual composition
 
-| Unit | Responsibility | Boundary |
+The map is the first view, initially at a neutral globe scale with a short chat
+invitation such as “Where do you need weather?” It does not request browser
+geolocation or assume Boston. A search, map action, or location mentioned in
+chat moves the camera to the chosen place while preserving the user's confirmed
+request facts. At close zoom the same view becomes a quiet street/terrain scene.
+
+```text
+Wide viewport
+┌────────────────────────── full-canvas map / globe ──────────────────────────┐
+│ map scene controls       geography, markers, evidence          attribution │
+│                                                                          ┌──┴─┐
+│       ┌────────── movable, resizable chart ──────────┐                 │chat│
+│       │ prepared view, units, coverage, provenance    │                 │rail│
+│       └───────────────────────────────────────────────┘                 │    │
+│                                                                  ┌──────┤    │
+│                                                                  │input │    │
+└──────────────────────────────────────────────────────────────────┴──────┴────┘
+```
+
+The desktop chat rail is fixed at the right edge, with a stable width and
+scrolling transcript. A narrow viewport uses a fixed bottom chat region that
+keeps its input and latest prompt visible; floating views are constrained to
+the remaining viewport and can be minimized without losing state. Panels do
+not cause the map canvas to resize. Map camera padding and “focus selection”
+keep the target visible outside overlays. Dragging/resizing a chart has mouse,
+touch, and keyboard equivalents; chart controls, close/minimize, focus order,
+screen-reader labels, and reduced-motion behavior are part of acceptance.
+
+Design direction: the geographic surface carries the visual weight; UI chrome
+is legible and restrained. Begin with an OpenEPW palette of deep ocean
+`#173849`, pale cloud `#F3F7F7`, teal observation `#237E8B`, solar amber
+`#D69B36`, and unknown slate `#647782`. Use IBM Plex Sans for prose and IBM
+Plex Mono only for coordinates, units, and IDs. Review contrast against both
+light and dark basemaps. Provide six curated map appearances inspired by the
+reference's light, dark, monochrome, landform, clean technical, and dark
+engineering intents; define OpenEPW's own tokens and styles rather than
+copying Eaui components or palette code. Each appearance preserves readable
+roads, labels, selection, weather markers, evidence legends, chart overlays,
+and required attribution.
+
+## User journey and conversation behavior
+
+1. **Start on map:** The fixed chat offers a free-text prompt and concrete
+   actions to search a place, choose a point, draw an area, or upload GeoJSON.
+   Suggested prompts fill an editable message; there is no mode distinction.
+2. **Understand the whole turn:** Extract all stated intentions in one pass:
+   place/coordinates, actual years or dates, published reference product,
+   requested datasets, view/download intent, and corrections. Preserve
+   confirmed facts across turns and present only unresolved ambiguities.
+   “Historical” and “AMY” mean the same actual-year path in this UI.
+3. **Locate:** Geocoder candidates appear as numbered choices in chat, markers
+   on the map, and an accessible list. A selected candidate is retained when
+   the user next supplies year or product. Point lists, bbox, polygon drawing,
+   and GeoJSON upload serialize to existing `WeatherRequest` geography types.
+   Show requested versus resolved or sampled points and output count.
+4. **Choose and assess:** Ask one actionable question at a time where needed;
+   single choice, multiple choice, Other with text, coordinates, and map
+   actions all return typed answers. Read-only catalog assessment/discovery
+   shows supported-to-try, unavailable, unknown, and gated alternatives with
+   evidence dates and conditions. It never promises weather completeness.
+5. **Review and run:** Show confirmed geography, product/actual years,
+   datasets, output count, access conditions, warnings, plan hash, and the
+   current exact action. Run is an explicit click on the reviewed plan; typing
+   or selecting map geometry does not start provider retrieval. Corrections
+   invalidate only dependent facts and the stale plan.
+6. **Track:** Show real tool-call and result events, queued/running/completed/
+   partial/failed/cancelled states, and a progress bar with processed/total
+   outputs. Refresh resumes the same session and job without resubmission.
+   Cancel waiting and cancel server job are distinct actions.
+7. **Use outputs:** Resolve artifacts from the verified job manifest by
+   occurrence, location, source, and period. Inspect/QC, view, download one,
+   and download all successful outputs are distinct from retrieving provider
+   weather again. Uploading a user EPW is a separate analysis input and does
+   not invent a provider or actual-year identity.
+8. **Visualize:** A view request references existing artifact IDs and returns
+   the service's immutable `VisualizationSpec` and paged rows. A new floating
+   panel renders the supported family while chat remains fixed. Later prompts
+   can compare, focus, minimize, or reopen a view without a new fetch.
+
+The transcript contains messages, questions, factual tool events, plan and job
+cards, artifact lists, and view references. It retains earlier turns and the
+current draft across reload. It does not store provider bodies, credentials,
+EPW bytes, full hourly tables, or unredacted sensitive text. A greeting,
+acknowledgment, “where is my file?”, and “show my 2016 data” must use the
+current conversation context rather than starting an empty weather request.
+
+## Map scene and geographic evidence
+
+- OpenFreeMap supplies the basemap and its default `building` vector layer;
+  preserve OpenFreeMap/OpenMapTiles/OpenStreetMap attribution. OpenMapTiles
+  `render_height` may be derived from levels or a fallback, so buildings and
+  their cast shadows are labelled **decorative, approximate map context**.
+  Do not turn them into simulation geometry, source locations, or claims about
+  any building. Verify the actual live style/source fields before relying on
+  them; missing buildings or heights yield a visible scene limitation.
+- Globe projection persists across style and appearance changes. 3D view
+  enables tilt, extrusion, solar lighting, and shadow eligibility. Terrain is
+  optional within 3D, uses Mapterhorn Terrarium DEM where available, and
+  displays its source attribution. Terrain failure keeps the map and flat
+  ground usable and makes shadow limitations explicit.
+- One UTC/season solar state drives facade lighting, hillshade direction,
+  and the cast-shadow renderer at the local scene. User controls expose 3D,
+  terrain, terrain exaggeration, season/day, UTC time, light intensity,
+  diffusion/haze, appearance, and shadow on/off in a compact scene panel.
+  Values and labels distinguish visual sunlight from weather-file dates.
+  Below the local horizon, direct cast shadows disappear. No globe-scale
+  day/night terminator is promised by the close-range shadow control.
+- Cast shadows are **geometric occlusion**, not dark extrusion faces or
+  `hillshade-shadow-color`. At district zoom, basemap buildings cast onto
+  ground and other buildings; terrain relief casts where DEM geometry is
+  present. Ground, buildings, and shadows share the displayed elevation and
+  exaggeration. Shadows update with camera, style, time, season, tile, and
+  terrain changes. They remain visually subordinate to selection, labels,
+  chart overlays, and weather markers. Shadow rendering pauses at globe
+  overview, in flat mode, or when unavailable; the UI states why.
+- A focused rendering prototype must establish a viable MapLibre custom-layer
+  integration before production shadow work. Compare a shared-depth shadow
+  pass and a synchronized scene/mesh approach against globe transition,
+  terrain sampling, tile seams, style reloads, and browser performance. Record
+  the chosen method, source licenses, limitations, and validation images in
+  an ADR. The Eaui checkout has no existing cast-shadow implementation;
+  MapLibre's single-model shadow example is a feasibility reference, not
+  proof of the required terrain/building behavior.
+- Map selection and evidence are separate layers. Availability overlays show
+  evidence type, source, date, scope, and unknown regions. A documented
+  footprint is not a verified point-level eligibility polygon; a license
+  geography count is not a coverage polygon. Request-specific assessments
+  remain authoritative for the selected points. Basemap and shadow failures
+  never block coordinate entry, place search, GeoJSON upload, or chat review.
+- Validate GeoJSON coordinate reference system, polygon holes, self-
+  intersections, vertex/file size, requested-point cap, and antimeridian
+  behavior against the service's existing geography contract. Do not silently
+  repair or sample to fewer points. Show the exact service-accepted points
+  before Run, and permit map/list/coordinate equivalents.
+
+## System boundaries and proposed file map
+
+| Unit | Files to create or extend | Owned behavior |
 | --- | --- | --- |
-| Python service | Geocoding, availability, planning, execution, QC, artifact and visualization semantics | Remains canonical; no weather calculations in UI or conversation coordinator |
-| Conversation coordinator | Typed draft, pending question, confirmed answers, mode, ordered actions, references, and safe transcript events | May reuse ideas and tests from `harness`, but exposes a versioned browser contract rather than terminal text/menus |
-| REST chat adapter | Create/resume sessions, accept answers/messages, read transcript and active card, return safe events | Calls the coordinator and existing service; no separate provider implementation |
-| Browser | Render chat cards, map and charts; collect typed actions; transfer artifacts to user disk | Does not decide source eligibility, EPW quality, or scientific aggregation |
+| Conversation contract | `src/openepw/chat/{models,coordinator,store}.py` | Versioned session, facts, questions, revisions, ordered events, redacted messages, idempotency |
+| Thin REST adapter | `src/openepw/api/chat.py`, `src/openepw/api/app.py` | Session/turn/action/event endpoints; existing service calls and auth/size limits |
+| View REST adapter | `src/openepw/api/views.py` | Capabilities, describe, prepare, page through existing visualization service |
+| Browser app | `web/chat-ui/{package.json,src/**}` | Optional build, fixed chat, map, scene controls, charts, artifact transfers |
+| Browser map | `web/chat-ui/src/map/**` | Globe, basemap, terrain, buildings, shadows, drawing, markers, evidence |
+| Browser views | `web/chat-ui/src/views/**` | Versioned spec validation, five initial renderers, floating windows and fallback |
+| Tests and docs | `tests/chat/**`, `tests/unit/test_api*.py`, `web/chat-ui/tests/**`, `docs/**` | Offline contracts, browser/e2e journeys, architecture, limits, setup, validation |
 
-Use a private, durable session/event store scoped to one local user and data root. Store normalized request facts, event IDs, plan/job/artifact/view references, and safe presentation summaries. Retain a redacted, user-visible version of each message so the chat history survives reload; never persist its unredacted original, credentials, provider bodies, or EPW bytes in conversation state. The browser may keep only the session ID and non-sensitive display preferences locally. Preserve existing REST authentication and loopback defaults; do not create a remote multi-user service in this feature.
+The coordinator uses typed confirmed facts and an explicit dependency graph,
+not transcript rereading, for memory. It may reuse extraction concepts from
+`harness` but remains server-side and browser-neutral. The model can propose
+intent fields from a complex message; deterministic validators, service
+assessments, and the user confirm ambiguous facts. A model cannot invent
+availability, plan hashes, outputs, QC, or chart values.
 
-The REST contract should use discriminated, versioned card/event types: `mode_choice`, `single_choice`, `multi_choice`, `text_question`, `map_question`, `plan_review`, `tool_activity`, `job_progress`, `visualization`, `artifact_list`, and `error`. Every actionable option has a stable opaque ID. Answers include the current question ID and revision; stale submissions receive a typed conflict with the current card. A session processes one answer or free-text turn at a time. A second send enters a visible FIFO queue and can be withdrawn before processing. Repeated HTTP submissions carry an idempotency key and never create duplicate plans or jobs.
+The REST contract uses stable session/event IDs, discriminated versioned cards,
+opaque choice IDs, and question revision numbers. Core actions are create/
+resume session, send turn, answer current question, update geography, review/
+run plan, inspect/cancel/retry job, read events by cursor, and prepare/page
+views. A stale action returns the current card and a typed conflict. A session
+has one writer; a second send enters a visible withdrawable FIFO queue.
+Idempotency keys cover retries and double clicks, especially Run. Poll events
+with a cursor first; streaming may later reuse the same event shapes.
 
-Start with bounded event polling using a cursor, plus existing job inspection for progress. Streaming can be added later without changing event shapes. Persist server event IDs so refresh and polling do not duplicate transcript entries. Render only allowlisted tool names and redacted summaries; tool progress is evidence of an actual call, not a fabricated narration.
+The browser uses the existing REST authentication and loopback defaults. It
+never stores bearer keys in local storage, logs, URLs, chart specs, traces,
+or conversation events. Durable server state is private to the local data
+root. Local browser storage holds only the session ID and harmless appearance/
+window preferences. Bound uploads, geometry, event payloads, visualization
+pages, chart count, and map/shadow resources.
 
-Map input must serialize to existing typed geography models. Reject invalid geometry, overly large GeoJSON, too many sampled points, and unsupported coordinate systems with a recoverable question. Preserve uploaded geometry and requested coordinates as user input; show sampled or resolved provider points separately. Map failure must leave place search, coordinate entry, and GeoJSON upload usable.
+The visualization REST adapter calls `WeatherService.visualization_capabilities`,
+`describe_weather_data`, `visualize_weather`, and prepared-page access. It
+does not implement scientific aggregation. The browser handles the five
+implemented families (`time_series`, `annual_series`, `monthly_series`,
+`histogram`, `spatial`); planned families and unknown schema versions show a
+readable unsupported state. All plots display units, time/calendar meaning,
+artifact/source labels, expected/valid/missing counts, nulls and partial
+results. An irregular spatial result uses points; only a complete grid uses
+a matrix. No plot implies simulation readiness.
 
-Chart cards consume the existing `weather_visualize`/`weather_data_page` prepared-view contract through a thin REST adapter or equivalent Python service route. The browser pages bounded rows and renders supported families only. Show units, temporal kind, source IDs, coverage/missing counts, and partial-result warnings beside each plot; unknown families get a readable fallback rather than a blank card.
+## Delivery tasks and reviewable outputs
 
-## Delivery slices
+Each task ends with focused tests, a reviewable behavior, and a moderate
+`fix(topic): concise description` commit on `feature/chat-ui`. Work can be
+committed within a task at coherent contract, scene, or test boundaries.
 
-### 1. Conversation contract and durable state
+### Task 1 — Branch, contracts, and optional browser skeleton
 
-- Define versioned card/action/event schemas, the workflow dependency graph, question revisions, and session persistence. Keep the guided path deterministic; use a model only for text interpretation, never as the authority for a provider claim or plan.
-- Add tests for reload, short answers, corrections, stale choices, queued messages, idempotent retries, single-writer behavior, and redaction. A queued message must not race a running tool call or silently overwrite the active draft.
-- Commit at the contract and persistence boundary using repository `fix(topic): description` convention.
+- After plan review, create `feature/chat-ui` from the current `feature/mcp`
+  tip; record the starting commit and inspect collaborators' changes. Add
+  the independent optional browser build, API client, typed session/card/
+  event/view contracts, and a map-canvas shell with a fixed chat overlay.
+- Define a single no-mode journey and the page's responsive panel geometry.
+  The map fills the viewport; browser build dependencies remain optional to
+  `pip install openepw`.
+- Verify typecheck/build and a browser smoke test that opens on a full map
+  with one chat input and no mode selector. Commit the scaffold and contracts.
 
-### 2. Browser chat shell and guided retrieval
+### Task 2 — Globe, terrain, decorative buildings, and scene controls
 
-- Create an optional independent browser build and REST adapter on the current branch. Implement mode selection, transcript, single/multiple choice, **Other…**, conditional input box, suggested prompts, keyboard and screen-reader paths, and the plan review card.
-- Connect geocode, availability, discovery, plan, submit, inspect, retry/cancel where supported, and artifact lists to real service responses. Show one concise `Used tool` event per actual invocation and a matching outcome.
-- Test a complete synthetic point/year request, a text request with clarification, ambiguous geocoding, correction before Run, and a partial multi-output job. Verify no retrieval occurs before Run.
+- Integrate MapLibre/OpenFreeMap, globe continuity, six appearance tokens,
+  attribution, close-range 3D buildings, Mapterhorn DEM/hillshade, and solar
+  controls. Verify live basemap building layer and height fields; record the
+  observed style/schema and fallback behavior without copying Eaui code.
+- Keep all scene effects display-only and restore them after style changes.
+  Make tile/DEM load, ready, failed, retry, and paused states legible; retain
+  coordinate entry when map services fail.
+- Offline map-state tests cover control transitions and style reload. Browser
+  smoke and manual visual captures cover globe→district, terrain true scale
+  and exaggeration, six appearances, attribution, and a failed tile source.
 
-### 3. Spatial cards and availability evidence
+### Task 3 — Real cast shadows
 
-- Add point selection, area drawing, GeoJSON upload, selectable geocoder markers, sampled-point preview, and an accessible list/coordinate fallback. Use one canonical typed geography payload for map and text inputs.
-- Add only evidence-backed overlays with visible legend, timestamp/source, and labels for documented extent versus request-specific assessment. Unknown coverage stays unknown.
-- Test polygon holes, antimeridian/bbox behavior where the service supports it, invalid/oversized uploads, point caps, map load failure, and map/list selection equivalence.
+- Run the rendering prototype early, before expanding the rest of the UI.
+  Use controlled building polygons/heights and a small DEM fixture to verify
+  one building shadows ground and another building, and relief blocks direct
+  light. Select and document the renderer only after testing globe/local
+  projection, map depth/layer order, DEM alignment, and style reload.
+- Integrate live basemap building geometry and the terrain mesh within bounded
+  close-range tile and performance limits. Use the same local sun vector and
+  displayed terrain exaggeration as the visible scene. Treat approximate
+  basemap height explicitly as display-only.
+- Test morning/noon/evening direction and length, local night, flat terrain,
+  exaggerated relief, tile edges, camera movement, style swap, unavailable
+  DEM/geometry, and unsupported graphics. Capture real-renderer screenshots;
+  flat browser terrain stubs alone cannot prove shadows. A prototype failure
+  is reported as a material blocker for this required feature, not relabelled
+  as hillshade or quietly removed from scope.
 
-### 4. Results, views, and downloads
+### Task 4 — Durable single-flow conversation
 
-- Resolve output cards through verified manifest mappings, not list order or guessed filenames. Show success, omission, failure, and cancellation separately. A failed new job must not make older artifacts appear to be its results.
-- Render the initially implemented visualization families from prepared JSON. Provide variable/aggregation/period controls only when capabilities allow them; preserve leap-year, reference-product, missing-data, and source labels.
-- Provide individual artifact download and an explicit all-outputs path. Clearly distinguish transfer of an existing artifact from a new provider retrieval. Checksum-verified transfer, safe filenames, and no accidental overwrite are required.
-- Test that inspect/view/download follow-ups produce zero new provider plan/submit calls and that a multi-location, multi-year result resolves the requested output unambiguously.
+- Implement the typed Python coordinator, redacted SQLite session/event
+  store, REST adapter, question revisions, single-writer queue, and model
+  interpretation of complete multi-intent messages. Confirmed location,
+  product, years, dataset, pending plan, job, artifacts, and views persist
+  across turns and reload. Structured selections and free text update the
+  same state.
+- Render the fixed chat rail, accessible choice cards, Other/text answer,
+  pending send, tool-call/result messages, corrections, and event cursor.
+- Offline tests cover “Cambridge MA, 2012–2014 historical” in one turn,
+  follow-up year/product/location memory, ambiguous geocoding, stale choice,
+  duplicate send, queued correction, redaction, and reload. Browser tests
+  verify keyboard and screen-reader paths and no mode choice.
 
-### 5. Acceptance and project memory
+### Task 5 — Geographic input, evidence, planning, and Run
 
-- Run offline Python contract/API tests, browser unit and accessibility tests, and one end-to-end synthetic journey with map, reload, partial job, chart, and downloads. Use opt-in live checks only where they answer a specific remaining risk.
-- Document the new UI contract, local startup, data and credential boundaries, current limitations, and exact verification results in architecture, features, roadmap, harness/UI docs, and validation records. Do not claim a syntactically valid EPW is simulation-ready.
+- Add map point selection, point lists, bbox/polygon drawing, GeoJSON upload,
+  geocoder markers and accessible candidate list; serialize to the existing
+  typed geography models and show exact accepted/sampled points. Surface
+  source/date/uncertainty on every availability layer and assessment.
+- Connect service geocode, availability, discover, weather plan, and explicit
+  Run. Show all plan warnings and output rows; corrections stale the affected
+  plan. No provider call occurs from a map gesture or read-only assessment.
+- Tests cover holes, invalid/oversized geometry, service point cap,
+  antimeridian behavior, map failure/coordinate fallback, map/list parity,
+  unknown coverage, plan revision and double-click Run idempotency.
+
+### Task 6 — Job lifecycle, contextual follow-ups, and downloads
+
+- Connect real job events/progress, cancellation, failed-output retry,
+  manifest-based artifact mapping, and inspection. Reattach after refresh
+  without another job. Explain missing EPW values/QC without claiming that
+  retrieval eligibility or a syntactically valid EPW proves simulation
+  readiness.
+- Download one verified artifact through REST. “Download all” creates the
+  service's compact export and transfers its ZIP to the user's disk with the
+  complete mapping; failed outputs are excluded and reported. Use safe
+  filenames/checksums and browser collision behavior. Accept a separate
+  uploaded EPW for analysis through a bounded, generic input path.
+- Tests cover multi-location/multi-year identities, partial/cancelled jobs,
+  stale older artifacts after a failed new job, refresh during run, “where is
+  my file?”, one/all downloads, retry scope, and zero new provider calls
+  for inspect/download follow-ups.
+
+### Task 7 — Floating visualizations and prepared-data adapter
+
+- Expose visualization capability/describe/prepare/page through thin REST
+  routes. Resolve user phrases to explicit artifact IDs from the current
+  manifest; do not infer them from list order. Render the five implemented
+  families in movable/resizable panels over the map with chat always visible.
+- Support multiple panels with bounded count and pagination; retain view IDs
+  in the session. Show provenance, units, coverage and partial/null warnings
+  adjacent to each plot. Provide table/JSON fallback for unsupported family,
+  chart failure, and assistive technology.
+- Contract/browser tests cover each family, irregular spatial points versus
+  complete grid, missing NOAA values, leap-year/calendar labeling, uploaded
+  EPW identity, unknown spec version, panel drag/resize/keyboard control,
+  reload, and no provider retrieval on a view request.
+
+### Task 8 — End-to-end acceptance and project memory
+
+- Exercise synthetic journeys through real REST and browser: map-first
+  complex request, area selection, source uncertainty, review/Run, partial
+  job, progress, refresh, chart overlay, one/all downloads, and an uploaded
+  EPW. Use bounded opt-in live checks only for remaining map/tile/rendering
+  risks; do not put credentials into browser artifacts or traces.
+- Run Python contract/API tests, browser unit/accessibility/e2e tests,
+  typecheck/build, and real-renderer scene checks on the target desktop.
+  Record commands, outcomes, browser/device limits, data attribution, and
+  shadow quality/performance limits. Update `ARCHITECTURE.md`, `FEATURES.md`,
+  roadmap, UI startup guidance, limitations, and ADR/validation records.
+- Review the `feature/chat-ui` diff against this plan and the repository
+  rules. Do not merge, deploy, or publish as part of this task without the
+  owner's separate direction.
 
 ## Acceptance scenarios
 
-1. A new user selects Guided, answers location/product/year questions, reviews one current plan, runs once, refreshes during execution, and receives the same job and artifact cards.
-2. A user types “2016 and 2017 weather near Cambridge,” chooses one geocoder candidate from map or list, receives the same remaining questions as Guided, and sees two correctly labelled output rows when available.
-3. A user draws an area or uploads GeoJSON; the UI shows exactly the service-accepted sampled points and bounds before plan submission. Invalid geometry is corrected in place.
-4. A user selects two datasets; each feasible dataset × point × period output is visible, and unsupported combinations are explained. No source is silently substituted.
-5. A user requests a monthly GHI plot from completed EPWs. The chart shows `Wh/m2`, missing-hour coverage and any null/partial values; the action does not fetch weather again.
-6. A user downloads one EPW and then all successful outputs. The transfer status and resulting browser download are clear; failed outputs are excluded and reported.
-7. A reload retains the safe transcript and active question. Replaying a response, double-clicking Run, or resending after a lost HTTP response creates no duplicate job.
-8. Future-weather requests get a concise unavailable response in this UI, and no future plan or job call is made.
+1. First load shows a usable full-canvas globe and fixed chat, with no mode
+   chooser. A user enters “UBEM for Cambridge, MA, 2012–2014 historical”; the
+   session retains place, actual years and intent, asks only for unresolved
+   choices, and never mistakes “2012 buildings” for a weather year.
+2. The user chooses a geocoder candidate on map or list, reviews an exact
+   plan, clicks Run once, refreshes while it executes, and receives the same
+   job and correctly mapped artifact cards. A duplicate Run makes no job.
+3. A drawn area or uploaded GeoJSON shows the service-accepted points and
+   cap before Run. Invalid shape, holes, dateline edge cases and map outage
+   have explicit recoverable behavior.
+4. A source footprint is shown with its evidence date and uncertainty; a
+   region with unknown coverage is not colored as verified availability.
+5. The globe zooms into a 3D district without losing camera or theme. Terrain
+   toggles and exaggeration work. Decorative basemap buildings cast visible
+   shadows onto ground and each other, relief casts where DEM is present,
+   shadows move with UTC time, and direct shadows vanish at local night.
+   Labels, markers and selection stay readable. A failed DEM or shadow pass
+   reports its state while map and chat remain usable.
+6. Chat stays fixed while a monthly GHI view opens in a freely floating chart;
+   both are visible. The chart has `Wh/m2`, source/year/calendar and missing-
+   hour coverage. Move, resize, minimize, reopen and keyboard controls work.
+   No provider fetch occurs.
+7. A multi-output job lets the user download one successful EPW and a compact
+   all-successful-output ZIP to user disk. The output mapping is complete;
+   failed rows are reported, and “download” never means provider retrieval.
+8. A user EPW upload can be described or visualized without invented source
+   or actual-year identity. Future-weather requests receive a concise
+   unavailable response; this UI makes no future plan/job call.
 
-## Exclusions and sequencing notes
+## Review focus and external dependencies
 
-- No future-weather workflow, historical TMY/XMY generator, arbitrary plot-code execution, public hosting, mandatory distributed services, or standalone provider logic in the browser.
-- The post-retrieval conversation/download plan remains a dependency for rich phrases such as “download my 2016 file”; its current draft status must be resolved before that slice is marked complete.
-- The browser UI is optional packaging. Python, CLI, REST, and MCP remain usable without installing its build dependencies.
-- This plan does not start implementation. Review its scope and delivery order before code work.
+| Likely failure | Required check and expected behavior |
+| --- | --- |
+| Basemap has no usable building features at a location/zoom | Decorative 3D/shadows state says unavailable; weather workflow continues |
+| DEM and building meshes disagree in elevation | Real-renderer test shows attached geometry at 1× and exaggerated relief before acceptance |
+| Globe/custom-layer projection or style reload breaks shadows | Camera/style tests restore correct shadow or report pause, never display detached geometry |
+| Long chat session reuses an old location, year, job or artifact | Manifest and confirmed-fact tests keep each reference tied to the intended turn |
+| Partial weather data enters a chart | Null/partial rules, coverage, unit and temporal labels survive REST and browser rendering |
+
+External map tiles have no service-level guarantee. OpenFreeMap states that its
+public instance requires attribution and offers no SLA; Mapterhorn provides a
+Terrarium tile endpoint and source attribution. The browser must stay useful
+when either is unavailable. Building `render_height` is approximate under the
+OpenMapTiles schema; it is never presented as surveyed height. Source references:
+[OpenFreeMap service and attribution](https://openfreemap.org/),
+[OpenMapTiles building schema](https://github.com/openmaptiles/openmaptiles/blob/master/layers/building/building.yaml),
+[Mapterhorn tiles](https://mapterhorn.com/data-access/),
+[Mapterhorn attribution](https://mapterhorn.com/attribution/),
+[MapLibre globe/custom-layer examples](https://maplibre.org/maplibre-gl-js/docs/examples/),
+and [MapLibre's single-model shadow example](https://maplibre.org/maplibre-gl-js/docs/examples/add-a-3d-model-with-shadow-using-threejs/).
+
+## Exclusions and execution gate
+
+No future-weather workflow, historical TMY/XMY synthesis, building-energy or
+PV/shading calculation, scientific use of decorative building geometry,
+arbitrary plot code, public multi-user hosting, mandatory distributed service,
+or reuse of `feature/webui`/Eaui code. The scene's season/time is display-only
+and is not a weather-file transform.
+
+This document is the revised plan for review. Implementation starts only after
+the owner confirms it, and then only on `feature/chat-ui` branched from the
+current `feature/mcp` tip. A material failure to implement real cast shadows
+is a scope issue to report, not permission to substitute hillshade and claim
+the required feature is complete.
