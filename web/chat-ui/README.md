@@ -51,8 +51,9 @@ Node or this UI.
 - A confirmed candidate or typed coordinates are then summarised (name and
   coordinates) with `Approve location`. The message field stays open: a reply
   such as "the one in England" or "no, Somerville" is read as a correction of
-  that location. A new location needs approval again; place lists are fixed by
-  text from their preview instead.
+  that location. A place list is approved the same way (`Approve locations`)
+  and corrected with edits such as "remove 3" or "add Reno". Any change needs
+  approval again.
 - Select a geocoder candidate or type an alternative. `Assess and review plan`
   reads catalog and planning evidence. `Run reviewed plan` starts provider work.
 - The job card shows processed outputs. Download one successful EPW or a compact

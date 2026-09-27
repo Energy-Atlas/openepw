@@ -54,9 +54,11 @@ background; the deep-ocean tint was dropped for equal-RGB greys. Colour was
 then reinstated for the weather-source feature layers only.
 The owner then asked that a single location, whether a chosen geocoder
 candidate or typed coordinates, is summarised for approval before the request
-goes on: the user approves it or types a correction that steers it. Place
-lists keep the earlier decision: they are previewed and corrected by text
-without an approval step.
+goes on: the user approves it or types a correction that steers it. The
+owner then extended this to place lists (superseding the earlier "no
+confirmation" for lists): a previewed list is approved the same way, and text
+edits such as "remove 3" remain the way to correct it. Every change to the
+list or location is approved again.
 
 - Open directly on the full-canvas map. There is **one** chat experience: no
   Guided/Text mode choice, splash selector, or mode switch. Free text and
