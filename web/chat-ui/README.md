@@ -54,6 +54,16 @@ Node or this UI.
   that location. A place list is approved the same way (`Approve locations`)
   and corrected with edits such as "remove 3" or "add Reno". Any change needs
   approval again.
+- The product question lists named products, grouped into actual year and
+  typical year, e.g. `NSRDB actual year · GOES v4`, `NOAA ISD station
+  observations`, `PVGIS TMY 5.3 · SARAH3` or `OneBuilding TMYx.2009-2023`;
+  each names exactly what is downloaded. A typed type or provider ("TMYx",
+  "NSRDB") narrows the list. While it is open the map frames the locations and
+  tags each with the products available there, one pill per product in the
+  colour of its catalog layer. Solid tags are listed in the catalog; outlined
+  tags with `?` are checked when planning. Station products (NOAA, OneBuilding)
+  draw a dashed line, moving away from the location, to the looked-up station,
+  with their tags beside the line. Selecting an option highlights its tags.
 - Select a geocoder candidate or type an alternative. `Assess and review plan`
   reads catalog and planning evidence. `Run reviewed plan` starts provider work.
 - The job card shows processed outputs. Download one successful EPW or a compact

@@ -17,7 +17,7 @@ are recorded separately. Installed source package version: 0.1.0.
 | Place lists and sets | Implemented, offline tested; GeoNames live check | Up to 1,000 names/coordinates previewed without per-place confirmation (ambiguity flagged, misses kept); points-only coordinate parsing; descriptive sets ask region/definition/limit before a GeoNames (CC BY 4.0) population-ordered listing |
 | Source reuse and output identity | Tested 73 requests → 11 verified sources → 73 EPWs | Fetch tasks deduplicate; requested outputs do not collapse |
 | Semantic EPW names | Implemented, offline tested | Location/source/period or future method/scenario/window/member with digest suffix |
-| Multi-dataset planning | Implemented, offline tested | Provider/dataset selection resolves local candidate at each point; unavailable combinations are explicit issues |
+| Multi-dataset planning | Implemented, offline tested | Provider/dataset selection resolves local candidate at each point; an optional `variant` (e.g. `TMYx.2009-2023`) picks that published file family at each point; unavailable combinations are explicit issues |
 | Explicit hybrids | Tested | Named source per variable; exact matching timelines; no missing-data fill |
 | CMIP6 monthly morph | Live full output accepted | Seven-variable coherent signals; default ACCESS-CM2 SSP245 verified |
 | Hourly climate profiles | Live typical, shock, persistence and ten-year ensemble accepted | U.S. PUMA sites, CCSM4/WRF, RCP4.5/8.5 and two exact windows |

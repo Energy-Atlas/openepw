@@ -30,6 +30,7 @@ src/openepw/
   jobs/{store,worker}.py  SQLite item records and bounded worker threads
   api/app.py             REST adapter
   chat/coordinator.py     browser-neutral durable conversation facts and events
+  chat/products.py        named product choices and per-location catalog availability
   mcp/server.py          MCP adapter
   harness/{agent,chat,chat_cli,graph_chat,graph_model,mcp_client,model,rubric,trace}.py  optional reference MCP agent and console
   cli/main.py            argparse adapter

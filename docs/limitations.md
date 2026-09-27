@@ -169,6 +169,16 @@ distant ridges and fine terrain detail; a live browser image is not a calibrated
 shadow validation. The map, terrain, sunlight, and shadows never change EPW,
 QC, availability, or energy-model inputs. See [decision 0004](decisions/0004-map-first-chat-scene.md).
 
+Product choices and their map tags come from the offline Stage 1 catalog
+assessment only. A product "not verified in the catalog" (outlined tag with ?)
+is checked live when planning; NSRDB actual-year and NSRDB TMY records exist
+only at the saved probe points, so elsewhere they show as unverified. Before
+years are given, actual-year availability is shown for the last complete
+year. The station on the map is the catalog's best-ranked station for that
+product; planning re-ranks with the chosen years and may pick another. Tags are
+drawn for the first 25 locations. OneBuilding file families are recognised
+from the published file name.
+
 The initial client is local and single-process. Chat turns use a bounded,
 durable SQLite FIFO with withdrawable waiting entries; other session actions
 still use revision conflicts. The model-assisted parser depends on an optional

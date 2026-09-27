@@ -59,6 +59,12 @@ owner then extended this to place lists (superseding the earlier "no
 confirmation" for lists): a previewed list is approved the same way, and text
 edits such as "remove 3" remain the way to correct it. Every change to the
 list or location is approved again.
+The owner then asked for NSRDB actual-year retrieval, product choices that name
+exactly what is downloaded (no "Other" or "x or y"), and availability on the
+map while the product is chosen: per location, one tag per product in the
+colour of its catalog layer, left aligned, at all zoom levels, with station
+products drawn as a moving dashed line to the looked-up station and their tags
+by the line.
 
 - Open directly on the full-canvas map. There is **one** chat experience: no
   Guided/Text mode choice, splash selector, or mode switch. Free text and
