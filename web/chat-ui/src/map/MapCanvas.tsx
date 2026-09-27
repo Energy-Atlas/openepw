@@ -4,12 +4,14 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
 import { appearanceStyle, applyAppearance, applyLighting, applyScene, scenePitch, type Appearance, type SceneSettings } from './scene'
 import { renderShadows } from './renderShadows'
+import { availabilityFeatures } from './evidence'
+import { solarPosition, utcSceneTime } from './sun'
 import type { WeatherGeography } from '../geography'
-import type { AvailabilitySummary } from '../types'
+import type { AvailabilitySummary, CatalogScopes } from '../types'
 
 const initial: SceneSettings = {
   appearance: 'light', view3d: false, terrain: false, terrainExaggeration: 1,
-  dayOfYear: 172, utcMinutes: 960, lightIntensity: 100, diffusion: 25,
+  ...utcSceneTime(new Date()), lightIntensity: 100, diffusion: 25,
   haze: 20, shadows: true,
 }
 
@@ -20,12 +22,16 @@ const appearances: Array<[Appearance, string]> = [
 
 type MapPoint = { id?: string; name?: string; lat: number; lon: number }
 
-export function MapCanvas({ location, candidates = [], geography, resolvedPoints = [], availability, onPickPoint, onPickCandidate, onPickGeometry }: {
+export function MapCanvas({ location, candidates = [], geography, resolvedPoints = [], availability, catalogScopes,
+  pickMode = false, onExitPickMode, onPickPoint, onPickCandidate, onPickGeometry }: {
   location?: MapPoint | null
   candidates?: MapPoint[]
   geography?: WeatherGeography | null
   resolvedPoints?: MapPoint[]
   availability?: AvailabilitySummary | null
+  catalogScopes?: CatalogScopes | null
+  pickMode?: boolean
+  onExitPickMode?: () => void
   onPickPoint?: (point: MapPoint) => void
   onPickCandidate?: (id: string) => void
   onPickGeometry?: (geography: WeatherGeography) => void
@@ -42,7 +48,7 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
   const scheduleShadowsRef = useRef<() => void>(() => {})
   const [picking, setPicking] = useState(false)
   const [drawMode, setDrawMode] = useState<'polygon' | 'box' | null>(null)
-  const [showEvidence, setShowEvidence] = useState(false)
+  const [sunElevation, setSunElevation] = useState<number | null>(null)
   const [vertices, setVertices] = useState<Array<[number, number]>>([])
   const drawRef = useRef<'polygon' | 'box' | null>(null)
   const verticesRef = useRef<Array<[number, number]>>([])
@@ -50,10 +56,18 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
   const candidateRef = useRef(candidates)
   const pickPointRef = useRef(onPickPoint)
   const pickCandidateRef = useRef(onPickCandidate)
+  const exitPickRef = useRef(onExitPickMode)
 
   useEffect(() => { candidateRef.current = candidates; pickPointRef.current = onPickPoint;
-    pickCandidateRef.current = onPickCandidate; pickGeometryRef.current = onPickGeometry },
-  [candidates, onPickPoint, onPickCandidate, onPickGeometry])
+    pickCandidateRef.current = onPickCandidate; pickGeometryRef.current = onPickGeometry;
+    exitPickRef.current = onExitPickMode },
+  [candidates, onPickPoint, onPickCandidate, onPickGeometry, onExitPickMode])
+
+  useEffect(() => {
+    if (!pickMode) endDraw()
+    setPicking(pickMode)
+    if (map.current) map.current.getCanvas().dataset.picking = String(pickMode)
+  }, [pickMode])
 
   function endDraw() { drawRef.current = null; verticesRef.current = []; setDrawMode(null); setVertices([]) }
   function beginDraw(mode: 'polygon' | 'box') {
@@ -83,6 +97,11 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
       }, 250)
     }
     scheduleShadowsRef.current = scheduleShadows
+    function updateSun(sceneMap: MapLibreMap) {
+      const center = sceneMap.getCenter()
+      setSunElevation(solarPosition(settingsRef.current.dayOfYear, settingsRef.current.utcMinutes,
+        center.lat, center.lng).elevationDeg)
+    }
     void import('maplibre-gl').then(maplibregl => {
       if (cancelled || !host.current) return
       maplibregl.setWorkerUrl(workerUrl)
@@ -101,6 +120,7 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
           sceneMap.jumpTo({ pitch: scenePitch(settingsRef.current) })
           setStyleEpoch(value => value + 1)
           setStatus('Map ready')
+          updateSun(sceneMap)
           scheduleShadows()
           sceneMap.once('idle', () => {
             if (cancelled || !awaitingStyleIdle.current) return
@@ -118,6 +138,7 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
           try { applyLighting(sceneMap, settingsRef.current) }
           catch { setStatus('Scene lighting unavailable; map and chat remain usable.') }
         }
+        updateSun(sceneMap)
         scheduleShadows()
       })
       sceneMap.on('sourcedata', event => {
@@ -133,6 +154,7 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
             pickGeometryRef.current?.({ west: next[0][0], south: Math.min(next[0][1], next[1][1]),
               east: next[1][0], north: Math.max(next[0][1], next[1][1]) })
             endDraw()
+            exitPickRef.current?.()
           }
           return
         }
@@ -147,6 +169,7 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
             lon: ((event.lngLat.lng + 180) % 360 + 360) % 360 - 180 })
           sceneMap.getCanvas().dataset.picking = 'false'
           setPicking(false)
+          exitPickRef.current?.()
         }
       })
       sceneMap.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'bottom-left')
@@ -162,6 +185,8 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
       applyScene(map.current, awaitingStyleIdle.current ? { ...settings, terrain: false } : settings) }
     catch { setStatus('Map scene unavailable; chat and coordinates remain usable.') }
     scheduleShadowsRef.current()
+    const center = map.current.getCenter()
+    setSunElevation(solarPosition(settings.dayOfYear, settings.utcMinutes, center.lat, center.lng).elevationDeg)
   }, [settings])
 
   useEffect(() => {
@@ -248,30 +273,18 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
   useEffect(() => {
     const sceneMap = map.current
     if (!sceneMap?.isStyleLoaded()) return
-    const seen = new Set<string>()
-    const features: GeoJSON.Feature[] = []
-    if (showEvidence) for (const option of availability?.options ?? []) {
-      const footprint = option.footprint
-      if (!footprint) continue
-      const key = `${option.provider}:${footprint.join(',')}`
-      if (seen.has(key) || features.length >= 12) continue
-      seen.add(key)
-      const [west, south, east, north] = footprint
-      if (west >= east || south >= north) continue
-      features.push({ type: 'Feature', properties: { provider: option.provider,
-        status: option.status }, geometry: { type: 'Polygon', coordinates: [[
-        [west, south], [east, south], [east, north], [west, north], [west, south],
-      ]] } })
-    }
-    const data: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features }
+    const data = availabilityFeatures(availability, catalogScopes)
     if (!sceneMap.getSource('openepw-evidence')) {
       sceneMap.addSource('openepw-evidence', { type: 'geojson', data })
-      sceneMap.addLayer({ id: 'openepw-evidence', type: 'line', source: 'openepw-evidence',
-        paint: { 'line-color': '#647782', 'line-width': 2, 'line-dasharray': [2, 2], 'line-opacity': .75 } })
+      sceneMap.addLayer({ id: 'openepw-evidence-fill', type: 'fill', source: 'openepw-evidence',
+        paint: { 'fill-color': ['get', 'color'], 'fill-opacity': .045 } })
+      sceneMap.addLayer({ id: 'openepw-evidence-line', type: 'line', source: 'openepw-evidence',
+        paint: { 'line-color': ['get', 'color'], 'line-width': 1.1,
+          'line-dasharray': [2, 2], 'line-opacity': .34 } })
     } else {
       (sceneMap.getSource('openepw-evidence') as import('maplibre-gl').GeoJSONSource).setData(data)
     }
-  }, [availability, showEvidence, styleEpoch])
+  }, [availability, catalogScopes, styleEpoch])
 
   function setAppearance(appearance: Appearance) {
     awaitingStyleIdle.current = Boolean(settingsRef.current.terrain)
@@ -283,27 +296,13 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
   return <div className="map-canvas" aria-label="Weather map">
     <div ref={host} className="map-engine" aria-hidden="true" />
     <div className="map-brand">OpenEPW <span>Weather across places and years</span></div>
-    <section className="scene-controls" aria-label="Map scene controls">
+    {!pickMode && <section className="scene-controls" aria-label="Map scene controls">
       {status.includes('unavailable') || status.includes('could not load') ?
         <button type="button" onClick={() => map.current?.setStyle(appearanceStyle(settings.appearance))}>Retry map</button> : null}
-      <button type="button" aria-pressed={picking} onClick={() => {
-        setPicking(value => { const next = !value; if (map.current) map.current.getCanvas().dataset.picking = String(next); return next })
-      }}>Choose point</button>
-      <button type="button" aria-pressed={drawMode === 'box'} onClick={() => beginDraw('box')}>
-        Draw box</button>
-      <button type="button" aria-pressed={drawMode === 'polygon'} onClick={() => beginDraw('polygon')}>
-        Draw polygon</button>
-      {availability && <label><input type="checkbox" checked={showEvidence}
-        onChange={event => setShowEvidence(event.target.checked)} /> Source scope outlines</label>}
-      {showEvidence && <p>Dashed outlines are documented source scope, not verified point availability.
-        Selected-point assessment and evidence dates are in the plan review.</p>}
-      {drawMode && <div className="draw-actions"><span>{drawMode === 'box' ? 'Choose opposite corners' : `${vertices.length} vertices`}</span>
-        {drawMode === 'polygon' && <button type="button" disabled={vertices.length < 3} onClick={() => {
-          const ring = [...vertices, vertices[0]]
-          pickGeometryRef.current?.({ type: 'Polygon', coordinates: [ring] })
-          endDraw()
-        }}>Finish polygon</button>}
-        <button type="button" onClick={endDraw}>Cancel drawing</button></div>}
+      <p className="solar-readout">UTC {String(Math.floor(settings.utcMinutes / 60)).padStart(2, '0')}:{String(settings.utcMinutes % 60).padStart(2, '0')}
+        {' '}· day {settings.dayOfYear} · sun {sunElevation === null ? '…' : `${sunElevation.toFixed(0)}°`} at map center</p>
+      <button type="button" onClick={() => change(utcSceneTime(new Date()))}>Now in UTC</button>
+      {(availability || catalogScopes) && <p className="scope-note">Faint colors show documented source scopes, not verified coverage.</p>}
       <button type="button" disabled={!location} onClick={() => {
         change({ view3d: true })
         map.current?.easeTo({ center: [location!.lon, location!.lat], zoom: 15.5, pitch: 50,
@@ -320,9 +319,7 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
         {appearances.map(([value, label]) => <option value={value} key={value}>{label}</option>)}
       </select></label>
       {settings.view3d && <details><summary>Sun and relief</summary>
-        <label>Terrain scale <input type="range" min="1" max="10" value={settings.terrainExaggeration}
-          disabled={!settings.terrain} onChange={event => change({ terrainExaggeration: Number(event.target.value) })} /> {settings.terrainExaggeration}×</label>
-        <label>Day of year <input type="number" min="1" max="365" value={settings.dayOfYear}
+        <label>UTC day of year <input type="number" min="1" max="366" value={settings.dayOfYear}
           onChange={event => change({ dayOfYear: Number(event.target.value) })} /></label>
         <label>UTC time <input type="time" value={`${String(Math.floor(settings.utcMinutes / 60)).padStart(2, '0')}:${String(settings.utcMinutes % 60).padStart(2, '0')}`}
           onChange={event => { const [hours, minutes] = event.target.value.split(':').map(Number); change({ utcMinutes: hours * 60 + minutes }) }} /></label>
@@ -330,6 +327,8 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
           <button type="button" onClick={() => change({ utcMinutes: 960 })}>16:00 UTC</button>
           <button type="button" onClick={() => change({ utcMinutes: 1260 })}>21:00 UTC</button>
           <button type="button" onClick={() => change({ utcMinutes: 120 })}>02:00 UTC</button></div>
+        <label>Terrain scale <input type="range" min="1" max="10" value={settings.terrainExaggeration}
+          disabled={!settings.terrain} onChange={event => change({ terrainExaggeration: Number(event.target.value) })} /> {settings.terrainExaggeration}×</label>
         <label>Light <input type="range" min="0" max="150" value={settings.lightIntensity}
           onChange={event => change({ lightIntensity: Number(event.target.value) })} /> {settings.lightIntensity}%</label>
         <label>Diffusion <input type="range" min="0" max="100" value={settings.diffusion}
@@ -339,7 +338,37 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
         <label><input type="checkbox" checked={settings.shadows} onChange={event => change({ shadows: event.target.checked })} /> Cast shadows</label>
         <p>Scene lighting and buildings are decorative; they do not change weather data or simulations.</p>
       </details>}
-    </section>
+    </section>}
+    {pickMode && <section className="pick-toolbar" role="toolbar" aria-label="Pick geography">
+      <strong>Pick geography</strong>
+      <button type="button" aria-pressed={picking && !drawMode} onClick={() => {
+        endDraw(); setPicking(true)
+        if (map.current) map.current.getCanvas().dataset.picking = 'true'
+      }}>Choose point</button>
+      <button type="button" aria-pressed={drawMode === 'box'} onClick={() => beginDraw('box')}>Draw box</button>
+      <button type="button" aria-pressed={drawMode === 'polygon'} onClick={() => beginDraw('polygon')}>Draw polygon</button>
+      {drawMode && <div className="draw-actions"><span>{drawMode === 'box' ? 'Choose opposite corners' : `${vertices.length} vertices`}</span>
+        {drawMode === 'polygon' && <button type="button" disabled={vertices.length < 3} onClick={() => {
+          const ring = [...vertices, vertices[0]]
+          pickGeometryRef.current?.({ type: 'Polygon', coordinates: [ring] })
+          endDraw()
+          onExitPickMode?.()
+        }}>Finish polygon</button>}
+        <button type="button" onClick={() => { endDraw(); setPicking(true);
+          if (map.current) map.current.getCanvas().dataset.picking = 'true' }}>Reset drawing</button></div>}
+      <button type="button" onClick={onExitPickMode}>Close map input</button>
+    </section>}
+    {(availability || catalogScopes) && <aside className="evidence-legend" aria-label="Data availability scope">
+      <strong>Source scopes</strong>
+      {[...new Map(availabilityFeatures(availability, catalogScopes).features.map(feature => [String(feature.properties?.key),
+        String(feature.properties?.color)])).entries()].map(([key, color]) =>
+        <span key={key}><i style={{ background: color }} />{key}</span>)}
+      {!availabilityFeatures(availability, catalogScopes).features.length &&
+        <small>No documented polygons are available in this map response.</small>}
+      {catalogScopes?.unmapped.length ? <small>{catalogScopes.unmapped.length} source dataset{catalogScopes.unmapped.length === 1 ? '' : 's'} {catalogScopes.unmapped.length === 1 ? 'lacks' : 'lack'} mapped scope.</small> : null}
+      <small>Faint areas are documented scope. Point availability may be unknown.
+        {' '}Checked {(availability?.checked_at ?? catalogScopes?.snapshot?.created_at ?? 'unknown').slice(0, 10)}.</small>
+    </aside>}
     <div className="map-status" role="status">{status}</div>
     {settings.view3d && <div className="shadow-status" role="status">{shadowStatus}</div>}
     <div className="scene-attribution">

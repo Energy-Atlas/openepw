@@ -74,3 +74,11 @@ export type AvailabilitySummary = {
     unknowns: string[]; reasons: string[]; rank?: number | null; occurrence_index: number }>
   issues: Array<{ code: string; message: string }>
 }
+
+export type CatalogScopes = {
+  snapshot: { generation_id: string; created_at: string } | null
+  scopes: Array<{ provider: string; dataset: string; footprint: [number, number, number, number];
+    longitude_convention: '-180_180' | '0_360' | null; evidence_bases: string[];
+    evidence_dates: string[] }>
+  unmapped: Array<{ provider: string; dataset: string }>
+}

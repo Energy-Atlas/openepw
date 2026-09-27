@@ -1,5 +1,13 @@
 export type SolarPosition = { elevationDeg: number; azimuthDeg: number }
 
+/** One UTC instant drives the display scene, independent of browser timezone. */
+export function utcSceneTime(date: Date): { dayOfYear: number; utcMinutes: number } {
+  const start = Date.UTC(date.getUTCFullYear(), 0, 1)
+  const currentDay = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate())
+  return { dayOfYear: Math.round((currentDay - start) / 86_400_000) + 1,
+    utcMinutes: date.getUTCHours() * 60 + date.getUTCMinutes() }
+}
+
 // NOAA fractional-year approximation for display lighting only.
 export function solarPosition(dayOfYear: number, utcMinutes: number, lat: number, lon: number): SolarPosition {
   const rad = Math.PI / 180

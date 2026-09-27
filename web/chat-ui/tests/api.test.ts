@@ -2,6 +2,14 @@ import { describe, expect, it, vi } from 'vitest'
 import { ChatApi } from '../src/api'
 
 describe('chat API client', () => {
+  it('loads read-only catalog scopes for the initial map', async () => {
+    const data = { snapshot: null, scopes: [], unmapped: [] }
+    const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify(data)))
+    const api = new ChatApi('', fetcher)
+    await expect(api.catalogScopes()).resolves.toEqual(data)
+    expect(fetcher).toHaveBeenCalledWith('/v1/catalog/scopes', undefined)
+  })
+
   it('sends a turn with an idempotency key and returns typed errors', async () => {
     const fetcher = vi.fn().mockResolvedValueOnce(new Response(
       JSON.stringify({ code: 'STALE_REVISION', message: 'Use current question' }),

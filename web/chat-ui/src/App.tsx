@@ -5,7 +5,7 @@ import { MapCanvas } from './map/MapCanvas'
 import { geojsonGeography } from './geography'
 import { mergeJobManifests } from './jobs'
 import { ViewPanel } from './views/ViewPanel'
-import type { AvailabilitySummary, JobManifest, JobSnapshot, SessionSnapshot } from './types'
+import type { AvailabilitySummary, CatalogScopes, JobManifest, JobSnapshot, SessionSnapshot } from './types'
 
 const sessionKey = 'openepw-chat-session'
 let openingSession: Promise<SessionSnapshot> | null = null
@@ -15,12 +15,14 @@ function randomKey(): string { return crypto.randomUUID() }
 export function App({ api: suppliedApi }: { api?: ChatApi }) {
   const api = useRef(suppliedApi ?? new ChatApi()).current
   const [session, setSession] = useState<SessionSnapshot | null>(null)
+  const [catalogScopes, setCatalogScopes] = useState<CatalogScopes | null>(null)
   const [sessionAttempt, setSessionAttempt] = useState(0)
   const [job, setJob] = useState<JobSnapshot | null>(null)
   const [manifest, setManifest] = useState<JobManifest | null>(null)
   const [pastJobs, setPastJobs] = useState<JobSnapshot[]>([])
   const [pastManifests, setPastManifests] = useState<Record<string, JobManifest>>({})
   const [message, setMessage] = useState('')
+  const [pickMode, setPickMode] = useState(false)
   const [busy, setBusy] = useState(false)
   const acting = useRef(false)
   const [pendingTurns, setPendingTurns] = useState<Array<{ id: string; text: string }>>([])
@@ -49,6 +51,13 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
     }).catch(() => { if (live) setError('Weather service unavailable. Start the local API to chat.') })
     return () => { live = false }
   }, [sessionAttempt])
+
+  useEffect(() => {
+    let live = true
+    void api.catalogScopes().then(value => { if (live) setCatalogScopes(value) })
+      .catch(() => { if (live) setCatalogScopes(null) })
+    return () => { live = false }
+  }, [api, sessionAttempt])
 
   useEffect(() => {
     if (!session?.job_id) return
@@ -197,6 +206,10 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
   }
 
   const card = session?.active_card
+  const visibleEvents = (session?.events ?? []).filter((event, index, events) =>
+    !(card && index === events.length - 1 &&
+      ((event.type === 'question' && event.text === card.prompt)
+        || (event.type === 'plan' && card.kind === 'plan_review'))))
   const evidence = card?.data?.availability as AvailabilitySummary | undefined
   const chain = [...pastJobs.map(item => ({ job: item, manifest: pastManifests[item.id] ?? null })),
     ...(job ? [{ job, manifest }] : [])]
@@ -215,7 +228,9 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
   }
 
   return <main className="workspace">
-    <MapCanvas location={selected} candidates={candidates}
+    <MapCanvas location={selected} candidates={candidates} pickMode={pickMode}
+      catalogScopes={catalogScopes}
+      onExitPickMode={() => setPickMode(false)}
       geography={session?.facts.geography as import('./geography').WeatherGeography | undefined}
       resolvedPoints={resolvedPoints}
       availability={session?.facts.availability as AvailabilitySummary | undefined}
@@ -226,32 +241,19 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
       <header className="chat-heading">
         <span className="wordmark">OpenEPW</span>
         <span className="chat-subtitle">Weather workspace</span>
-        <label className="upload-control">Upload EPW for analysis
-          <input type="file" accept=".epw,text/plain" disabled={busy} onChange={event => {
-            const file = event.target.files?.[0]
-            if (file) void upload(file)
-            event.target.value = ''
-          }} />
-        </label>
-        <label className="upload-control">Upload GeoJSON area or points
-          <input type="file" accept=".geojson,.json,application/geo+json" disabled={busy} onChange={event => {
-            const file = event.target.files?.[0]
-            if (file) void uploadGeometry(file)
-            event.target.value = ''
-          }} />
-        </label>
       </header>
       <div className="chat-transcript" role="log" aria-live="polite" ref={transcript}>
         <div className="welcome">Where do you need weather?</div>
-        <p className="welcome-hint">Name a place and actual years, choose a point on the map, or upload your own EPW.</p>
-        {session?.events.map(event => <article key={event.id}
-          className={`chat-event ${event.data?.role === 'user' ? 'user-event' : ''}`}>
+        <p className="welcome-hint">Name a place and actual years, choose geography on the map, or attach an EPW.</p>
+        {visibleEvents.map(event => <article key={event.id}
+          className={`chat-event ${event.data?.role === 'user' ? 'user-event' : ''} ${event.type === 'tool' ? 'tool-event' : 'assistant-event'}`}>
           {event.type === 'tool' && <span className="event-kind">Tool · {String(event.data?.tool ?? 'service')} · {String(event.data?.phase ?? '')}</span>}
           {event.type === 'message' && <span className="event-kind">{event.data?.role === 'user' ? 'You' : 'Agent'}</span>}
-          {event.type === 'plan' && <span className="event-kind">Plan</span>}
+          {event.type === 'plan' && <span className="event-kind">Plan review</span>}
           {event.text && <p>{event.text}</p>}
         </article>)}
         {card && <section className="action-card" aria-label="Current question">
+          <span className="event-kind">Agent</span>
           <h2>{card.prompt}</h2>
           {card.kind === 'choice' && <div className="choice-list">
             {card.options?.map(option => <button key={option.id} disabled={busy} type="button"
@@ -365,6 +367,21 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
       <form className="composer" onSubmit={send}>
         <label htmlFor="chat-message">Message</label>
         <div className="composer-row">
+          <label className="attach-control" title="Attach EPW or GeoJSON">
+            <span aria-hidden="true">+</span>
+            <input type="file" aria-label="Attach EPW or GeoJSON" accept=".epw,.geojson,.json,text/plain,application/geo+json"
+              disabled={busy || !session} onChange={event => {
+                const file = event.target.files?.[0]
+                if (file) {
+                  if (/\.epw$/i.test(file.name)) void upload(file)
+                  else if (/\.(geojson|json)$/i.test(file.name)) void uploadGeometry(file)
+                  else setError('Attach an EPW or GeoJSON file.')
+                }
+                event.target.value = ''
+              }} />
+          </label>
+          <button className="map-input-trigger" type="button" aria-label="Pick geography on map" aria-pressed={pickMode}
+            onClick={() => setPickMode(current => !current)}>Map</button>
           <input id="chat-message" name="message" placeholder="Place, years, and weather type"
             value={message} onChange={event => setMessage(event.target.value)} />
           <button type="submit" disabled={!session}>Send</button>
