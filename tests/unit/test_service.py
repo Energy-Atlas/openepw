@@ -362,3 +362,29 @@ def test_fractional_hour_request_fails_before_network(tmp_path):
     with pytest.raises(OpenEPWError) as exc:
         service.plan(r)
     assert exc.value.issue.code == "UNSUPPORTED_TIMEZONE"
+
+
+def test_a_selection_variant_picks_that_published_file_at_each_point(tmp_path):
+    from test_batch import StationProvider
+
+    from openepw.models import DatasetSelection
+
+    class Published(StationProvider):
+        def discover(self, request, location, http):
+            base = super().discover(request, location, http)[0]
+            return [base.model_copy(update={"id": f"{name}:{location.key}", "product_id": f"USA_X_{name}.zip"})
+                    for name in ("Site.1_TMYx", "Site.1_TMYx.2009-2023", "Site.1_TMY3")]
+
+    assert DatasetSelection(provider="station", dataset="synthetic").model_dump(mode="json") == {
+        "provider": "station", "dataset": "synthetic", "product_id": None}   # identities unchanged
+    service = WeatherService(RuntimeConfig(data_root=tmp_path), providers=[Published()])
+    request = WeatherRequest(locations=[Location(lat=1, lon=0), Location(lat=2, lon=0)],
+                             start="2024-01-01", end="2024-01-01",
+                             dataset_selections=[{"provider": "station", "dataset": "synthetic",
+                                                  "variant": "TMYx.2009-2023"}])
+    plan = service.plan(request)
+    assert len(plan.outputs) == 2 and not plan.issues
+    assert [task.parameters["product_id"] for task in plan.tasks] == ["USA_X_Site.1_TMYx.2009-2023.zip"] * 2
+    missing = service.plan(request.model_copy(update={"dataset_selections": [
+        DatasetSelection(provider="station", dataset="synthetic", variant="TMY2")]}))
+    assert {issue.code for issue in missing.issues} == {"DATASET_UNAVAILABLE"}

@@ -8,7 +8,7 @@ import math
 from datetime import date, datetime, timezone
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, computed_field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, computed_field, model_serializer, model_validator
 
 
 def utcnow() -> str:
@@ -114,6 +114,31 @@ class DatasetSelection(Model):
     provider: str = Field(min_length=1)
     dataset: str = Field(min_length=1)
     product_id: str | None = None
+    # A published-file family such as "TMYx.2009-2023", resolved to each point's own file.
+    variant: str | None = Field(default=None, min_length=1, max_length=64)
+
+    @model_serializer(mode="wrap")
+    def _omit_unset_variant(self, handler):
+        # Unset variants stay out of dumps so existing plan hashes and identities do not change.
+        data = handler(self)
+        if isinstance(data, dict) and data.get("variant") is None:
+            data.pop("variant", None)
+        return data
+
+    def matches(self, provider: str, dataset: str, product_id: str | None) -> bool:
+        if (provider, dataset) != (self.provider, self.dataset):
+            return False
+        if self.product_id is not None and product_id != self.product_id:
+            return False
+        return self.variant is None or published_variant(product_id) == self.variant
+
+
+def published_variant(product_id: str | None) -> str | None:
+    """The file family of a published EPW archive name, e.g. TMYx.2009-2023 from ..._TMYx.2009-2023.zip."""
+    name = (product_id or "").rsplit("/", 1)[-1]
+    if not name.endswith(".zip") or "_" not in name:
+        return None
+    return name[:-4].rsplit("_", 1)[-1] or None
 
 
 class WeatherRequest(Model):
@@ -189,7 +214,7 @@ class WeatherRequest(Model):
         if self.skip_feb_29:
             if self.product not in ("historical", "amy") or not self.years:
                 raise ValueError("skip_feb_29 requires an actual-year historical or AMY request")
-        selections = [(s.provider, s.dataset, s.product_id) for s in self.dataset_selections]
+        selections = [(s.provider, s.dataset, s.product_id, s.variant) for s in self.dataset_selections]
         if len(selections) != len(set(selections)):
             raise ValueError("Duplicate dataset selection")
         if self.dataset_selections and self.hybrid_policy.enabled:

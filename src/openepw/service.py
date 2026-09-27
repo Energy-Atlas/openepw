@@ -596,11 +596,7 @@ class WeatherService:
                         (
                             c
                             for c in ordered
-                            if c.source.provider == selection.provider
-                            and c.source.dataset == selection.dataset
-                            and (
-                                selection.product_id is None or c.product_id == selection.product_id
-                            )
+                            if selection.matches(c.source.provider, c.source.dataset, c.product_id)
                         ),
                         None,
                     )
