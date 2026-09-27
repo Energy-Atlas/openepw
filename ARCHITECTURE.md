@@ -46,6 +46,12 @@ map rendering contain no weather aggregation. See the
 [scene decision](docs/decisions/0004-map-first-chat-scene.md) and
 [local setup](web/chat-ui/README.md).
 
+The read-only `/v1/catalog/scopes` route exposes documented product footprints
+from the active local catalog for the initial map. It also reports products
+without mappable footprints; the browser never turns missing geometry into an
+availability polygon. The scene uses one UTC day/time and recomputes local sun
+angle from the camera center during map interaction.
+
 The proposed fine-grained models/geocoding/cache modules were consolidated where
 small functions/classes suffice. There are no separate REST/MCP weather algorithms.
 Visualization calculations and the finite family catalog live in the shared

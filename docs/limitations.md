@@ -156,6 +156,12 @@ verified point eligibility or weather completeness. Source assessment remains
 read-only until the user runs a reviewed plan. Sessions and artifacts remain in
 the local data root; the browser retains only a session ID.
 
+The initial availability display draws only product footprints explicitly
+stored in the active catalog. The current local catalog has mappable CDS
+footprints in 0–360 longitude and many products with no mapped scope. The map
+normalizes those rectangles for display and counts unmapped source datasets.
+Faint scope color does not imply a source is usable at every point or year.
+
 Decorative building heights are derived from public vector map fields or a
 fallback. Projected building and roof shadows and sampled DEM relief occlusion
 are approximate, bounded visual context. They omit vertical facade occlusion,
