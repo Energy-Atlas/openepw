@@ -29,10 +29,22 @@ src/openepw/
   visualization/{catalog,models,engine,store}.py  weather view semantics and immutable JSON
   jobs/{store,worker}.py  SQLite item records and bounded worker threads
   api/app.py             REST adapter
+  chat/coordinator.py     browser-neutral durable conversation facts and events
   mcp/server.py          MCP adapter
   harness/{agent,chat,chat_cli,graph_chat,graph_model,mcp_client,model,rubric,trace}.py  optional reference MCP agent and console
   cli/main.py            argparse adapter
 ```
+
+The optional `web/chat-ui` build uses the REST adapter and does not enter the
+Python package dependency graph. It keeps a server-side SQLite session with
+confirmed request facts, revisions, idempotent actions, a bounded durable
+turn queue, and a redacted event
+transcript. A read-only assessment and stored weather plan precede an explicit
+Run action. Browser view requests reference artifacts from the current job or
+registered user upload and call the shared visualization service; chart and
+map rendering contain no weather aggregation. See the
+[scene decision](docs/decisions/0004-map-first-chat-scene.md) and
+[local setup](web/chat-ui/README.md).
 
 The proposed fine-grained models/geocoding/cache modules were consolidated where
 small functions/classes suffice. There are no separate REST/MCP weather algorithms.

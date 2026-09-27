@@ -33,15 +33,18 @@ are recorded separately. Installed source package version: 0.1.0.
 | Registered future baselines | MCP Stage 3b implemented, offline tested | Uploaded or trusted local EPW and fetched weather artifact IDs; annual/missing-variable preflight, checksum-linked source manifest/QC |
 | Durable future members | MCP Stage 3b implemented, offline tested | Stored future plan hashes, member-level jobs, partial retry and cancellation; monthly morph and hourly climate profile remain distinct |
 | Local MCP contract | MCP Stage 4 implemented, offline tested; future endpoints temporarily suspended | Real stdio SDK sessions, structured weather tools, stored plan hashes, bounded generic EPW upload, verified artifacts/resources and QC; existing future records remain readable; no remote auth rollout |
-| Weather visualization JSON | Initial families implemented, offline tested | Framework-neutral spec and immutable paged data for hourly, annual, monthly, histogram and spatial views; complete planned family catalog; basic `openepw-chat` follow-ups use completed artifacts and return JSON; no chart renderer |
+| Weather visualization JSON | Initial families implemented, offline tested | Framework-neutral spec and immutable paged data for hourly, annual, monthly, histogram and spatial views; complete planned family catalog; basic `openepw-chat` follow-ups return JSON, while the optional browser renders charts |
 | Reference MCP agent | MCP Stage 5 implemented, offline and bounded live tested | Optional direct stdio harness; typed low-cost model intent, plan review, job resume and QC explanations; local redacted records, no LangSmith trace |
 | Interactive console chat | Implemented; checkpointed flow offline tested, extraction live smoke tested | LangGraph SQLite conversation memory, LangChain multi-intent extraction, arrow-key location/product choices with Other/text fallback and one actual-year (AMY/historical) choice, read-only catalog exploration; automatic weather plan execution with an in-place output progress bar, structured redacted MCP call/result/error messages, and Ctrl+C cancellation, EPW upload/inspect/save, future request suspension, optional LangSmith traces; one writer per data root/thread; existing ignored `.env` read only |
+| Map-first browser chat | Implemented on `feature/chat-ui` for local review | Optional React/Vite client over shared REST: durable session facts, explicit plan/Run, map geography, catalog scope, manifest mapping, one/all browser downloads, user EPW upload and floating prepared-data charts; see [validation](docs/validation/2026-09-26-chat-ui.md) |
+| Globe and decorative scene shadows | Bounded renderer implemented for local review | OpenFreeMap globe/buildings, Mapterhorn terrain, six appearances, projected building ground/roof shadows and sampled relief occlusion; vector heights/DEM grid are approximations and never energy-model inputs |
 | Agent and real-client local pilot | MCP Stage 6 accepted on Windows | Real SDK stdio journeys and bounded Open-Meteo/OneBuilding runs; no human participant, other desktop host or EnergyPlus certification |
 | Local availability map | Research artifact, outside installed package | [PVGIS source-region approximation, NSRDB published grid, CMIP6 license counts](docs/validation/README.md); layers have different evidence bases and do not certify request eligibility |
 | Packaging/CI | Wheel/sdist built; local installation verified | Cross-OS runners configured; see actual run evidence |
 
 Reserved: sampled/stochastic weather, additional hourly scenarios/geographies,
 GHCNh successor adapter, automatic global OneBuilding proximity catalog, simulator
-certification. No historical TMY/XMY generator or distributed service. An approved
-web UI is under development on `feature/webui`; it is not yet part of `main`.
+certification. No historical TMY/XMY generator or distributed service. The
+separate `feature/webui` branch remains independent; `feature/chat-ui` is not
+merged into `feature/mcp` or `main`.
 See [limitations](docs/limitations.md) for exact reduced capabilities and follow-ups.

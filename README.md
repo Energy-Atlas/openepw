@@ -99,6 +99,12 @@ openepw mcp --transport streamable-http  # loopback HTTP, port 8001
 The CLI prints a framework-neutral JSON spec and first data page; `view-page`
 prints later prepared-data rows. It does not render charts.
 
+An optional [map-first browser chat](web/chat-ui/README.md) runs against the
+same local REST service. It keeps a full-canvas globe behind a fixed guided
+chat and floating prepared-data charts. Browser downloads transfer verified
+server artifacts to the user's disk. Map buildings, terrain, sunlight, and
+cast shadows are decorative approximations; they do not change EPW or QC.
+
 REST exposes discovery/planning, durable SQLite jobs, cancellation, bounded EPW
 uploads and verified artifact downloads. Remote REST requires `OPENEPW_BEARER_TOKEN`.
 Use one server process per data root. MCP exposes bounded availability, plan,

@@ -146,3 +146,27 @@ Raw data and downloaded climate subsets are local caches, not licensed public
 redistribution. Cache reuse is checksummed; provider versioned URLs can still change
 upstream before first retrieval. Plans are reproducible instructions, not a promise
 that an uncached external source can never change.
+
+## Map-first local browser client
+
+`feature/chat-ui` adds an optional local browser client. Its MapLibre scene uses
+public OpenFreeMap and Mapterhorn tiles, so a tile outage can leave only chat and
+coordinate entry. Source scope outlines show documented evidence extents, not
+verified point eligibility or weather completeness. Source assessment remains
+read-only until the user runs a reviewed plan. Sessions and artifacts remain in
+the local data root; the browser retains only a session ID.
+
+Decorative building heights are derived from public vector map fields or a
+fallback. Projected building and roof shadows and sampled DEM relief occlusion
+are approximate, bounded visual context. They omit vertical facade occlusion,
+distant ridges and fine terrain detail; a live browser image is not a calibrated
+shadow validation. The map, terrain, sunlight, and shadows never change EPW,
+QC, availability, or energy-model inputs. See [decision 0004](decisions/0004-map-first-chat-scene.md).
+
+The initial client is local and single-process. Chat turns use a bounded,
+durable SQLite FIFO with withdrawable waiting entries; other session actions
+still use revision conflicts. The model-assisted parser depends on an optional
+local credential and falls back to a narrower offline parser. A single hourly
+view up to 10,000 rows loads all pages for plotting; larger or other paged views
+state how many rows are plotted and offer `Load more`. No future-weather UI
+flow is exposed.

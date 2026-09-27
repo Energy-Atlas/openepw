@@ -425,8 +425,8 @@ arbitrary plot code, public multi-user hosting, mandatory distributed service,
 or reuse of `feature/webui`/Eaui code. The scene's season/time is display-only
 and is not a weather-file transform.
 
-This document is the revised plan for review. Implementation starts only after
-the owner confirms it, and then only on `feature/chat-ui` branched from the
-current `feature/mcp` tip. A material failure to implement real cast shadows
-is a scope issue to report, not permission to substitute hillshade and claim
-the required feature is complete.
+The owner approved implementation on 2026-09-26. Work on `feature/chat-ui`
+began from `feature/mcp` commit `516e0ed`. The local implementation and
+remaining acceptance limits are recorded in the [validation record](../validation/2026-09-26-chat-ui.md)
+and [scene decision](../decisions/0004-map-first-chat-scene.md). Integration into
+another branch and publication are separate decisions.
