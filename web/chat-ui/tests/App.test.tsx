@@ -82,6 +82,8 @@ describe('map-first shell', () => {
     fireEvent.click(option)
     expect(answer).not.toHaveBeenCalled()
     expect(option).toHaveAttribute('aria-pressed', 'true')
+    expect(option.closest('.option-row')).not.toBeNull()
+    expect(screen.getByRole('button', { name: 'Confirm' }).closest('.option-row')).toBe(option.closest('.option-row'))
     fireEvent.click(screen.getByRole('button', { name: 'Confirm' }))
     await waitFor(() => expect(answer).toHaveBeenCalledWith('test', 3, 'uk', expect.any(String)))
   })
@@ -95,13 +97,28 @@ describe('map-first shell', () => {
     expect(screen.queryByRole('button', { name: 'Send' })).not.toBeInTheDocument()
   })
 
-  it('still answers ordinary choices immediately', async () => {
+  it('asks for the tick beside a weather product before answering', async () => {
     const state = cardState({ id: 'product', revision: 2, kind: 'choice', prompt: 'Which weather product?',
-      options: [{ id: 'historical', label: 'Actual-year weather' }] })
+      options: [{ id: 'historical', label: 'Actual-year weather' }, { id: 'tmy', label: 'TMY reference' }] })
     const answer = vi.fn().mockResolvedValue({ ...state, active_card: null })
     render(<App api={{ ...apiFor(state), answer } as unknown as ChatApi} />)
-    fireEvent.click(await screen.findByRole('button', { name: 'Actual-year weather' }))
-    await waitFor(() => expect(answer).toHaveBeenCalledWith('test', 2, 'historical', expect.any(String)))
+    const option = await screen.findByRole('button', { name: /TMY reference/ })
+    fireEvent.click(option)
+    expect(answer).not.toHaveBeenCalled()
+    const tick = screen.getByRole('button', { name: 'Confirm' })
+    expect(option.closest('.option-row')).not.toBeNull()
+    expect(tick.closest('.option-row')).toBe(option.closest('.option-row'))   // right beside the choice
+    fireEvent.click(tick)
+    await waitFor(() => expect(answer).toHaveBeenCalledWith('test', 2, 'tmy', expect.any(String)))
+  })
+
+  it('still answers other choices immediately', async () => {
+    const state = cardState({ id: 'limit', revision: 2, kind: 'choice', prompt: 'How many at most?',
+      options: [{ id: 'place:1', label: '10' }], data: { field: 'limit', place_answers: { 'place:1': 'top 10' } } })
+    const answer = vi.fn().mockResolvedValue({ ...state, active_card: null })
+    render(<App api={{ ...apiFor(state), answer } as unknown as ChatApi} />)
+    fireEvent.click(await screen.findByRole('button', { name: '10' }))
+    await waitFor(() => expect(answer).toHaveBeenCalledWith('test', 2, 'place:1', expect.any(String)))
   })
 
   it('shows the current choice once as an agent turn', async () => {

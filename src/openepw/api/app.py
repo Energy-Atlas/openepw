@@ -213,8 +213,8 @@ def create_app(service=None, *, remote=False, chat_parser=None):
                                   payload.idempotency_key)
 
     @app.post("/v1/chat/sessions/{session_id}/back")
-    def chat_back(session_id: str, payload: ChatAction):
-        return chat.back(session_id, payload.revision, payload.idempotency_key)
+    def chat_back(session_id: str, payload: ChatAction, to_event: int | None = None):
+        return chat.back(session_id, payload.revision, payload.idempotency_key, to_event)
 
     @app.post("/v1/chat/sessions/{session_id}/prepare")
     def chat_prepare(session_id: str, payload: ChatAction):

@@ -10,7 +10,7 @@ import { MAP_PALETTE, SHAPE_IMAGES, STATION_LABEL_ZOOM, catalogFeatures, catalog
 import { calloutEnd, placeLabels, type LabelInput, type PlacedLabel } from './labels'
 import { utcSceneTime } from './sun'
 import { THEME } from '../theme'
-import { TickIcon } from '../icons'
+import { MinimizeIcon, TickIcon } from '../icons'
 import type { WeatherGeography } from '../geography'
 import type { AvailabilitySummary, CatalogLayer, CatalogMap } from '../types'
 
@@ -29,7 +29,7 @@ function styleParsed(map: MapLibreMap | null): map is MapLibreMap {
 
 export function MapCanvas({ location, candidates = [], geography, resolvedPoints = [], availability, catalogMap, years = [],
   pickMode = false, onExitPickMode, onPickPoint, onPickCandidate, onPickGeometry,
-  pendingCandidate = null, onConfirmCandidate, onClearCandidate }: {
+  pendingCandidate = null, onConfirmCandidate }: {
   location?: MapPoint | null
   candidates?: MapPoint[]
   geography?: WeatherGeography | null
@@ -44,7 +44,6 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
   onPickGeometry?: (geography: WeatherGeography) => void
   pendingCandidate?: string | null
   onConfirmCandidate?: (id: string) => void
-  onClearCandidate?: () => void
 }) {
   const host = useRef<HTMLDivElement>(null)
   const map = useRef<MapLibreMap | null>(null)
@@ -60,6 +59,7 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
   const [hiddenLayers, setHiddenLayers] = useState<string[]>([])
   const [labels, setLabels] = useState<PlacedLabel[]>([])
   const updateLabels = useRef<() => void>(() => {})
+  const restorePopup = useRef<() => void>(() => {})
   const [drawMode, setDrawMode] = useState<'polygon' | 'box' | null>(null)
   const [vertices, setVertices] = useState<Array<[number, number]>>([])
   const drawRef = useRef<'polygon' | 'box' | null>(null)
@@ -179,6 +179,7 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
           ? sceneMap.queryRenderedFeatures(event.point, { layers: ['openepw-candidates'] }) : []
         if (hit.length && typeof hit[0].properties?.id === 'string') {
           pickCandidateRef.current?.(hit[0].properties.id)
+          restorePopup.current()
           return
         }
         if (sceneMap.getCanvas().dataset.picking === 'true') {
@@ -255,6 +256,10 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
   }, [pending?.id, pending?.lat, pending?.lon])
 
   const [popupAt, setPopupAt] = useState<{ x: number; y: number } | null>(null)
+  // Minimizing hides the popup but keeps the selection; picking the marker again restores it.
+  const [popupMinimized, setPopupMinimized] = useState(false)
+  useEffect(() => setPopupMinimized(false), [pendingCandidate])
+  restorePopup.current = () => setPopupMinimized(false)
   useEffect(() => {
     const sceneMap = map.current
     if (!sceneMap || !pending) { setPopupAt(null); return }
@@ -458,11 +463,12 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
       {labels.map(label => <span key={label.id} className="station-label"
         style={{ left: label.x, top: label.y, width: label.width, background: label.color }}>{label.text}</span>)}
     </div>}
-    {pending && popupAt && <div className="candidate-popup" role="dialog" aria-label="Selected location"
+    {pending && popupAt && !popupMinimized && <div className="candidate-popup" role="dialog" aria-label="Selected location"
       style={{ left: popupAt.x, top: popupAt.y }}>
-      <button type="button" className="popup-close" aria-label="Clear selection" onClick={onClearCandidate}>×</button>
       <span className="option-number" aria-hidden="true">{pending.number}</span>
       <strong>{pending.name}</strong>
+      <button type="button" className="popup-minimize" aria-label="Minimize" title="Minimize"
+        onClick={() => setPopupMinimized(true)}><MinimizeIcon /></button>
       <code>{pending.lat.toFixed(4)}, {pending.lon.toFixed(4)}</code>
       <button type="button" className="popup-confirm" aria-label="Confirm" title="Confirm"
         onClick={() => pending.id && onConfirmCandidate?.(pending.id)}><TickIcon /></button>

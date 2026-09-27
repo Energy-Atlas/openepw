@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CatalogMap } from '../src/types'
 
@@ -113,8 +113,13 @@ describe('map canvas overlays', () => {
     map.inView = false
     rerender(<MapCanvas candidates={candidates} pendingCandidate="ma" onConfirmCandidate={confirm} />)
     await waitFor(() => expect(map.flyTo).toHaveBeenCalledWith(expect.objectContaining({ center: [-71.11, 42.37] })))
-    fireEvent.click(screen.getByRole('button', { name: 'Confirm' }))
+    const popup2 = screen.getByRole('dialog', { name: 'Selected location' })
+    const minimize = within(popup2).getByRole('button', { name: 'Minimize' })
+    expect(minimize.textContent).toBe('')
+    fireEvent.click(within(popup2).getByRole('button', { name: 'Confirm' }))
     expect(confirm).toHaveBeenCalledWith('ma')
+    fireEvent.click(minimize)
+    expect(screen.queryByRole('dialog', { name: 'Selected location' })).not.toBeInTheDocument()
   })
 
   it('numbers previewed place points to match the chat list', async () => {

@@ -39,8 +39,9 @@ export class ChatApi {
       { revision, idempotency_key: key })
   }
 
-  back(id: string, revision: number, key: string): Promise<SessionSnapshot> {
-    return this.request(`/v1/chat/sessions/${encodeURIComponent(id)}/back`,
+  back(id: string, revision: number, key: string, toEvent?: number): Promise<SessionSnapshot> {
+    const target = toEvent === undefined ? '' : `?to_event=${encodeURIComponent(toEvent)}`
+    return this.request(`/v1/chat/sessions/${encodeURIComponent(id)}/back${target}`,
       { revision, idempotency_key: key })
   }
 

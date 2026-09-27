@@ -95,13 +95,19 @@ describe('chat dock and controls', () => {
     expect(within(screen.getByRole('log')).getAllByRole('listitem')).toHaveLength(2)
   })
 
-  it('can start over with a new session and go back one step', async () => {
-    const current = state({ id: 'y', revision: 5, kind: 'text', prompt: 'Which actual year or years?' })
+  it('rolls back from an earlier agent message and can start over', async () => {
+    const current = state({ id: 'y', revision: 5, kind: 'text', prompt: 'Which actual year or years?' }, { events: [
+      { id: 1, type: 'question', text: 'Which weather product?' },
+      { id: 2, type: 'message', text: 'Actual-year weather', data: { role: 'user' } },
+      { id: 3, type: 'question', text: 'Which actual year or years?' }] })
     const back = vi.fn(async () => ({ ...current, revision: 6, active_card: null }))
     const client = api(current, { back })
     render(<App api={client} />)
-    fireEvent.click(await screen.findByRole('button', { name: 'Go back one step' }))
-    await waitFor(() => expect(back).toHaveBeenCalledWith('test', 5, expect.any(String)))
+    expect(screen.queryByRole('button', { name: 'Go back one step' })).not.toBeInTheDocument()
+    const earlier = (await screen.findByText('Which weather product?')).closest('article')!
+    expect(within(screen.getByRole('log')).getAllByRole('button', { name: 'Roll back to here' })).toHaveLength(1)
+    fireEvent.click(within(earlier).getByRole('button', { name: 'Roll back to here' }))
+    await waitFor(() => expect(back).toHaveBeenCalledWith('test', 5, expect.any(String), 1))
     fireEvent.click(screen.getByRole('button', { name: 'Start over' }))
     await waitFor(() => expect(client.create).toHaveBeenCalledTimes(2))
   })

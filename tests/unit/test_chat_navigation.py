@@ -62,3 +62,17 @@ def test_plan_summary_is_a_markdown_bullet_per_planned_download():
         "- **Boston, Massachusetts, United States** · 2018 · openmeteo/era5 · planned",
         "- **39.7400, -104.9800** · 2018 · no source · unsupported (NO_SOURCE)",
     ]
+
+
+def test_roll_back_to_an_agent_message_undoes_every_later_step(tmp_path):
+    chat = ChatCoordinator(Service(), parser=Parser(), path=tmp_path / "chat.sqlite")
+    state = chat.create()
+    first = chat.turn(state["id"], "Historical Cambridge, MA 2012–2014", 0, "one")
+    question = next(event for event in first["events"] if event["type"] == "question")
+    chosen = chat.answer(state["id"], first["active_card"]["revision"], "cambridge", "two")
+    later = chat.turn(state["id"], "2016", chosen["revision"], "three")
+    rolled = chat.back(state["id"], later["revision"], "four", to_event=question["id"])
+    assert rolled["events"] == first["events"] and rolled["facts"] == first["facts"]
+    assert rolled["revision"] == later["revision"] + 1
+    with pytest.raises(ChatActionError):
+        chat.back(state["id"], rolled["revision"], "five", to_event=999)

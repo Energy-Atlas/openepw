@@ -117,11 +117,13 @@ button { cursor: pointer; }
 .station-callouts { position: absolute; inset: 0; }
 .station-callouts line { stroke-width: 1; stroke-linecap: round; opacity: .85; }
 .station-label { position: absolute; box-sizing: border-box; height: 17px; padding: 0 8px; border-radius: 999px; color: var(--oe-paper); font: 500 10px/17px 'Geist', system-ui, sans-serif; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; box-shadow: 0 1px 2px color-mix(in srgb, var(--oe-ink) 25%, transparent); }
-.candidate-popup { position: absolute; z-index: 4; transform: translate(-50%, calc(-100% - 18px)); display: grid; grid-template-columns: auto 1fr; align-items: center; gap: .25rem .5rem; min-width: 12rem; max-width: 18rem; padding: .6rem .7rem; border-radius: 12px; background: var(--oe-paper); color: var(--oe-ink); box-shadow: var(--oe-shadow); font-size: .8rem; }
+.candidate-popup { position: absolute; z-index: 4; transform: translate(-50%, calc(-100% - 18px)); display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: .25rem .5rem; min-width: 12rem; max-width: 18rem; padding: .6rem .7rem; border-radius: 12px; background: var(--oe-paper); color: var(--oe-ink); box-shadow: var(--oe-shadow); font-size: .8rem; }
 .candidate-popup::after { content: ''; position: absolute; left: 50%; bottom: -6px; width: 12px; height: 12px; background: var(--oe-paper); transform: translateX(-50%) rotate(45deg); }
-.candidate-popup code { grid-column: 2; color: var(--oe-muted); font: .72rem 'IBM Plex Mono', monospace; }
-.candidate-popup .popup-confirm { display: grid; place-items: center; grid-column: 1 / -1; margin-top: .3rem; padding: .45rem .7rem; border: 0; border-radius: 999px; background: var(--oe-ink); color: var(--oe-paper); font-weight: 600; }
-.candidate-popup .popup-close { position: absolute; top: .2rem; right: .35rem; border: 0; background: transparent; color: var(--oe-muted); font-size: 1rem; line-height: 1; }
+.candidate-popup code { grid-column: 2; grid-row: 2; color: var(--oe-muted); font: .72rem 'IBM Plex Mono', monospace; }
+.candidate-popup .popup-confirm { grid-column: 3; grid-row: 2; display: grid; place-items: center; width: 2rem; height: 2rem; padding: 0; border: 0; border-radius: 50%; background: var(--oe-ink); color: var(--oe-paper); }
+/* The minimize control has its own grid column so it never covers the place name. */
+.candidate-popup .popup-minimize { grid-column: 3; grid-row: 1; justify-self: end; display: grid; place-items: center; width: 1.5rem; height: 1.5rem; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--oe-muted); }
+.candidate-popup .popup-minimize:hover { background: var(--oe-l1); color: var(--oe-ink); }
 .reply-options .attach-control { width: 2.2rem; height: 2.2rem; border: 0; border-radius: 999px; box-shadow: var(--oe-shadow); }
 .composer .reply-alt { background: color-mix(in srgb, var(--oe-paper) 92%, transparent); color: var(--oe-l6); font-weight: 500; }
 .composer > .reply-alt { display: block; margin: .4rem 0 0 auto; padding: .3rem .7rem; font-size: .74rem; }
@@ -142,3 +144,13 @@ button { cursor: pointer; }
 .view-content pre { max-height: 170px; overflow: auto; font-size: .63rem; }
 :focus-visible { outline: 3px solid var(--oe-ink); outline-offset: 2px; }
 @media (max-width: 650px) { .chat-rail { top: auto; left: .6rem; right: .6rem; bottom: .6rem; width: auto; height: min(42dvh, 340px); } .pick-toolbar { left: .6rem; top: .6rem; } .evidence-legend { left: .6rem; bottom: calc(min(42dvh, 340px) + 6.4rem); max-width: 45vw; max-height: 100px; } .map-status { left: .6rem; bottom: calc(min(42dvh, 340px) + 2.6rem); } .shadow-status { left: .6rem; bottom: calc(min(42dvh, 340px) + 4.4rem); } .scene-attribution { left: .6rem; bottom: calc(min(42dvh, 340px) + 1rem); } .view-panel { max-width: calc(100vw - 1.2rem); max-height: 45dvh; } }
+/* Rollback appears beside an earlier agent message on hover or keyboard focus. */
+.chat-event { position: relative; }
+.chat-event .rollback { position: absolute; top: 50%; right: -1.9rem; transform: translateY(-50%); display: grid; place-items: center; width: 1.6rem; height: 1.6rem; padding: 0; border: 0; border-radius: 50%; background: var(--oe-paper); color: var(--oe-ink); box-shadow: var(--oe-shadow); opacity: 0; pointer-events: none; transition: opacity .15s ease; }
+.chat-event:hover .rollback, .chat-event:focus-within .rollback { opacity: 1; pointer-events: auto; }
+.chat-event .rollback svg { width: 14px; height: 14px; }
+/* A selected option gets its confirm tick alongside, which slides in and nudges the option aside. */
+.reply-options .option-row { display: inline-flex; align-items: center; gap: .35rem; }
+.reply-options .option-tick { display: grid; place-items: center; flex: none; width: 2.25rem; max-width: 2.25rem; height: 2.25rem; min-height: 0; padding: 0; border-radius: 50%; overflow: hidden; background: var(--oe-ink); color: var(--oe-paper); animation: option-tick-in .22s ease-out; }
+@keyframes option-tick-in { from { max-width: 0; opacity: 0; transform: scale(.5); margin-left: -.35rem; } to { max-width: 2.25rem; opacity: 1; transform: scale(1); margin-left: 0; } }
+@media (prefers-reduced-motion: reduce) { .reply-options .option-tick { animation: none; } .chat-event .rollback { transition: none; } }

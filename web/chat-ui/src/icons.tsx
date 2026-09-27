@@ -32,3 +32,8 @@ export function ToolIcon() {
     <path d="M14.7 6.3a4 4 0 0 0-5.4 5.1L3.6 17.1a1.8 1.8 0 0 0 2.5 2.5l5.7-5.7a4 4 0 0 0 5.1-5.4l-2.4 2.4-2.3-.4-.4-2.3z" />
   </svg>
 }
+
+/** Minimize glyph: hides a popup without clearing its selection. */
+export function MinimizeIcon() {
+  return <svg {...iconProps} width={14} height={14}><path d="M6 12h12" /></svg>
+}

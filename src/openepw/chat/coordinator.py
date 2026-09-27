@@ -352,8 +352,12 @@ class ChatCoordinator:
         return {"kind": "choice", "prompt": question["prompt"], "options": options,
                 "data": {"place_answers": answers, "field": question["field"]}}
 
-    def back(self, session_id: str, revision: int, key: str) -> dict:
-        """Return to the state before the latest step; a started job cannot be undone."""
+    def back(self, session_id: str, revision: int, key: str, to_event: int | None = None) -> dict:
+        """Return to an earlier step; a started job cannot be undone.
+
+        Without ``to_event`` this undoes the latest step. With it, every step after the one
+        that produced that event is undone, so that event becomes the latest again.
+        """
         if not key or len(key) > 100:
             raise ChatActionError("An idempotency key is required")
         with self.lock, self._db() as db:
@@ -368,17 +372,30 @@ class ChatCoordinator:
             current = json.loads(row["state"])
             if current["revision"] != revision:
                 raise StaleSession(current)
-            earlier = db.execute("SELECT seq, state FROM history WHERE session_id=? ORDER BY seq DESC LIMIT 1",
-                                 (session_id,)).fetchone()
-            if earlier is None:
+            history = db.execute("SELECT seq, state FROM history WHERE session_id=? ORDER BY seq DESC",
+                                 (session_id,)).fetchall()
+            if not history:
                 raise ChatActionError("There is no earlier step to go back to")
-            restored = json.loads(earlier["state"])
+            if to_event is None:
+                popped, restored = [history[0]["seq"]], json.loads(history[0]["state"])
+            else:
+                if not any(event["id"] == to_event for event in current["events"]):
+                    raise ChatActionError("That message is not in this conversation")
+                popped, restored = [], None
+                for earlier in history:
+                    snapshot = json.loads(earlier["state"])
+                    if not any(event["id"] == to_event for event in snapshot["events"]):
+                        break
+                    popped.append(earlier["seq"])
+                    restored = snapshot
+                if restored is None:
+                    raise ChatActionError("That message is already the latest step")
             if (restored.get("job_id") != current.get("job_id")
                     or restored.get("job_ids") != current.get("job_ids")):
                 raise ChatActionError("A weather job already started in that step; start over instead")
             restored["revision"] = current["revision"] + 1
             serialized = json.dumps(restored, allow_nan=False)
-            db.execute("DELETE FROM history WHERE seq=?", (earlier["seq"],))
+            db.executemany("DELETE FROM history WHERE seq=?", [(seq,) for seq in popped])
             db.execute("UPDATE sessions SET state=? WHERE id=?", (serialized, session_id))
             db.execute("INSERT INTO actions VALUES (?, ?, ?)", (session_id, key, serialized))
             return restored
