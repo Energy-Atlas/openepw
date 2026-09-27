@@ -10,13 +10,18 @@ bounded by public vector building and DEM data.
 Keep Python `WeatherService` authoritative for catalog, planning, jobs, EPW,
 quality, and prepared visualization JSON. Persist the browser conversation as
 versioned facts and events in the local SQLite data root. The optional React
-client renders a full-canvas MapLibre globe, a fixed chat rail, and floating
+client renders a full-canvas MapLibre globe, a floating chat column (bubbles
+without a panel, per the owner's 2026-09-27 direction), and floating
 charts. The browser cannot cause provider retrieval before an explicit reviewed
 plan Run action. It does not put credentials or EPW bytes into browser storage.
 
 Use OpenFreeMap styles and the `openmaptiles` `building` source layer for
 decorative buildings. The public `3d` style URL returned 404 during the live
 check; six OpenEPW appearances use working public styles and local color tokens.
+On 2026-09-27 the owner removed the scene panel: the UI now uses the light
+appearance, enters 3D automatically at zoom 14 (leaves below 13), keeps terrain
+off and holds the page-load UTC time. The other appearances and terrain remain
+in `scene.ts` without a UI control.
 At district zoom, query a bounded set of vector building polygons and
 `render_height` values. Project each roof away from the local solar azimuth to
 construct ground shadow polygons. Intersect upper roof projections with lower

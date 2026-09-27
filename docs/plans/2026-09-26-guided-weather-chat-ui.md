@@ -35,6 +35,15 @@ dependency and compatibility choices before production integration.
 
 ## Owner decisions and branch boundary
 
+**Owner revision, 2026-09-27 (supersedes the fixed rail and the scene-control
+list below where they conflict):** remove the top-left OpenEPW brand box and
+scene/view panel; make the chat float as message bubbles with small shadows
+and no panel fill; show the text field only when the current session state
+expects free text, otherwise show the current card's input (options, review
+actions, or map input) with an explicit switch to typing. The owner chose
+automatic 3D: district zoom enables decorative buildings and shadows without
+controls; terrain and alternate appearances are not exposed in the UI.
+
 - Open directly on the full-canvas map. There is **one** chat experience: no
   Guided/Text mode choice, splash selector, or mode switch. Free text and
   structured choices feed the same request state.
