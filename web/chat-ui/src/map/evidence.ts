@@ -1,7 +1,8 @@
 import type { FeatureCollection, Polygon } from 'geojson'
 import type { AvailabilitySummary, CatalogScopes } from '../types'
 
-const colors = ['#237e8b', '#d69b36', '#677b99', '#659777', '#9b7798', '#8b8760']
+// Request-specific scopes stay in the neutral region role; amber belongs to the user's selection.
+const colors = ['#647782']
 
 /** Documentary source scopes; no feature represents verified point eligibility. */
 export function availabilityFeatures(summary?: AvailabilitySummary | null,

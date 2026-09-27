@@ -17,6 +17,13 @@ button { cursor: pointer; }
 .evidence-legend strong { font-size: .72rem; }
 .evidence-legend .scope-row { display: grid; grid-template-columns: auto auto 1fr; align-items: center; column-gap: .4rem; cursor: pointer; }
 .evidence-legend .scope-row input { margin: 0; accent-color: #237e8b; }
+.evidence-legend .swatch { display: block; width: .6rem; height: .6rem; }
+.evidence-legend .swatch-dot { border-radius: 50%; background: currentColor; opacity: 1; }
+.evidence-legend .swatch-fill { border-radius: 2px; background: currentColor; opacity: .45; }
+.evidence-legend .swatch-outline { border-radius: 2px; border: 1.2px solid currentColor; opacity: 1; }
+.evidence-legend .swatch-dash { height: 0; border-top: 1.5px dashed currentColor; opacity: 1; }
+.evidence-legend .legend-key { color: #415963; }
+.evidence-legend .legend-source { text-transform: uppercase; letter-spacing: .06em; font-size: .58rem; }
 .evidence-legend .scope-row small { grid-column: 3; margin-top: -.1rem; font: .62rem 'IBM Plex Mono', monospace; }
 .evidence-legend details { color: #415963; }
 .evidence-legend details summary { cursor: pointer; color: #255b67; }

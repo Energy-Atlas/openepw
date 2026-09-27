@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
-import type { AddLayerObject, ExpressionSpecification, FilterSpecification, Map as MapLibreMap } from 'maplibre-gl'
+import type { Map as MapLibreMap } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
 import { appearanceStyle, applyAppearance, applyLighting, applyScene, autoView3d, scenePitch, type SceneSettings } from './scene'
 import { renderShadows } from './renderShadows'
 import { availabilityFeatures } from './evidence'
-import { catalogFeatures, layerColor } from './catalogLayers'
+import { MAP_PALETTE, catalogFeatures, catalogLayerSpecs, layerSwatch, legendRows } from './catalogLayers'
 import { utcSceneTime } from './sun'
 import type { WeatherGeography } from '../geography'
 import type { AvailabilitySummary, CatalogLayer, CatalogMap } from '../types'
@@ -207,8 +207,10 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
     if (!sceneMap.getSource('openepw-candidates')) {
       sceneMap.addSource('openepw-candidates', { type: 'geojson', data: { type: 'FeatureCollection', features } })
       sceneMap.addLayer({ id: 'openepw-candidates', type: 'circle', source: 'openepw-candidates',
-        paint: { 'circle-radius': 7, 'circle-color': ['case', ['get', 'selected'], '#d69b36', '#237e8b'],
-          'circle-stroke-width': 2, 'circle-stroke-color': '#ffffff' } })
+        paint: { 'circle-radius': ['case', ['get', 'selected'], 7, 6],
+          'circle-color': MAP_PALETTE.HERO, 'circle-opacity': ['case', ['get', 'selected'], 1, 0],
+          'circle-stroke-width': 2,
+          'circle-stroke-color': ['case', ['get', 'selected'], '#ffffff', MAP_PALETTE.PUBLISHED] } })
     } else {
       (sceneMap.getSource('openepw-candidates') as import('maplibre-gl').GeoJSONSource).setData({
         type: 'FeatureCollection', features,
@@ -227,7 +229,7 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
     if (!sceneMap.getSource('openepw-drawing')) {
       sceneMap.addSource('openepw-drawing', { type: 'geojson', data })
       sceneMap.addLayer({ id: 'openepw-drawing', type: 'line', source: 'openepw-drawing',
-        paint: { 'line-color': '#d69b36', 'line-width': 3 } })
+        paint: { 'line-color': MAP_PALETTE.HERO, 'line-width': 3 } })
     } else {
       (sceneMap.getSource('openepw-drawing') as import('maplibre-gl').GeoJSONSource).setData(data)
     }
@@ -256,11 +258,11 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
     if (!sceneMap.getSource('openepw-selection')) {
       sceneMap.addSource('openepw-selection', { type: 'geojson', data })
       sceneMap.addLayer({ id: 'openepw-selection-fill', type: 'fill', source: 'openepw-selection',
-        filter: ['==', ['geometry-type'], 'Polygon'], paint: { 'fill-color': '#237e8b', 'fill-opacity': .14 } })
+        filter: ['==', ['geometry-type'], 'Polygon'], paint: { 'fill-color': MAP_PALETTE.HERO, 'fill-opacity': .14 } })
       sceneMap.addLayer({ id: 'openepw-selection-outline', type: 'line', source: 'openepw-selection',
-        filter: ['==', ['geometry-type'], 'Polygon'], paint: { 'line-color': '#237e8b', 'line-width': 2 } })
+        filter: ['==', ['geometry-type'], 'Polygon'], paint: { 'line-color': MAP_PALETTE.HERO, 'line-width': 2 } })
       sceneMap.addLayer({ id: 'openepw-selection-points', type: 'circle', source: 'openepw-selection',
-        filter: ['==', ['geometry-type'], 'Point'], paint: { 'circle-radius': 4, 'circle-color': '#237e8b',
+        filter: ['==', ['geometry-type'], 'Point'], paint: { 'circle-radius': 4, 'circle-color': MAP_PALETTE.HERO,
           'circle-stroke-width': 1, 'circle-stroke-color': '#ffffff' } })
     } else {
       (sceneMap.getSource('openepw-selection') as import('maplibre-gl').GeoJSONSource).setData(data)
@@ -329,13 +331,17 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
       <button type="button" onClick={onExitPickMode}>Close map input</button>
     </section>}
     {catalogMap && <aside className="evidence-legend" aria-label="Data availability scope">
-      <strong>Data availability</strong>
-      {catalogMap.layers.map(layer => <label key={layer.id} className="scope-row" title={layer.caveat}>
-        <input type="checkbox" checked={!hiddenLayers.includes(layer.id)} onChange={() => setHiddenLayers(current =>
-          current.includes(layer.id) ? current.filter(item => item !== layer.id) : [...current, layer.id])} />
-        <i style={{ background: layerColor(layer.id) }} />
-        <span>{layer.label}</span>
-        <small>{layerCount(layer, years)}</small>
+      <strong>Where Stage 1 found weather sources</strong>
+      <small className="legend-key">dot = record · ring = approximate or candidate · shade = source grid ·
+        dashed = documented extent · amber = your selection</small>
+      {legendRows(catalogMap.layers).map(row => <label key={row.ids.join()} className="scope-row" title={row.layers
+        .map(layer => layer.caveat).join(' ')}>
+        <input type="checkbox" checked={!row.ids.every(id => hiddenLayers.includes(id))} onChange={() =>
+          setHiddenLayers(current => row.ids.every(id => current.includes(id))
+            ? current.filter(item => !row.ids.includes(item)) : [...new Set([...current, ...row.ids])])} />
+        <i className={`swatch swatch-${layerSwatch(row.kind).shape}`} style={{ color: layerSwatch(row.kind).color }} />
+        <span>{row.label}</span>
+        <small>{layerCount(row.layers[0], years)}</small>
       </label>)}
       <details><summary>What these layers mean</summary>
         {catalogMap.layers.map(layer => <p key={layer.id}><b>{layer.label}.</b> {layer.caveat}
@@ -345,8 +351,8 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
         <p>Credits: NOAA NCEI ISD; OneBuilding.org; NLR NSRDB (CC BY 3.0 US); PVGIS © European Union/JRC;
           Copernicus ERA5 and Open-Meteo.</p>
       </details>
-      <small>Catalog {catalogMap.snapshot?.created_at.slice(0, 10) ?? 'bundled contracts'}. Documentary context,
-        not point eligibility.</small>
+      <small className="legend-source">Stage 1 catalog · {catalogMap.snapshot?.created_at.slice(0, 10) ?? 'bundled contracts'}
+        {' '}· documentary, not point eligibility</small>
     </aside>}
     <div className="map-status" role="status">{status}
       {status.includes('unavailable') || status.includes('could not load') ?
@@ -373,26 +379,3 @@ function layerCount(layer: CatalogLayer, years: number[]): string {
   return 'documented extent'
 }
 
-function catalogLayerSpecs(layer: CatalogLayer, id: string): AddLayerObject[] {
-  const color = layerColor(layer.id)
-  const radius: ExpressionSpecification = ['interpolate', ['linear'], ['zoom'], 1, 1.1, 4, 2, 8, 3.5, 12, 5]
-  const polygons: FilterSpecification = ['==', ['geometry-type'], 'Polygon']
-  const points: FilterSpecification = ['==', ['geometry-type'], 'Point']
-  if (layer.kind === 'stations') return [{ id: `${id}-point`, type: 'circle', source: id,
-    paint: { 'circle-radius': radius, 'circle-color': color, 'circle-opacity': .75 } }]
-  if (layer.kind === 'sites') return [{ id: `${id}-point`, type: 'circle', source: id,
-    paint: { 'circle-radius': radius, 'circle-color': color,
-      'circle-opacity': ['case', ['get', 'approximate'], 0, .75],
-      'circle-stroke-color': color, 'circle-stroke-width': ['case', ['get', 'approximate'], 1.2, 0] } }]
-  // Area fills fade at district zoom so they tint rather than hide the local map.
-  const peak = layer.kind === 'cells' ? .32 : layer.kind === 'area' ? .16 : .04
-  const specs: AddLayerObject[] = [{ id: `${id}-fill`, type: 'fill', source: id, filter: polygons,
-    paint: { 'fill-color': color, 'fill-antialias': layer.kind !== 'cells',
-      'fill-opacity': ['interpolate', ['linear'], ['zoom'], 4, peak, 9, Math.min(peak, .06)] } }]
-  if (layer.kind !== 'cells') specs.push({ id: `${id}-line`, type: 'line', source: id, filter: polygons,
-    paint: { 'line-color': color, 'line-width': 1.1, 'line-opacity': .45,
-      ...(layer.kind === 'extent' ? { 'line-dasharray': [2, 2] } : {}) } })
-  if (layer.kind === 'area') specs.push({ id: `${id}-point`, type: 'circle', source: id, filter: points,
-    paint: { 'circle-radius': 5, 'circle-color': '#ffffff', 'circle-stroke-color': color, 'circle-stroke-width': 2 } })
-  return specs
-}
