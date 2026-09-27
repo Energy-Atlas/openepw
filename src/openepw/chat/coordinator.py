@@ -14,6 +14,7 @@ from typing import Any
 from ..availability import WeatherAvailabilityQuery
 from ..harness.agent import safe_prompt
 from ..models import Location, WeatherRequest
+from ..visualization.models import VisualizationRequest
 
 
 class StaleSession(Exception):
@@ -62,6 +63,20 @@ class OfflineParser:
                              lat=float(coordinates.group(1)) if coordinates else None,
                              lon=float(coordinates.group(2)) if coordinates else None,
                              provider=None, product_id=None)]
+
+
+def explicit_weather_years(text: str) -> set[int]:
+    """A building count must not turn into a weather year, even if a model proposes it."""
+    years = set()
+    for match in re.finditer(r"\b(?:18|19|20|21)\d{2}\b", text):
+        if not re.match(r"\s+buildings?\b", text[match.end():], re.I):
+            years.add(int(match.group()))
+    for match in re.finditer(r"\b((?:18|19|20|21)\d{2})\s*(?:-|–|—|to|through)\s*"
+                             r"((?:18|19|20|21)\d{2})\b", text, re.I):
+        start, end = int(match.group(1)), int(match.group(2))
+        if 0 <= end - start <= 30:
+            years.update(range(start, end + 1))
+    return years
 
 
 class ChatCoordinator:
@@ -180,6 +195,7 @@ class ChatCoordinator:
                             {"role": "assistant", "job_id": state.get("job_id")})
                 return
             intents = self.parser.parse_many(safe_prompt(text, limit=4000))
+            grounded_years = explicit_weather_years(text)
             for intent in intents[:5]:
                 if getattr(intent, "kind", None) == "future":
                     self._event(state, "message", "Future-weather planning is temporarily unavailable.",
@@ -188,11 +204,23 @@ class ChatCoordinator:
                 if getattr(intent, "product", None):
                     facts["product"] = "historical" if intent.product == "amy" else intent.product
                 if getattr(intent, "years", None):
-                    facts["years"] = list(intent.years)
+                    confirmed = [year for year in intent.years if year in grounded_years]
+                    if confirmed:
+                        facts["years"] = confirmed
                 if getattr(intent, "provider", None):
                     facts["provider"] = intent.provider
                 if getattr(intent, "lat", None) is not None and getattr(intent, "lon", None) is not None:
                     facts["location"] = Location(lat=intent.lat, lon=intent.lon).model_dump(mode="json")
+                    facts.pop("candidates", None)
+                    facts.pop("geography", None)
+                    facts.pop("resolved_points", None)
+                elif getattr(intent, "locations", None):
+                    request = WeatherRequest.model_validate({"locations": intent.locations,
+                                                            "years": [2000]})
+                    facts["geography"] = request.model_dump(mode="json")["locations"]
+                    facts["resolved_points"] = [item.model_dump(mode="json")
+                                                for item in self.service.locations(request)]
+                    facts.pop("location", None)
                     facts.pop("candidates", None)
                 elif getattr(intent, "place", None):
                     self._event(state, "tool", "Geocoding place", {"tool": "geocode", "phase": "call"})
@@ -200,12 +228,15 @@ class ChatCoordinator:
                     candidates = [c.model_dump(mode="json") for c in geocoded.candidates]
                     facts["candidates"] = candidates
                     facts.pop("location", None)
+                    facts.pop("geography", None)
+                    facts.pop("resolved_points", None)
                     self._event(state, "tool", f"Found {len(candidates)} location candidates",
                                 {"tool": "geocode", "phase": "result"})
                 if getattr(intent, "product_id", None):
                     facts["product_id"] = intent.product_id
             if intents:
                 state["plan_hash"] = None
+                facts.pop("availability", None)
             self._question(state)
 
         return self._change(session_id, revision, key, update)
@@ -221,9 +252,12 @@ class ChatCoordinator:
                 state["facts"]["location"] = next(item for item in state["facts"]["candidates"]
                                                   if item["id"] == choice_id)
                 state["facts"].pop("candidates", None)
+                state["facts"].pop("geography", None)
+                state["facts"].pop("resolved_points", None)
             else:
                 state["facts"]["product"] = choice_id
             state["plan_hash"] = None
+            state["facts"].pop("availability", None)
             self._event(state, "message", choice_id, {"role": "user", "choice": True})
             self._question(state)
 
@@ -243,14 +277,17 @@ class ChatCoordinator:
     def set_geography(self, session_id: str, geography: Any, revision: int, key: str) -> dict:
         # Validate through the canonical service request model, including sampling caps.
         validated = WeatherRequest.model_validate({"locations": geography, "years": [2000]})
+        resolved = [point.model_dump(mode="json") for point in self.service.locations(validated)]
 
         def update(state):
             state["facts"]["geography"] = validated.model_dump(mode="json")["locations"]
+            state["facts"]["resolved_points"] = resolved
             state["facts"].pop("location", None)
             state["facts"].pop("candidates", None)
             state["plan_hash"] = None
+            state["facts"].pop("availability", None)
             self._event(state, "tool", "Geography accepted", {"tool": "geography", "phase": "result",
-                                                          "point_count": len(self.service.locations(validated))})
+                                                          "point_count": len(resolved)})
             self._question(state)
 
         return self._change(session_id, revision, key, update)
@@ -260,11 +297,32 @@ class ChatCoordinator:
             request = self._request(state["facts"])
             self._event(state, "tool", "Assessing catalog", {"tool": "availability", "phase": "call"})
             availability = self.service.assess_availability(WeatherAvailabilityQuery(request=request))
+            assessment = {
+                "checked_at": availability.checked_at.isoformat(),
+                "snapshots": [snapshot.model_dump(mode="json") for snapshot in availability.snapshots],
+                "options": [{"provider": option.product.provider,
+                             "dataset": option.product.dataset,
+                             "footprint": option.product.footprint,
+                             "status": option.eligibility.status,
+                             "access": option.eligibility.access,
+                             "health": option.eligibility.health,
+                             "evidence_ids": option.eligibility.evidence_ids,
+                             "evidence_bases": option.eligibility.evidence_bases,
+                             "unknowns": option.eligibility.unknowns,
+                             "reasons": option.eligibility.reasons,
+                             "rank": option.rank,
+                             "occurrence_index": option.occurrence_index}
+                            for option in sorted(availability.options,
+                                                 key=lambda item: (item.occurrence_index,
+                                                                   item.rank or 9999))[:30]],
+                "issues": [issue.model_dump(mode="json") for issue in availability.issues],
+            }
+            state["facts"]["availability"] = assessment
             self._event(state, "tool", "Catalog assessment complete",
                         {"tool": "availability", "phase": "result",
-                         "snapshot": availability.snapshot.model_dump(mode="json")
-                         if getattr(availability, "snapshot", None) else None,
-                         "issues": [issue.model_dump(mode="json") for issue in availability.issues]})
+                         "checked_at": assessment["checked_at"],
+                         "option_count": len(availability.options),
+                         "issues": assessment["issues"]})
             self._event(state, "tool", "Preparing weather plan", {"tool": "weather_plan", "phase": "call"})
             plan = self.service.plan(request)
             state["plan_hash"] = plan.plan_hash
@@ -273,6 +331,7 @@ class ChatCoordinator:
                     "data": {"plan_hash": plan.plan_hash, "request": request.model_dump(mode="json"),
                              "outputs": [output.model_dump(mode="json") for output in plan.outputs],
                              "batch_rows": [row.model_dump(mode="json") for row in plan.batch_rows],
+                             "availability": assessment,
                              "warnings": plan.warnings, "issues": [issue.model_dump(mode="json")
                                                                       for issue in plan.issues]}}
             state["active_card"] = card
@@ -294,5 +353,44 @@ class ChatCoordinator:
             self._event(state, "job", "Weather job started", {"job_id": job.id,
                                                                 "plan_hash": plan_hash})
             state["active_card"] = None
+
+        return self._change(session_id, revision, key, update)
+
+    def attach_upload(self, session_id: str, revision: int, key: str,
+                      artifact_id: str) -> dict:
+        ref, _ = self.service.artifacts.resolve(artifact_id)
+        if ref.role != "baseline":
+            raise ValueError("Upload must refer to a registered user EPW")
+
+        def update(state):
+            ids = state["facts"].setdefault("uploaded_artifact_ids", [])
+            if artifact_id not in ids:
+                ids.append(artifact_id)
+            self._event(state, "artifacts", "User EPW registered for analysis",
+                        {"artifact_id": artifact_id, "origin": "user_provided"})
+
+        return self._change(session_id, revision, key, update)
+
+    def view(self, session_id: str, revision: int, key: str, runner: Any,
+             request: VisualizationRequest, *, prompt: str | None = None) -> dict:
+        def update(state):
+            if prompt:
+                self._event(state, "message", prompt, {"role": "user"})
+            allowed = set(state["facts"].get("uploaded_artifact_ids", []))
+            if state.get("job_id"):
+                job = runner.store.get(state["job_id"])
+                if job.bundle:
+                    allowed.update(ref.id for ref in job.bundle.weather)
+            if not set(request.artifact_ids) <= allowed:
+                raise ValueError("View artifacts must come from this session's job or upload")
+            self._event(state, "tool", "Preparing existing weather data",
+                        {"tool": "weather_visualize", "phase": "call"})
+            page = self.service.visualize_weather(request)
+            view_id = page["view_id"]
+            if view_id not in state["view_ids"]:
+                state["view_ids"].append(view_id)
+            self._event(state, "view", "Prepared weather view",
+                        {"view_id": view_id, "family": request.family,
+                         "variable": request.variable, "artifact_ids": request.artifact_ids})
 
         return self._change(session_id, revision, key, update)

@@ -53,3 +53,18 @@ def test_stale_choice_is_rejected(tmp_path):
         assert False, "Stale selection should be rejected"
     except StaleSession as error:
         assert error.snapshot["revision"] == pending["revision"]
+
+
+def test_model_years_must_be_grounded_in_weather_request(tmp_path):
+    from openepw.harness.agent import AgentIntent
+
+    class Overeager:
+        def parse_many(self, _text):
+            return [AgentIntent(kind="weather", lat=42.37, lon=-71.11,
+                                product="historical", years=[2012, 2021, 2022, 2023])]
+
+    coordinator = ChatCoordinator(Service(), parser=Overeager(), path=tmp_path / "chat.sqlite")
+    state = coordinator.create()
+    result = coordinator.turn(state["id"],
+                              "UBEM for 2012 buildings in Cambridge for 2021–2023", 0, "one")
+    assert result["facts"]["years"] == [2021, 2022, 2023]

@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI, File, Header, HTTPException, UploadFile
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, ValidationError, model_validator
 
 from ..availability import AvailabilityQuery
 from ..chat.coordinator import ChatCoordinator, OfflineParser, StaleSession
@@ -67,6 +67,15 @@ class ChatAction(BaseModel):
 
 class ChatGeography(ChatAction):
     geography: dict | list
+
+
+class ChatUpload(ChatAction):
+    artifact_id: str
+
+
+class ChatView(ChatAction):
+    request: VisualizationRequest
+    prompt: str | None = None
 
 
 def create_app(service=None, *, remote=False, chat_parser=None):
@@ -155,6 +164,15 @@ def create_app(service=None, *, remote=False, chat_parser=None):
     async def missing_chat(request, exc):
         return JSONResponse({"code": "NOT_FOUND", "message": "Session not found"}, status_code=404)
 
+    @app.exception_handler(ValueError)
+    async def invalid_chat_action(request, exc):
+        return JSONResponse({"code": "INVALID_REQUEST", "message": str(exc)}, status_code=400)
+
+    @app.exception_handler(ValidationError)
+    async def invalid_chat_geography(request, exc):
+        return JSONResponse({"code": "INVALID_REQUEST", "message": "Invalid request fields",
+                             "fields": [list(item["loc"]) for item in exc.errors()]}, status_code=422)
+
     @app.post("/v1/chat/sessions", status_code=201)
     def create_chat():
         return chat.create()
@@ -190,6 +208,16 @@ def create_app(service=None, *, remote=False, chat_parser=None):
     def chat_run(session_id: str, payload: ChatAction):
         return chat.run(session_id, payload.revision, payload.idempotency_key, runner)
 
+    @app.post("/v1/chat/sessions/{session_id}/uploads")
+    def chat_attach_upload(session_id: str, payload: ChatUpload):
+        return chat.attach_upload(session_id, payload.revision, payload.idempotency_key,
+                                  payload.artifact_id)
+
+    @app.post("/v1/chat/sessions/{session_id}/views")
+    def chat_view(session_id: str, payload: ChatView):
+        return chat.view(session_id, payload.revision, payload.idempotency_key,
+                         runner, payload.request, prompt=payload.prompt)
+
     @app.get("/v1/views/capabilities")
     def view_capabilities():
         return service.visualization_capabilities()
@@ -204,7 +232,7 @@ def create_app(service=None, *, remote=False, chat_parser=None):
 
     @app.get("/v1/views/{view_id}/page")
     def view_page(view_id: str, offset: int = 0, limit: int = 100):
-        return service.page_weather_data(view_id, offset, min(max(limit, 1), 1000))
+        return service.page_weather_data(view_id, offset, min(max(limit, 1), 200))
 
     @app.post("/v1/geocode")
     def geocode(query: GeocodeQuery):

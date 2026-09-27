@@ -119,3 +119,14 @@ def test_chat_rest_prepares_and_runs_only_after_explicit_action(tmp_path):
         assert run.status_code == 202
         assert run.json()["job_id"]
         assert client.post(f"/v1/chat/sessions/{sid}/run", json=run_body).json() == run.json()
+        app.state.runner.run(run.json()["job_id"])
+        job = client.get(f"/v1/jobs/{run.json()['job_id']}").json()
+        artifact_id = job["bundle"]["weather"][0]["id"]
+        view = client.post(f"/v1/chat/sessions/{sid}/views", json={
+            "revision": run.json()["revision"], "idempotency_key": "monthly-view",
+            "request": {"artifact_ids": [artifact_id], "family": "monthly_series",
+                        "variable": "dry_bulb", "allow_partial": True}})
+        assert view.status_code == 200
+        assert view.json()["view_ids"]
+        page = client.get(f"/v1/views/{view.json()['view_ids'][0]}/page").json()
+        assert page["specs"][0]["family"] == "monthly_series"
