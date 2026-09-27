@@ -5,6 +5,7 @@ import { MapCanvas } from './map/MapCanvas'
 import { geojsonGeography } from './geography'
 import { mergeJobManifests } from './jobs'
 import { ViewPanel } from './views/ViewPanel'
+import { transcriptItems } from './transcript'
 import type { AvailabilitySummary, CatalogMap, JobManifest, JobSnapshot, SessionSnapshot } from './types'
 
 const sessionKey = 'openepw-chat-session'
@@ -264,13 +265,18 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
           <strong>Where do you need weather?</strong>
           <p>Name a place and actual years, choose geography on the map, or attach an EPW.</p>
         </article>
-        {visibleEvents.map(event => <article key={event.id}
-          className={`chat-event ${event.data?.role === 'user' ? 'user-event' : ''} ${event.type === 'tool' ? 'tool-event' : 'assistant-event'}`}>
-          {event.type === 'tool' && <span className="event-kind">Tool · {String(event.data?.tool ?? 'service')} · {String(event.data?.phase ?? '')}</span>}
-          {event.type === 'message' && <span className="event-kind">{event.data?.role === 'user' ? 'You' : 'Agent'}</span>}
-          {event.type === 'plan' && <span className="event-kind">Plan review</span>}
-          {event.text && <p>{event.text}</p>}
-        </article>)}
+        {transcriptItems(visibleEvents).map(item => item.kind === 'tool'
+          ? <div key={item.id} className="tool-line" title={`${item.tool}: ${item.action}${item.result ? ` · ${item.result}` : ''}`}>
+            <span className="tool-icon" aria-hidden="true"><ToolIcon /></span>
+            <span className="tool-text"><span className="visually-hidden">Tool {item.tool}: </span>{item.action}
+              {item.result && <span className="tool-result"> · {item.result}</span>}</span>
+          </div>
+          : <article key={item.event.id}
+            className={`chat-event ${item.event.data?.role === 'user' ? 'user-event' : ''} assistant-event`}>
+            {item.event.type === 'message' && <span className="event-kind">{item.event.data?.role === 'user' ? 'You' : 'Agent'}</span>}
+            {item.event.type === 'plan' && <span className="event-kind">Plan review</span>}
+            {item.event.text && <p>{item.event.text}</p>}
+          </article>)}
         {card && <section className="action-card" aria-label="Current question">
           <span className="event-kind">Agent</span>
           <h2>{card.prompt}</h2>
@@ -406,4 +412,12 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
     {openViews.map((id, index) => <ViewPanel key={id} id={id} index={index} api={api}
       onClose={() => setOpenViews(current => current.filter(item => item !== id))} />)}
   </main>
+}
+
+/** Wrench glyph for tool-call lines; stroke follows the text colour. */
+function ToolIcon() {
+  return <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.9"
+    strokeLinecap="round" strokeLinejoin="round">
+    <path d="M14.7 6.3a4 4 0 0 0-5.4 5.1L3.6 17.1a1.8 1.8 0 0 0 2.5 2.5l5.7-5.7a4 4 0 0 0 5.1-5.4l-2.4 2.4-2.3-.4-.4-2.3z" />
+  </svg>
 }

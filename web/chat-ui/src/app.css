@@ -64,7 +64,11 @@ button { cursor: pointer; }
 .chat-event.welcome strong { font-size: 1rem; font-weight: 600; letter-spacing: -.01em; }
 .chat-event.welcome p { color: var(--oe-muted); }
 .chat-event.user-event { align-self: flex-end; max-width: 85%; border-radius: 12px 12px 3px 12px; background: var(--oe-tint); color: var(--oe-ink); }
-.chat-event.tool-event { padding: .35rem .6rem; background: color-mix(in srgb, var(--oe-paper) 90%, transparent); color: var(--oe-l6); font-size: .74rem; }
+.tool-line { display: flex; align-items: center; gap: .45rem; max-width: 92%; min-width: 0; color: var(--oe-ink); font-size: .78rem; }
+.tool-icon { flex: none; display: grid; place-items: center; width: 1.55rem; height: 1.55rem; border-radius: 50%; background: color-mix(in srgb, var(--oe-paper) 97%, transparent); box-shadow: var(--oe-shadow); }
+/* A paper halo keeps the line legible straight over the map without a bubble. */
+.tool-text { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-weight: 500; --o: var(--oe-paper); text-shadow: 1px 0 0 var(--o), -1px 0 0 var(--o), 0 1px 0 var(--o), 0 -1px 0 var(--o), 1px 1px 0 var(--o), -1px -1px 0 var(--o), 1px -1px 0 var(--o), -1px 1px 0 var(--o); }
+.tool-result { color: var(--oe-muted); font-weight: 400; }
 .event-kind { color: var(--oe-muted); font: 500 .66rem 'IBM Plex Mono', monospace; }
 .action-card, .job-card, .view-controls { width: 92%; }
 .action-card h2, .job-card h2 { margin: 0 0 .5rem; font-size: .95rem; }

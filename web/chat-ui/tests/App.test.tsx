@@ -64,6 +64,19 @@ describe('map-first shell', () => {
     expect(legend).toHaveTextContent('No reviewed geometry: nsrdb/aggregate')
   })
 
+  it('renders a tool call as one outlined line with an icon, not a message bubble', async () => {
+    const state: SessionSnapshot = { id: 'test', revision: 1, facts: {}, active_card: null, view_ids: [], events: [
+      { id: 1, type: 'tool', text: 'Geocoding place', data: { tool: 'geocode', phase: 'call' } },
+      { id: 2, type: 'tool', text: 'Found 2 location candidates', data: { tool: 'geocode', phase: 'result' } }] }
+    const { container } = render(<App api={apiFor(state)} />)
+    await screen.findByText('Geocoding place')
+    const lines = container.querySelectorAll('.tool-line')
+    expect(lines).toHaveLength(1)
+    expect(lines[0].closest('.chat-event')).toBeNull()
+    expect(lines[0].querySelector('.tool-icon svg')).not.toBeNull()
+    expect(lines[0]).toHaveTextContent('Geocoding place · Found 2 location candidates')
+  })
+
   it('shows the current choice once as an agent turn', async () => {
     render(<App api={apiFor(cardState({ id: 'choice', revision: 1, kind: 'choice', prompt: 'Which weather product?',
       options: [{ id: 'historical', label: 'Actual-year weather' }] }))} />)
