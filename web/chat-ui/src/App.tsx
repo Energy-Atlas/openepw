@@ -1,10 +1,9 @@
 import './app.css'
+import { MapCanvas } from './map/MapCanvas'
 
 export function App() {
   return <main className="workspace">
-    <div className="map-canvas" aria-label="Weather map">
-      <div className="map-placeholder">OpenEPW <span>Weather across places and years</span></div>
-    </div>
+    <MapCanvas />
     <aside className="chat-rail" aria-label="Weather chat">
       <header className="chat-heading">
         <span className="wordmark">OpenEPW</span>

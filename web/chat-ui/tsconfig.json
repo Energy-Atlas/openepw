@@ -8,7 +8,7 @@
     "strict": true,
     "isolatedModules": true,
     "noEmit": true,
-    "types": ["node", "vitest/globals"],
+    "types": ["vite/client", "node", "vitest/globals"],
     "skipLibCheck": true
   },
   "include": ["src", "tests", "vite.config.ts"]
