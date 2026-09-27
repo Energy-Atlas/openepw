@@ -14,6 +14,7 @@ are recorded separately. Installed source package version: 0.1.0.
 | NSRDB/NLR | Live actual 8,784 and native TMY 8,760 rows accepted | Aggregate v4 actual years; native TMY/TDY/TGY IDs from catalog; key/email required |
 | Direct CDS ERA5/Land | Both products live one-day outputs accepted | GHI only; bounded polling; terms/token and optional dependencies |
 | Spatial/batch | Tested | Point lists, bbox/dateline, polygons/holes, grid offsets, preallocation cap |
+| Place lists and sets | Implemented, offline tested; GeoNames live check | Up to 1,000 names/coordinates previewed without per-place confirmation (ambiguity flagged, misses kept); points-only coordinate parsing; descriptive sets ask region/definition/limit before a GeoNames (CC BY 4.0) population-ordered listing |
 | Source reuse and output identity | Tested 73 requests → 11 verified sources → 73 EPWs | Fetch tasks deduplicate; requested outputs do not collapse |
 | Semantic EPW names | Implemented, offline tested | Location/source/period or future method/scenario/window/member with digest suffix |
 | Multi-dataset planning | Implemented, offline tested | Provider/dataset selection resolves local candidate at each point; unavailable combinations are explicit issues |

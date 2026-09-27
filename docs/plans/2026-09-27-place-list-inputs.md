@@ -51,9 +51,9 @@ dump's value, not a census figure; previews say so and carry the attribution.
 
 | Unit | Files | Behaviour |
 | --- | --- | --- |
-| Place parsing | `src/openepw/planning/places.py` | Classify text (coordinates, list, single, descriptive); parse coordinates; split lists; detect set descriptions and missing fields; apply text edits to a preview |
+| Place parsing | `src/openepw/places/parse.py` | Classify text (coordinates, list, single, descriptive); parse coordinates; split lists; detect set descriptions and missing fields; apply text edits to a preview |
 | GeoNames store | `src/openepw/places/geonames.py` | Bounded download/cache with checksum, parsing, region resolution, population-ordered query |
-| Service | `WeatherService.interpret_places`, `preview_places`, `place_set` | Canonical behaviour shared by MCP, REST and CLI |
+| Service | `src/openepw/places/preview.py`; `WeatherService.interpret_places`, `preview_places`, `place_set` | Canonical behaviour shared by MCP, REST and CLI; clarification replies merge into the pending draft |
 | MCP | `weather_places_interpret`, `weather_places_preview`, `weather_place_set` | Thin wrappers with bounded outputs |
 | Harness | `harness/graph_chat.py` think node | Route location text to preview, clarification or the existing single-place choice; apply text fixes to the current preview |
 
@@ -64,3 +64,21 @@ set detection and clarification fields, preview ambiguity/unresolved rows and
 cap, GeoNames parsing and queries from a synthetic fixture (no network),
 checksum and cache reuse, MCP tool shapes, and harness routing for all three
 paths plus text edits. A live GeoNames download is opt-in and tagged.
+
+## Implementation notes (2026-09-27)
+
+- The harness graph is now `gate → extract → think → respond`. `gate` answers a
+  pending set question or applies a list edit without calling the model;
+  `think` routes place text locally first, so a single place keeps the existing
+  choice flow, and calls MCP only for lists, several coordinates or sets. A
+  preview ends the turn with the points in the draft; the user continues or
+  fixes by text. Edits send unchanged rows back pinned.
+- The MCP weather request point cap rose from 50 to 1,000 to honour the
+  owner's cap for a full preview.
+- Live check: "all cities in America" asked for region, definition and limit;
+  "United States, over 1m, top 5" listed New York City, Los Angeles, Brooklyn,
+  Chicago and Queens from `cities15000.zip`. GeoNames lists some city
+  sections (for example New York boroughs) as their own populated places; the
+  preview reports them as GeoNames does.
+- Checks: 70 place unit tests, 4 harness routing tests, full suite 507 passed
+  and 17 opt-in skips; the live GeoNames test passed when enabled.

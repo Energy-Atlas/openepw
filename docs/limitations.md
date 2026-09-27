@@ -146,3 +146,11 @@ Raw data and downloaded climate subsets are local caches, not licensed public
 redistribution. Cache reuse is checksummed; provider versioned URLs can still change
 upstream before first retrieval. Plans are reproducible instructions, not a promise
 that an uncached external source can never change.
+
+Place previews take the geocoder's top match for each name without asking;
+ambiguous rows are flagged and must be corrected by text. The deterministic list
+splitter keeps US state and a small set of country qualifiers with their place;
+other phrasing relies on the model parser. Descriptive place sets come from
+GeoNames city dumps (minimum population 1,000; capitals are first-level seats).
+GeoNames populations are its own values, some city sections (such as New York
+boroughs) appear as separate places, and continent-wide sets are not supported.
