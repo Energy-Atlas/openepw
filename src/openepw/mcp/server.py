@@ -17,6 +17,7 @@ from ..availability import AvailabilityQuery
 from ..epw import read_epw
 from ..jobs.worker import JobRunner
 from ..models import OpenEPWError, WeatherPlan, WeatherRequest
+from ..places.models import MAX_PLACES, PlacePreview, PlaceSetQuery
 from ..qc import validate
 from ..service import WeatherService
 from ..visualization import VisualizationRequest
@@ -35,6 +36,15 @@ def _bounded(value: Any) -> Any:
     if len(json.dumps(result, allow_nan=False)) > MAX_RESULT:
         raise OpenEPWError("RESOURCE_LIMIT", "Result is too large; narrow the request")
     return result
+
+
+def _preview_summary(preview: PlacePreview) -> dict[str, Any]:
+    """Compact preview: rows carry the points, so the GeoJSON and location copies are dropped."""
+    rows = [row.model_dump(mode="json", exclude_none=True, exclude_defaults=True, exclude={"region"})
+            | {"index": row.index, "input": row.input, "status": row.status} for row in preview.rows]
+    return {"digest": preview.digest, "count": len(rows), "resolved": len(preview.locations), "rows": rows,
+            "issues": [issue.model_dump(mode="json") for issue in preview.issues],
+            "attribution": preview.attribution}
 
 
 def _plan_summary(plan: WeatherPlan) -> dict[str, Any]:
@@ -110,8 +120,9 @@ def create_server(service=None, *, allowed_roots: list[str | Path] | None = None
 
     def weather_request(raw):
         request = WeatherRequest.model_validate(raw)
-        if isinstance(request.locations, list) and len(request.locations) > 50:
-            raise OpenEPWError("RESOURCE_LIMIT", "MCP request exceeds 50 locations")
+        # Owner decision 2026-09-27: a full place preview (up to MAX_PLACES points) can be planned.
+        if isinstance(request.locations, list) and len(request.locations) > MAX_PLACES:
+            raise OpenEPWError("RESOURCE_LIMIT", f"MCP request exceeds {MAX_PLACES} locations")
         return request
 
     def submit(plan_hash, kind, idempotency_key):
@@ -130,6 +141,36 @@ def create_server(service=None, *, allowed_roots: list[str | Path] | None = None
                 raise OpenEPWError("INVALID_REQUEST", "Place name must be 1–150 characters")
             return service.geocode(query, mode=mode)
         return call(action)
+
+    @server.tool(structured_output=True)
+    def weather_places_interpret(text: str, draft: dict | None = None) -> dict[str, Any]:
+        """Classify place text: coordinates, a list, one place, or a set needing clarification.
+
+        Pass the returned ``draft`` back with the user's reply to answer its questions.
+        """
+        def action():
+            if not text.strip() or len(text) > 4000:
+                raise OpenEPWError("INVALID_REQUEST", "Place text must be 1–4000 characters")
+            return service.interpret_places(text, draft)
+        return call(action)
+
+    @server.tool(structured_output=True)
+    def weather_places_preview(places: list[str | dict]) -> dict[str, Any]:
+        """Resolve names/coordinates to numbered points; top matches, no confirmation step.
+
+        Rows from an earlier preview may be passed back unchanged to keep them pinned.
+        """
+        def action():
+            texts = [item if isinstance(item, str) else str(item.get("input", "")) for item in places]
+            if not places or any(not text.strip() or len(text) > 150 for text in texts):
+                raise OpenEPWError("INVALID_REQUEST", "Each place must be 1–150 characters")
+            return _preview_summary(service.preview_places(places))
+        return call(action)
+
+    @server.tool(structured_output=True)
+    def weather_place_set(query: dict) -> dict[str, Any]:
+        """List a clarified place set (GeoNames, population order) as a numbered preview."""
+        return call(lambda: _preview_summary(service.place_set(PlaceSetQuery.model_validate(query))))
 
     @server.tool(structured_output=True)
     def weather_assess(query: dict) -> dict[str, Any]:

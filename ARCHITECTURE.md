@@ -212,6 +212,16 @@ cancellation. Use one server process
 per data root; worker threads are bounded. Failed items do not cause successful
 items to disappear. No Redis/Celery/database server is required.
 
+## Place inputs
+
+`openepw.places` turns place text into points without depending on MCP or the
+server: a pure parser (coordinates, lists, set descriptions, text edits), a
+GeoNames store (checksummed downloads in the data root) and preview builders.
+`WeatherService.interpret_places`, `preview_places` and `place_set` are the
+canonical operations; MCP wraps them and the harness `think`/`gate` nodes use
+them to preview lists and clarify descriptive sets. See the
+[place input plan](docs/plans/2026-09-27-place-list-inputs.md).
+
 ## Interfaces and deployment
 
 REST: POST `/v1/geocode`, `/v1/availability`, `/v1/weather/discover`, `/v1/weather/plan`,

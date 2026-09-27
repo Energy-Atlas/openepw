@@ -10,6 +10,8 @@ from typing import Any, Protocol, TypedDict
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.graph import END, START, StateGraph
 
+from ..models import OpenEPWError
+from ..places.parse import apply_edit, classify_places, describe_place_set
 from .agent import AgentIntent, ReferenceAgent, safe_prompt
 from .chat import ChatSession
 from .mcp_client import MCPToolFailure
@@ -29,6 +31,13 @@ class GraphState(TypedDict, total=False):
     intents: list[dict[str, Any]]
     waiting: list[dict[str, Any]]
     direct: bool
+    # Place input: {"rows": [...]} for an editable preview, or {"set": draft} while a
+    # descriptive set waits for clarification. "handled" ends the turn early.
+    places: dict[str, Any]
+    handled: bool
+
+
+PREVIEW_LINES = 25
 
 
 class GraphChatSession:
@@ -57,10 +66,16 @@ class GraphChatSession:
         checkpointer = await self._checkpoint_context.__aenter__()
         await checkpointer.setup()
         builder = StateGraph(GraphState)
+        builder.add_node("gate", self._gate)
         builder.add_node("extract", self._extract)
+        builder.add_node("think", self._think)
         builder.add_node("respond", self._respond)
-        builder.add_edge(START, "extract")
-        builder.add_edge("extract", "respond")
+        # gate answers pending place questions and list edits without the model; think
+        # routes new place text to a preview or clarification before the normal flow.
+        builder.add_edge(START, "gate")
+        builder.add_conditional_edges("gate", lambda state: END if state.get("handled") else "extract")
+        builder.add_edge("extract", "think")
+        builder.add_conditional_edges("think", lambda state: END if state.get("handled") else "respond")
         builder.add_edge("respond", END)
         self._graph = builder.compile(checkpointer=checkpointer)
         saved = await self._graph.aget_state(self._config())
@@ -149,7 +164,7 @@ class GraphChatSession:
         self._line = line.strip()
         self._answer = ""
         try:
-            await self._graph.ainvoke({"turn_id": uuid.uuid4().hex}, self._config())
+            await self._graph.ainvoke({"turn_id": uuid.uuid4().hex, "handled": False}, self._config())
             return self._answer
         except ModelUnavailable as error:
             return f"[model unavailable] {error}"
@@ -207,6 +222,131 @@ class GraphChatSession:
                 })
         return {"intents": [item.model_dump(mode="json") for item in intents],
                 "direct": direct}
+
+    def _apply_preview(self, preview: dict[str, Any]) -> list[dict[str, Any]]:
+        """Put previewed points into the draft; return the rows kept for text edits."""
+        rows = preview.get("rows", [])
+        locations = [{"lat": row["lat"], "lon": row["lon"], "name": row["name"]}
+                     for row in rows if row.get("status") == "resolved"]
+        if locations:
+            self.chat._merge(AgentIntent(kind="weather", locations=locations))
+            self.chat.draft.place = None
+            self.chat.draft.lat = self.chat.draft.lon = None
+        self.chat.pending_choices = ()
+        self.chat.selected_location = None
+        return rows
+
+    @staticmethod
+    def _preview_text(preview: dict[str, Any]) -> str:
+        rows = preview.get("rows", [])
+        lines = [f"Previewed {preview.get('resolved', 0)} of {len(rows)} places. Fix anything by text, "
+                 "for example 'replace 2 with Portland, Oregon', 'remove 3' or 'add Reno'."]
+        for row in rows[:PREVIEW_LINES]:
+            if row.get("status") != "resolved":
+                lines.append(f"{row['index']}. '{row['input']}' not found; replace or remove it")
+                continue
+            detail = f" ({row['lat']:.4f}, {row['lon']:.4f})" if row.get("source") != "coordinates" else ""
+            note = (f"; top of {row['candidate_count']} matches, check it" if row.get("ambiguous") else "")
+            population = f"; population {row['population']:,}" if row.get("population") else ""
+            lines.append(f"{row['index']}. {row['name']}{detail}{population}{note}")
+        if len(rows) > PREVIEW_LINES:
+            lines.append(f"... and {len(rows) - PREVIEW_LINES} more")
+        lines.extend(preview.get("attribution", []))
+        return "\n".join(lines)
+
+    @staticmethod
+    def _questions_text(result: dict[str, Any]) -> str:
+        lines = ["Before listing those places I need a few details:"]
+        for question in result.get("questions", []):
+            options = [option.get("label") or next((f"{value:,}" if isinstance(value, int) else str(value))
+                                                    for value in option.values() if value is not None)
+                       for option in question.get("options", [])]
+            choices = ("; ".join(f"{index}. {label}" for index, label in enumerate(options, start=1))
+                       if options else "")
+            lines.append(f"- {question['prompt']}" + (f" Options: {choices}." if choices else ""))
+        return "\n".join(lines)
+
+    async def _preview_places(self, places: dict[str, Any], preview: dict[str, Any]) -> GraphState:
+        rows = self._apply_preview(preview)
+        self._answer = self._preview_text(preview)
+        return {"places": {"rows": rows}, "handled": True, "chat": self.chat.export_state()}
+
+    async def _gate(self, state: GraphState) -> GraphState:
+        """Answer a pending place-set question or apply a list edit without the model."""
+        places = dict(state.get("places") or {})
+        if self._line == "/reset":
+            return {"places": {}, "handled": False}
+        if self._forced is not None or self._line.startswith("/"):
+            return {"handled": False}
+        if state.get("chat"):
+            self.chat.import_state(state["chat"])
+        if places.get("set"):
+            result = await self.agent.mcp.call("weather_places_interpret", text=self._line,
+                                               draft=places["set"])
+            if result.get("questions"):
+                self._answer = self._questions_text(result)
+                return {"places": {"set": result["draft"]}, "handled": True}
+            preview = await self.agent.mcp.call("weather_place_set", query=result["query"])
+            return await self._preview_places(places, preview)
+        if places.get("rows"):
+            rows = places["rows"]
+            labels = [row.get("name") or row["input"] for row in rows]
+            try:
+                edited = apply_edit(labels, self._line)
+            except OpenEPWError as error:
+                self._answer = error.issue.message
+                return {"handled": True}
+            if edited is not None:
+                if not edited:
+                    self._answer = "The place list is now empty; give places or coordinates."
+                    return {"places": {}, "handled": True}
+                # Unchanged rows go back pinned so they are never re-geocoded; new text is resolved.
+                by_label = {label: row for label, row in zip(labels, rows)}
+                items = [by_label.get(label, label) for label in edited]
+                preview = await self.agent.mcp.call("weather_places_preview", places=items)
+                return await self._preview_places(places, preview)
+        return {"handled": False}
+
+    async def _think(self, state: GraphState) -> GraphState:
+        """Route new place text: lists and coordinates preview, sets ask, one name continues."""
+        if state.get("direct") or self._forced is not None:
+            return {}
+        intents = [AgentIntent.model_validate(item) for item in state.get("intents", [])]
+        target = next((intent for intent in intents if intent.kind != "future" and intent.place), None)
+        text = target.place if target else (self._line if describe_place_set(self._line) else None)
+        if not text:
+            return {}
+        # Route locally first so a single place keeps the existing choice flow unchanged.
+        try:
+            local = classify_places(text)
+        except OpenEPWError:
+            local = {"kind": "invalid"}
+        if local["kind"] == "single" or (local["kind"] == "coordinates" and len(local["points"]) == 1):
+            return {}
+        result = await self.agent.mcp.call("weather_places_interpret", text=text)
+        kind = result.get("kind")
+        if kind == "single" or (kind == "coordinates" and len(result.get("points", [])) == 1):
+            return {}
+        if state.get("chat"):
+            self.chat.import_state(state["chat"])
+        if target is not None:
+            # Keep product, years and other facts from the same message.
+            self.chat._merge(target.model_copy(update={"place": None, "kind": "weather"}))
+        rest = [intent.model_dump(mode="json") for intent in intents if intent is not target]
+        common = {"intents": [], "waiting": list(state.get("waiting", [])) + rest, "handled": True}
+        if kind == "invalid":
+            self._answer = result["issue"]["message"]
+            return common | {"chat": self.chat.export_state()}
+        if kind == "descriptive":
+            if result.get("questions"):
+                self._answer = self._questions_text(result)
+                return common | {"places": {"set": result["draft"]}, "chat": self.chat.export_state()}
+            preview = await self.agent.mcp.call("weather_place_set", query=result["query"])
+        else:
+            items = (result.get("items") if kind == "list" else
+                     [f"{lat}, {lon}" for lat, lon in result.get("points", [])])
+            preview = await self.agent.mcp.call("weather_places_preview", places=items)
+        return common | await self._preview_places({}, preview)
 
     @staticmethod
     def _ground_weather_time(intent: AgentIntent, line: str) -> AgentIntent:

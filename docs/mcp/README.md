@@ -30,6 +30,7 @@ Never paste EPW bytes into a model prompt.
 | Journey | Tools | Result to retain |
 | --- | --- | --- |
 | Geography and choices | `weather_geocode`, `weather_assess`, `weather_discover` | Explicit location candidate; occurrence-level reasons and evidence date |
+| Place inputs | `weather_places_interpret`, `weather_places_preview`, `weather_place_set` | Route place text; numbered point preview (top geocoder match per name, ambiguity flagged, unresolved rows kept) with digest; clarification questions and draft for descriptive sets; GeoNames attribution |
 | Planning | `weather_plan`, `plan_inspect` | Immutable `plan_hash`, selected/output rows, warnings and estimated calls |
 | EPW input | `epw_upload`, `epw_register_path` | Checksummed `artifact_id`, row count and input QC |
 | Execution | `weather_submit` | Durable `job_id` from a stored weather plan hash |
@@ -81,3 +82,22 @@ records `simulation_ready=false`; do not claim simulator certification.
    distinguishes the five implemented families from planned ones. These tools
    make no provider request and render no chart. See the
    [visualization contract](../design/2026-09-26-weather-visualization.md).
+
+## Place lists and descriptive sets
+
+`weather_places_interpret(text, draft=None)` classifies place text as
+`coordinates`, `list`, `single`, `descriptive` or `invalid`. Coordinates are
+points only, latitude first; boxes and polygons return `UNSUPPORTED_GEOGRAPHY`
+and out-of-range values `INVALID_COORDINATES`. A descriptive set such as "all
+cities in America" returns `questions` (region, minimum population, limit) and a
+`draft`; pass the draft back with the user's reply until `query` is complete.
+Nothing is enumerated before then.
+
+`weather_places_preview(places)` resolves up to 1,000 names or coordinates
+without a confirmation step. Each name takes the geocoder's top match; rows with
+several matches are `ambiguous` with a `candidate_count`, and names that do not
+resolve stay as `unresolved` rows. Rows from an earlier preview can be passed
+back unchanged so edits never re-geocode them. `weather_place_set(query)` lists a
+clarified set from GeoNames by population. Both return compact rows (the
+resolved rows are the request points), issues, attribution and a digest. The
+MCP weather request point-list cap is 1,000 to match.

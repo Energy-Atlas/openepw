@@ -176,3 +176,13 @@ local credential and falls back to a narrower offline parser. A single hourly
 view up to 10,000 rows loads all pages for plotting; larger or other paged views
 state how many rows are plotted and offer `Load more`. No future-weather UI
 flow is exposed.
+
+## Place lists and descriptive sets
+
+Place previews take the geocoder's top match for each name without asking;
+ambiguous rows are flagged and must be corrected by text. The deterministic list
+splitter keeps US state and a small set of country qualifiers with their place;
+other phrasing relies on the model parser. Descriptive place sets come from
+GeoNames city dumps (minimum population 1,000; capitals are first-level seats).
+GeoNames populations are its own values, some city sections (such as New York
+boroughs) appear as separate places, and continent-wide sets are not supported.
