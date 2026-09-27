@@ -6,6 +6,7 @@ import json
 import uuid
 from collections import Counter
 from datetime import date, datetime, timezone
+from functools import cached_property
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -46,6 +47,9 @@ from .models import (
     digest,
     utcnow,
 )
+from .places import preview as places_preview
+from .places.geonames import GeoNamesStore
+from .places.models import PlacePreview, PlaceSetQuery
 from .planning.batch import (
     exact_published_source,
     exact_published_url,
@@ -135,6 +139,22 @@ class WeatherService:
         self.artifacts = ArtifactStore(self.config.data_root)
         self.catalog_store = catalog_store or CatalogStore(self.config.data_root / "catalog")
         self.plan_store = PlanStore(self.config.data_root)
+
+    @cached_property
+    def geonames(self) -> GeoNamesStore:
+        return GeoNamesStore(self.config.data_root / "places" / "geonames", self.http)
+
+    def interpret_places(self, text: str) -> dict:
+        """Classify place text; descriptive sets return questions before any enumeration."""
+        return places_preview.interpret_places(text, self.geonames)
+
+    def preview_places(self, items: list[str]) -> PlacePreview:
+        """Resolve names and coordinates to numbered points without per-place confirmation."""
+        return places_preview.preview_places(items, self.geocode)
+
+    def place_set(self, query: PlaceSetQuery) -> PlacePreview:
+        """Enumerate a clarified place set from GeoNames as a preview."""
+        return places_preview.place_set_preview(query, self.geonames)
 
     def visualization_capabilities(self) -> dict:
         return capabilities()
