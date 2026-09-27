@@ -64,6 +64,10 @@ from .providers.onebuilding import OneBuildingProvider
 from .providers.openmeteo import OpenMeteoProvider
 from .providers.pvgis import PVGISProvider
 from .qc import validate
+from .visualization.catalog import capabilities
+from .visualization.engine import build_view, describe_sources
+from .visualization.models import VisualizationRequest
+from .visualization.store import VisualizationStore
 
 
 class _DiscoveryHttp:
@@ -131,6 +135,19 @@ class WeatherService:
         self.artifacts = ArtifactStore(self.config.data_root)
         self.catalog_store = catalog_store or CatalogStore(self.config.data_root / "catalog")
         self.plan_store = PlanStore(self.config.data_root)
+
+    def visualization_capabilities(self) -> dict:
+        return capabilities()
+
+    def describe_weather_data(self, artifact_ids: list[str]) -> dict:
+        return describe_sources(self.artifacts, artifact_ids)
+
+    def visualize_weather(self, request: VisualizationRequest) -> dict:
+        prepared = build_view(self.artifacts, request)
+        return VisualizationStore(self.config.data_root).save(prepared)
+
+    def page_weather_data(self, view_id: str, offset: int = 0, limit: int = 100) -> dict:
+        return VisualizationStore(self.config.data_root).page(view_id, offset, limit)
 
     def assess_availability(self, query: WeatherAvailabilityQuery | FutureAvailabilityQuery) -> AvailabilityResult:
         view = self.catalog_store.active()
