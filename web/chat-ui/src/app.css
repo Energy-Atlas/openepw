@@ -82,7 +82,9 @@ button { cursor: pointer; }
 /* The dock keeps the current question, its options and the input fixed; the log above scrolls. */
 .chat-dock { flex: none; display: flex; flex-direction: column; gap: .45rem; min-height: 0; max-height: 62dvh; }
 .chat-dock > * { pointer-events: auto; }
-.chat-dock .action-card { width: 100%; max-height: 40dvh; overflow: auto; }
+.chat-dock .action-card { flex: none; width: 100%; max-height: 40dvh; overflow: auto; }
+/* A long option list scrolls inside the dock; the padding keeps option shadows unclipped. */
+.chat-dock .composer { flex: 0 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; margin: -4px; padding: 4px; }
 .chat-dock .error { margin: 0; padding: .4rem .7rem; border-radius: 10px; background: var(--oe-paper); box-shadow: var(--oe-shadow); }
 .dock-tools { display: flex; justify-content: flex-end; gap: .35rem; }
 .icon-button { display: inline-grid; place-items: center; width: 2rem; height: 2rem; padding: 0; border: 0; border-radius: 50%; background: var(--oe-paper); color: var(--oe-ink); box-shadow: var(--oe-shadow); }
@@ -157,3 +159,18 @@ button { cursor: pointer; }
 /* Location review: approve sits above the open input, which steers the location by text. */
 .composer .approve-location { display: flex; align-items: center; gap: .4rem; margin: 0 0 .4rem auto; min-height: 2.25rem; padding: .5rem .9rem .5rem .6rem; border: 0; border-radius: 999px; background: var(--oe-ink); color: var(--oe-paper); font-weight: 500; font-size: .82rem; box-shadow: var(--oe-shadow); }
 .composer .approve-location svg { display: block; width: 16px; height: 16px; }
+/* Product availability while a weather product is chosen: tags at every zoom, dashed links to looked-up stations. */
+.availability-callouts { position: absolute; inset: 0; z-index: 2; pointer-events: none; overflow: hidden; }
+.availability-callouts svg { position: absolute; inset: 0; }
+.station-link { fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-dasharray: 5 4; animation: station-link-flow 2.4s linear infinite; }
+/* Two dash periods per cycle; a falling offset carries the dashes from the location towards the station. */
+@keyframes station-link-flow { to { stroke-dashoffset: -18; } }
+.availability-tag { position: absolute; box-sizing: border-box; height: 17px; padding: 0 8px; border-radius: 999px; background: var(--oe-paper); font: 500 10px/17px 'Geist', system-ui, sans-serif; text-align: left; white-space: nowrap; box-shadow: 0 1px 2px color-mix(in srgb, var(--oe-ink) 25%, transparent); transition: opacity .15s ease; }
+.availability-tag.unknown { color: var(--oe-ink); }
+.availability-tag.chosen { outline: 2px solid var(--oe-ink); outline-offset: 1px; }
+.availability-tag.dim, .station-link.dim { opacity: .3; }
+@media (prefers-reduced-motion: reduce) { .station-link { animation: none; } .availability-tag { transition: none; } }
+/* Product choices are grouped by weather type; the note explains the map tags. */
+.reply-options .option-group { flex-basis: 100%; margin-top: .3rem; text-align: right; color: var(--oe-muted); font-size: .72rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
+.action-card .card-note { margin: .35rem 0 0; color: var(--oe-muted); font-size: .76rem; line-height: 1.35; }
+

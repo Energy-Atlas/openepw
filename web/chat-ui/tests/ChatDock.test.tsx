@@ -137,4 +137,24 @@ describe('chat dock and controls', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Approve locations' }))
     await waitFor(() => expect(approveLocation).toHaveBeenCalledWith('test', 6, expect.any(String)))
   })
+
+  it('lists named products by group, says which year availability shows, and confirms with the tick', async () => {
+    const card: Card = { id: 'p', revision: 8, kind: 'choice', prompt: 'Which weather product?', options: [
+      { id: 'era5-openmeteo', label: 'ERA5 actual year · Open-Meteo', detail: '25 km grid', group: 'actual' },
+      { id: 'nsrdb-actual', label: 'NSRDB actual year · GOES v4', detail: '4 km grid', group: 'actual' },
+      { id: 'onebuilding:TMYx.2009-2023', label: 'OneBuilding TMYx.2009-2023', detail: 'station file', group: 'typical' }],
+    data: { field: 'product', availability: { years: [2025], years_assumed: true, omitted_locations: 0, locations: [
+      { index: 0, lat: 42.4, lon: -76.5, products: [] }] } } }
+    const answer = vi.fn(async () => ({ ...state(card), revision: 9, active_card: null }))
+    render(<App api={api(state(card), { answer })} />)
+    const options = await screen.findByRole('group', { name: 'Reply options' })
+    expect(within(options).getByText('Actual year')).toBeInTheDocument()
+    expect(within(options).getByText('Typical year')).toBeInTheDocument()
+    expect(screen.getByLabelText('Current question')).toHaveTextContent('Map tags show availability for 2025')
+    fireEvent.click(within(options).getByRole('button', { name: /NSRDB actual year · GOES v4/ }))
+    expect(answer).not.toHaveBeenCalled()
+    fireEvent.click(within(options).getByRole('button', { name: 'Confirm' }))
+    await waitFor(() => expect(answer).toHaveBeenCalledWith('test', 8, 'nsrdb-actual', expect.any(String)))
+  })
 })
+

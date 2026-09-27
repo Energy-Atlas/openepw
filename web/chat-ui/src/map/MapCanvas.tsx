@@ -8,6 +8,7 @@ import { availabilityFeatures } from './evidence'
 import { MAP_PALETTE, SHAPE_IMAGES, STATION_LABEL_ZOOM, catalogFeatures, catalogLayerSpecs, layerSwatch,
   legendRows } from './catalogLayers'
 import { calloutEnd, placeLabels, type LabelInput, type PlacedLabel } from './labels'
+import { layoutCallouts, type CalloutLine, type CalloutTag, type ProductAvailability } from './availabilityCallouts'
 import { utcSceneTime } from './sun'
 import { THEME } from '../theme'
 import { MinimizeIcon, TickIcon } from '../icons'
@@ -29,7 +30,7 @@ function styleParsed(map: MapLibreMap | null): map is MapLibreMap {
 
 export function MapCanvas({ location, candidates = [], geography, resolvedPoints = [], availability, catalogMap, years = [],
   pickMode = false, onExitPickMode, onPickPoint, onPickCandidate, onPickGeometry,
-  pendingCandidate = null, onConfirmCandidate }: {
+  pendingCandidate = null, onConfirmCandidate, productAvailability = null, highlightProduct = null }: {
   location?: MapPoint | null
   candidates?: MapPoint[]
   geography?: WeatherGeography | null
@@ -44,6 +45,9 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
   onPickGeometry?: (geography: WeatherGeography) => void
   pendingCandidate?: string | null
   onConfirmCandidate?: (id: string) => void
+  /** Where each weather product is available, shown while a product is chosen. */
+  productAvailability?: ProductAvailability | null
+  highlightProduct?: string | null
 }) {
   const host = useRef<HTMLDivElement>(null)
   const map = useRef<MapLibreMap | null>(null)
@@ -59,6 +63,9 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
   const [hiddenLayers, setHiddenLayers] = useState<string[]>([])
   const [labels, setLabels] = useState<PlacedLabel[]>([])
   const updateLabels = useRef<() => void>(() => {})
+  const updateCallouts = useRef<() => void>(() => {})
+  const calloutBoxes = useRef<Array<{ x: number; y: number; width: number; height: number }>>([])
+  const [callouts, setCallouts] = useState<{ tags: CalloutTag[]; lines: CalloutLine[] }>({ tags: [], lines: [] })
   const restorePopup = useRef<() => void>(() => {})
   const [drawMode, setDrawMode] = useState<'polygon' | 'box' | null>(null)
   const [vertices, setVertices] = useState<Array<[number, number]>>([])
@@ -140,10 +147,10 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
       const scheduleLabels = () => {
         if (labelFrame) return
         const next = window.requestAnimationFrame ?? ((callback: FrameRequestCallback) => window.setTimeout(callback, 16))
-        labelFrame = next(() => { labelFrame = 0; updateLabels.current() }) as number
+        labelFrame = next(() => { labelFrame = 0; updateCallouts.current(); updateLabels.current() }) as number
       }
       sceneMap.on('move', scheduleLabels)
-      sceneMap.on('idle', () => updateLabels.current())
+      sceneMap.on('idle', () => { updateCallouts.current(); updateLabels.current() })
       sceneMap.on('moveend', () => {
         setStatus(`Map ready · zoom ${sceneMap.getZoom().toFixed(1)}`)
         const view3d = autoView3d(sceneMap.getZoom(), settingsRef.current.view3d)
@@ -374,8 +381,38 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
     // Stations nearest the middle of the view win when space is short.
     items.sort((a, b) => Math.hypot(a.x - size.width / 2, a.y - size.height / 2)
       - Math.hypot(b.x - size.width / 2, b.y - size.height / 2))
-    setLabels(placeLabels(items, markers, size))
+    setLabels(placeLabels(items, markers, size, { obstacles: calloutBoxes.current }))
   }
+
+  updateCallouts.current = () => {
+    const sceneMap = map.current
+    if (!sceneMap || !styleParsed(sceneMap) || !productAvailability?.locations.length) {
+      calloutBoxes.current = []
+      setCallouts(current => current.tags.length || current.lines.length ? { tags: [], lines: [] } : current)
+      return
+    }
+    // Tags follow the legend toggles: a hidden source layer hides its products' tags too.
+    const locations = productAvailability.locations.map(item => ({ ...item,
+      products: item.products.filter(product => !hiddenLayers.includes(product.layer)) }))
+    const size = { width: host.current?.clientWidth || window.innerWidth, height: host.current?.clientHeight || window.innerHeight }
+    const next = layoutCallouts(locations, (lon, lat) => sceneMap.project([lon, lat]), textWidth, size)
+    // Station names are placed after the tags and keep clear of them.
+    calloutBoxes.current = next.tags.map(tag => ({ x: tag.x - 2, y: tag.y - 2, width: tag.width + 4, height: 21 }))
+    setCallouts(next)
+  }
+  useEffect(() => { updateCallouts.current() }, [productAvailability, hiddenLayers, styleEpoch])
+  // Frame the locations with their looked-up stations once, so every station link is visible.
+  const calloutPoints = (productAvailability?.locations ?? []).flatMap(item => [[item.lon, item.lat],
+    ...item.products.flatMap(product => product.station ? [[product.station.lon, product.station.lat]] : [])])
+  const calloutKey = JSON.stringify(calloutPoints)
+  useEffect(() => {
+    const sceneMap = map.current
+    if (!sceneMap || !calloutPoints.length || typeof sceneMap.fitBounds !== 'function') return
+    const lons = calloutPoints.map(point => point[0])
+    const lats = calloutPoints.map(point => point[1])
+    sceneMap.fitBounds([[Math.min(...lons), Math.min(...lats)], [Math.max(...lons), Math.max(...lats)]], {
+      padding: { top: 90, bottom: 90, left: 90, right: window.innerWidth > 650 ? 470 : 60 }, maxZoom: 12, duration: 900 })
+  }, [calloutKey, styleEpoch])
 
   const yearKey = years.join(',')
   useEffect(() => {
@@ -453,6 +490,21 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
       <small className="legend-source">Stage 1 catalog · {catalogMap.snapshot?.created_at.slice(0, 10) ?? 'bundled contracts'}
         {' '}· documentary, not point eligibility</small>
     </aside>}
+    {(callouts.tags.length > 0 || callouts.lines.length > 0) && <div className="availability-callouts"
+      aria-label="Product availability at your locations" role="group">
+      <svg width="100%" height="100%" aria-hidden="true">
+        {callouts.lines.map(line => <line key={line.id} className={`station-link${highlightProduct &&
+          !line.option.includes(highlightProduct) ? ' dim' : ''}`} x1={line.x1} y1={line.y1} x2={line.x2} y2={line.y2}
+          stroke={line.color} />)}
+      </svg>
+      {callouts.tags.map(tag => <span key={tag.id} data-option={tag.option}
+        className={`availability-tag ${tag.status}${highlightProduct ? tag.option === highlightProduct ? ' chosen' : ' dim' : ''}`}
+        title={tag.status === 'unknown' ? `${tag.text.slice(0, -2)}: not verified in the catalog; checked when planning`
+          : `${tag.text}: listed in the catalog`}
+        style={{ left: tag.x, top: tag.y, width: tag.width, ...(tag.status === 'unknown'
+          ? { boxShadow: `inset 0 0 0 1.5px ${tag.color}, 0 1px 2px rgba(31, 31, 31, .25)` }
+          : { background: tag.color, color: tag.textColor }) }}>{tag.text}</span>)}
+    </div>}
     {labels.length > 0 && <div className="station-labels" aria-hidden="true">
       <svg className="station-callouts" width="100%" height="100%">
         {labels.filter(label => label.callout).map(label => {

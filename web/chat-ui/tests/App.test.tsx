@@ -99,7 +99,8 @@ describe('map-first shell', () => {
 
   it('asks for the tick beside a weather product before answering', async () => {
     const state = cardState({ id: 'product', revision: 2, kind: 'choice', prompt: 'Which weather product?',
-      options: [{ id: 'historical', label: 'Actual-year weather' }, { id: 'tmy', label: 'TMY reference' }] })
+      options: [{ id: 'era5-openmeteo', label: 'ERA5 actual year · Open-Meteo' }, { id: 'tmy', label: 'TMY reference' }],
+      data: { field: 'product' } })
     const answer = vi.fn().mockResolvedValue({ ...state, active_card: null })
     render(<App api={{ ...apiFor(state), answer } as unknown as ChatApi} />)
     const option = await screen.findByRole('button', { name: /TMY reference/ })

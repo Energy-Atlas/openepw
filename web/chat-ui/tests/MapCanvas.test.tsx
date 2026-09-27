@@ -44,6 +44,7 @@ vi.mock('maplibre-gl', () => {
     getTerrain() { return null }
     jumpTo() {}
     easeTo = vi.fn()
+    fitBounds = vi.fn()
     getCenter() { return { lat: 18, lng: 0 } }
     zoom = 1.65
     getZoom() { return this.zoom }
@@ -160,4 +161,36 @@ describe('map canvas overlays', () => {
     expect([...document.querySelectorAll('.station-label')].map(node => node.textContent)).toContain('Boston Logan')
     expect(document.querySelectorAll('.station-callouts line').length).toBeGreaterThan(0)
   })
+
+  it('tags each product at the location and links a looked-up station with a moving dashed line', async () => {
+    const { MapCanvas } = await import('../src/map/MapCanvas')
+    const availability = { years: [2025], years_assumed: true, omitted_locations: 0, locations: [{ index: 0,
+      lat: 42, lon: -76, name: 'Ithaca', products: [
+        { option: 'era5-openmeteo', layer: 'era5', tag: 'ERA5 · Open-Meteo', status: 'supported' as const },
+        { option: 'nsrdb-actual', layer: 'nsrdb', tag: 'NSRDB actual year', status: 'unknown' as const },
+        { option: 'noaa-isd', layer: 'noaa', tag: 'NOAA ISD', status: 'supported' as const,
+          station: { lat: 40, lon: -60, name: 'Airport', distance_km: 5.2 } }] }] }
+    const { rerender } = render(<MapCanvas catalogMap={catalog} productAvailability={availability} />)
+    await waitFor(() => expect(fake.maps).toHaveLength(1))
+    const map = fake.maps[0] as unknown as { parsed: boolean; emit(event: string): void }
+    map.parsed = true
+    map.emit('style.load')
+    const group = await screen.findByRole('group', { name: 'Product availability at your locations' })
+    const tags = [...group.querySelectorAll<HTMLElement>('.availability-tag')]
+    expect(tags.map(tag => tag.textContent)).toEqual(['ERA5 · Open-Meteo', 'NSRDB actual year ?', 'NOAA ISD · 5.2 km'])
+    expect(tags[0].style.left).toBe(tags[1].style.left)                     // left aligned at the location
+    expect(tags[1]).toHaveClass('unknown')
+    expect((map as unknown as { fitBounds: ReturnType<typeof vi.fn> }).fitBounds).toHaveBeenCalledWith(
+      [[-76, 40], [-60, 42]], expect.objectContaining({ maxZoom: 12 }))       // location and station in view
+    const link = group.querySelector('line.station-link')!
+    expect([link.getAttribute('x1'), link.getAttribute('y1'), link.getAttribute('x2'), link.getAttribute('y2')])
+      .toEqual(['124', '258', '140', '260'])                               // from the location to the station
+    rerender(<MapCanvas catalogMap={catalog} productAvailability={availability} highlightProduct="noaa-isd" />)
+    expect(group.querySelector('[data-option="noaa-isd"]')).toHaveClass('chosen')
+    expect(group.querySelector('[data-option="era5-openmeteo"]')).toHaveClass('dim')
+    fireEvent.click(screen.getByRole('checkbox', { name: /NOAA ISD stations/ }))
+    await waitFor(() => expect(group.querySelector('[data-option="noaa-isd"]')).toBeNull())
+    expect(group.querySelector('line.station-link')).toBeNull()
+  })
 })
+

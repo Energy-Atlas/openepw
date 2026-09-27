@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import Markdown from 'react-markdown'
 import './app.css'
 import { ChatApi } from './api'
 import { MapCanvas } from './map/MapCanvas'
+import type { ProductAvailability } from './map/availabilityCallouts'
 import { geojsonGeography } from './geography'
 import { mergeJobManifests } from './jobs'
 import { ViewPanel } from './views/ViewPanel'
@@ -247,8 +248,8 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
   // Location choices are previewed on the map and only answered after an explicit Confirm.
   const locationChoice = card?.kind === 'choice' && candidateFacts.length > 0
   // Location and weather-product choices are selected first, then confirmed with the tick beside them.
-  const productChoice = card?.kind === 'choice' && Boolean(card.options?.length)
-    && card.options!.every(option => ['historical', 'tmy', 'tmyx', 'published'].includes(option.id))
+  const productChoice = card?.kind === 'choice' && card.data?.field === 'product'
+  const productAvailability = productChoice ? card.data?.availability as ProductAvailability | undefined : undefined
   const confirmFirst = locationChoice || productChoice
   const lastEventId = session?.events.at(-1)?.id
   const optionNumber = (id: string) => (card?.options?.findIndex(option => option.id === id) ?? -1) + 1
@@ -290,6 +291,7 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
       onPickPoint={point => void act(current => api.setGeography(current.id, current.revision, point, randomKey()))}
       onPickGeometry={geography => void act(current => api.setGeography(current.id, current.revision, geography, randomKey()))}
       pendingCandidate={locationChoice ? pendingChoice : null} onConfirmCandidate={confirmChoice}
+      productAvailability={productAvailability ?? null} highlightProduct={productChoice ? pendingChoice : null}
       onPickCandidate={id => { if (locationChoice) setPendingChoice(id) }} />
     <aside className="chat-rail" aria-label="Weather chat">
       <div className="chat-transcript" role="log" aria-live="polite" ref={transcript}>
@@ -382,6 +384,12 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
       {card && <section className="action-card" aria-label="Current question">
         <span className="event-kind">Agent</span>
         <h2>{card.prompt}</h2>
+        {productAvailability && productAvailability.locations.length > 0 && <p className="card-note">
+          Map tags show availability{productAvailability.years_assumed
+            ? ` for ${productAvailability.years.join(', ')}; you choose the years next`
+            : ` for ${productAvailability.years.join(', ')}`}. Solid tags are listed in the catalog; outlined
+          tags with ? are checked when planning.{productAvailability.omitted_locations > 0
+            ? ` Tags cover the first ${productAvailability.locations.length} places.` : ''}</p>}
         {card.kind === 'location_review' && typeof card.data?.summary === 'string' &&
           <div className="md"><Markdown>{card.data.summary}</Markdown></div>}
         {card.kind === 'plan_review' && <div>
@@ -438,14 +446,16 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
       </> : <div className="reply-options" role="group" aria-label="Reply options">
         {card?.kind === 'choice' && <>
           {card.options?.map((option, index) => confirmFirst
-            ? <span key={option.id} className="option-row">
+            ? <Fragment key={option.id}>{productChoice && option.group && option.group !== card.options?.[index - 1]?.group
+              && <span className="option-group">{option.group === 'actual' ? 'Actual year' : 'Typical year'}</span>}
+              <span className="option-row">
               <button disabled={busy} type="button" className={locationChoice ? 'numbered-option' : undefined}
                 aria-pressed={pendingChoice === option.id} onClick={() => setPendingChoice(option.id)}>
                 {locationChoice && <span className="option-number" aria-hidden="true">{index + 1}</span>}
                 {option.label}{option.detail && <span className="option-detail">{option.detail}</span>}</button>
               {pendingChoice === option.id && <button className="option-tick" type="button" disabled={busy}
                 aria-label="Confirm" title="Confirm" onClick={() => confirmChoice(option.id)}><TickIcon /></button>}
-            </span>
+            </span></Fragment>
             : <button key={option.id} disabled={busy} type="button" onClick={() => confirmChoice(option.id)}>
               {option.label}{option.detail && <span className="option-detail">{option.detail}</span>}</button>)}
           <button className="reply-alt" type="button" onClick={() => setTyping(true)}>Other — type an answer</button>

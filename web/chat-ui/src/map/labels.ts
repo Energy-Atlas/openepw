@@ -51,10 +51,11 @@ function candidates(item: LabelInput): Array<{ x: number; y: number; callout: bo
 
 /** Greedy placement in input order (put the most important first); drops labels with no room. */
 export function placeLabels(items: LabelInput[], markers: Array<{ x: number; y: number }>,
-  size: { width: number; height: number }, options: { max?: number } = {}): PlacedLabel[] {
+  size: { width: number; height: number }, options: { max?: number; obstacles?: Box[] } = {}): PlacedLabel[] {
   const max = options.max ?? 150
   const placed: PlacedLabel[] = []
   const occupied = new Grid()
+  for (const box of options.obstacles ?? []) occupied.add(box)
   for (const point of [...markers, ...items]) {
     occupied.add({ x: point.x - MARKER_RADIUS, y: point.y - MARKER_RADIUS,
       width: MARKER_RADIUS * 2, height: MARKER_RADIUS * 2 })

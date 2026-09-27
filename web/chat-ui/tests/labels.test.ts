@@ -43,4 +43,10 @@ describe('station label placement', () => {
     const many = Array.from({ length: 500 }, (_, index) => input(`P${index}`, (index % 25) * 32 + 10, Math.floor(index / 25) * 30 + 10, 20))
     expect(placeLabels(many, [], size, { max: 50 }).length).toBeLessThanOrEqual(50)
   })
+
+  it('keeps station names off the product availability tags', () => {
+    const tag = { x: 390, y: 285, width: 120, height: 30 }
+    const [label] = placeLabels([input('A', 400, 300)], [], size, { obstacles: [tag] })
+    expect(overlaps(label, tag)).toBe(false)
+  })
 })
