@@ -87,3 +87,35 @@ def test_stored_hash_job_and_compact_export_share_service_identities(tmp_path):
         downloaded = client.get(f"/v1/artifacts/{ref['id']}")
         assert downloaded.status_code == 200
         assert downloaded.content.startswith(b"PK")
+
+
+def test_chat_rest_prepares_and_runs_only_after_explicit_action(tmp_path):
+    from openepw.chat.coordinator import OfflineParser
+
+    service = WeatherService(RuntimeConfig(data_root=tmp_path), providers=[StationProvider()])
+    app = create_app(service, chat_parser=OfflineParser())
+    with TestClient(app) as client:
+        app.state.runner.enqueue = lambda _: None
+        created = client.post("/v1/chat/sessions").json()
+        sid = created["id"]
+        turn = client.post(f"/v1/chat/sessions/{sid}/turns", json={
+            "text": "42.37, -71.11 historical 2018", "revision": 0,
+            "idempotency_key": "first"})
+        assert turn.status_code == 200
+        state = turn.json()
+        assert state["facts"]["years"] == [2018]
+        assert state["job_id"] is None
+        assert client.get(f"/v1/chat/sessions/{sid}").json()["facts"] == state["facts"]
+        stale = client.post(f"/v1/chat/sessions/{sid}/prepare", json={
+            "revision": 0, "idempotency_key": "stale"})
+        assert stale.status_code == 409
+        prepared = client.post(f"/v1/chat/sessions/{sid}/prepare", json={
+            "revision": state["revision"], "idempotency_key": "prepare"})
+        assert prepared.status_code == 200
+        state = prepared.json()
+        assert state["plan_hash"]
+        run_body = {"revision": state["revision"], "idempotency_key": "run-once"}
+        run = client.post(f"/v1/chat/sessions/{sid}/run", json=run_body)
+        assert run.status_code == 202
+        assert run.json()["job_id"]
+        assert client.post(f"/v1/chat/sessions/{sid}/run", json=run_body).json() == run.json()

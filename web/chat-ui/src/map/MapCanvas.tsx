@@ -15,12 +15,27 @@ const appearances: Array<[Appearance, string]> = [
   ['landform', 'Landform'], ['clean', 'Clean technical'], ['engineering', 'Dark engineering'],
 ]
 
-export function MapCanvas() {
+type MapPoint = { id?: string; name?: string; lat: number; lon: number }
+
+export function MapCanvas({ location, candidates = [], onPickPoint, onPickCandidate }: {
+  location?: MapPoint | null
+  candidates?: MapPoint[]
+  onPickPoint?: (point: MapPoint) => void
+  onPickCandidate?: (id: string) => void
+}) {
   const host = useRef<HTMLDivElement>(null)
   const map = useRef<MapLibreMap | null>(null)
   const settingsRef = useRef(initial)
   const [settings, setSettings] = useState(initial)
   const [status, setStatus] = useState('Loading map')
+  const [styleEpoch, setStyleEpoch] = useState(0)
+  const [picking, setPicking] = useState(false)
+  const candidateRef = useRef(candidates)
+  const pickPointRef = useRef(onPickPoint)
+  const pickCandidateRef = useRef(onPickCandidate)
+
+  useEffect(() => { candidateRef.current = candidates; pickPointRef.current = onPickPoint;
+    pickCandidateRef.current = onPickCandidate }, [candidates, onPickPoint, onPickCandidate])
 
   function change(patch: Partial<SceneSettings>) {
     setSettings(current => ({ ...current, ...patch }))
@@ -46,10 +61,23 @@ export function MapCanvas() {
       instance = sceneMap
       map.current = sceneMap
       sceneMap.on('style.load', () => {
-        try { applyScene(sceneMap, settingsRef.current); sceneMap.jumpTo({ pitch: scenePitch(settingsRef.current) }); setStatus('Map ready') }
+        try { applyScene(sceneMap, settingsRef.current); sceneMap.jumpTo({ pitch: scenePitch(settingsRef.current) }); setStyleEpoch(value => value + 1); setStatus('Map ready') }
         catch { setStatus('Map scene unavailable; chat and coordinates remain usable.') }
       })
       sceneMap.on('error', () => setStatus('Some map tiles could not load. Chat remains available.'))
+      sceneMap.on('click', event => {
+        const hit = sceneMap.getLayer('openepw-candidates')
+          ? sceneMap.queryRenderedFeatures(event.point, { layers: ['openepw-candidates'] }) : []
+        if (hit.length && typeof hit[0].properties?.id === 'string') {
+          pickCandidateRef.current?.(hit[0].properties.id)
+          return
+        }
+        if (sceneMap.getCanvas().dataset.picking === 'true') {
+          pickPointRef.current?.({ lat: event.lngLat.lat, lon: event.lngLat.lng })
+          sceneMap.getCanvas().dataset.picking = 'false'
+          setPicking(false)
+        }
+      })
       sceneMap.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'bottom-left')
     }).catch(() => setStatus('Map unavailable. Use chat to enter coordinates or a place.'))
     return () => { cancelled = true; instance?.remove(); map.current = null }
@@ -64,6 +92,36 @@ export function MapCanvas() {
 
   useEffect(() => { map.current?.easeTo({ pitch: scenePitch(settings), duration: 400 }) }, [settings.view3d])
 
+  useEffect(() => {
+    const sceneMap = map.current
+    if (!sceneMap || !location) return
+    sceneMap.easeTo({ center: [location.lon, location.lat], zoom: Math.max(sceneMap.getZoom(), 11),
+      padding: { right: window.innerWidth > 650 ? 410 : 0 }, duration: 900 })
+  }, [location?.lat, location?.lon, styleEpoch])
+
+  useEffect(() => {
+    const sceneMap = map.current
+    if (!sceneMap?.isStyleLoaded()) return
+    const features = [
+      ...candidates.map(point => ({ type: 'Feature' as const,
+        geometry: { type: 'Point' as const, coordinates: [point.lon, point.lat] },
+        properties: { id: point.id ?? '', name: point.name ?? '', selected: false } })),
+      ...(location ? [{ type: 'Feature' as const,
+        geometry: { type: 'Point' as const, coordinates: [location.lon, location.lat] },
+        properties: { id: location.id ?? '', name: location.name ?? '', selected: true } }] : []),
+    ]
+    if (!sceneMap.getSource('openepw-candidates')) {
+      sceneMap.addSource('openepw-candidates', { type: 'geojson', data: { type: 'FeatureCollection', features } })
+      sceneMap.addLayer({ id: 'openepw-candidates', type: 'circle', source: 'openepw-candidates',
+        paint: { 'circle-radius': 7, 'circle-color': ['case', ['get', 'selected'], '#d69b36', '#237e8b'],
+          'circle-stroke-width': 2, 'circle-stroke-color': '#ffffff' } })
+    } else {
+      (sceneMap.getSource('openepw-candidates') as import('maplibre-gl').GeoJSONSource).setData({
+        type: 'FeatureCollection', features,
+      })
+    }
+  }, [candidates, location, styleEpoch])
+
   function setAppearance(appearance: Appearance) {
     change({ appearance })
     map.current?.setStyle(appearanceStyle(appearance))
@@ -73,6 +131,9 @@ export function MapCanvas() {
     <div ref={host} className="map-engine" aria-hidden="true" />
     <div className="map-brand">OpenEPW <span>Weather across places and years</span></div>
     <section className="scene-controls" aria-label="Map scene controls">
+      <button type="button" aria-pressed={picking} onClick={() => {
+        setPicking(value => { const next = !value; if (map.current) map.current.getCanvas().dataset.picking = String(next); return next })
+      }}>Choose point</button>
       <button type="button" aria-pressed={settings.view3d} onClick={() => change({ view3d: !settings.view3d })}>3D view</button>
       <label><input type="checkbox" checked={settings.terrain} disabled={!settings.view3d}
         onChange={event => change({ terrain: event.target.checked })} /> Terrain</label>

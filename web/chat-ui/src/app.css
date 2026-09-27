@@ -24,6 +24,21 @@ button { cursor: pointer; }
 .chat-subtitle { color: #647782; font-size: .82rem; }
 .chat-transcript { flex: 1; overflow: auto; padding: 1.5rem 1.3rem; }
 .welcome { max-width: 16ch; font-size: 1.7rem; line-height: 1.22; letter-spacing: -.04em; font-weight: 500; }
+.welcome-hint { color: #647782; font-size: .85rem; line-height: 1.5; }
+.chat-event { padding: .55rem 0; border-bottom: 1px solid #e2ebea; font-size: .83rem; overflow-wrap: anywhere; }
+.chat-event p { margin: .25rem 0; line-height: 1.45; }
+.user-event { color: #176875; }
+.event-kind { color: #647782; font: 500 .68rem 'IBM Plex Mono', monospace; text-transform: uppercase; letter-spacing: .04em; }
+.action-card, .job-card { margin-top: 1rem; padding: 1rem; border: 1px solid #b9d3d4; border-radius: 12px; background: #fff; font-size: .82rem; }
+.action-card h2, .job-card h2 { margin: 0 0 .6rem; font-size: 1rem; }
+.action-card button, .job-card button { margin: .2rem .25rem .2rem 0; padding: .45rem .65rem; border: 1px solid #b5ccce; border-radius: 7px; background: #f3f7f7; color: #173849; }
+.action-card button:hover, .job-card button:hover { background: #dcf0ef; }
+.choice-list { display: grid; gap: .35rem; }
+.choice-list button { text-align: left; }
+.warning, .error { color: #9b5422; }
+.job-card progress { width: 100%; accent-color: #237e8b; }
+.artifact-row { display: flex; align-items: center; justify-content: space-between; gap: .4rem; }
+.artifact-row code { font: .72rem 'IBM Plex Mono', monospace; }
 .composer { padding: 1rem; border-top: 1px solid #d8e4e3; }
 .composer label { display: block; margin: 0 0 .4rem .3rem; color: #647782; font-size: .78rem; }
 .composer-row { display: flex; gap: .5rem; }

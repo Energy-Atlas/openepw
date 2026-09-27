@@ -5,9 +5,10 @@
 > `feature/chat-ui`. This document proposes the product and delivery contract,
 > not a claim that the rendering approach has already been proved.
 
-**Status:** Draft for owner review, 2026-09-26. No chat UI implementation has
-started. The owner requested this revision after reviewing the earlier chat-first
-plan. Do not start implementation merely because this draft exists.
+**Status:** Approved for implementation by the owner's “implement” request on
+2026-09-26. Work began on `feature/chat-ui` from `feature/mcp` commit `516e0ed`.
+Acceptance remains pending; this status does not claim completion of the scene
+or workflow.
 
 **Goal:** Provide an optional browser experience in which a full-canvas globe
 and map are the persistent workspace; a fixed chat overlay guides existing-

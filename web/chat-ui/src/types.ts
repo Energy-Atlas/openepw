@@ -21,4 +21,15 @@ export type SessionSnapshot = {
   events: ChatEvent[]
   active_card: ChatCard | null
   job_id?: string | null
+  plan_hash?: string | null
+  view_ids?: string[]
+}
+
+export type JobSnapshot = {
+  id: string
+  state: string
+  total: number
+  completed: number
+  failed: number
+  bundle?: { weather?: Array<{ id: string; role: string; path: string }> } | null
 }

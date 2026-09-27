@@ -7,10 +7,12 @@ from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, model_validator
 
 from ..availability import AvailabilityQuery
+from ..chat.coordinator import ChatCoordinator, OfflineParser, StaleSession
 from ..epw import read_epw
 from ..jobs.worker import JobRunner
 from ..models import FutureRequest, OpenEPWError, WeatherPlan, WeatherRequest
 from ..service import WeatherService
+from ..visualization.models import VisualizationRequest
 
 
 class JobSubmission(BaseModel):
@@ -46,11 +48,47 @@ class GeocodeQuery(BaseModel):
     mode: str = "point"
 
 
-def create_app(service=None, *, remote=False):
+class ChatTurn(BaseModel):
+    text: str
+    revision: int
+    idempotency_key: str
+
+
+class ChatChoice(BaseModel):
+    revision: int
+    choice_id: str
+    idempotency_key: str
+
+
+class ChatAction(BaseModel):
+    revision: int
+    idempotency_key: str
+
+
+class ChatGeography(ChatAction):
+    geography: dict | list
+
+
+def create_app(service=None, *, remote=False, chat_parser=None):
     service = service or WeatherService()
     if remote and not service.config.bearer_token:
         raise ValueError("Remote mode requires OPENEPW_BEARER_TOKEN")
     runner = JobRunner(service)
+    if chat_parser is None:
+        try:
+            from ..harness.chat import load_model_key
+            from ..harness.graph_model import LangChainTurnParser
+
+            chat_parser = LangChainTurnParser(load_model_key(),
+                ledger_path=service.config.data_root / "chat" / "model-usage.json")
+        except (ImportError, RuntimeError, ValueError):
+            chat_parser = OfflineParser()
+        except Exception as error:
+            # A missing optional model or credential leaves deterministic parsing usable.
+            if type(error).__name__ != "ModelUnavailable":
+                raise
+            chat_parser = OfflineParser()
+    chat = ChatCoordinator(service, parser=chat_parser)
 
     @asynccontextmanager
     async def lifespan(app):
@@ -70,6 +108,7 @@ def create_app(service=None, *, remote=False):
     )
     app.state.service = service
     app.state.runner = runner
+    app.state.chat = chat
 
     @app.middleware("http")
     async def size_limit(request, call_next):
@@ -106,6 +145,66 @@ def create_app(service=None, *, remote=False):
     @app.get("/health")
     def health():
         return {"status": "ok", "version": "0.1.0"}
+
+    @app.exception_handler(StaleSession)
+    async def stale_chat(request, exc):
+        return JSONResponse({"code": "STALE_SESSION", "message": str(exc),
+                             "snapshot": exc.snapshot}, status_code=409)
+
+    @app.exception_handler(KeyError)
+    async def missing_chat(request, exc):
+        return JSONResponse({"code": "NOT_FOUND", "message": "Session not found"}, status_code=404)
+
+    @app.post("/v1/chat/sessions", status_code=201)
+    def create_chat():
+        return chat.create()
+
+    @app.get("/v1/chat/sessions/{session_id}")
+    def get_chat(session_id: str):
+        return chat.get(session_id)
+
+    @app.get("/v1/chat/sessions/{session_id}/events")
+    def chat_events(session_id: str, after: int = 0):
+        state = chat.get(session_id)
+        return {"events": [event for event in state["events"] if event["id"] > after],
+                "cursor": len(state["events"]), "revision": state["revision"]}
+
+    @app.post("/v1/chat/sessions/{session_id}/turns")
+    def chat_turn(session_id: str, payload: ChatTurn):
+        return chat.turn(session_id, payload.text, payload.revision, payload.idempotency_key)
+
+    @app.post("/v1/chat/sessions/{session_id}/choices")
+    def chat_choice(session_id: str, payload: ChatChoice):
+        return chat.answer(session_id, payload.revision, payload.choice_id, payload.idempotency_key)
+
+    @app.post("/v1/chat/sessions/{session_id}/geography")
+    def chat_geography(session_id: str, payload: ChatGeography):
+        return chat.set_geography(session_id, payload.geography, payload.revision,
+                                  payload.idempotency_key)
+
+    @app.post("/v1/chat/sessions/{session_id}/prepare")
+    def chat_prepare(session_id: str, payload: ChatAction):
+        return chat.prepare(session_id, payload.revision, payload.idempotency_key)
+
+    @app.post("/v1/chat/sessions/{session_id}/run", status_code=202)
+    def chat_run(session_id: str, payload: ChatAction):
+        return chat.run(session_id, payload.revision, payload.idempotency_key, runner)
+
+    @app.get("/v1/views/capabilities")
+    def view_capabilities():
+        return service.visualization_capabilities()
+
+    @app.post("/v1/views/describe")
+    def view_describe(artifact_ids: list[str]):
+        return service.describe_weather_data(artifact_ids)
+
+    @app.post("/v1/views/prepare")
+    def view_prepare(request: VisualizationRequest):
+        return service.visualize_weather(request)
+
+    @app.get("/v1/views/{view_id}/page")
+    def view_page(view_id: str, offset: int = 0, limit: int = 100):
+        return service.page_weather_data(view_id, offset, min(max(limit, 1), 1000))
 
     @app.post("/v1/geocode")
     def geocode(query: GeocodeQuery):
