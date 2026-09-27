@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { appearanceStyle, applyScene, scenePitch, type SceneSettings } from '../src/map/scene'
+import { appearanceStyle, appearanceTokens, applyScene, scenePitch, type SceneSettings } from '../src/map/scene'
 
 const defaults: SceneSettings = {
   appearance: 'light', view3d: false, terrain: false, terrainExaggeration: 1,
@@ -10,7 +10,8 @@ const defaults: SceneSettings = {
 describe('map scene', () => {
   it('has six distinct appearance choices', () => {
     expect(new Set((['light', 'dark', 'monochrome', 'landform', 'clean', 'engineering'] as const)
-      .map(appearanceStyle)).size).toBe(6)
+      .map(appearance => appearanceTokens[appearance].building)).size).toBe(6)
+    expect(appearanceStyle('engineering')).toBe(appearanceStyle('dark'))
   })
 
   it('tilts only in the 3D view', () => {

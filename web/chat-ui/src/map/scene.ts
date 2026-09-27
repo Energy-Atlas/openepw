@@ -21,7 +21,16 @@ const styleNames: Record<Appearance, string> = {
   monochrome: 'liberty',
   landform: 'fiord',
   clean: 'bright',
-  engineering: '3d',
+  engineering: 'dark',
+}
+export const appearanceTokens: Record<Appearance, { background: string; water: string;
+  road: string; building: string; accent: string }> = {
+  light: { background: '#f3f7f7', water: '#bed8dd', road: '#ffffff', building: '#829aa0', accent: '#237e8b' },
+  dark: { background: '#15313d', water: '#122d3b', road: '#566d75', building: '#718991', accent: '#59b9c1' },
+  monochrome: { background: '#ecefee', water: '#c9d0d0', road: '#fcfdfb', building: '#7e898a', accent: '#576d70' },
+  landform: { background: '#e4e9e1', water: '#8fb6c2', road: '#e5e9dc', building: '#869780', accent: '#b27831' },
+  clean: { background: '#f5f6f2', water: '#b2d7e1', road: '#ffffff', building: '#90a6a9', accent: '#1e8294' },
+  engineering: { background: '#0b222d', water: '#092d3a', road: '#527078', building: '#5d838b', accent: '#d69b36' },
 }
 const hiddenBuildingLayers = new WeakMap<MapLibreMap, Map<string, VisibilitySpecification | undefined>>()
 
@@ -31,6 +40,16 @@ export function appearanceStyle(appearance: Appearance): string {
 
 export function scenePitch(settings: SceneSettings): number {
   return settings.view3d ? 50 : 0
+}
+
+export function applyAppearance(map: MapLibreMap, appearance: Appearance): void {
+  const tokens = appearanceTokens[appearance]
+  for (const layer of map.getStyle().layers ?? []) {
+    if (layer.type === 'background') map.setPaintProperty(layer.id, 'background-color', tokens.background)
+    if (/water/i.test(layer.id) && layer.type === 'fill') map.setPaintProperty(layer.id, 'fill-color', tokens.water)
+    if ((appearance === 'engineering' || appearance === 'monochrome') && /road/i.test(layer.id)
+      && layer.type === 'line') map.setPaintProperty(layer.id, 'line-color', tokens.road)
+  }
 }
 
 export function applyScene(map: MapLibreMap, settings: SceneSettings): void {
@@ -70,7 +89,7 @@ export function applyScene(map: MapLibreMap, settings: SceneSettings): void {
       'source-layer': 'building', minzoom: 14,
       filter: ['!=', ['get', 'hide_3d'], true],
       paint: {
-        'fill-extrusion-color': '#829aa0',
+        'fill-extrusion-color': appearanceTokens[settings.appearance].building,
         'fill-extrusion-height': ['coalesce', ['get', 'render_height'], 5],
         'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], 0],
         'fill-extrusion-opacity': 0.82,
@@ -79,6 +98,8 @@ export function applyScene(map: MapLibreMap, settings: SceneSettings): void {
   }
   if (map.getLayer('openepw-buildings')) {
     map.setLayoutProperty('openepw-buildings', 'visibility', settings.view3d ? 'visible' : 'none')
+    map.setPaintProperty('openepw-buildings', 'fill-extrusion-color',
+      appearanceTokens[settings.appearance].building)
   }
   if (!settings.view3d || !settings.terrain) {
     map.setTerrain(null)
