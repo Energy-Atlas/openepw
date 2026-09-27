@@ -230,7 +230,7 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
   const uploaded = (session?.facts.uploaded_artifact_ids ?? []) as string[]
   const availableIds = [...mergedJobs.artifactIds, ...uploaded]
 
-  const resolvedPoints = (session?.facts.resolved_points ?? []) as Array<{ lat: number; lon: number }>
+  const resolvedPoints = (session?.facts.resolved_points ?? []) as Array<{ id?: string; lat: number; lon: number }>
   const selected = (session?.facts.location as { id?: string; name?: string; lat: number; lon: number } | undefined)
     ?? (resolvedPoints.length === 1 ? resolvedPoints[0] : undefined)
   const candidateFacts = (session?.facts.candidates ?? []) as Array<{ id: string; name?: string; lat: number; lon: number }>

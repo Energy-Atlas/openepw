@@ -285,7 +285,10 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
       }
     }
     for (const point of resolvedPoints) {
-      features.push({ type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: [point.lon, point.lat] } })
+      // Previewed places carry ids "place-N"; the number matches the chat list for text edits.
+      const label = /^place-(\d+)$/.exec(point.id ?? '')?.[1] ?? ''
+      features.push({ type: 'Feature', properties: { label },
+        geometry: { type: 'Point', coordinates: [point.lon, point.lat] } })
     }
     const data: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features }
     if (!sceneMap.getSource('openepw-selection')) {
@@ -295,8 +298,14 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
       sceneMap.addLayer({ id: 'openepw-selection-outline', type: 'line', source: 'openepw-selection',
         filter: ['==', ['geometry-type'], 'Polygon'], paint: { 'line-color': MAP_PALETTE.HERO_LINE, 'line-width': 2 } })
       sceneMap.addLayer({ id: 'openepw-selection-points', type: 'circle', source: 'openepw-selection',
-        filter: ['==', ['geometry-type'], 'Point'], paint: { 'circle-radius': 4, 'circle-color': MAP_PALETTE.HERO,
-          'circle-stroke-width': 1, 'circle-stroke-color': MAP_PALETTE.CANDIDATE } })
+        filter: ['==', ['geometry-type'], 'Point'], paint: {
+          'circle-radius': ['case', ['==', ['get', 'label'], ''], 4, 9], 'circle-color': MAP_PALETTE.HERO,
+          'circle-stroke-width': 1.2, 'circle-stroke-color': MAP_PALETTE.CANDIDATE } })
+      sceneMap.addLayer({ id: 'openepw-selection-numbers', type: 'symbol', source: 'openepw-selection',
+        filter: ['==', ['geometry-type'], 'Point'],
+        layout: { 'text-field': ['get', 'label'], 'text-font': ['Noto Sans Bold'], 'text-size': 10,
+          'text-allow-overlap': true, 'text-ignore-placement': true },
+        paint: { 'text-color': MAP_PALETTE.CANDIDATE } })
     } else {
       (sceneMap.getSource('openepw-selection') as import('maplibre-gl').GeoJSONSource).setData(data)
     }

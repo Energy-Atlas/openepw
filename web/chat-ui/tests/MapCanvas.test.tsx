@@ -113,4 +113,17 @@ describe('map canvas overlays', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Confirm' }))
     expect(confirm).toHaveBeenCalledWith('ma')
   })
+
+  it('numbers previewed place points to match the chat list', async () => {
+    const { MapCanvas } = await import('../src/map/MapCanvas')
+    render(<MapCanvas resolvedPoints={[{ id: 'place-1', lat: 42.36, lon: -71.06 }, { id: 'place-2', lat: 39.74, lon: -104.98 }]} />)
+    await waitFor(() => expect(fake.maps).toHaveLength(1))
+    const map = fake.maps[0] as unknown as { parsed: boolean; emit(event: string): void;
+      getSource(id: string): { data: GeoJSON.FeatureCollection } | undefined; getLayer(id: string): unknown }
+    map.parsed = true
+    map.emit('style.load')
+    await waitFor(() => expect(map.getSource('openepw-selection')).toBeTruthy())
+    expect(map.getLayer('openepw-selection-numbers')).toBeTruthy()
+    expect(map.getSource('openepw-selection')!.data.features.map(feature => feature.properties?.label)).toEqual(['1', '2'])
+  })
 })

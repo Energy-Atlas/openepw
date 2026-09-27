@@ -61,7 +61,7 @@ button { cursor: pointer; }
 .chat-transcript > * { pointer-events: auto; }
 .chat-event, .action-card, .job-card, .view-controls, .pending-turns, .chat-transcript > p, .chat-transcript > button { max-width: 92%; padding: .55rem .75rem; border: 0; border-radius: 12px 12px 12px 3px; background: color-mix(in srgb, var(--oe-paper) 97%, transparent); color: var(--oe-ink); box-shadow: 0 1px 2px color-mix(in srgb, var(--oe-ink) 14%, transparent), 0 2px 8px color-mix(in srgb, var(--oe-ink) 10%, transparent); font-size: .83rem; overflow-wrap: anywhere; }
 .chat-transcript > p { margin: 0; }
-.chat-event p { margin: .2rem 0 0; line-height: 1.45; }
+.chat-event p { margin: .2rem 0 0; line-height: 1.45; white-space: pre-line; }
 .chat-event.welcome strong { font-size: 1rem; font-weight: 600; letter-spacing: -.01em; }
 .chat-event.welcome p { color: var(--oe-muted); }
 .chat-event.user-event { align-self: flex-end; max-width: 85%; border-radius: 12px 12px 3px 12px; background: var(--oe-tint); color: var(--oe-ink); }

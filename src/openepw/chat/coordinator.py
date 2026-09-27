@@ -13,7 +13,9 @@ from typing import Any
 
 from ..availability import WeatherAvailabilityQuery
 from ..harness.agent import safe_prompt
-from ..models import Location, WeatherRequest
+from ..models import Location, OpenEPWError, WeatherRequest
+from ..places.models import PlacePreview, PlaceSetQuery
+from ..places.parse import apply_edit, classify_places, describe_place_set
 from ..visualization.models import VisualizationRequest
 
 
@@ -68,6 +70,37 @@ class OfflineParser:
                              lat=float(coordinates.group(1)) if coordinates else None,
                              lon=float(coordinates.group(2)) if coordinates else None,
                              provider=None, product_id=None)]
+
+
+# Years, product words and filler removed so "Boston; Denver 2018 historical" routes as a list.
+_PLACE_NOISE = re.compile(
+    r"\b(?:(?:18|19|20|21)\d{2}(?:\s*(?:-|–|—|to|through)\s*(?:18|19|20|21)\d{2})?"
+    r"|historical|amy|actual[- ]year|tmyx|tmy|published|epw|weather|data|files?|please"
+    r"|get|give me|i need|for|in|at|near)\b", re.I)
+PREVIEW_LINES = 25
+
+
+def place_text(text: str) -> str:
+    """The place part of a message; newlines are kept because they separate list items."""
+    stripped = re.sub(r"[ \t]+", " ", _PLACE_NOISE.sub(" ", text))
+    return "\n".join(line.strip(" ,.;:!?") for line in stripped.splitlines()).strip()
+
+
+def preview_listing(preview: PlacePreview) -> str:
+    rows = preview.rows
+    lines = [f"Previewed {len(preview.locations)} of {len(rows)} places. Fix anything by text, for example "
+             "'replace 2 with Portland, Oregon', 'remove 3' or 'add Reno'."]
+    for row in rows[:PREVIEW_LINES]:
+        if row.status != "resolved":
+            lines.append(f"{row.index}. '{row.input}' not found; replace or remove it")
+            continue
+        detail = f" ({row.lat:.4f}, {row.lon:.4f})" if row.source != "coordinates" else ""
+        population = f"; population {row.population:,}" if row.population else ""
+        note = f"; top of {row.candidate_count} matches, check it" if row.ambiguous else ""
+        lines.append(f"{row.index}. {row.name}{detail}{population}{note}")
+    if len(rows) > PREVIEW_LINES:
+        lines.append(f"... and {len(rows) - PREVIEW_LINES} more")
+    return "\n".join(lines + preview.attribution)
 
 
 def explicit_weather_years(text: str) -> set[int]:
@@ -266,10 +299,29 @@ class ChatCoordinator:
             db.execute("INSERT INTO actions VALUES (?, ?, ?)", (session_id, key, serialized))
             return state
 
+    @staticmethod
+    def _place_card(question: dict) -> dict:
+        options, answers = [], {}
+        for index, option in enumerate(question.get("options", []), start=1):
+            if question["field"] == "region":
+                label = option["label"]
+                answer = str(index) if question.get("numbered") else label
+            elif question["field"] == "definition":
+                label, answer = f"{option['min_population']:,}", str(option["min_population"])
+            else:
+                label = "All (1,000)" if option["limit"] >= 1000 else str(option["limit"])
+                answer = "all" if option["limit"] >= 1000 else f"top {option['limit']}"
+            options.append({"id": f"place:{index}", "label": label})
+            answers[f"place:{index}"] = answer
+        return {"kind": "choice", "prompt": question["prompt"], "options": options,
+                "data": {"place_answers": answers, "field": question["field"]}}
+
     def _question(self, state: dict):
         facts = state["facts"]
         card = None
-        if facts.get("candidates") and not facts.get("location"):
+        if facts.get("place_set"):
+            card = self._place_card(facts["place_set"]["questions"][0])
+        elif facts.get("candidates") and not facts.get("location"):
             card = {"kind": "choice", "prompt": "Choose a location", "options": [
                 {"id": item["id"], "label": item.get("name") or item["id"]}
                 for item in facts["candidates"]]}
@@ -294,6 +346,84 @@ class ChatCoordinator:
             self._event(state, "question" if card["kind"] != "plan_review" else "plan",
                         card["prompt"])
 
+    def _apply_preview(self, state: dict, preview: PlacePreview) -> None:
+        facts = state["facts"]
+        ambiguous = sum(row.ambiguous for row in preview.rows)
+        missing = sum(row.status != "resolved" for row in preview.rows)
+        summary = f"Previewed {len(preview.locations)} of {len(preview.rows)} places"
+        summary += f" · {ambiguous} ambiguous" if ambiguous else ""
+        summary += f" · {missing} not found" if missing else ""
+        self._event(state, "tool", summary, {"tool": "places", "phase": "result",
+                                             "digest": preview.digest})
+        points = [location.model_dump(mode="json") for location in preview.locations]
+        facts["place_rows"] = [row.model_dump(mode="json", exclude_none=True) for row in preview.rows]
+        facts.pop("location", None)
+        facts.pop("candidates", None)
+        if points:
+            facts["geography"] = points
+            facts["resolved_points"] = points
+        else:
+            facts.pop("geography", None)
+            facts.pop("resolved_points", None)
+        state["plan_hash"] = None
+        facts.pop("availability", None)
+        self._event(state, "message", preview_listing(preview), {"role": "assistant", "places": True})
+
+    def _preview(self, state: dict, items: list) -> None:
+        self._event(state, "tool", "Previewing places", {"tool": "places", "phase": "call"})
+        self._apply_preview(state, self.service.preview_places(items))
+
+    def _continue_place_set(self, state: dict, reply: str) -> None:
+        facts = state["facts"]
+        result = self.service.interpret_places(reply, facts["place_set"]["draft"])
+        self._set_questions(state, result)
+
+    def _set_questions(self, state: dict, result: dict) -> None:
+        facts = state["facts"]
+        if result["questions"]:
+            questions = result["questions"]
+            questions[0]["numbered"] = bool(result["draft"].get("region_options"))
+            facts["place_set"] = {"draft": result["draft"], "questions": questions}
+            return
+        facts.pop("place_set", None)
+        self._event(state, "tool", "Listing GeoNames places", {"tool": "places", "phase": "call"})
+        self._apply_preview(state, self.service.place_set(PlaceSetQuery.model_validate(result["query"])))
+
+    def _route_places(self, state: dict, text: str) -> bool:
+        """Handle place lists, coordinate lists, sets and edits; False leaves the old flow."""
+        facts = state["facts"]
+        if facts.get("place_set"):
+            self._continue_place_set(state, text)
+            return True
+        rows = facts.get("place_rows")
+        if rows:
+            labels = [row.get("name") or row["input"] for row in rows]
+            edited = apply_edit(labels, text)
+            if edited is not None:
+                if not edited:
+                    for key in ("place_rows", "geography", "resolved_points"):
+                        facts.pop(key, None)
+                    self._event(state, "message", "The place list is now empty; give places or coordinates.",
+                                {"role": "assistant"})
+                    return True
+                by_label = dict(zip(labels, rows))
+                self._preview(state, [by_label.get(label, label) for label in edited])
+                return True
+        if describe_place_set(text):
+            self._set_questions(state, self.service.interpret_places(text))
+            return True
+        candidate = place_text(text)
+        if not candidate:
+            return False
+        routed = classify_places(candidate)
+        if routed["kind"] == "list":
+            self._preview(state, routed["items"])
+            return True
+        if routed["kind"] == "coordinates" and len(routed["points"]) > 1:
+            self._preview(state, [f"{lat}, {lon}" for lat, lon in routed["points"]])
+            return True
+        return False
+
     def turn(self, session_id: str, text: str, revision: int, key: str) -> dict:
         if not text.strip() or len(text) > 4000:
             raise ChatActionError("Message must contain 1–4000 characters")
@@ -314,6 +444,19 @@ class ChatCoordinator:
                 self._event(state, "message", "Your current job and artifacts are shown below.",
                             {"role": "assistant", "job_id": state.get("job_id")})
                 return
+            # A clarification reply or a list edit is complete on its own; a new message
+            # may also carry product and years for the parser.
+            reply_or_edit = bool(facts.get("place_set")) or bool(facts.get("place_rows") and re.match(
+                r"\s*(?:remove|drop|delete|replace|change|swap|add)\b", text, re.I))
+            try:
+                places_handled = self._route_places(state, text)
+            except OpenEPWError as error:
+                self._event(state, "message", error.issue.message, {"role": "assistant"})
+                self._question(state)
+                return
+            if places_handled and reply_or_edit:
+                self._question(state)
+                return
             intents = self.parser.parse_many(safe_prompt(text, limit=4000))
             grounded_years = explicit_weather_years(text)
             for intent in intents[:5]:
@@ -329,7 +472,9 @@ class ChatCoordinator:
                         facts["years"] = confirmed
                 if getattr(intent, "provider", None):
                     facts["provider"] = intent.provider
-                if getattr(intent, "lat", None) is not None and getattr(intent, "lon", None) is not None:
+                if places_handled:
+                    pass  # the place preview already set the geography for this message
+                elif getattr(intent, "lat", None) is not None and getattr(intent, "lon", None) is not None:
                     facts["location"] = Location(lat=intent.lat, lon=intent.lon).model_dump(mode="json")
                     facts.pop("candidates", None)
                     facts.pop("geography", None)
@@ -369,6 +514,16 @@ class ChatCoordinator:
             labels = {option["id"]: option["label"] for option in card["options"]}
             if choice_id not in labels:
                 raise ChatActionError("Unknown choice")
+            answers = (card.get("data") or {}).get("place_answers")
+            if answers:
+                self._event(state, "message", labels[choice_id],
+                            {"role": "user", "choice": True, "choice_id": choice_id})
+                try:
+                    self._continue_place_set(state, answers[choice_id])
+                except OpenEPWError as error:
+                    self._event(state, "message", error.issue.message, {"role": "assistant"})
+                self._question(state)
+                return
             if state["facts"].get("candidates"):
                 state["facts"]["location"] = next(item for item in state["facts"]["candidates"]
                                                   if item["id"] == choice_id)
