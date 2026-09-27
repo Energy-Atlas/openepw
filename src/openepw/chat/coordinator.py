@@ -100,7 +100,37 @@ def preview_listing(preview: PlacePreview) -> str:
         lines.append(f"{row.index}. {row.name}{detail}{population}{note}")
     if len(rows) > PREVIEW_LINES:
         lines.append(f"... and {len(rows) - PREVIEW_LINES} more")
-    return "\n".join(lines + preview.attribution)
+    # A blank line keeps the attribution out of the numbered markdown list.
+    return "\n".join(lines + ([""] + preview.attribution if preview.attribution else []))
+
+
+HISTORY_LIMIT = 50
+# The products behind each weather type, as named in the local catalog and adapters.
+PRODUCT_DETAILS = {
+    "historical": "ERA5 and ERA5-Land (CDS, Open-Meteo), NSRDB actual years, NOAA ISD stations",
+    "tmy": "NSRDB TMY/TDY/TGY, PVGIS TMY",
+    "tmyx": "OneBuilding TMYx files",
+    "published": "OneBuilding TMY3, TMY2 and other published EPWs",
+}
+
+
+def plan_summary_markdown(request: dict, rows: list[dict]) -> str:
+    """One markdown bullet per planned download: place, period, source and status."""
+    locations = request.get("locations")
+    locations = locations if isinstance(locations, list) else [locations] if isinstance(locations, dict) else []
+    lines = []
+    for row in rows:
+        index = row.get("occurrence_index")
+        place = locations[index] if isinstance(index, int) and index < len(locations) else None
+        label = (place.get("name") or f"{place['lat']:.4f}, {place['lon']:.4f}") if place else f"Location {index}"
+        start = row.get("period_start")
+        period = str(start)[:4] if start else "reference"
+        selection = row.get("dataset_selection") or {}
+        source = f"{selection['provider']}/{selection['dataset']}" if selection.get("provider") else "no source"
+        status = row.get("status", "unknown")
+        codes = f" ({', '.join(row['issue_codes'])})" if row.get("issue_codes") else ""
+        lines.append(f"- **{label}** · {period} · {source} · {status}{codes}")
+    return "\n".join(lines)
 
 
 def explicit_weather_years(text: str) -> set[int]:
@@ -128,6 +158,9 @@ class ChatCoordinator:
             db.execute("CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY, state TEXT NOT NULL)")
             db.execute("CREATE TABLE IF NOT EXISTS actions (session_id TEXT, key TEXT, response TEXT, "
                        "PRIMARY KEY (session_id, key))")
+            # The state before each change, so the user can go back one step at a time.
+            db.execute("CREATE TABLE IF NOT EXISTS history (seq INTEGER PRIMARY KEY AUTOINCREMENT, "
+                       "session_id TEXT, state TEXT)")
         self.queue_path = self.path.with_name("turns.sqlite")
         self.queue_lock = threading.Lock()
         self.queue_wake = threading.Event()
@@ -292,6 +325,9 @@ class ChatCoordinator:
             state = json.loads(row["state"])
             if state["revision"] != revision:
                 raise StaleSession(state)
+            db.execute("INSERT INTO history (session_id, state) VALUES (?, ?)", (session_id, row["state"]))
+            db.execute("DELETE FROM history WHERE session_id=? AND seq NOT IN (SELECT seq FROM history "
+                       "WHERE session_id=? ORDER BY seq DESC LIMIT ?)", (session_id, session_id, HISTORY_LIMIT))
             state["revision"] += 1
             update(state)
             serialized = json.dumps(state, allow_nan=False)
@@ -316,6 +352,37 @@ class ChatCoordinator:
         return {"kind": "choice", "prompt": question["prompt"], "options": options,
                 "data": {"place_answers": answers, "field": question["field"]}}
 
+    def back(self, session_id: str, revision: int, key: str) -> dict:
+        """Return to the state before the latest step; a started job cannot be undone."""
+        if not key or len(key) > 100:
+            raise ChatActionError("An idempotency key is required")
+        with self.lock, self._db() as db:
+            db.execute("BEGIN IMMEDIATE")
+            previous = db.execute("SELECT response FROM actions WHERE session_id=? AND key=?",
+                                  (session_id, key)).fetchone()
+            if previous:
+                return json.loads(previous["response"])
+            row = db.execute("SELECT state FROM sessions WHERE id=?", (session_id,)).fetchone()
+            if row is None:
+                raise KeyError(session_id)
+            current = json.loads(row["state"])
+            if current["revision"] != revision:
+                raise StaleSession(current)
+            earlier = db.execute("SELECT seq, state FROM history WHERE session_id=? ORDER BY seq DESC LIMIT 1",
+                                 (session_id,)).fetchone()
+            if earlier is None:
+                raise ChatActionError("There is no earlier step to go back to")
+            restored = json.loads(earlier["state"])
+            if (restored.get("job_id") != current.get("job_id")
+                    or restored.get("job_ids") != current.get("job_ids")):
+                raise ChatActionError("A weather job already started in that step; start over instead")
+            restored["revision"] = current["revision"] + 1
+            serialized = json.dumps(restored, allow_nan=False)
+            db.execute("DELETE FROM history WHERE seq=?", (earlier["seq"],))
+            db.execute("UPDATE sessions SET state=? WHERE id=?", (serialized, session_id))
+            db.execute("INSERT INTO actions VALUES (?, ?, ?)", (session_id, key, serialized))
+            return restored
+
     def _question(self, state: dict):
         facts = state["facts"]
         card = None
@@ -329,10 +396,10 @@ class ChatCoordinator:
             card = {"kind": "text", "prompt": "Where do you need weather?"}
         elif not facts.get("product"):
             card = {"kind": "choice", "prompt": "Which weather product?", "options": [
-                {"id": "historical", "label": "Actual-year weather"},
-                {"id": "tmy", "label": "TMY reference"},
-                {"id": "tmyx", "label": "TMYx published reference"},
-                {"id": "published", "label": "Other published EPW"}]}
+                {"id": key, "label": label, "detail": PRODUCT_DETAILS[key]}
+                for key, label in (("historical", "Actual-year weather"), ("tmy", "TMY reference"),
+                                   ("tmyx", "TMYx published reference"),
+                                   ("published", "Other published EPW"))]}
         elif facts["product"] == "historical" and not facts.get("years"):
             card = {"kind": "text", "prompt": "Which actual year or years?"}
         else:
@@ -603,9 +670,12 @@ class ChatCoordinator:
             self._event(state, "tool", "Preparing weather plan", {"tool": "weather_plan", "phase": "call"})
             plan = self.service.plan(request)
             state["plan_hash"] = plan.plan_hash
+            rows = [row.model_dump(mode="json") for row in plan.batch_rows]
+            summary = plan_summary_markdown(request.model_dump(mode="json"), rows)
             card = {"id": uuid.uuid4().hex, "revision": state["revision"],
                     "kind": "plan_review", "prompt": "Review these outputs, then select Run",
                     "data": {"plan_hash": plan.plan_hash, "request": request.model_dump(mode="json"),
+                             "summary": summary,
                              "outputs": [output.model_dump(mode="json") for output in plan.outputs],
                              "batch_rows": [row.model_dump(mode="json") for row in plan.batch_rows],
                              "availability": assessment,

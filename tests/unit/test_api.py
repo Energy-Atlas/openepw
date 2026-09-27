@@ -175,3 +175,28 @@ def test_chat_turn_queue_completes_and_resumes_session(tmp_path):
         state = client.get(f"/v1/chat/sessions/{sid}").json()
         assert state["facts"]["location"]["lat"] == 40
         assert state["facts"]["years"] == [2018]
+
+
+def test_chat_back_route_undoes_a_step_but_not_a_started_job(tmp_path):
+    from openepw.chat.coordinator import OfflineParser
+
+    service = WeatherService(RuntimeConfig(data_root=tmp_path), providers=[StationProvider()])
+    app = create_app(service, chat_parser=OfflineParser())
+    with TestClient(app) as client:
+        app.state.runner.enqueue = lambda _: None
+        sid = client.post("/v1/chat/sessions").json()["id"]
+        state = client.post(f"/v1/chat/sessions/{sid}/turns", json={
+            "text": "42.37, -71.11 historical 2018", "revision": 0, "idempotency_key": "a"}).json()
+        prepared = client.post(f"/v1/chat/sessions/{sid}/prepare", json={
+            "revision": state["revision"], "idempotency_key": "b"}).json()
+        assert prepared["active_card"]["data"]["summary"].startswith("- **42.3700, -71.1100** · 2018 ·")
+        back = client.post(f"/v1/chat/sessions/{sid}/back", json={
+            "revision": prepared["revision"], "idempotency_key": "c"})
+        assert back.status_code == 200 and back.json()["plan_hash"] is None
+        again = client.post(f"/v1/chat/sessions/{sid}/prepare", json={
+            "revision": back.json()["revision"], "idempotency_key": "d"}).json()
+        run = client.post(f"/v1/chat/sessions/{sid}/run", json={
+            "revision": again["revision"], "idempotency_key": "e"}).json()
+        refused = client.post(f"/v1/chat/sessions/{sid}/back", json={
+            "revision": run["revision"], "idempotency_key": "f"})
+        assert refused.status_code >= 400 and "job" in refused.text
