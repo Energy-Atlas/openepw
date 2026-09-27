@@ -30,6 +30,14 @@ hashes. Future-weather MCP planning, submission and retry are temporarily
 suspended with `FEATURE_SUSPENDED`; prior future records remain readable.
 Generic EPW upload and allowed-root registration remain available. The Python
 and REST future services are outside this MCP suspension.
+Visualization currently prepares hourly time series, annual and monthly
+series, histograms and spatial views. Other families appear as `planned` in
+capabilities and return `VISUALIZATION_UNSUPPORTED`. Result pages are JSON,
+not plotted graphics. The standard CLI accepts an explicit JSON request;
+natural-language `openepw-chat` visualization routing is not yet implemented.
+Uploaded EPWs retain unverified year/provider identity, and multi-artifact
+annual trends require verified actual-year sources. Missing intervals yield
+null complete-period aggregates unless observed-only partials are requested.
 The tested client is the MCP Python SDK stdio client on Windows. Remote MCP
 authentication and other host behavior remain untested.
 The Stage 5 reference agent uses a bounded model only to parse intent; its

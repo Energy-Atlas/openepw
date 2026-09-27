@@ -42,10 +42,11 @@ Errors are typed and actionable: `INVALID_ARTIFACT`, `INVALID_VARIABLE`,
 
 `VisualizationRequest` version 1 has `artifact_ids` (ordered unique IDs),
 `family`, `variable`, optional `aggregation`, `allow_partial` (default false),
-and family-specific `options` such as histogram bin count. Optional filters
-are explicit local-standard-time ranges, months, hours and numeric predicates;
-the capability result identifies which are active for each family. Unsupported
-options fail rather than being ignored. A result ID is a digest of the
+and family-specific `options` such as histogram bin count. The first release
+accepts only `bins` for histograms and no other filter option. Local-standard-
+time ranges, months, hours and numeric predicates are planned request
+extensions; the capability result identifies active options for each family.
+Unsupported options fail rather than being ignored. A result ID is a digest of the
 normalized request, source checksums and contract version.
 
 `VisualizationSpec` version 1 is library-neutral JSON with:
@@ -71,7 +72,7 @@ page explicitly; it never emits a plotting-library configuration or image.
 A future frontend validates the version and family, pages data and dispatches
 to its own renderer registry.
 
-Example, with intentionally null monthly value:
+Example, with intentionally null monthly value and shortened illustrative IDs:
 
 ```json
 {

@@ -26,6 +26,7 @@ src/openepw/
   service.py             discovery, planning, execution and bundles
   generation/{cmip6,morph,hourly_archive,climate_profile}.py
   artifacts/{store,export}.py  atomic files, checksums, compact export
+  visualization/{catalog,models,engine,store}.py  weather view semantics and immutable JSON
   jobs/{store,worker}.py  SQLite item records and bounded worker threads
   api/app.py             REST adapter
   mcp/server.py          MCP adapter
@@ -35,6 +36,10 @@ src/openepw/
 
 The proposed fine-grained models/geocoding/cache modules were consolidated where
 small functions/classes suffice. There are no separate REST/MCP weather algorithms.
+Visualization calculations and the finite family catalog live in the shared
+Python layer. MCP and CLI return the same versioned spec and paged prepared
+JSON; neither contains chart-rendering logic. See the
+[visualization design](docs/design/2026-09-26-weather-visualization.md).
 
 ## Public operations
 

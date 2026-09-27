@@ -100,6 +100,10 @@ for review and `/submit` to execute a reviewed plan.
 `/save` is the current console command for writing a server artifact to the
 user's disk. The [post-retrieval plan](../plans/2026-09-26-post-download-conversations.md)
 will replace it with `/download` and reserve “retrieve” for provider requests.
+For structured visualization JSON now, use the standard `openepw visualize`
+CLI command with an explicit request file or call the MCP visualization tools
+directly. Natural-language visualization routing in `openepw-chat` remains a
+separate planned step.
 
 Conversation references persist in the selected local thread. The reference parser currently
 requests UTC output for weather; use the Python, CLI or MCP interfaces directly

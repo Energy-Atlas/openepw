@@ -35,6 +35,7 @@ Never paste EPW bytes into a model prompt.
 | Execution | `weather_submit` | Durable `job_id` from a stored weather plan hash |
 | Progress | `job_inspect`, `job_cancel`, `job_retry_failed` | State, counts, completed output IDs, issue codes and artifact IDs |
 | Results | `artifact_inspect`, `weather_export_compact` | Checksum, media type, size, QC/manifest summary and resource URI |
+| Visualization | `weather_visualization_capabilities`, `weather_data_describe`, `weather_visualize`, `weather_data_page` | Framework-neutral JSON spec, factual summary, stable `view_id` and bounded prepared-data pages |
 
 `weather_fetch` and `weather_inspect` remain v0.1 compatibility aliases for
 weather submission and inspection. Future-weather MCP endpoints are temporarily
@@ -58,7 +59,7 @@ or authorization token.
 Tool execution failures set MCP `isError=true` and carry a safe JSON error
 with `code`, `message` and `retryable`. Invalid tool names/arguments are
 protocol errors. Ordinary output does not include credentials, local paths or
-hourly arrays. A catalog `supported` answer means eligible to try retrieval;
+full-year hourly arrays. A catalog `supported` answer means eligible to try retrieval;
 only output QC describes retrieved-weather gaps. Every manifest currently
 records `simulation_ready=false`; do not claim simulator certification.
 
@@ -73,3 +74,10 @@ records `simulation_ready=false`; do not claim simulator certification.
    manifest/QC IDs. A partial job can retain successful outputs.
 4. Call `weather_export_compact` explicitly for a completed weather job if
    a ZIP mapping is needed. Export does not grant redistribution rights.
+5. For an existing EPW artifact, call `weather_data_describe` with its ID,
+   then `weather_visualize` with explicit artifact IDs, family and variable.
+   The result carries a `VisualizationSpec`, first page and stable `view_id`;
+   call `weather_data_page` for later rows. `weather_visualization_capabilities`
+   distinguishes the five implemented families from planned ones. These tools
+   make no provider request and render no chart. See the
+   [visualization contract](../design/2026-09-26-weather-visualization.md).

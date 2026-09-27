@@ -1,8 +1,10 @@
 # Post-retrieval conversations and data views — revised plan
 
-**Status:** Draft for owner review. The temporary future-weather MCP suspension
-was authorized and implemented in `fa94923`. Download and data-view behavior
-below remains planned and awaits owner review.
+**Status:** Download and chat follow-up behavior remains planned. The temporary
+future-weather MCP suspension was implemented in `fa94923`. The owner then
+authorized a framework-neutral visualization contract and a smaller first
+implementation; see the [visualization design](../design/2026-09-26-weather-visualization.md)
+and [implementation plan](2026-09-26-visualization-initial.md).
 
 **Goal:** After weather retrieval, users can identify their outputs, download
 existing artifacts to their own disk, ask factual questions about the data, and
@@ -19,10 +21,10 @@ provider retrieval.
   2016 EPW” means this transfer; it does not repeat provider retrieval.
 - **Upload an EPW:** send a user-provided file to the server for analysis. A file
   already downloaded to the user's disk can be uploaded as a new analysis input.
-- **Data view:** a versioned, structured summary computed from existing EPW
-  artifacts. No chart image, ASCII plot or plotting library is part of this
-  phase. A later plot-friendly client renders the returned data; that client
-  may eventually call additional MCP tools if needed.
+- **Data view:** versioned prepared weather data plus a framework-neutral
+  visualization specification. MCP and CLI return JSON. They do not emit a
+  chart image, ASCII plot or plotting-library configuration; a later client
+  renders the spec.
 
 The plan removes the proposed “Is this ready for EnergyPlus?” conversation.
 QC and missing-data facts remain available where needed to interpret a data
@@ -76,7 +78,7 @@ than artifact order or guessed filenames.
 | “How is the download going?” | If an artifact transfer is in progress, report transfer progress. “How is weather retrieval going?” inspects the provider job once. `/resume` remains the wait/watch command. |
 | “What happened to 2017? Retry it.” | Explain recorded job issue codes. The existing retry tool retries every failed output; if 2017 is not the only failure, state that scope before retrying. |
 | “Show monthly GHI totals for 2012–2018” | Resolve actual-year artifacts, request a typed monthly summary, and give a short factual response plus the structured result reference. |
-| “Plot temperature across these locations” | Return typed spatial data and an advisory view hint. The CLI reports a compact table/summary and does not render a plot. |
+| “Plot temperature across these locations” | Return typed spatial data and a framework-neutral visualization spec. The CLI prints JSON and does not render a plot. |
 | “Thanks”, “What can I do next?” | Offer relevant artifact download and data-summary actions without creating a plan. |
 
 Pure follow-ups make no new `weather_plan` or `weather_submit` call. A turn
@@ -87,10 +89,11 @@ order. Follow-ups never erase a pending draft or reviewed plan.
 
 ### Inputs and interpretation
 
-The MCP request identifies sources explicitly by **one job ID or a list of
-artifact IDs**. The conversation layer resolves “these”, “last”, numbered
-outputs, years and locations to those IDs; the MCP server has no implicit
-conversation memory. Inputs include completed weather EPWs and uploaded EPWs.
+The first visualization MCP request identifies sources explicitly by a **list
+of artifact IDs**. The planned conversation layer resolves “these”, “last”,
+numbered outputs, years and locations from a job manifest to those IDs; the MCP
+server has no implicit conversation memory. Inputs include completed weather
+EPWs and uploaded EPWs.
 Failed/cancelled output rows are reported as omissions and never treated as
 files. An uploaded EPW with unverified historical identity can be summarized
 within its own calendar; it cannot be silently assigned to a real trend year.
@@ -157,75 +160,15 @@ registry: [EnergyPlus EPW dictionary](https://energyplus.readthedocs.io/en/lates
 
 ### MCP contract and response
 
-Implement the computations in the shared Python service. MCP remains a thin
-adapter so Python, REST and CLI can use the same summary definitions. The
-proposed MCP tools are:
-
-1. `weather_data_describe(source_selector)` — bounded source/variable/period
-   inventory and allowed operations; no hourly payload.
-2. `weather_data_view(view_request)` — validate and compute an immutable,
-   versioned result. Return a short factual summary, provenance, total row
-   count, first page and result ID.
-3. `weather_data_page(result_id, offset, limit)` — read later pages of the same
-   immutable result. Existing artifact resources may carry the full JSON
-   result when within resource limits.
-
-The result uses a discriminated `series`, `spatial` or `distribution` shape.
-Every shape has `schema_version`, normalized request, variable/unit,
-source references, temporal kind, grouping/aggregation, quality warnings and
-an advisory `view_hint`. Series and irregular spatial results use tidy rows
-with dimension keys and `value`, `expected_hours`, `valid_hours`,
-`missing_hours`, `quality`. Regular spatial results additionally contain
-ordered latitude/longitude axes and a same-shape value/quality matrix.
-Distribution results contain explicit bin edges, counts, quantiles and sample
-coverage. Comparable grouped histograms share bin edges. No chart-specific
-color, styling or image bytes enter this contract.
-
-An illustrative incomplete monthly result, with placeholder IDs and no
-invented weather value:
-
-```json
-{
-  "schema_version": "1",
-  "result_id": "view-id",
-  "shape": "series",
-  "variable": "ghi",
-  "unit": "Wh/m2",
-  "aggregation": "sum",
-  "temporal_kind": "actual",
-  "group_by": ["year", "month", "location"],
-  "rows": [{
-    "artifact_id": "epw-id",
-    "year": 2016,
-    "month": 1,
-    "location_id": "location-id",
-    "value": null,
-    "expected_hours": 744,
-    "valid_hours": 700,
-    "missing_hours": 44,
-    "quality": "incomplete"
-  }],
-  "total_rows": 12,
-  "next_offset": 1,
-  "warnings": [{"code": "INCOMPLETE_PERIOD"}],
-  "view_hint": "line"
-}
-```
-
-The matching agent response would say: “January 2016 GHI total is unavailable:
-700 of 744 hourly values are present. No partial total was calculated. Result
-`view-id` contains the monthly rows.” The result also carries normalized
-request and source/provenance references in its metadata; the example shows
-the first page only.
-
-Results are bounded: the first page and follow-up pages respect the MCP
-response limit; the service processes source EPWs one at a time. Initial
-limits are 100 source EPWs, 50 histogram bins and 200 rows per page. A larger
-request returns a typed limit or a
-result ID with paging rather than an oversized MCP message. The agent's
-response cites the grouping, unit, coverage and any null/partial results and
-provides the result ID; it does not invent numeric observations. The CLI may
-print a concise table or JSON, but no plots.
+The [visualization design](../design/2026-09-26-weather-visualization.md)
+replaces the earlier advisory `view_hint` proposal. The shared Python service
+computes the view; MCP and CLI return a versioned, framework-neutral
+`VisualizationSpec`, a compact factual summary, first-page data and a stable
+`view_id`. `weather_data_page` retrieves later rows. The complete finite family
+catalog has explicit implemented/planned status. The first release implements
+hourly time series, annual and monthly series, histograms and spatial views.
+The remaining families return `VISUALIZATION_UNSUPPORTED` with no fabricated
+result. The CLI prints JSON; chart rendering is a later client responsibility.
 
 Artifact download uses the existing checksum-verified MCP resource for files
 within its 10 MB limit. If a compact ZIP exceeds that limit, report it
@@ -247,16 +190,15 @@ transfer is designed; an export ID alone is not a completed user download.
    cleanup of incomplete writes. Keep paths/bytes outside model input,
    checkpoints and traces. Test one/many/duplicate outputs, restart, failed
    jobs, no overwrite and no provider call. Commit this boundary.
-3. **Define data-view schemas and calculation core.** Add source selection,
-   variable registry, calendar/coverage rules and the five view families to
-   the shared Python service. Test synthetic analytic cases for means, sums,
-   circular direction, leap/no-leap, published TMY, missing sentinels,
-   partial coverage, mixed units, distributions and regular/irregular grids.
-   Commit this boundary.
-4. **Expose bounded data-view MCP tools.** Add describe/view/page tools,
-   immutable result storage, provenance and typed limits. Test real stdio
-   calls and response-size/pagination behavior, with no EPW bytes or secrets
-   in model context or logs. Commit this boundary.
+3. **Define data-view schemas and calculation core — initial set implemented.**
+   The five initial visualization families, variable registry, calendar and
+   missing-data rules, immutable result storage and first-page JSON are in the
+   shared service. Circular wind statistics, derived variables and the other
+   planned families remain disabled until their scientific semantics are
+   implemented and tested.
+4. **Expose bounded visualization MCP and CLI tools — initial set implemented.**
+   Capabilities, describe, prepare and page tools use the shared service.
+   A real stdio client and the standard CLI exercise the JSON contract.
 5. **Route user follow-ups and format responses.** Extract ordered actions
    for listing, selecting, downloading, status, retry and data views in at
    most one model call per ordinary turn. Keep direct commands deterministic;

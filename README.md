@@ -86,16 +86,25 @@ openepw geocode Ithaca
 openepw --env-file .env plan examples/request.json --output plan.json
 openepw --env-file .env execute plan.json --output bundle.json
 openepw inspect path/to/weather.epw
+openepw --data-root .local/openepw visualization-capabilities
+openepw --data-root .local/openepw visualize view-request.json
+openepw --data-root .local/openepw view-page <view_id> --offset 100
 openepw serve                        # REST on 127.0.0.1:8000
 openepw mcp                          # MCP stdio
 openepw mcp --transport streamable-http  # loopback HTTP, port 8001
 ```
 
+`view-request.json` identifies an existing EPW artifact and a view, for example
+`{"artifact_ids":["<artifact_id>"],"family":"monthly_series","variable":"dry_bulb","aggregation":"mean"}`.
+The CLI prints a framework-neutral JSON spec and first data page; `view-page`
+prints later prepared-data rows. It does not render charts.
+
 REST exposes discovery/planning, durable SQLite jobs, cancellation, bounded EPW
 uploads and verified artifact downloads. Remote REST requires `OPENEPW_BEARER_TOKEN`.
 Use one server process per data root. MCP exposes bounded availability, plan,
-job, baseline, artifact and export tools with `weather://artifacts/{id}` resources;
-future tool inputs use uploaded or fetched artifact IDs. The optional
+job, EPW input, artifact, export and JSON visualization tools with
+`weather://artifacts/{id}` resources. Future-weather MCP tools are temporarily
+suspended. The optional
 `openepw-agent` runs one request at a time; `openepw-chat` provides an interactive
 terminal conversation, reading the existing `.env` and executing plans by default.
 The chat resumes typed request state from a local LangGraph SQLite checkpoint
