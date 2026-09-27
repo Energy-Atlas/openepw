@@ -176,8 +176,12 @@ only at the saved probe points, so elsewhere they show as unverified. Before
 years are given, actual-year availability is shown for the last complete
 year. The station on the map is the catalog's best-ranked station for that
 product; planning re-ranks with the chosen years and may pick another. Tags are
-drawn for the first 25 locations. OneBuilding file families are recognised
-from the published file name.
+drawn for the first 25 locations, and at continental zoom the tag stacks of
+nearby locations can overlap. OneBuilding file families are recognised from the
+published file name. A request mixing actual-year and typical-year products runs
+one job per kind; Retry reruns only the jobs with failed outputs. Relative year
+phrases are expanded by the optional model with today's date; written years
+always win, and without the model only written years and decades are read.
 
 The initial client is local and single-process. Chat turns use a bounded,
 durable SQLite FIFO with withdrawable waiting entries; other session actions

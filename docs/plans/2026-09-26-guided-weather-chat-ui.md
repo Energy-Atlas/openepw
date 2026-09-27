@@ -70,6 +70,11 @@ tick-box list (names only, extended information behind an info icon), several
 products may be chosen, and map tags toggle them. Several products must be of
 one kind (actual year or typical year), because one request has one weather
 type; choosing both kinds would need two plans and is not offered yet.
+The owner then asked for both kinds together (now one plan and job per kind),
+TMY-only selections skipping the year question, an `xx / xx` availability
+column with a hover message for several sites, the info icon beside the name,
+year lists and ranges read deterministically with the model expanding
+relative phrases, and no height limit or scrolling on input dialogs.
 
 - Open directly on the full-canvas map. There is **one** chat experience: no
   Guided/Text mode choice, splash selector, or mode switch. Free text and
