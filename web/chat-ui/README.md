@@ -71,6 +71,14 @@ session. Browser storage holds only the session ID. Server-side SQLite and
 artifact files live below the configured data root. Future-weather planning is
 temporarily unavailable in this UI.
 
+## Colour system
+
+All browser colours come from `src/theme.ts` and the matching `--oe-*`
+variables in `src/app.css`, including the recoloured Positron basemap and the
+charts. Amber is reserved for the user's own selection. Add colours there
+rather than inline; `tests/theme.test.ts` rejects stylesheet colours outside
+the theme.
+
 ## Checks and limits
 
 Run `npm test` and `npm run build` from this directory. See the
