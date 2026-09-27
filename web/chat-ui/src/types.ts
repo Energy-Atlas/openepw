@@ -21,6 +21,7 @@ export type SessionSnapshot = {
   events: ChatEvent[]
   active_card: ChatCard | null
   job_id?: string | null
+  job_ids?: string[]
   plan_hash?: string | null
   view_ids?: string[]
 }

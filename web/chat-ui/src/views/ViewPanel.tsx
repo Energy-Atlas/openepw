@@ -32,6 +32,7 @@ export function ViewPanel({ id, api, index, onClose }: {
   const [error, setError] = useState('')
   const [minimized, setMinimized] = useState(false)
   const [table, setTable] = useState(false)
+  const [loadingSeries, setLoadingSeries] = useState(false)
   const [position, setPosition] = useState({ x: window.innerWidth <= 650 ? 10 : 28 + index * 18,
     y: window.innerWidth <= 650 ? 38 + index * 18 : 95 + index * 25 })
   const [size, setSize] = useState({
@@ -43,9 +44,25 @@ export function ViewPanel({ id, api, index, onClose }: {
 
   useEffect(() => {
     let live = true
-    void api.pageView(id).then(result => {
-      if (live) { setPage(result); setRows(result.rows) }
-    }).catch(() => { if (live) setError('Prepared view could not be loaded.') })
+    void (async () => {
+      const first = await api.pageView(id)
+      if (!live) return
+      setPage(first); setRows(first.rows)
+      if (first.specs?.[0]?.family !== 'time_series' || first.total_rows > 10_000
+        || first.next_offset === null) return
+      setLoadingSeries(true)
+      const all = [...first.rows]
+      let offset: number | null = first.next_offset
+      while (live && offset !== null) {
+        const next = await api.pageView(id, offset)
+        if (next.next_offset !== null && next.next_offset <= offset)
+          throw new Error('Prepared view page did not advance')
+        all.push(...next.rows)
+        offset = next.next_offset
+      }
+      if (live) { setRows(all); setPage({ ...first, next_offset: null }); setLoadingSeries(false) }
+    })().catch(() => { if (live) { setLoadingSeries(false);
+      setError('Prepared view could not be fully loaded; the shown chart may be partial.') } })
     return () => { live = false }
   }, [id, api])
 
@@ -88,6 +105,9 @@ export function ViewPanel({ id, api, index, onClose }: {
         <p className="view-summary">{spec.summary} {String((spec.encodings.y as Record<string, unknown> | undefined)?.unit ??
           (spec.encodings.value as Record<string, unknown> | undefined)?.unit ?? '')}</p>
         <p className="view-quality">{spec.quality.valid_hours}/{spec.quality.expected_hours} valid hours · {spec.quality.missing_hours} missing</p>
+        {page && rows.length < page.total_rows && <p className="view-quality" role="status">
+          Showing {rows.length}/{page.total_rows} prepared rows{loadingSeries ? '; loading remaining hourly data…' : '; load more to extend the chart'}.
+        </p>}
         {spec.sources.map((source, i) => <p className="view-source" key={i}>
           {String(source.provider ?? 'User EPW')} {source.dataset ? `· ${String(source.dataset)}` : ''}
           {' · '}{Array.isArray(source.years) && source.years.length ? (source.years as number[]).join(', ') : 'reference or unverified period'}

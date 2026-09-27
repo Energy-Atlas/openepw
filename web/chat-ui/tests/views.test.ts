@@ -31,4 +31,12 @@ describe('prepared-data chart options', () => {
       encodings: { latitudes: [1], longitudes: [2], values: [[null]], value: { unit: '°C' } } }, [])!
     expect(option.visualMap).toMatchObject({ min: 0, max: 1 })
   })
+
+  it('labels histogram bins with the weather variable unit', () => {
+    const option = chartOption({ ...base, family: 'histogram', encodings: {
+      x: { unit: 'degC' }, y: { unit: 'hours' },
+    } }, [{ artifact_id: 'one', bin_start: 0, bin_end: 5, count: 10 }])!
+    expect((option.xAxis as { name: string }).name).toBe('degC')
+    expect((option.yAxis as { name: string }).name).toBe('hours')
+  })
 })

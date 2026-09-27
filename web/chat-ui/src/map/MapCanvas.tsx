@@ -114,6 +114,10 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
       sceneMap.on('error', () => setStatus('Some map tiles could not load. Chat remains available.'))
       sceneMap.on('moveend', () => {
         setStatus(`Map ready · zoom ${sceneMap.getZoom().toFixed(1)}`)
+        if (sceneMap.isStyleLoaded() && !awaitingStyleIdle.current) {
+          try { applyScene(sceneMap, settingsRef.current) }
+          catch { setStatus('Scene lighting unavailable; map and chat remain usable.') }
+        }
         scheduleShadows()
       })
       sceneMap.on('sourcedata', event => {

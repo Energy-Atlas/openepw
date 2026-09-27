@@ -3,6 +3,7 @@ import './app.css'
 import { ChatApi } from './api'
 import { MapCanvas } from './map/MapCanvas'
 import { geojsonGeography } from './geography'
+import { mergeJobManifests } from './jobs'
 import { ViewPanel } from './views/ViewPanel'
 import type { AvailabilitySummary, JobManifest, JobSnapshot, SessionSnapshot } from './types'
 
@@ -14,12 +15,17 @@ function randomKey(): string { return crypto.randomUUID() }
 export function App({ api: suppliedApi }: { api?: ChatApi }) {
   const api = useRef(suppliedApi ?? new ChatApi()).current
   const [session, setSession] = useState<SessionSnapshot | null>(null)
+  const [sessionAttempt, setSessionAttempt] = useState(0)
   const [job, setJob] = useState<JobSnapshot | null>(null)
   const [manifest, setManifest] = useState<JobManifest | null>(null)
+  const [pastJobs, setPastJobs] = useState<JobSnapshot[]>([])
+  const [pastManifests, setPastManifests] = useState<Record<string, JobManifest>>({})
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
   const acting = useRef(false)
   const [pendingTurns, setPendingTurns] = useState<Array<{ id: string; text: string }>>([])
+  const [queuePaused, setQueuePaused] = useState(false)
+  const [serverQueue, setServerQueue] = useState<{ queue_id: string; state: string; position: number } | null>(null)
   const [error, setError] = useState('')
   const [openViews, setOpenViews] = useState<string[]>([])
   const [viewFamily, setViewFamily] = useState('monthly_series')
@@ -38,10 +44,11 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
       if (!live) return
       sessionStorage.setItem(sessionKey, state.id)
       setSession(state)
+      setError('')
       setOpenViews((state.view_ids ?? []).slice(-4))
     }).catch(() => { if (live) setError('Weather service unavailable. Start the local API to chat.') })
     return () => { live = false }
-  }, [])
+  }, [sessionAttempt])
 
   useEffect(() => {
     if (!session?.job_id) return
@@ -67,25 +74,57 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
     return () => { live = false }
   }, [job?.bundle?.manifest?.id])
 
+  const historyIds = (session?.job_ids ?? []).filter(id => id !== session?.job_id).join(',')
+  useEffect(() => {
+    const ids = historyIds ? historyIds.split(',') : []
+    if (!ids.length) { setPastJobs([]); setPastManifests({}); return }
+    let live = true
+    void Promise.all(ids.map(id => api.job(id))).then(values => {
+      if (live) setPastJobs(values)
+    }).catch(() => { if (live) setError('Earlier retry jobs could not be loaded.') })
+    return () => { live = false }
+  }, [historyIds])
+
+  useEffect(() => {
+    if (!pastJobs.length) return
+    let live = true
+    void Promise.all(pastJobs.map(async item => item.bundle?.manifest?.id
+      ? [item.id, await api.manifest(item.bundle.manifest.id)] as const : null)).then(values => {
+      if (live) setPastManifests(Object.fromEntries(values.filter(item => item !== null)))
+    }).catch(() => { if (live) setError('Earlier job manifests could not be read.') })
+    return () => { live = false }
+  }, [pastJobs])
+
   useEffect(() => { transcript.current?.scrollTo?.(0, transcript.current.scrollHeight) }, [session?.events.length])
 
-  async function act(operation: (current: SessionSnapshot) => Promise<SessionSnapshot>) {
+  async function act(operation: (current: SessionSnapshot) => Promise<SessionSnapshot>,
+    callbacks: { success?: () => void; failure?: () => void } = {}) {
     if (!session || acting.current) return
     acting.current = true
     setBusy(true); setError('')
-    try { setSession(await operation(session)) }
+    try { setSession(await operation(session)); callbacks.success?.() }
     catch (caught) {
-      const error = caught as Error & { code?: string }
+      const error = caught as Error & { code?: string; snapshot?: SessionSnapshot }
+      if (error.code === 'STALE_SESSION' && error.snapshot) setSession(error.snapshot)
       setError(error.code === 'STALE_SESSION' ? 'This choice changed. Refresh the session.' : error.message)
+      callbacks.failure?.()
     } finally { acting.current = false; setBusy(false) }
   }
 
+  function submitTurn(current: SessionSnapshot, text: string, key: string) {
+    setServerQueue(null)
+    return api.sendTurn(current.id, text, current.revision, key, setServerQueue)
+      .finally(() => setServerQueue(null))
+  }
+
   useEffect(() => {
-    if (busy || acting.current || !session || !pendingTurns.length) return
+    if (busy || acting.current || queuePaused || !session || !pendingTurns.length) return
     const [next] = pendingTurns
-    setPendingTurns(current => current.filter(item => item.id !== next.id))
-    void act(current => api.sendTurn(current.id, next.text, current.revision, next.id))
-  }, [busy, session?.revision, pendingTurns])
+    void act(current => submitTurn(current, next.text, next.id), {
+      success: () => setPendingTurns(current => current.filter(item => item.id !== next.id)),
+      failure: () => setQueuePaused(true),
+    })
+  }, [busy, session?.revision, pendingTurns, queuePaused])
 
   function send(event: FormEvent) {
     event.preventDefault()
@@ -109,14 +148,15 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
       void prepareView(family, variable, text)
       return
     }
-    void act(current => api.sendTurn(current.id, text, current.revision, key))
+    void act(current => submitTurn(current, text, key))
   }
 
   async function prepareView(family = viewFamily, variable = viewVariable, prompt?: string) {
     if (!session || busy || !availableIds.length) return
     setBusy(true); setError('')
     try {
-      const request = { artifact_ids: viewSelection.length ? viewSelection : availableIds,
+      const selectedIds = viewSelection.filter(id => availableIds.includes(id))
+      const request = { artifact_ids: selectedIds.length ? selectedIds : availableIds,
         family, variable, allow_partial: true }
       const result = await api.sessionView(session.id, session.revision, randomKey(), request, prompt)
       setSession(result)
@@ -158,13 +198,21 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
 
   const card = session?.active_card
   const evidence = card?.data?.availability as AvailabilitySummary | undefined
-  const artifacts = job?.bundle?.weather ?? []
+  const chain = [...pastJobs.map(item => ({ job: item, manifest: pastManifests[item.id] ?? null })),
+    ...(job ? [{ job, manifest }] : [])]
+  const mergedJobs = mergeJobManifests(chain)
   const processed = (job?.completed ?? 0) + (job?.failed ?? 0)
   const uploaded = (session?.facts.uploaded_artifact_ids ?? []) as string[]
-  const availableIds = [...artifacts.map(item => item.id), ...uploaded]
+  const availableIds = [...mergedJobs.artifactIds, ...uploaded]
 
   const selected = session?.facts.location as { id?: string; name?: string; lat: number; lon: number } | undefined
   const candidates = (session?.facts.candidates ?? []) as Array<{ id: string; name?: string; lat: number; lon: number }>
+  const requestedPoints = (session?.facts.resolved_points as Array<{lat:number;lon:number}> | undefined)
+    ?? (selected ? [selected] : [])
+  const coordinatesFor = (index: number) => {
+    const point = requestedPoints[index]
+    return point ? ` · ${point.lat.toFixed(4)}, ${point.lon.toFixed(4)}` : ''
+  }
 
   return <main className="workspace">
     <MapCanvas location={selected} candidates={candidates}
@@ -251,18 +299,20 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
           <p>{job.state} · {processed}/{job.total} outputs · {job.failed} failed</p>
           <progress value={processed} max={Math.max(job.total, 1)} aria-label="Processed outputs" />
           {['queued', 'running'].includes(job.state) && <button type="button" onClick={() => void api.cancel(job.id).then(setJob)}>Cancel job</button>}
-          {job.failed > 0 && <button type="button" onClick={() => void api.retry(job.id, randomKey()).then(setJob)}>Retry failed</button>}
-          {manifest?.batch_rows.map((row, index) => <div className="artifact-row" key={`${row.output_id ?? index}`}>
-            <span>Location {row.occurrence_index + 1} · {row.period_start?.slice(0, 4) ?? 'reference'} ·
-              {' '}{row.dataset_selection?.provider ?? 'source unknown'} · {row.status}
+          {job.failed > 0 && <button type="button" disabled={busy} onClick={() =>
+            void act(current => api.retrySession(current.id, current.revision, randomKey()))}>Retry failed</button>}
+          {!mergedJobs.complete && <p className="warning">Verified output mapping is loading or unavailable; downloads wait for the manifest.</p>}
+          {mergedJobs.rows.map((row, index) => <div className="artifact-row" key={`${row.output_id ?? index}`}>
+            <span>Location {row.occurrence_index + 1}{coordinatesFor(row.occurrence_index)} ·
+              {' '}{row.period_start?.slice(0, 4) ?? 'reference'} · {row.dataset_selection?.provider ?? 'source unknown'} · {row.status}
               {row.issue_codes?.length ? ` (${row.issue_codes.join(', ')})` : ''}</span>
-            {row.artifact_id && <button type="button" onClick={() => download(row.artifact_id!)}>Download EPW</button>}
+            {row.artifact_id && mergedJobs.artifactIds.includes(row.artifact_id) &&
+              <button type="button" onClick={() => download(row.artifact_id!)}>Download EPW</button>}
           </div>)}
-          {!manifest && artifacts.map(item => <div className="artifact-row" key={item.id}>
-            <code>{item.id.slice(0, 10)}</code><button type="button" onClick={() => download(item.id)}>Download EPW</button>
-          </div>)}
-          {manifest && <p>Simulation ready: {manifest.simulation_ready ? 'yes' : 'no or requires QC review'}</p>}
-          {artifacts.length > 0 && <button type="button" onClick={() => void api.compact(job.id).then(ref => download(ref.id))}>Download all successful</button>}
+          {mergedJobs.complete && <p>Simulation ready: {chain.every(item => item.manifest?.simulation_ready) ? 'yes' : 'no or requires QC review'}</p>}
+          {mergedJobs.artifactIds.length > 0 && mergedJobs.complete && <button type="button"
+            onClick={() => void api.compactSession(session!.id).then(ref => download(ref.id))}>
+            Download all successful</button>}
         </section>}
         {availableIds.length > 0 && <section className="view-controls" aria-label="Visualize weather data">
           <h2>View existing weather</h2>
@@ -294,13 +344,23 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
           </details>}
         </section>}
         {busy && <p role="status">Working…</p>}
+        {serverQueue?.state === 'queued' && <section className="pending-turns" aria-label="Server waiting message">
+          <p>Waiting on server · position {serverQueue.position}</p>
+          <button type="button" onClick={() => void api.withdrawTurn(serverQueue.queue_id)
+            .catch(() => setError('Waiting message could not be withdrawn.'))}>Withdraw waiting message</button>
+        </section>}
         {pendingTurns.length > 0 && <section className="pending-turns" aria-label="Waiting messages">
-          <h2>Waiting messages</h2>{pendingTurns.map(turn => <div key={turn.id}>
-            <span>{turn.text}</span><button type="button" onClick={() =>
-              setPendingTurns(current => current.filter(item => item.id !== turn.id))}>Withdraw</button>
+          <h2>Waiting messages</h2>{queuePaused && <button type="button" onClick={() =>
+            setQueuePaused(false)}>Retry waiting message</button>}{pendingTurns.map(turn => <div key={turn.id}>
+            <span>{turn.text}</span><button type="button" onClick={() => {
+              setPendingTurns(current => current.filter(item => item.id !== turn.id))
+              setQueuePaused(false)
+            }}>Withdraw</button>
           </div>)}
         </section>}
         {error && <p className="error" role="alert">{error}</p>}
+        {!session && error && <button type="button" onClick={() => setSessionAttempt(value => value + 1)}>
+          Reconnect to local service</button>}
       </div>
       <form className="composer" onSubmit={send}>
         <label htmlFor="chat-message">Message</label>

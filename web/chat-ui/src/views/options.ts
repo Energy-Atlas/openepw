@@ -22,11 +22,12 @@ export function chartOption(spec: ViewSpec, rows: Row[]): Record<string, unknown
       }) }
   }
   if (family === 'histogram') {
+    const binUnit = String((spec.encodings.x as Record<string, unknown> | undefined)?.unit ?? '')
     const ids = [...new Set(rows.map(row => String(row.artifact_id)))]
     const bins = [...new Set(rows.map(row => `${row.bin_start}–${row.bin_end}`))]
     return { tooltip: { trigger: 'axis' }, legend: { bottom: 0 },
       grid: { left: 48, right: 12, top: 20, bottom: 72 },
-      xAxis: { type: 'category', name: unit, data: bins, axisLabel: { rotate: 35 } },
+      xAxis: { type: 'category', name: binUnit, data: bins, axisLabel: { rotate: 35 } },
       yAxis: { type: 'value', name: 'hours' },
       series: ids.map(id => ({ name: id.slice(0, 8), type: 'bar', data: rows.filter(row => row.artifact_id === id).map(row => row.count) })) }
   }

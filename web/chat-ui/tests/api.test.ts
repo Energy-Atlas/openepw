@@ -10,9 +10,19 @@ describe('chat API client', () => {
     const api = new ChatApi('', fetcher)
     await expect(api.sendTurn('session-1', 'Cambridge 2016', 2, 'request-1'))
       .rejects.toMatchObject({ code: 'STALE_REVISION', status: 409 })
-    expect(fetcher).toHaveBeenCalledWith('/v1/chat/sessions/session-1/turns', expect.objectContaining({
+    expect(fetcher).toHaveBeenCalledWith('/v1/chat/sessions/session-1/turns/queue', expect.objectContaining({
       method: 'POST',
       body: JSON.stringify({ text: 'Cambridge 2016', revision: 2, idempotency_key: 'request-1' }),
     }))
+  })
+
+  it('resumes the session when a queued turn is complete', async () => {
+    const snapshot = { id: 'session-1', revision: 3, facts: {}, events: [], active_card: null }
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ queue_id: 'queued-1', state: 'completed', position: 0 })))
+      .mockResolvedValueOnce(new Response(JSON.stringify(snapshot)))
+    const api = new ChatApi('', fetcher)
+    await expect(api.sendTurn('session-1', 'hello', 2, 'request-1')).resolves.toMatchObject(snapshot)
+    expect(fetcher).toHaveBeenLastCalledWith('/v1/chat/sessions/session-1', undefined)
   })
 })
