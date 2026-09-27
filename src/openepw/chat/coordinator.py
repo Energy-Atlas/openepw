@@ -176,11 +176,22 @@ def explicit_weather_years(text: str) -> set[int]:
             end += 100 if end < start else 0
         if 0 <= end - start <= 30:
             years.update(range(start, end + 1))
+    for match in re.finditer(r"\b((?:18|19|20|21)\d)0s\b", text):     # "the 2010s"
+        years.update(range(int(match.group(1)) * 10, int(match.group(1)) * 10 + 10))
     return years
 
 
 # Relative phrases the model may turn into years ("the last five years", "since 2015").
-_TEMPORAL_CUE = re.compile(r"\b(?:last|past|previous|recent|since|through|until|till|decade|years?)\b", re.I)
+_TEMPORAL_CUE = re.compile(r"\b(?:last|past|previous|recent|since|through|until|till|decade|years?|\d{4}s)\b", re.I)
+
+
+def dated_prompt(text: str, *, today: date | None = None) -> str:
+    """Give the model today's date when a reply may state years relative to it."""
+    if not _TEMPORAL_CUE.search(text):
+        return text
+    today = today or date.today()
+    return (f"Today is {today.isoformat()}; the latest complete year is {today.year - 1}. Expand any "
+            "relative year phrase in the reply into explicit whole calendar years. Reply: " + text)
 
 
 def model_years(text: str, proposed: list[int], written: set[int], *, today: date | None = None) -> list[int]:
@@ -634,7 +645,7 @@ class ChatCoordinator:
                       "place, give that place's full name as the place (for example keep the town name when "
                       "only the region changes); if it does not change the place, give no place. "
                       f"Reply: {text}") if reviewed else text
-            intents = self.parser.parse_many(safe_prompt(prompt, limit=4000))
+            intents = self.parser.parse_many(safe_prompt(dated_prompt(prompt), limit=4000))
             chosen = (facts.get("product"), facts.get("provider"))
             grounded_years = explicit_weather_years(text)
             years_from_model = False
@@ -646,8 +657,8 @@ class ChatCoordinator:
                 if getattr(intent, "product", None):
                     facts["product"] = "historical" if intent.product == "amy" else intent.product
                 if getattr(intent, "years", None):
-                    confirmed = model_years(text, intent.years, grounded_years) or [
-                        year for year in intent.years if year in grounded_years]
+                    # Accepted model years, else the years as written (a model may drop part of a range).
+                    confirmed = model_years(text, intent.years, grounded_years) or sorted(grounded_years)
                     if confirmed:
                         facts["years"] = confirmed
                         years_from_model = True

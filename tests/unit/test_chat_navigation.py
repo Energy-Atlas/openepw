@@ -243,6 +243,7 @@ def test_several_products_are_chosen_together_and_split_by_kind(tmp_path):
     typical = chat.choose_products(state["id"], back["active_card"]["revision"],
                                    ["nsrdb-tmy", "onebuilding:TMYx.2009-2023"], "eight")
     assert typical["facts"]["product"] == "tmy" and "years" not in typical["facts"]
+    assert typical["active_card"]["kind"] == "plan_review"          # typical years only: no year question
     assert typical["facts"]["selections"][1]["variant"] == "TMYx.2009-2023"
 
 @pytest.mark.parametrize("text, years", [
@@ -279,3 +280,34 @@ def test_model_years_count_for_relative_phrases_but_not_invented_ones(tmp_path):
     assert since["facts"]["years"] == [2021, 2022, 2023, 2024, 2025]
     invented = chat.turn(state["id"], "sounds good", since["revision"], "four")
     assert invented["facts"]["years"] == [2021, 2022, 2023, 2024, 2025]
+
+def test_relative_year_phrases_reach_the_model_with_todays_date(tmp_path):
+    prompts = []
+
+    class Dated(Parser):
+        def parse_many(self, text):
+            prompts.append(text)
+            return super().parse_many(text)
+
+    chat = ChatCoordinator(Service(), parser=Dated(), path=tmp_path / "chat.sqlite")
+    state = chat.create()
+    first = chat.turn(state["id"], "Historical Cambridge, MA 2012–2014", 0, "one")
+    assert not prompts[-1].startswith("Today is")                 # nothing relative written
+    chat.turn(state["id"], "the last three years", first["revision"], "two")
+    assert prompts[-1].startswith("Today is ") and "latest complete year" in prompts[-1]
+    assert prompts[-1].endswith("the last three years")
+    from openepw.chat.coordinator import explicit_weather_years
+    assert sorted(explicit_weather_years("the 2010s")) == list(range(2010, 2020))
+
+def test_written_ranges_win_when_the_model_returns_only_their_ends(tmp_path):
+    class Ends(Parser):
+        def parse_many(self, text):
+            from openepw.harness.agent import AgentIntent
+            if "Cambridge" in text:
+                return super().parse_many(text)
+            return [AgentIntent(kind="unknown", years=[2012, 2018])]
+
+    chat = ChatCoordinator(Service(), parser=Ends(), path=tmp_path / "chat.sqlite")
+    state = chat.create()
+    first = chat.turn(state["id"], "Historical Cambridge, MA 2012–2014", 0, "one")
+    assert chat.turn(state["id"], "2012-18", first["revision"], "two")["facts"]["years"] == list(range(2012, 2019))

@@ -152,6 +152,7 @@ def product_offers(service, locations: Any, facts: dict, *, today: date | None =
     for product in products:
         per_location = assessed.get(product.id, {})
         supported = sum(entry["status"] == "supported" for entry in per_location.values())
+        unverified = sum(entry["status"] == "unknown" for entry in per_location.values())
         if not catalogued:
             where = "availability is checked when planning"
         elif count == 1:
@@ -164,9 +165,11 @@ def product_offers(service, locations: Any, facts: dict, *, today: date | None =
                     f" · {station['distance_km']:g} km" if station["distance_km"] is not None else "") + (
                     "" if entry["status"] == "supported" else " · not verified")
         else:
-            where = f"listed at {supported} of {count} places"
+            where = ""                                   # counted in the dialog's availability column
         options.append({"id": product.id, "label": product.label,
-                        "detail": f"{product.detail} · {where}", "group": "actual" if product.actual else "typical"})
+                        "detail": f"{product.detail} · {where}" if where else product.detail,
+                        "group": "actual" if product.actual else "typical",
+                        "available": supported, "unverified": unverified, "sites": count})
     options.sort(key=lambda option: (option["group"] != "actual", _ORDER.get(option["id"], len(_ORDER)),
                                      option["id"]))
     tags = []

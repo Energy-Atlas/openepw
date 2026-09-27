@@ -87,7 +87,10 @@ def test_a_typed_type_or_provider_narrows_the_choices_and_lists_count_places():
     assert [option["id"] for option in nsrdb["options"]] == ["nsrdb-actual"]
     two = product_offers(Catalog(), [ITHACA, {"lat": 40.0, "lon": -75.0}], {"product": "historical"})
     era5 = next(option for option in two["options"] if option["id"] == "era5-openmeteo")
-    assert era5["detail"].endswith("listed at 2 of 2 places")
+    assert (era5["available"], era5["unverified"], era5["sites"]) == (2, 0, 2)   # the xx / xx column
+    assert "listed at" not in era5["detail"]
+    nsrdb = next(option for option in two["options"] if option["id"] == "nsrdb-actual")
+    assert (nsrdb["available"], nsrdb["unverified"], nsrdb["sites"]) == (0, 1, 2)
 
 
 def test_without_a_catalog_every_named_product_is_offered_for_checking_when_planning():
