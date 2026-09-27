@@ -76,3 +76,23 @@ def test_roll_back_to_an_agent_message_undoes_every_later_step(tmp_path):
     assert rolled["revision"] == later["revision"] + 1
     with pytest.raises(ChatActionError):
         chat.back(state["id"], rolled["revision"], "five", to_event=999)
+
+
+def test_explicit_years_in_the_message_count_even_when_the_model_omits_them(tmp_path):
+    class ForgetfulModel(Parser):
+        def parse_many(self, text):
+            from openepw.harness.agent import AgentIntent
+            if "Cambridge" in text:
+                return super().parse_many(text)
+            return [AgentIntent(kind="unknown")]          # the model dropped the year
+
+    chat = ChatCoordinator(Service(), parser=ForgetfulModel(), path=tmp_path / "chat.sqlite")
+    state = chat.create()
+    first = chat.turn(state["id"], "Historical Cambridge, MA 2012–2014", 0, "one")
+    chosen = chat.answer(state["id"], first["active_card"]["revision"], "cambridge", "two")
+    answered = chat.turn(state["id"], "2015", chosen["revision"], "three")
+    assert answered["facts"]["years"] == [2015]
+    ranged = chat.turn(state["id"], "2016 to 2018", answered["revision"], "four")
+    assert ranged["facts"]["years"] == [2016, 2017, 2018]
+    buildings = chat.turn(state["id"], "for 2012 buildings", ranged["revision"], "five")
+    assert buildings["facts"]["years"] == [2016, 2017, 2018]      # a building count is not a year

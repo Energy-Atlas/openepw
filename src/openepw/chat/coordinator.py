@@ -543,6 +543,7 @@ class ChatCoordinator:
                 return
             intents = self.parser.parse_many(safe_prompt(text, limit=4000))
             grounded_years = explicit_weather_years(text)
+            years_from_model = False
             for intent in intents[:5]:
                 if getattr(intent, "kind", None) == "future":
                     self._event(state, "message", "Future-weather planning is temporarily unavailable.",
@@ -554,6 +555,7 @@ class ChatCoordinator:
                     confirmed = [year for year in intent.years if year in grounded_years]
                     if confirmed:
                         facts["years"] = confirmed
+                        years_from_model = True
                 if getattr(intent, "provider", None):
                     facts["provider"] = intent.provider
                 if places_handled:
@@ -583,7 +585,12 @@ class ChatCoordinator:
                                 {"tool": "geocode", "phase": "result"})
                 if getattr(intent, "product_id", None):
                     facts["product_id"] = intent.product_id
-            if intents:
+            # Years written in the message are authoritative even if the model drops them
+            # (seen with a bare "2015" reply); building counts are already excluded.
+            years_from_text = bool(grounded_years) and not years_from_model
+            if years_from_text:
+                facts["years"] = sorted(grounded_years)
+            if intents or years_from_text:
                 state["plan_hash"] = None
                 facts.pop("availability", None)
             self._question(state)
