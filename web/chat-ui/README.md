@@ -75,7 +75,9 @@ temporarily unavailable in this UI.
 
 All browser colours come from `src/theme.ts` and the matching `--oe-*`
 variables in `src/app.css`, including the recoloured Positron basemap and the
-charts. Amber is reserved for the user's own selection. Add colours there
+charts. The UI is monochrome: one deep-ocean hue from pale cloud to ink,
+separated by lightness and shape. Amber is the only other colour and is
+reserved for the user's own selection. Add colours there
 rather than inline; `tests/theme.test.ts` rejects stylesheet colours outside
 the theme.
 

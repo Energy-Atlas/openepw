@@ -45,7 +45,10 @@ automatic 3D: district zoom enables decorative buildings and shadows without
 controls; terrain and alternate appearances are not exposed in the UI.
 Later the same day the owner asked for the Stage 1 availability mapping on
 the map and chose **all sources at once with per-source toggles** over a
-one-source picker.
+one-source picker. The owner then asked for one colour system across the
+whole UI and chose a **monochrome** deep-ocean ladder for basemap, map
+features, backdrop and chat, with amber kept only for the user's selection.
+This supersedes the teal/slate roles in the design-direction palette below.
 
 - Open directly on the full-canvas map. There is **one** chat experience: no
   Guided/Text mode choice, splash selector, or mode switch. Free text and
