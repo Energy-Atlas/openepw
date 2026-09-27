@@ -1,5 +1,6 @@
 import type { Map as MapLibreMap, VisibilitySpecification } from 'maplibre-gl'
 import { solarPosition } from './sun'
+import { BASEMAP, THEME } from '../theme'
 
 export type Appearance = 'light' | 'dark' | 'monochrome' | 'landform' | 'clean' | 'engineering'
 export type SceneSettings = {
@@ -25,7 +26,8 @@ const styleNames: Record<Appearance, string> = {
 }
 export const appearanceTokens: Record<Appearance, { background: string; water: string;
   road: string; building: string; accent: string }> = {
-  light: { background: '#f3f7f7', water: '#bed8dd', road: '#ffffff', building: '#829aa0', accent: '#237e8b' },
+  light: { background: BASEMAP.land, water: BASEMAP.water, road: BASEMAP.road,
+    building: BASEMAP.buildingExtrusion, accent: THEME.TEAL },
   dark: { background: '#15313d', water: '#122d3b', road: '#566d75', building: '#718991', accent: '#59b9c1' },
   monochrome: { background: '#ecefee', water: '#c9d0d0', road: '#fcfdfb', building: '#7e898a', accent: '#576d70' },
   landform: { background: '#e4e9e1', water: '#8fb6c2', road: '#e5e9dc', building: '#869780', accent: '#b27831' },
@@ -47,7 +49,45 @@ export function scenePitch(settings: SceneSettings): number {
   return settings.view3d ? 50 : 0
 }
 
+type StyleLayerLike = { type: string; id: string; 'source-layer'?: string }
+
+/** Theme paint for one OpenFreeMap Positron layer; widths, filters and fonts stay as published. */
+export function basemapPaint(layer: StyleLayerLike): Array<[string, string]> {
+  const source = layer['source-layer'] ?? ''
+  if (layer.type === 'background') return [['background-color', BASEMAP.land]]
+  if (layer.type === 'fill') {
+    if (source === 'water') return [['fill-color', BASEMAP.water]]
+    if (source === 'building') return [['fill-color', BASEMAP.building]]
+    if (['park', 'landcover', 'landuse', 'aeroway', 'transportation'].includes(source)) return [['fill-color', BASEMAP.green]]
+    return []
+  }
+  if (layer.type === 'line') {
+    if (source === 'waterway') return [['line-color', BASEMAP.waterLine]]
+    if (source === 'boundary') return [['line-color', BASEMAP.boundary]]
+    if (source === 'transportation' || source === 'aeroway') {
+      if (/rail/.test(layer.id)) return [['line-color', THEME.LADDER[4]]]
+      if (/casing|tunnel/.test(layer.id)) return [['line-color', BASEMAP.roadCasing]]
+      return [['line-color', /major|motorway|runway/.test(layer.id) ? BASEMAP.roadMajor : BASEMAP.road]]
+    }
+    return []
+  }
+  if (layer.type === 'symbol') {
+    const primary = source === 'place'
+    return [['text-color', primary ? BASEMAP.label : BASEMAP.labelMinor], ['text-halo-color', BASEMAP.halo]]
+  }
+  return []
+}
+
 export function applyAppearance(map: MapLibreMap, appearance: Appearance): void {
+  if (appearance === 'light') {
+    for (const layer of map.getStyle().layers ?? []) {
+      if (layer.id.startsWith('openepw-')) continue
+      for (const [property, value] of basemapPaint(layer as StyleLayerLike)) {
+        try { map.setPaintProperty(layer.id, property as Parameters<MapLibreMap['setPaintProperty']>[1], value) } catch { /* a layer without this property */ }
+      }
+    }
+    return
+  }
   const tokens = appearanceTokens[appearance]
   for (const layer of map.getStyle().layers ?? []) {
     if (layer.type === 'background') map.setPaintProperty(layer.id, 'background-color', tokens.background)
@@ -64,10 +104,10 @@ export function applyLighting(map: MapLibreMap, settings: SceneSettings): void {
   const daylight = Math.max(0, Math.min(1, (sun.elevationDeg + settings.diffusion / 12) / 15))
   const intensity = Math.min(0.9, settings.lightIntensity / 200) * daylight * (1 - settings.haze / 400)
   map.setLight({ anchor: 'map', position: [1.5, sun.azimuthDeg, Math.max(0, 90 - sun.elevationDeg)],
-    color: '#eeddbb', intensity })
-  map.setSky({ 'sky-color': daylight > 0 ? '#85b0bb' : '#122d42',
-    'horizon-color': daylight > 0 ? '#dce4dc' : '#274253',
-    'fog-color': '#c7d9d5', 'sky-horizon-blend': 0.35 + settings.diffusion / 500,
+    color: THEME.PAPER, intensity })
+  map.setSky({ 'sky-color': daylight > 0 ? THEME.RAMP[1] : THEME.INK,
+    'horizon-color': daylight > 0 ? THEME.LADDER[1] : THEME.RAMP[3],
+    'fog-color': THEME.LADDER[2], 'sky-horizon-blend': 0.35 + settings.diffusion / 500,
     'horizon-fog-blend': 0.4, 'fog-ground-blend': settings.haze / 200,
     'atmosphere-blend': 0.55 })
   if (map.getLayer('openepw-hillshade')) {
@@ -132,7 +172,7 @@ export function applyScene(map: MapLibreMap, settings: SceneSettings): void {
     }
     if (!map.getLayer('openepw-hillshade')) {
       map.addLayer({ id: 'openepw-hillshade', type: 'hillshade', source: 'openepw-hillshade',
-        paint: { 'hillshade-exaggeration': 0.35, 'hillshade-shadow-color': '#426675' } })
+        paint: { 'hillshade-exaggeration': 0.35, 'hillshade-shadow-color': THEME.LADDER[6] } })
     }
   }
   if (map.getLayer('openepw-hillshade')) {

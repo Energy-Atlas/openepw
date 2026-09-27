@@ -46,7 +46,7 @@ describe('OpenEPW map palette', () => {
         .filter(([key]) => key.endsWith('color')).map(([, value]) => JSON.stringify(value)))
     expect(colors.join()).not.toContain(MAP_PALETTE.HERO)
     const allowed = [MAP_PALETTE.OBSERVED, MAP_PALETTE.PUBLISHED, MAP_PALETTE.PUBLISHED_FAINT,
-      MAP_PALETTE.REGION, MAP_PALETTE.EXTENT, '#ffffff']
+      MAP_PALETTE.REGION, MAP_PALETTE.EXTENT, '#f3f7f7']
     for (const value of colors) expect(allowed.some(color => value.includes(color))).toBe(true)
   })
 

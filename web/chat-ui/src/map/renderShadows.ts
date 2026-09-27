@@ -4,6 +4,7 @@ import { projectShadowRing, roofShadow, terrainOccluded,
   type BuildingShape, type Coordinate } from './shadows'
 import type { SceneSettings } from './scene'
 import { solarPosition } from './sun'
+import { THEME } from '../theme'
 
 type Building = BuildingShape & { id: string }
 const empty: FeatureCollection = { type: 'FeatureCollection', features: [] }
@@ -114,11 +115,11 @@ function put(map: MapLibreMap, id: string, collection: FeatureCollection, layer:
     const label = map.getStyle().layers?.find(item => item.type === 'symbol')?.id
     if (layer === 'ground') {
       map.addLayer({ id, type: 'fill', source: id,
-        paint: { 'fill-color': ['case', ['==', ['get', 'kind'], 'relief'], '#173849', '#213c47'],
+        paint: { 'fill-color': THEME.INK,
           'fill-opacity': 0.28 } }, map.getLayer('openepw-buildings') ? 'openepw-buildings' : label)
     } else {
       map.addLayer({ id, type: 'fill-extrusion', source: id,
-        paint: { 'fill-extrusion-color': '#1e3540', 'fill-extrusion-opacity': 0.35,
+        paint: { 'fill-extrusion-color': THEME.INK, 'fill-extrusion-opacity': 0.35,
           'fill-extrusion-base': ['get', 'height'],
           'fill-extrusion-height': ['+', ['get', 'height'], 0.15] } }, label)
     }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { chartOption } from '../src/views/options'
 import type { ViewSpec } from '../src/types'
+import { SERIES, THEME } from '../src/theme'
 
 const base: ViewSpec = {
   schema_version: '1', family: 'monthly_series',
@@ -38,5 +39,17 @@ describe('prepared-data chart options', () => {
     } }, [{ artifact_id: 'one', bin_start: 0, bin_end: 5, count: 10 }])!
     expect((option.xAxis as { name: string }).name).toBe('degC')
     expect((option.yAxis as { name: string }).name).toBe('hours')
+  })
+
+  it('draws every chart family in the OpenEPW theme', () => {
+    const series = chartOption(base, [{ artifact_id: 'a', period: '2018-01', value: 1 }])!
+    expect(series.color).toEqual([...SERIES])
+    expect(series.textStyle).toMatchObject({ color: THEME.INK })
+    const matrix = chartOption({ ...base, family: 'spatial', data_ref: { ...base.data_ref, shape: 'matrix' },
+      encodings: { latitudes: [1], longitudes: [2], values: [[4]], value: { unit: '°C' } } }, [])!
+    expect(matrix.visualMap).toMatchObject({ inRange: { color: [...THEME.RAMP] } })
+    const points = chartOption({ ...base, family: 'spatial', data_ref: { ...base.data_ref, shape: 'points' } },
+      [{ lon: 1, lat: 2, value: 3 }, { lon: 2, lat: 3, value: 5 }])!
+    expect(points.visualMap).toMatchObject({ min: 3, max: 5, inRange: { color: [...THEME.RAMP] } })
   })
 })

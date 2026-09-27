@@ -1,18 +1,20 @@
 import type { Feature, FeatureCollection, Geometry } from 'geojson'
 import type { AddLayerObject, ExpressionSpecification, FilterSpecification } from 'maplibre-gl'
 import type { CatalogLayer } from '../types'
+import { THEME } from '../theme'
 
 /**
  * One map palette built from the approved OpenEPW tokens. Amber is the single accent and
  * belongs only to what the user chose; catalog layers separate by shape first, hue second.
  */
 export const MAP_PALETTE = {
-  HERO: '#d69b36',            // selected location, drawn/accepted geography
-  OBSERVED: '#237e8b',        // NOAA station records (measured actual years)
-  PUBLISHED: '#173849',       // OneBuilding published files; geocoder candidate rings
-  PUBLISHED_FAINT: 'rgba(23,56,73,.45)',
-  REGION: '#647782',          // NSRDB grid and PVGIS region
-  EXTENT: 'rgba(100,119,130,.55)',
+  HERO: THEME.AMBER,          // selected location, drawn/accepted geography
+  HERO_LINE: THEME.AMBER_LINE,
+  OBSERVED: THEME.TEAL,       // NOAA station records (measured actual years)
+  PUBLISHED: THEME.INK,       // OneBuilding published files; geocoder candidate rings
+  PUBLISHED_FAINT: THEME.LADDER[4],
+  REGION: THEME.SLATE,        // NSRDB grid and PVGIS region
+  EXTENT: THEME.LADDER[5],
 } as const
 
 const swatches: Record<CatalogLayer['kind'], { color: string; shape: 'dot' | 'fill' | 'outline' | 'dash' }> = {
@@ -97,7 +99,7 @@ export function catalogLayerSpecs(layer: CatalogLayer, id: string): AddLayerObje
     { id: `${id}-line`, type: 'line', source: id, filter: polygons,
       paint: { 'line-color': MAP_PALETTE.REGION, 'line-width': .9, 'line-opacity': .85 } },
     { id: `${id}-point`, type: 'circle', source: id, filter: points,
-      paint: { 'circle-radius': 4.5, 'circle-color': '#ffffff', 'circle-stroke-color': MAP_PALETTE.REGION,
+      paint: { 'circle-radius': 4.5, 'circle-color': THEME.PAPER, 'circle-stroke-color': MAP_PALETTE.REGION,
         'circle-stroke-width': 1.6 } },
   ]
   return [{ id: `${id}-line`, type: 'line', source: id,

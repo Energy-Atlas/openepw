@@ -210,7 +210,7 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
         paint: { 'circle-radius': ['case', ['get', 'selected'], 7, 6],
           'circle-color': MAP_PALETTE.HERO, 'circle-opacity': ['case', ['get', 'selected'], 1, 0],
           'circle-stroke-width': 2,
-          'circle-stroke-color': ['case', ['get', 'selected'], '#ffffff', MAP_PALETTE.PUBLISHED] } })
+          'circle-stroke-color': MAP_PALETTE.PUBLISHED } })
     } else {
       (sceneMap.getSource('openepw-candidates') as import('maplibre-gl').GeoJSONSource).setData({
         type: 'FeatureCollection', features,
@@ -229,7 +229,7 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
     if (!sceneMap.getSource('openepw-drawing')) {
       sceneMap.addSource('openepw-drawing', { type: 'geojson', data })
       sceneMap.addLayer({ id: 'openepw-drawing', type: 'line', source: 'openepw-drawing',
-        paint: { 'line-color': MAP_PALETTE.HERO, 'line-width': 3 } })
+        paint: { 'line-color': MAP_PALETTE.HERO_LINE, 'line-width': 3 } })
     } else {
       (sceneMap.getSource('openepw-drawing') as import('maplibre-gl').GeoJSONSource).setData(data)
     }
@@ -260,10 +260,10 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
       sceneMap.addLayer({ id: 'openepw-selection-fill', type: 'fill', source: 'openepw-selection',
         filter: ['==', ['geometry-type'], 'Polygon'], paint: { 'fill-color': MAP_PALETTE.HERO, 'fill-opacity': .14 } })
       sceneMap.addLayer({ id: 'openepw-selection-outline', type: 'line', source: 'openepw-selection',
-        filter: ['==', ['geometry-type'], 'Polygon'], paint: { 'line-color': MAP_PALETTE.HERO, 'line-width': 2 } })
+        filter: ['==', ['geometry-type'], 'Polygon'], paint: { 'line-color': MAP_PALETTE.HERO_LINE, 'line-width': 2 } })
       sceneMap.addLayer({ id: 'openepw-selection-points', type: 'circle', source: 'openepw-selection',
         filter: ['==', ['geometry-type'], 'Point'], paint: { 'circle-radius': 4, 'circle-color': MAP_PALETTE.HERO,
-          'circle-stroke-width': 1, 'circle-stroke-color': '#ffffff' } })
+          'circle-stroke-width': 1, 'circle-stroke-color': MAP_PALETTE.PUBLISHED } })
     } else {
       (sceneMap.getSource('openepw-selection') as import('maplibre-gl').GeoJSONSource).setData(data)
     }
