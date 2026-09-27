@@ -38,6 +38,11 @@ export function appearanceStyle(appearance: Appearance): string {
   return `https://tiles.openfreemap.org/styles/${styleNames[appearance]}`
 }
 
+// District scenes turn 3D on at zoom 14 and off below 13, so small zoom changes do not flicker.
+export function autoView3d(zoom: number, current: boolean): boolean {
+  return current ? zoom >= 13 : zoom >= 14
+}
+
 export function scenePitch(settings: SceneSettings): number {
   return settings.view3d ? 50 : 0
 }

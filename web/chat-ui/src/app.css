@@ -8,20 +8,7 @@ button { cursor: pointer; }
 .workspace { position: relative; width: 100vw; height: 100dvh; overflow: hidden; }
 .map-canvas { position: absolute; inset: 0; background: #0d3546; }
 .map-canvas > .map-engine { position: absolute; inset: 0; }
-.map-brand { position: absolute; left: 1rem; top: 1rem; padding: .6rem .8rem; border-radius: 10px; background: rgba(243,247,247,.93); color: #173849; font-weight: 600; font-size: 1.1rem; letter-spacing: -.02em; }
-.map-brand span { display: block; margin-top: .1rem; color: #647782; font-weight: 400; font-size: .75rem; }
-.scene-controls { position: absolute; left: 1rem; top: 5.2rem; display: flex; align-items: start; flex-direction: column; gap: .45rem; max-width: min(260px, calc(100vw - 2rem)); padding: .7rem; border: 1px solid #cbd8d9; border-radius: 12px; background: rgba(243,247,247,.94); font-size: .8rem; }
-.scene-controls button { border: 1px solid #adc9ca; border-radius: 7px; padding: .25rem .5rem; background: white; color: #173849; }
-.scene-controls button[aria-pressed="true"] { background: #237e8b; color: white; }
-.scene-controls label { display: flex; align-items: center; gap: .35rem; }
-.scene-controls select, .scene-controls input[type="number"], .scene-controls input[type="time"] { max-width: 130px; }
-.scene-controls details label { margin: .5rem 0; }
-.scene-controls details p { max-width: 25ch; color: #647782; }
-.time-presets { display: flex; flex-wrap: wrap; gap: .25rem; }
-.scene-controls .time-presets button { padding: .2rem .3rem; font-size: .68rem; }
-.solar-readout { margin: 0; max-width: 24ch; line-height: 1.4; color: #255b67; font: 500 .72rem 'IBM Plex Mono', monospace; }
-.scope-note { margin: 0; max-width: 28ch; color: #647782; line-height: 1.35; font-size: .7rem; }
-.pick-toolbar { position: absolute; z-index: 3; left: 1rem; top: 5.2rem; display: flex; flex-wrap: wrap; gap: .4rem; width: min(370px, calc(100vw - 2rem)); padding: .65rem; border: 1px solid #a4c3c4; border-radius: 12px; background: rgba(243,247,247,.97); box-shadow: 0 10px 30px rgba(8,40,48,.16); }
+.pick-toolbar { position: absolute; z-index: 3; left: 1rem; top: 1rem; display: flex; flex-wrap: wrap; gap: .4rem; width: min(370px, calc(100vw - 2rem)); padding: .65rem; border: 1px solid #a4c3c4; border-radius: 12px; background: rgba(243,247,247,.97); box-shadow: 0 10px 30px rgba(8,40,48,.16); }
 .pick-toolbar strong { flex-basis: 100%; font-size: .78rem; }
 .pick-toolbar button { border: 1px solid #adc9ca; border-radius: 7px; padding: .35rem .5rem; background: white; color: #173849; font-size: .76rem; }
 .pick-toolbar button[aria-pressed="true"] { background: #237e8b; color: white; }
@@ -35,36 +22,51 @@ button { cursor: pointer; }
 .shadow-status { position: absolute; bottom: 4.1rem; left: 3.2rem; max-width: 38ch; padding: .3rem .5rem; border-radius: 6px; background: rgba(243,247,247,.92); font-size: .7rem; }
 .scene-attribution { position: absolute; bottom: .6rem; left: 3.2rem; max-width: min(430px, calc(100vw - 4.2rem)); padding: .25rem .4rem; border-radius: 4px; background: rgba(243,247,247,.88); font-size: .62rem; }
 .scene-attribution a { color: #173849; }
-.chat-rail { position: absolute; z-index: 5; right: 1rem; top: 1rem; bottom: 1rem; width: min(390px, calc(100vw - 2rem)); display: flex; flex-direction: column; border: 1px solid rgba(19, 64, 76, .15); border-radius: 18px; background: rgba(243, 247, 247, .96); box-shadow: 0 18px 70px rgba(10, 47, 61, .23); backdrop-filter: blur(18px); }
-.chat-heading { display: flex; flex-direction: column; gap: .2rem; padding: .9rem 1.1rem .8rem; border-bottom: 1px solid #d8e4e3; }
-.wordmark { font-size: 1.3rem; font-weight: 600; letter-spacing: -.04em; }
-.chat-subtitle { color: #647782; font-size: .82rem; }
-.chat-transcript { flex: 1; overflow: auto; padding: 1.1rem; display: flex; flex-direction: column; align-items: flex-start; gap: .55rem; }
-.welcome { max-width: 22ch; font-size: 1.45rem; line-height: 1.25; letter-spacing: -.035em; font-weight: 500; }
-.welcome-hint { color: #647782; font-size: .85rem; line-height: 1.5; }
-.chat-event { max-width: 95%; padding: .55rem .75rem; border: 1px solid #dce8e6; border-radius: 12px 12px 12px 3px; background: rgba(255,255,255,.82); font-size: .83rem; overflow-wrap: anywhere; }
-.chat-event p { margin: .2rem 0 0; line-height: 1.45; }
-.chat-event.user-event { align-self: flex-end; max-width: 88%; border-color: #c5dfdf; border-radius: 12px 12px 3px 12px; background: #dfeff0; color: #174f5b; }
-.chat-event.tool-event { width: 95%; border-style: dashed; border-color: #d1dddc; background: rgba(240,246,245,.7); color: #415963; }
-.event-kind { color: #647782; font: 500 .68rem 'IBM Plex Mono', monospace; }
-.action-card, .job-card { width: 95%; margin-top: .15rem; padding: .8rem .9rem; border: 1px solid #b9d3d4; border-radius: 12px 12px 12px 3px; background: #fff; font-size: .82rem; }
-.action-card h2, .job-card h2 { margin: 0 0 .6rem; font-size: 1rem; }
-.action-card .event-kind + h2 { margin-top: .3rem; }
-.action-card button, .job-card button { margin: .2rem .25rem .2rem 0; padding: .45rem .65rem; border: 1px solid #b5ccce; border-radius: 7px; background: #f3f7f7; color: #173849; }
-.action-card button:hover, .job-card button:hover { background: #dcf0ef; }
-.choice-list { display: grid; gap: .35rem; }
-.choice-list button { text-align: left; }
 .warning, .error { color: #9b5422; }
 .job-card progress { width: 100%; accent-color: #237e8b; }
 .artifact-row { display: flex; align-items: center; justify-content: space-between; gap: .4rem; }
 .artifact-row code { font: .72rem 'IBM Plex Mono', monospace; }
-.view-controls { width: 95%; margin-top: .15rem; padding: .8rem .9rem; border: 1px solid #b9d3d4; border-radius: 12px 12px 12px 3px; background: white; font-size: .8rem; }
 .view-controls h2 { margin: 0 0 .6rem; font-size: 1rem; }
 .view-controls > label { display: flex; flex-direction: column; gap: .25rem; margin-bottom: .5rem; }
 .view-controls select { min-width: 0; max-width: 100%; padding: .35rem; border: 1px solid #b5ccce; border-radius: 6px; background: white; }
 .view-controls fieldset { max-height: 110px; overflow: auto; border: 1px solid #d8e4e3; }
 .view-controls fieldset label { display: block; }
 .view-controls button { margin-top: .6rem; padding: .45rem .7rem; border: 0; border-radius: 7px; background: #237e8b; color: white; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+/* Floating chat: no panel, only messages and controls over the map. Gaps stay clickable map. */
+.chat-rail { position: absolute; z-index: 5; right: 1rem; top: 1rem; bottom: 1rem; width: min(390px, calc(100vw - 2rem)); display: flex; flex-direction: column; justify-content: flex-end; gap: .55rem; pointer-events: none; }
+.chat-transcript { flex: 0 1 auto; min-height: 0; overflow: auto; padding: 2rem .35rem .35rem; display: flex; flex-direction: column; align-items: flex-start; gap: .5rem; scrollbar-width: none; -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 2.2rem); mask-image: linear-gradient(to bottom, transparent 0, #000 2.2rem); }
+.chat-transcript > * { pointer-events: auto; }
+.chat-event, .action-card, .job-card, .view-controls, .pending-turns, .chat-transcript > p, .chat-transcript > button { max-width: 92%; padding: .55rem .75rem; border: 0; border-radius: 12px 12px 12px 3px; background: rgba(250,252,252,.97); color: #173849; box-shadow: 0 1px 2px rgba(10,47,61,.14), 0 2px 8px rgba(10,47,61,.10); font-size: .83rem; overflow-wrap: anywhere; }
+.chat-transcript > p { margin: 0; }
+.chat-event p { margin: .2rem 0 0; line-height: 1.45; }
+.chat-event.welcome strong { font-size: 1rem; font-weight: 600; letter-spacing: -.01em; }
+.chat-event.welcome p { color: #647782; }
+.chat-event.user-event { align-self: flex-end; max-width: 85%; border-radius: 12px 12px 3px 12px; background: #e1f0f0; color: #174f5b; }
+.chat-event.tool-event { padding: .35rem .6rem; background: rgba(243,247,247,.9); color: #415963; font-size: .74rem; }
+.event-kind { color: #647782; font: 500 .66rem 'IBM Plex Mono', monospace; }
+.action-card, .job-card, .view-controls { width: 92%; }
+.action-card h2, .job-card h2 { margin: 0 0 .5rem; font-size: .95rem; }
+.action-card .event-kind + h2 { margin-top: .25rem; }
+.job-card button { margin: .2rem .25rem .2rem 0; padding: .4rem .6rem; border: 1px solid #b5ccce; border-radius: 7px; background: #f3f7f7; color: #173849; }
+.job-card button:hover { background: #dcf0ef; }
+.composer { flex: none; pointer-events: auto; }
+.composer-row { display: flex; align-items: center; gap: .3rem; padding: .3rem; border-radius: 14px; background: rgba(250,252,252,.98); box-shadow: 0 1px 2px rgba(10,47,61,.16), 0 3px 10px rgba(10,47,61,.12); }
+.composer input { min-width: 0; flex: 1; padding: .55rem .5rem; border: 0; background: transparent; color: #173849; }
+.composer input:focus-visible { outline: none; }
+.composer-row:focus-within { box-shadow: 0 0 0 2px #d69b36, 0 3px 10px rgba(10,47,61,.12); }
+.composer-row button[type="submit"] { padding: .55rem .85rem; border: 0; border-radius: 10px; color: white; background: #237e8b; font-weight: 600; }
+.composer .map-input-trigger { padding: .45rem .5rem; border: 1px solid #c9dada; border-radius: 9px; background: white; color: #255b67; font-size: .72rem; }
+.composer .map-input-trigger[aria-pressed="true"] { background: #dfeff0; border-color: #237e8b; }
+.attach-control { position: relative; flex: none; display: grid; place-items: center; width: 2.1rem; height: 2.1rem; border: 1px solid #c9dada; border-radius: 9px; background: white; color: #255b67; cursor: pointer; font-size: 1.2rem; line-height: 1; }
+.attach-control input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.reply-options { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: .4rem; }
+.reply-options button, .composer .reply-alt { padding: .5rem .8rem; border: 0; border-radius: 999px; background: rgba(250,252,252,.98); color: #174f5b; font-weight: 500; font-size: .82rem; box-shadow: 0 1px 2px rgba(10,47,61,.16), 0 2px 8px rgba(10,47,61,.10); }
+.reply-options button:hover:not(:disabled) { background: #e1f0f0; }
+.reply-options button[aria-pressed="true"], .reply-options .reply-primary, .reply-options .reply-primary:hover:not(:disabled) { background: #237e8b; color: white; font-weight: 600; }
+.reply-options .attach-control { width: 2.2rem; height: 2.2rem; border: 0; border-radius: 999px; box-shadow: 0 1px 2px rgba(10,47,61,.16), 0 2px 8px rgba(10,47,61,.10); }
+.composer .reply-alt { background: rgba(243,247,247,.92); color: #4f6874; font-weight: 400; }
+.composer > .reply-alt { display: block; margin: .4rem 0 0 auto; padding: .3rem .7rem; font-size: .74rem; }
 .view-panel { position: absolute; z-index: 4; min-width: 300px; min-height: 220px; max-width: min(90vw, 840px); max-height: 85dvh; display: flex; flex-direction: column; resize: both; overflow: auto; border: 1px solid #b9d3d4; border-radius: 13px; background: rgba(250,253,252,.97); box-shadow: 0 16px 55px rgba(10,47,61,.28); }
 .view-handle { flex: none; display: flex; justify-content: space-between; align-items: center; gap: .5rem; padding: .55rem .8rem; background: #173849; color: white; cursor: grab; touch-action: none; }
 .view-handle:active { cursor: grabbing; }
@@ -80,14 +82,5 @@ button { cursor: pointer; }
 .view-table table { border-collapse: collapse; font: .65rem 'IBM Plex Mono', monospace; }
 .view-table td, .view-table th { border: 1px solid #d8e4e3; padding: .2rem; white-space: nowrap; }
 .view-content pre { max-height: 170px; overflow: auto; font-size: .63rem; }
-.composer { padding: .8rem; border-top: 1px solid #d8e4e3; }
-.composer label { display: block; margin: 0 0 .4rem .3rem; color: #647782; font-size: .78rem; }
-.composer-row { display: flex; align-items: center; gap: .35rem; }
-.composer input { min-width: 0; flex: 1; padding: .7rem .8rem; border: 1px solid #b7cdcd; border-radius: 10px; background: #fff; color: #173849; }
-.composer button { padding: .7rem .9rem; border: 0; border-radius: 10px; color: white; background: #237e8b; font-weight: 600; }
-.composer .map-input-trigger { padding: .6rem .45rem; border: 1px solid #b7cdcd; background: white; color: #255b67; font-size: .72rem; }
-.composer .map-input-trigger[aria-pressed="true"] { background: #dfeff0; border-color: #237e8b; }
-.attach-control { position: relative; flex: none; display: grid; place-items: center; width: 2.15rem; height: 2.15rem; border: 1px solid #b7cdcd; border-radius: 9px; background: white; color: #255b67; cursor: pointer; font-size: 1.2rem; line-height: 1; }
-.attach-control input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
 :focus-visible { outline: 3px solid #d69b36; outline-offset: 2px; }
-@media (max-width: 650px) { .chat-rail { top: auto; left: .6rem; right: .6rem; bottom: .6rem; width: auto; height: min(42dvh, 340px); } .map-brand { left: .6rem; top: .6rem; } .scene-controls { left: .6rem; top: 4.7rem; max-height: 35dvh; overflow: auto; } .pick-toolbar { left: .6rem; top: 4.7rem; } .evidence-legend { left: .6rem; bottom: calc(min(42dvh, 340px) + 6.4rem); max-width: 45vw; max-height: 100px; } .map-status { left: .6rem; bottom: calc(min(42dvh, 340px) + 2.6rem); } .shadow-status { left: .6rem; bottom: calc(min(42dvh, 340px) + 4.4rem); } .scene-attribution { left: .6rem; bottom: calc(min(42dvh, 340px) + 1rem); } .view-panel { max-width: calc(100vw - 1.2rem); max-height: 45dvh; } }
+@media (max-width: 650px) { .chat-rail { top: auto; left: .6rem; right: .6rem; bottom: .6rem; width: auto; height: min(42dvh, 340px); } .pick-toolbar { left: .6rem; top: .6rem; } .evidence-legend { left: .6rem; bottom: calc(min(42dvh, 340px) + 6.4rem); max-width: 45vw; max-height: 100px; } .map-status { left: .6rem; bottom: calc(min(42dvh, 340px) + 2.6rem); } .shadow-status { left: .6rem; bottom: calc(min(42dvh, 340px) + 4.4rem); } .scene-attribution { left: .6rem; bottom: calc(min(42dvh, 340px) + 1rem); } .view-panel { max-width: calc(100vw - 1.2rem); max-height: 45dvh; } }

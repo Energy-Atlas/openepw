@@ -41,6 +41,18 @@ def test_chat_keeps_location_product_and_years_after_followup(tmp_path):
     assert coordinator.turn(state["id"], "2016", chosen["revision"], "three") == changed
 
 
+def test_chosen_option_is_echoed_by_its_label(tmp_path):
+    coordinator = ChatCoordinator(Service(), parser=Parser(), path=tmp_path / "chat.sqlite")
+    state = coordinator.create()
+    first = coordinator.turn(state["id"], "Historical Cambridge, MA 2012–2014", 0, "one")
+    label = next(option["label"] for option in first["active_card"]["options"]
+                 if option["id"] == "cambridge")
+    chosen = coordinator.answer(state["id"], first["active_card"]["revision"], "cambridge", "two")
+    echo = next(event for event in reversed(chosen["events"]) if (event.get("data") or {}).get("choice"))
+    assert echo["text"] == label
+    assert echo["data"]["choice_id"] == "cambridge"
+
+
 def test_stale_choice_is_rejected(tmp_path):
     from openepw.chat.coordinator import StaleSession
 

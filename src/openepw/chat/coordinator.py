@@ -366,7 +366,8 @@ class ChatCoordinator:
             card = state["active_card"]
             if not card or card["revision"] != question_revision or card["kind"] != "choice":
                 raise StaleSession(state)
-            if choice_id not in [option["id"] for option in card["options"]]:
+            labels = {option["id"]: option["label"] for option in card["options"]}
+            if choice_id not in labels:
                 raise ChatActionError("Unknown choice")
             if state["facts"].get("candidates"):
                 state["facts"]["location"] = next(item for item in state["facts"]["candidates"]
@@ -378,7 +379,8 @@ class ChatCoordinator:
                 state["facts"]["product"] = choice_id
             state["plan_hash"] = None
             state["facts"].pop("availability", None)
-            self._event(state, "message", choice_id, {"role": "user", "choice": True})
+            self._event(state, "message", labels[choice_id],
+                        {"role": "user", "choice": True, "choice_id": choice_id})
             self._question(state)
 
         return self._change(session_id, question_revision, key, update)

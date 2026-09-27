@@ -4,6 +4,16 @@ import { App } from '../src/App'
 import type { ChatApi } from '../src/api'
 import type { SessionSnapshot } from '../src/types'
 
+function cardState(card: NonNullable<SessionSnapshot['active_card']>): SessionSnapshot {
+  return { id: 'test', revision: card.revision, facts: {}, events: [
+    { id: 1, type: 'question', text: card.prompt }], active_card: card, view_ids: [] }
+}
+
+function apiFor(state: SessionSnapshot): ChatApi {
+  return { create: async () => state, get: async () => state,
+    catalogScopes: async () => ({ snapshot: null, scopes: [], unmapped: [] }) } as unknown as ChatApi
+}
+
 describe('map-first shell', () => {
   it('opens one chat over a full-canvas map without a mode choice', () => {
     render(<App />)
@@ -13,12 +23,11 @@ describe('map-first shell', () => {
     expect(screen.queryByText('Guided workflow')).not.toBeInTheDocument()
   })
 
-  it('offers scene controls without letting terrain run in a flat view', () => {
+  it('has no scene panel or brand box over the map', () => {
     render(<App />)
-    expect(screen.getByRole('button', { name: '3D view' })).toBeInTheDocument()
-    expect(screen.getByRole('checkbox', { name: 'Terrain' })).toBeDisabled()
-    fireEvent.click(screen.getByRole('button', { name: '3D view' }))
-    expect(screen.getByRole('checkbox', { name: 'Terrain' })).toBeEnabled()
+    expect(screen.queryByRole('region', { name: 'Map scene controls' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '3D view' })).not.toBeInTheDocument()
+    expect(screen.queryByText('Weather across places and years')).not.toBeInTheDocument()
   })
 
   it('shows geography tools only while map input is active', () => {
@@ -52,16 +61,40 @@ describe('map-first shell', () => {
   })
 
   it('shows the current choice once as an agent turn', async () => {
-    const state: SessionSnapshot = { id: 'test', revision: 1, facts: {}, events: [
-      { id: 1, type: 'question', text: 'Which weather product?' }],
-      active_card: { id: 'choice', revision: 1, kind: 'choice', prompt: 'Which weather product?',
-        options: [{ id: 'historical', label: 'Actual-year weather' }] }, view_ids: [] }
-    const api = { create: async () => state, get: async () => state,
-      catalogScopes: async () => ({ snapshot: null, scopes: [], unmapped: [] }) } as unknown as ChatApi
-    render(<App api={api} />)
+    render(<App api={apiFor(cardState({ id: 'choice', revision: 1, kind: 'choice', prompt: 'Which weather product?',
+      options: [{ id: 'historical', label: 'Actual-year weather' }] }))} />)
     await screen.findByRole('heading', { name: 'Which weather product?' })
     expect(screen.getAllByText('Which weather product?')).toHaveLength(1)
-    expect(screen.getByLabelText('Current question')).toHaveTextContent('Actual-year weather')
+    expect(screen.getByRole('group', { name: 'Reply options' })).toHaveTextContent('Actual-year weather')
+  })
+
+  it('replaces the text field with the options of a choice card until Other is chosen', async () => {
+    render(<App api={apiFor(cardState({ id: 'choice', revision: 1, kind: 'choice', prompt: 'Which weather product?',
+      options: [{ id: 'historical', label: 'Actual-year weather' }] }))} />)
+    await screen.findByRole('button', { name: 'Actual-year weather' })
+    expect(screen.queryByRole('textbox', { name: 'Message' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Other — type an answer' }))
+    expect(screen.getByRole('textbox', { name: 'Message' })).toHaveFocus()
+    fireEvent.click(screen.getByRole('button', { name: 'Back to options' }))
+    expect(screen.queryByRole('textbox', { name: 'Message' })).not.toBeInTheDocument()
+  })
+
+  it('offers review actions instead of text while a plan is under review', async () => {
+    render(<App api={apiFor(cardState({ id: 'review', revision: 2, kind: 'plan_review', prompt: 'Review the plan' }))} />)
+    await screen.findByRole('button', { name: 'Assess and review plan' })
+    expect(screen.queryByRole('textbox', { name: 'Message' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Type a correction' }))
+    expect(screen.getByRole('textbox', { name: 'Message' })).toBeInTheDocument()
+  })
+
+  it('offers map input for a map card with typed coordinates as an alternative', async () => {
+    render(<App api={apiFor(cardState({ id: 'where', revision: 1, kind: 'map', prompt: 'Where?' }))} />)
+    await screen.findByRole('button', { name: 'Choose on map' })
+    expect(screen.queryByRole('textbox', { name: 'Message' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Choose on map' }))
+    expect(screen.getByRole('toolbar', { name: 'Pick geography' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Type coordinates' }))
+    expect(screen.getByRole('textbox', { name: 'Message' })).toBeInTheDocument()
   })
 
   it('queues and withdraws a second message while a turn is running', async () => {

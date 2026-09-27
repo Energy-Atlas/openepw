@@ -2,10 +2,10 @@ import { useEffect, useRef, useState } from 'react'
 import type { Map as MapLibreMap } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
-import { appearanceStyle, applyAppearance, applyLighting, applyScene, scenePitch, type Appearance, type SceneSettings } from './scene'
+import { appearanceStyle, applyAppearance, applyLighting, applyScene, autoView3d, scenePitch, type SceneSettings } from './scene'
 import { renderShadows } from './renderShadows'
 import { availabilityFeatures } from './evidence'
-import { solarPosition, utcSceneTime } from './sun'
+import { utcSceneTime } from './sun'
 import type { WeatherGeography } from '../geography'
 import type { AvailabilitySummary, CatalogScopes } from '../types'
 
@@ -14,11 +14,6 @@ const initial: SceneSettings = {
   ...utcSceneTime(new Date()), lightIntensity: 100, diffusion: 25,
   haze: 20, shadows: true,
 }
-
-const appearances: Array<[Appearance, string]> = [
-  ['light', 'Light'], ['dark', 'Dark'], ['monochrome', 'Technical monochrome'],
-  ['landform', 'Landform'], ['clean', 'Clean technical'], ['engineering', 'Dark engineering'],
-]
 
 type MapPoint = { id?: string; name?: string; lat: number; lon: number }
 
@@ -53,7 +48,6 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
   const scheduleShadowsRef = useRef<() => void>(() => {})
   const [picking, setPicking] = useState(false)
   const [drawMode, setDrawMode] = useState<'polygon' | 'box' | null>(null)
-  const [sunElevation, setSunElevation] = useState<number | null>(null)
   const [vertices, setVertices] = useState<Array<[number, number]>>([])
   const drawRef = useRef<'polygon' | 'box' | null>(null)
   const verticesRef = useRef<Array<[number, number]>>([])
@@ -81,10 +75,6 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
     if (map.current) map.current.getCanvas().dataset.picking = 'false'
   }
 
-  function change(patch: Partial<SceneSettings>) {
-    setSettings(current => ({ ...current, ...patch }))
-  }
-
   useEffect(() => {
     if (!host.current) return
     if (!window.WebGLRenderingContext) {
@@ -102,11 +92,6 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
       }, 250)
     }
     scheduleShadowsRef.current = scheduleShadows
-    function updateSun(sceneMap: MapLibreMap) {
-      const center = sceneMap.getCenter()
-      setSunElevation(solarPosition(settingsRef.current.dayOfYear, settingsRef.current.utcMinutes,
-        center.lat, center.lng).elevationDeg)
-    }
     void import('maplibre-gl').then(maplibregl => {
       if (cancelled || !host.current) return
       maplibregl.setWorkerUrl(workerUrl)
@@ -115,6 +100,8 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
         style: appearanceStyle(settingsRef.current.appearance),
         center: [0, 18], zoom: 1.65,
         canvasContextAttributes: { antialias: true },
+        // The floating chat covers the bottom-right corner; .scene-attribution carries the same credits.
+        attributionControl: false,
       })
       instance = sceneMap
       map.current = sceneMap
@@ -125,7 +112,6 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
           sceneMap.jumpTo({ pitch: scenePitch(settingsRef.current) })
           setStyleEpoch(value => value + 1)
           setStatus('Map ready')
-          updateSun(sceneMap)
           scheduleShadows()
           sceneMap.once('idle', () => {
             if (cancelled || !awaitingStyleIdle.current) return
@@ -139,11 +125,16 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
       sceneMap.on('error', () => setStatus('Some map tiles could not load. Chat remains available.'))
       sceneMap.on('moveend', () => {
         setStatus(`Map ready · zoom ${sceneMap.getZoom().toFixed(1)}`)
+        const view3d = autoView3d(sceneMap.getZoom(), settingsRef.current.view3d)
+        if (view3d !== settingsRef.current.view3d) {
+          settingsRef.current = { ...settingsRef.current, view3d }
+          setSettings(settingsRef.current)
+          sceneMap.easeTo({ pitch: scenePitch(settingsRef.current), duration: 500 })
+        }
         if (styleParsed(sceneMap) && !awaitingStyleIdle.current) {
           try { applyLighting(sceneMap, settingsRef.current) }
           catch { setStatus('Scene lighting unavailable; map and chat remain usable.') }
         }
-        updateSun(sceneMap)
         scheduleShadows()
       })
       sceneMap.on('sourcedata', event => {
@@ -190,8 +181,6 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
       applyScene(map.current, awaitingStyleIdle.current ? { ...settings, terrain: false } : settings) }
     catch { setStatus('Map scene unavailable; chat and coordinates remain usable.') }
     scheduleShadowsRef.current()
-    const center = map.current.getCenter()
-    setSunElevation(solarPosition(settings.dayOfYear, settings.utcMinutes, center.lat, center.lng).elevationDeg)
   }, [settings])
 
   useEffect(() => {
@@ -291,59 +280,8 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
     }
   }, [availability, catalogScopes, styleEpoch])
 
-  function setAppearance(appearance: Appearance) {
-    awaitingStyleIdle.current = Boolean(settingsRef.current.terrain)
-    if (awaitingStyleIdle.current) map.current?.setTerrain(null)
-    change({ appearance })
-    map.current?.setStyle(appearanceStyle(appearance))
-  }
-
   return <div className="map-canvas" aria-label="Weather map">
     <div ref={host} className="map-engine" aria-hidden="true" />
-    <div className="map-brand">OpenEPW <span>Weather across places and years</span></div>
-    {!pickMode && <section className="scene-controls" aria-label="Map scene controls">
-      {status.includes('unavailable') || status.includes('could not load') ?
-        <button type="button" onClick={() => map.current?.setStyle(appearanceStyle(settings.appearance))}>Retry map</button> : null}
-      <p className="solar-readout">UTC {String(Math.floor(settings.utcMinutes / 60)).padStart(2, '0')}:{String(settings.utcMinutes % 60).padStart(2, '0')}
-        {' '}· day {settings.dayOfYear} · sun {sunElevation === null ? '…' : `${sunElevation.toFixed(0)}°`} at map center</p>
-      <button type="button" onClick={() => change(utcSceneTime(new Date()))}>Now in UTC</button>
-      {(availability || catalogScopes) && <p className="scope-note">Faint colors show documented source scopes, not verified coverage.</p>}
-      <button type="button" disabled={!location} onClick={() => {
-        change({ view3d: true })
-        map.current?.easeTo({ center: [location!.lon, location!.lat], zoom: 15.5, pitch: 50,
-          padding: { right: window.innerWidth > 650 ? 410 : 0 }, duration: 700 })
-      }}>District view</button>
-      <button type="button" aria-pressed={settings.view3d} onClick={() => {
-        const view3d = !settings.view3d
-        change({ view3d })
-        map.current?.easeTo({ pitch: view3d ? 50 : 0, duration: 400 })
-      }}>3D view</button>
-      <label><input type="checkbox" checked={settings.terrain} disabled={!settings.view3d}
-        onChange={event => change({ terrain: event.target.checked })} /> Terrain</label>
-      <label>Appearance <select value={settings.appearance} onChange={event => setAppearance(event.target.value as Appearance)}>
-        {appearances.map(([value, label]) => <option value={value} key={value}>{label}</option>)}
-      </select></label>
-      {settings.view3d && <details><summary>Sun and relief</summary>
-        <label>UTC day of year <input type="number" min="1" max="366" value={settings.dayOfYear}
-          onChange={event => change({ dayOfYear: Number(event.target.value) })} /></label>
-        <label>UTC time <input type="time" value={`${String(Math.floor(settings.utcMinutes / 60)).padStart(2, '0')}:${String(settings.utcMinutes % 60).padStart(2, '0')}`}
-          onChange={event => { const [hours, minutes] = event.target.value.split(':').map(Number); change({ utcMinutes: hours * 60 + minutes }) }} /></label>
-        <div className="time-presets"><button type="button" onClick={() => change({ utcMinutes: 720 })}>12:00 UTC</button>
-          <button type="button" onClick={() => change({ utcMinutes: 960 })}>16:00 UTC</button>
-          <button type="button" onClick={() => change({ utcMinutes: 1260 })}>21:00 UTC</button>
-          <button type="button" onClick={() => change({ utcMinutes: 120 })}>02:00 UTC</button></div>
-        <label>Terrain scale <input type="range" min="1" max="10" value={settings.terrainExaggeration}
-          disabled={!settings.terrain} onChange={event => change({ terrainExaggeration: Number(event.target.value) })} /> {settings.terrainExaggeration}×</label>
-        <label>Light <input type="range" min="0" max="150" value={settings.lightIntensity}
-          onChange={event => change({ lightIntensity: Number(event.target.value) })} /> {settings.lightIntensity}%</label>
-        <label>Diffusion <input type="range" min="0" max="100" value={settings.diffusion}
-          onChange={event => change({ diffusion: Number(event.target.value) })} /> {settings.diffusion}%</label>
-        <label>Haze <input type="range" min="0" max="100" value={settings.haze}
-          onChange={event => change({ haze: Number(event.target.value) })} /> {settings.haze}%</label>
-        <label><input type="checkbox" checked={settings.shadows} onChange={event => change({ shadows: event.target.checked })} /> Cast shadows</label>
-        <p>Scene lighting and buildings are decorative; they do not change weather data or simulations.</p>
-      </details>}
-    </section>}
     {pickMode && <section className="pick-toolbar" role="toolbar" aria-label="Pick geography">
       <strong>Pick geography</strong>
       <button type="button" aria-pressed={picking && !drawMode} onClick={() => {
@@ -374,9 +312,13 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
       <small>Faint areas are documented scope. Point availability may be unknown.
         {' '}Checked {(availability?.checked_at ?? catalogScopes?.snapshot?.created_at ?? 'unknown').slice(0, 10)}.</small>
     </aside>}
-    <div className="map-status" role="status">{status}</div>
+    <div className="map-status" role="status">{status}
+      {status.includes('unavailable') || status.includes('could not load') ?
+        <button type="button" onClick={() => map.current?.setStyle(appearanceStyle(settings.appearance))}>Retry map</button> : null}
+    </div>
     {settings.view3d && <div className="shadow-status" role="status">{shadowStatus}</div>}
     <div className="scene-attribution">
+      <a href="https://maplibre.org/" target="_blank" rel="noreferrer">MapLibre</a> ·
       <a href="https://openfreemap.org/" target="_blank" rel="noreferrer">OpenFreeMap</a> ·
       <a href="https://openmaptiles.org/" target="_blank" rel="noreferrer">OpenMapTiles</a> ·
       <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a>

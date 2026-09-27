@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { appearanceStyle, appearanceTokens, applyScene, scenePitch, type SceneSettings } from '../src/map/scene'
+import { appearanceStyle, appearanceTokens, applyScene, autoView3d, scenePitch, type SceneSettings } from '../src/map/scene'
 
 const defaults: SceneSettings = {
   appearance: 'light', view3d: false, terrain: false, terrainExaggeration: 1,
@@ -43,5 +43,15 @@ describe('map scene', () => {
     expect(map.setTerrain).toHaveBeenCalledWith({ source: 'openepw-terrain', exaggeration: 1 })
     expect(map.setLight).toHaveBeenCalledWith(expect.objectContaining({ anchor: 'map' }))
     expect(map.setLayoutProperty).toHaveBeenCalledWith('base-building', 'visibility', 'none')
+  })
+})
+
+describe('automatic district 3D', () => {
+  it('enters 3D at district zoom and leaves it only after zooming back out', () => {
+    expect(autoView3d(1.6, false)).toBe(false)
+    expect(autoView3d(14, false)).toBe(true)
+    expect(autoView3d(13.5, true)).toBe(true)
+    expect(autoView3d(13.5, false)).toBe(false)
+    expect(autoView3d(12.9, true)).toBe(false)
   })
 })

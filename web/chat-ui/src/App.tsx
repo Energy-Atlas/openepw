@@ -23,6 +23,7 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
   const [pastManifests, setPastManifests] = useState<Record<string, JobManifest>>({})
   const [message, setMessage] = useState('')
   const [pickMode, setPickMode] = useState(false)
+  const [typing, setTyping] = useState(false)
   const [busy, setBusy] = useState(false)
   const acting = useRef(false)
   const [pendingTurns, setPendingTurns] = useState<Array<{ id: string; text: string }>>([])
@@ -105,6 +106,8 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
   }, [pastJobs])
 
   useEffect(() => { transcript.current?.scrollTo?.(0, transcript.current.scrollHeight) }, [session?.events.length])
+  useEffect(() => setTyping(false), [session?.active_card?.id, session?.active_card?.revision])
+  useEffect(() => { if (typing) document.getElementById('chat-message')?.focus() }, [typing])
 
   async function act(operation: (current: SessionSnapshot) => Promise<SessionSnapshot>,
     callbacks: { success?: () => void; failure?: () => void } = {}) {
@@ -206,6 +209,10 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
   }
 
   const card = session?.active_card
+  // The composer follows the current card: free text only when the session asks for it or the user opts to type.
+  const replyMode = !card || card.kind === 'text' || typing ? 'text' : card.kind
+  const backLabel = card?.kind === 'choice' ? 'Back to options' : card?.kind === 'plan_review' ? 'Back to review'
+    : card?.kind === 'map' ? 'Back to map input' : null
   const visibleEvents = (session?.events ?? []).filter((event, index, events) =>
     !(card && index === events.length - 1 &&
       ((event.type === 'question' && event.text === card.prompt)
@@ -227,6 +234,20 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
     return point ? ` · ${point.lat.toFixed(4)}, ${point.lon.toFixed(4)}` : ''
   }
 
+  const attachControl = (accept: string) => <label className="attach-control" title="Attach EPW or GeoJSON">
+    <span aria-hidden="true">+</span>
+    <input type="file" aria-label="Attach EPW or GeoJSON" accept={accept}
+      disabled={busy || !session} onChange={event => {
+        const file = event.target.files?.[0]
+        if (file) {
+          if (/\.epw$/i.test(file.name)) void upload(file)
+          else if (/\.(geojson|json)$/i.test(file.name)) void uploadGeometry(file)
+          else setError('Attach an EPW or GeoJSON file.')
+        }
+        event.target.value = ''
+      }} />
+  </label>
+
   return <main className="workspace">
     <MapCanvas location={selected} candidates={candidates} pickMode={pickMode}
       catalogScopes={catalogScopes}
@@ -238,13 +259,11 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
       onPickGeometry={geography => void act(current => api.setGeography(current.id, current.revision, geography, randomKey()))}
       onPickCandidate={id => { if (card?.kind === 'choice') void act(current => api.answer(current.id, card.revision, id, randomKey())) }} />
     <aside className="chat-rail" aria-label="Weather chat">
-      <header className="chat-heading">
-        <span className="wordmark">OpenEPW</span>
-        <span className="chat-subtitle">Weather workspace</span>
-      </header>
       <div className="chat-transcript" role="log" aria-live="polite" ref={transcript}>
-        <div className="welcome">Where do you need weather?</div>
-        <p className="welcome-hint">Name a place and actual years, choose geography on the map, or attach an EPW.</p>
+        <article className="chat-event assistant-event welcome">
+          <strong>Where do you need weather?</strong>
+          <p>Name a place and actual years, choose geography on the map, or attach an EPW.</p>
+        </article>
         {visibleEvents.map(event => <article key={event.id}
           className={`chat-event ${event.data?.role === 'user' ? 'user-event' : ''} ${event.type === 'tool' ? 'tool-event' : 'assistant-event'}`}>
           {event.type === 'tool' && <span className="event-kind">Tool · {String(event.data?.tool ?? 'service')} · {String(event.data?.phase ?? '')}</span>}
@@ -255,14 +274,6 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
         {card && <section className="action-card" aria-label="Current question">
           <span className="event-kind">Agent</span>
           <h2>{card.prompt}</h2>
-          {card.kind === 'choice' && <div className="choice-list">
-            {card.options?.map(option => <button key={option.id} disabled={busy} type="button"
-              onClick={() => void act(current => api.answer(current.id, card.revision, option.id, randomKey()))}>
-              {option.label}
-            </button>)}
-            <button type="button" onClick={() => document.getElementById('chat-message')?.focus()}>
-              Other — type an answer</button>
-          </div>}
           {card.kind === 'plan_review' && <div>
             {Boolean(session?.facts.location) && <p>Location: {String((session!.facts.location as Record<string, unknown>).name ??
               `${(session!.facts.location as Record<string, unknown>).lat}, ${(session!.facts.location as Record<string, unknown>).lon}`)}</p>}
@@ -287,13 +298,6 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
                 {option.unknowns.length ? ` · unknown: ${option.unknowns.join('; ')}` : ''}
               </p>)}
             </details>}
-            {!card.data?.plan_hash ? <button type="button" disabled={busy}
-              onClick={() => void act(current => api.prepare(current.id, current.revision, randomKey()))}>
-              Assess and review plan
-            </button> : <button type="button" disabled={busy}
-              onClick={() => void act(current => api.run(current.id, current.revision, randomKey()))}>
-              Run reviewed plan
-            </button>}
           </div>}
         </section>}
         {job && <section className="job-card" aria-label="Current weather job">
@@ -364,28 +368,39 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
         {!session && error && <button type="button" onClick={() => setSessionAttempt(value => value + 1)}>
           Reconnect to local service</button>}
       </div>
-      <form className="composer" onSubmit={send}>
-        <label htmlFor="chat-message">Message</label>
-        <div className="composer-row">
-          <label className="attach-control" title="Attach EPW or GeoJSON">
-            <span aria-hidden="true">+</span>
-            <input type="file" aria-label="Attach EPW or GeoJSON" accept=".epw,.geojson,.json,text/plain,application/geo+json"
-              disabled={busy || !session} onChange={event => {
-                const file = event.target.files?.[0]
-                if (file) {
-                  if (/\.epw$/i.test(file.name)) void upload(file)
-                  else if (/\.(geojson|json)$/i.test(file.name)) void uploadGeometry(file)
-                  else setError('Attach an EPW or GeoJSON file.')
-                }
-                event.target.value = ''
-              }} />
-          </label>
-          <button className="map-input-trigger" type="button" aria-label="Pick geography on map" aria-pressed={pickMode}
-            onClick={() => setPickMode(current => !current)}>Map</button>
-          <input id="chat-message" name="message" placeholder="Place, years, and weather type"
-            value={message} onChange={event => setMessage(event.target.value)} />
-          <button type="submit" disabled={!session}>Send</button>
-        </div>
+      <form className="composer" onSubmit={send} aria-label="Reply">
+        {replyMode === 'text' ? <>
+          <label className="visually-hidden" htmlFor="chat-message">Message</label>
+          <div className="composer-row">
+            {attachControl('.epw,.geojson,.json,text/plain,application/geo+json')}
+            <button className="map-input-trigger" type="button" aria-label="Pick geography on map" aria-pressed={pickMode}
+              onClick={() => setPickMode(current => !current)}>Map</button>
+            <input id="chat-message" name="message" placeholder="Place, years, and weather type"
+              value={message} onChange={event => setMessage(event.target.value)} />
+            <button type="submit" disabled={!session}>Send</button>
+          </div>
+          {typing && backLabel && <button className="reply-alt" type="button" onClick={() => setTyping(false)}>{backLabel}</button>}
+        </> : <div className="reply-options" role="group" aria-label="Reply options">
+          {card?.kind === 'choice' && <>
+            {card.options?.map(option => <button key={option.id} disabled={busy} type="button"
+              onClick={() => void act(current => api.answer(current.id, card.revision, option.id, randomKey()))}>
+              {option.label}</button>)}
+            <button className="reply-alt" type="button" onClick={() => setTyping(true)}>Other — type an answer</button>
+          </>}
+          {card?.kind === 'plan_review' && <>
+            {!card.data?.plan_hash ? <button className="reply-primary" type="button" disabled={busy}
+              onClick={() => void act(current => api.prepare(current.id, current.revision, randomKey()))}>
+              Assess and review plan</button> : <button className="reply-primary" type="button" disabled={busy}
+              onClick={() => void act(current => api.run(current.id, current.revision, randomKey()))}>
+              Run reviewed plan</button>}
+            <button className="reply-alt" type="button" onClick={() => setTyping(true)}>Type a correction</button>
+          </>}
+          {card?.kind === 'map' && <>
+            <button type="button" aria-pressed={pickMode} onClick={() => setPickMode(true)}>Choose on map</button>
+            {attachControl('.geojson,.json,application/geo+json')}
+            <button className="reply-alt" type="button" onClick={() => setTyping(true)}>Type coordinates</button>
+          </>}
+        </div>}
       </form>
     </aside>
     {openViews.map((id, index) => <ViewPanel key={id} id={id} index={index} api={api}
