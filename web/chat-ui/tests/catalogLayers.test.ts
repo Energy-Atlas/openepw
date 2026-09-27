@@ -88,21 +88,16 @@ describe('OpenEPW map palette', () => {
     expect(catalogLayerSpecs(layer('era5', 'extent'), 'y').map(spec => spec.type)).toEqual(['line'])
   })
 
-  it('labels stations and published files by name from district zoom', async () => {
+  it('carries station names for the label overlay from zoom 7', async () => {
     const { catalogFeatures, catalogLayerSpecs, STATION_LABEL_ZOOM } = await import('../src/map/catalogLayers')
     const noaa: CatalogLayer = { ...base, id: 'noaa', kind: 'stations', label: 'N',
       points: [[-71, 42, 'A', [[2018, 2018]], 'BOSTON LOGAN INTL']] }
     const ob: CatalogLayer = { ...base, id: 'onebuilding', kind: 'sites', label: 'O',
       points: [[1, 2, 'TMYx', null, 'published', 'Coconut Island AP']] }
+    expect(STATION_LABEL_ZOOM).toBe(7)
     expect(catalogFeatures(noaa).features[0].properties?.name).toBe('BOSTON LOGAN INTL')
     expect(catalogFeatures(ob).features[0].properties?.name).toBe('Coconut Island AP')
-    for (const item of [noaa, ob]) {
-      const label = catalogLayerSpecs(item, 'x').find(spec => spec.id === 'x-label') as
-        { type: string; minzoom: number; layout: Record<string, unknown> }
-      expect(label.type).toBe('symbol')
-      expect(label.minzoom).toBe(STATION_LABEL_ZOOM)
-      expect(label.layout['text-field']).toEqual(['get', 'name'])
-      expect(label.layout['text-allow-overlap']).toBe(false)
-    }
+    // Names are drawn by the overlay (pills and callouts), not by MapLibre symbol layers.
+    expect(catalogLayerSpecs(noaa, 'x').some(spec => spec.id === 'x-label')).toBe(false)
   })
 })

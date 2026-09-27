@@ -28,7 +28,8 @@ const swatches: Record<CatalogLayer['kind'], Swatch> = {
   extent: { color: MAP_PALETTE.EXTENT, shape: 'dash' },
 }
 
-export const STATION_LABEL_ZOOM = 9
+// Station names are drawn by the map overlay (placeLabels) from this zoom.
+export const STATION_LABEL_ZOOM = 7
 
 export function layerSwatch(layer: Pick<CatalogLayer, 'id' | 'kind'>): Swatch {
   return layer.id === 'nsrdb' ? { ...swatches[layer.kind], color: MAP_PALETTE.NSRDB } : swatches[layer.kind]
@@ -113,20 +114,12 @@ export function catalogLayerSpecs(layer: CatalogLayer, id: string): AddLayerObje
   const points: FilterSpecification = ['==', ['geometry-type'], 'Point']
   // Area tints fade toward district zoom so they never hide the local map.
   const fade = (peak: number): ExpressionSpecification => ['interpolate', ['linear'], ['zoom'], 4, peak, 9, .04]
-  // Names appear from district zoom and drop out where they would collide.
-  const label = (color: string): AddLayerObject => ({ id: `${id}-label`, type: 'symbol', source: id,
-    minzoom: STATION_LABEL_ZOOM, filter: ['!=', ['get', 'name'], ''],
-    layout: { 'text-field': ['get', 'name'], 'text-font': ['Noto Sans Regular'], 'text-size': 10.5,
-      'text-offset': [0, .9], 'text-anchor': 'top', 'text-max-width': 9, 'text-allow-overlap': false,
-      'text-optional': true },
-    paint: { 'text-color': color, 'text-halo-color': THEME.PAPER, 'text-halo-width': 1.2 } })
   if (layer.kind === 'stations') return [{ id: `${id}-point`, type: 'circle', source: id,
-    paint: { 'circle-radius': radius, 'circle-color': MAP_PALETTE.OBSERVED, 'circle-opacity': .85 } },
-  label(MAP_PALETTE.OBSERVED)]
+    paint: { 'circle-radius': radius, 'circle-color': MAP_PALETTE.OBSERVED, 'circle-opacity': .85 } }]
   if (layer.kind === 'sites') return [{ id: `${id}-point`, type: 'symbol', source: id,
     layout: { 'icon-image': ['case', ['get', 'approximate'], 'oe-square-hollow', 'oe-square'],
       'icon-size': ['interpolate', ['linear'], ['zoom'], 1, .3, 4, .5, 8, .8, 12, 1.1],
-      'icon-allow-overlap': true, 'icon-ignore-placement': true } }, label(MAP_PALETTE.PUBLISHED)]
+      'icon-allow-overlap': true, 'icon-ignore-placement': true } }]
   if (layer.kind === 'cells') return [{ id: `${id}-fill`, type: 'fill', source: id, filter: polygons,
     paint: { 'fill-color': layer.id === 'nsrdb' ? MAP_PALETTE.NSRDB : MAP_PALETTE.REGION,
       'fill-antialias': false, 'fill-opacity': fade(.22) } }]

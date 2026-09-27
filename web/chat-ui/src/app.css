@@ -112,6 +112,11 @@ button { cursor: pointer; }
 .reply-options .numbered-option { display: inline-flex; align-items: center; gap: .5rem; padding-left: .35rem; text-align: left; }
 .reply-options .numbered-option[aria-pressed="true"] { background: var(--oe-amber); color: var(--oe-ink); }
 .reply-options .numbered-option[aria-pressed="true"] .option-number { background: var(--oe-ink); }
+/* Station name pills sit above the map, below the legend and chat; callouts join displaced pills to their station. */
+.station-labels { position: absolute; inset: 0; z-index: 1; pointer-events: none; overflow: hidden; }
+.station-callouts { position: absolute; inset: 0; }
+.station-callouts line { stroke-width: 1; stroke-linecap: round; opacity: .85; }
+.station-label { position: absolute; box-sizing: border-box; height: 17px; padding: 0 8px; border-radius: 999px; color: var(--oe-paper); font: 500 10px/17px 'Geist', system-ui, sans-serif; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; box-shadow: 0 1px 2px color-mix(in srgb, var(--oe-ink) 25%, transparent); }
 .candidate-popup { position: absolute; z-index: 4; transform: translate(-50%, calc(-100% - 18px)); display: grid; grid-template-columns: auto 1fr; align-items: center; gap: .25rem .5rem; min-width: 12rem; max-width: 18rem; padding: .6rem .7rem; border-radius: 12px; background: var(--oe-paper); color: var(--oe-ink); box-shadow: var(--oe-shadow); font-size: .8rem; }
 .candidate-popup::after { content: ''; position: absolute; left: 50%; bottom: -6px; width: 12px; height: 12px; background: var(--oe-paper); transform: translateX(-50%) rotate(45deg); }
 .candidate-popup code { grid-column: 2; color: var(--oe-muted); font: .72rem 'IBM Plex Mono', monospace; }

@@ -5,7 +5,9 @@ import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
 import { appearanceStyle, applyAppearance, applyLighting, applyScene, autoView3d, scenePitch, type SceneSettings } from './scene'
 import { renderShadows } from './renderShadows'
 import { availabilityFeatures } from './evidence'
-import { MAP_PALETTE, SHAPE_IMAGES, catalogFeatures, catalogLayerSpecs, layerSwatch, legendRows } from './catalogLayers'
+import { MAP_PALETTE, SHAPE_IMAGES, STATION_LABEL_ZOOM, catalogFeatures, catalogLayerSpecs, layerSwatch,
+  legendRows } from './catalogLayers'
+import { calloutEnd, placeLabels, type LabelInput, type PlacedLabel } from './labels'
 import { utcSceneTime } from './sun'
 import { THEME } from '../theme'
 import { TickIcon } from '../icons'
@@ -56,6 +58,8 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
   const scheduleShadowsRef = useRef<() => void>(() => {})
   const [picking, setPicking] = useState(false)
   const [hiddenLayers, setHiddenLayers] = useState<string[]>([])
+  const [labels, setLabels] = useState<PlacedLabel[]>([])
+  const updateLabels = useRef<() => void>(() => {})
   const [drawMode, setDrawMode] = useState<'polygon' | 'box' | null>(null)
   const [vertices, setVertices] = useState<Array<[number, number]>>([])
   const drawRef = useRef<'polygon' | 'box' | null>(null)
@@ -132,6 +136,14 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
         catch { setStatus('Map scene unavailable; chat and coordinates remain usable.') }
       })
       sceneMap.on('error', () => setStatus('Some map tiles could not load. Chat remains available.'))
+      let labelFrame = 0
+      const scheduleLabels = () => {
+        if (labelFrame) return
+        const next = window.requestAnimationFrame ?? ((callback: FrameRequestCallback) => window.setTimeout(callback, 16))
+        labelFrame = next(() => { labelFrame = 0; updateLabels.current() }) as number
+      }
+      sceneMap.on('move', scheduleLabels)
+      sceneMap.on('idle', () => updateLabels.current())
       sceneMap.on('moveend', () => {
         setStatus(`Map ready · zoom ${sceneMap.getZoom().toFixed(1)}`)
         const view3d = autoView3d(sceneMap.getZoom(), settingsRef.current.view3d)
@@ -328,6 +340,38 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
     }
   }, [availability, styleEpoch])
 
+  updateLabels.current = () => {
+    const sceneMap = map.current
+    if (!sceneMap || !styleParsed(sceneMap) || sceneMap.getZoom() < STATION_LABEL_ZOOM) {
+      setLabels(current => current.length ? [] : current)
+      return
+    }
+    const sources = ([['noaa', MAP_PALETTE.OBSERVED], ['onebuilding', MAP_PALETTE.PUBLISHED]] as const)
+      .filter(([id]) => !hiddenLayers.includes(id) && sceneMap.getLayer(`openepw-catalog-${id}-point`))
+    const features = sources.length ? sceneMap.queryRenderedFeatures({
+      layers: sources.map(([id]) => `openepw-catalog-${id}-point`) }) : []
+    const size = { width: host.current?.clientWidth || window.innerWidth, height: host.current?.clientHeight || window.innerHeight }
+    const markers: Array<{ x: number; y: number }> = []
+    const items: LabelInput[] = []
+    const seen = new Set<string>()
+    for (const feature of features) {
+      const [lon, lat] = (feature.geometry as GeoJSON.Point).coordinates
+      const point = sceneMap.project([lon, lat])
+      markers.push(point)
+      const name = String(feature.properties?.name ?? '')
+      const color = feature.layer.id.includes('noaa') ? MAP_PALETTE.OBSERVED : MAP_PALETTE.PUBLISHED
+      const key = `${color}:${name}:${lon.toFixed(4)}:${lat.toFixed(4)}`
+      if (!name || seen.has(key)) continue
+      seen.add(key)
+      const text = name.length > 30 ? `${name.slice(0, 29)}…` : name
+      items.push({ id: key, x: point.x, y: point.y, text, color, width: textWidth(text) + 16, height: 17 })
+    }
+    // Stations nearest the middle of the view win when space is short.
+    items.sort((a, b) => Math.hypot(a.x - size.width / 2, a.y - size.height / 2)
+      - Math.hypot(b.x - size.width / 2, b.y - size.height / 2))
+    setLabels(placeLabels(items, markers, size))
+  }
+
   const yearKey = years.join(',')
   useEffect(() => {
     const sceneMap = map.current
@@ -356,6 +400,7 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
       for (const suffix of ['fill', 'line', 'point', 'label'])
         if (sceneMap.getLayer(`${id}-${suffix}`)) sceneMap.setLayoutProperty(`${id}-${suffix}`, 'visibility', visibility)
     }
+    updateLabels.current()
   }, [catalogMap, yearKey, hiddenLayers, styleEpoch])
 
   return <div className="map-canvas" aria-label="Weather map">
@@ -403,6 +448,16 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
       <small className="legend-source">Stage 1 catalog · {catalogMap.snapshot?.created_at.slice(0, 10) ?? 'bundled contracts'}
         {' '}· documentary, not point eligibility</small>
     </aside>}
+    {labels.length > 0 && <div className="station-labels" aria-hidden="true">
+      <svg className="station-callouts" width="100%" height="100%">
+        {labels.filter(label => label.callout).map(label => {
+          const end = calloutEnd(label)
+          return <line key={label.id} x1={label.anchor.x} y1={label.anchor.y} x2={end.x} y2={end.y} stroke={label.color} />
+        })}
+      </svg>
+      {labels.map(label => <span key={label.id} className="station-label"
+        style={{ left: label.x, top: label.y, width: label.width, background: label.color }}>{label.text}</span>)}
+    </div>}
     {pending && popupAt && <div className="candidate-popup" role="dialog" aria-label="Selected location"
       style={{ left: popupAt.x, top: popupAt.y }}>
       <button type="button" className="popup-close" aria-label="Clear selection" onClick={onClearCandidate}>×</button>
@@ -437,3 +492,12 @@ function layerCount(layer: CatalogLayer, years: number[]): string {
   return 'documented extent'
 }
 
+let measureContext: CanvasRenderingContext2D | null | undefined
+/** Pill text width in CSS pixels; falls back to an estimate where canvas is unavailable. */
+function textWidth(text: string): number {
+  if (measureContext === undefined) {
+    try { measureContext = document.createElement('canvas').getContext('2d') } catch { measureContext = null }
+    if (measureContext) measureContext.font = "500 10px Geist, system-ui, sans-serif"
+  }
+  return Math.ceil(measureContext ? measureContext.measureText(text).width : text.length * 5.8)
+}

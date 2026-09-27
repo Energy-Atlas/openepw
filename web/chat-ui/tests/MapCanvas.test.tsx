@@ -45,7 +45,10 @@ vi.mock('maplibre-gl', () => {
     jumpTo() {}
     easeTo = vi.fn()
     getCenter() { return { lat: 18, lng: 0 } }
-    getZoom() { return 1.65 }
+    zoom = 1.65
+    getZoom() { return this.zoom }
+    rendered: Array<Record<string, unknown>> = []
+    queryRenderedFeatures() { return this.rendered }
     getPitch() { return 0 }
     getCanvas() { return document.createElement('canvas') }
     addControl() {}
@@ -125,5 +128,28 @@ describe('map canvas overlays', () => {
     await waitFor(() => expect(map.getSource('openepw-selection')).toBeTruthy())
     expect(map.getLayer('openepw-selection-numbers')).toBeTruthy()
     expect(map.getSource('openepw-selection')!.data.features.map(feature => feature.properties?.label)).toEqual(['1', '2'])
+  })
+
+  it('draws station names as pills from zoom 7 and callouts when crowded', async () => {
+    const { MapCanvas } = await import('../src/map/MapCanvas')
+    const catalogWithNames: CatalogMap = { ...catalog, layers: [catalog.layers[0],
+      { id: 'onebuilding', kind: 'sites', label: 'OneBuilding', caveat: 'c', count: 1, evidence_dates: [], points: [] }] }
+    render(<MapCanvas catalogMap={catalogWithNames} />)
+    await waitFor(() => expect(fake.maps).toHaveLength(1))
+    const map = fake.maps[0] as unknown as { parsed: boolean; zoom: number; rendered: unknown[]; emit(event: string): void }
+    map.parsed = true
+    map.emit('style.load')
+    const feature = (name: string, lon: number, lat: number, layer: string) =>
+      ({ properties: { name }, geometry: { type: 'Point', coordinates: [lon, lat] }, layer: { id: layer } })
+    map.rendered = [feature('LOGAN INTL', 200, 200, 'openepw-catalog-noaa-point'),
+      feature('Boston Logan', 201, 201, 'openepw-catalog-onebuilding-point'),
+      feature('Hanscom', 203, 199, 'openepw-catalog-noaa-point')]
+    map.emit('idle')
+    expect(document.querySelectorAll('.station-label')).toHaveLength(0)       // below zoom 7
+    map.zoom = 7.5
+    map.emit('idle')
+    await waitFor(() => expect(document.querySelectorAll('.station-label')).toHaveLength(3))
+    expect([...document.querySelectorAll('.station-label')].map(node => node.textContent)).toContain('Boston Logan')
+    expect(document.querySelectorAll('.station-callouts line').length).toBeGreaterThan(0)
   })
 })
