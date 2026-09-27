@@ -52,8 +52,12 @@ Node or this UI.
   coordinates) with `Approve location`. The message field stays open: a reply
   such as "the one in England" or "no, Somerville" is read as a correction of
   that location. A place list is approved the same way (`Approve locations`)
-  and corrected with edits such as "remove 3" or "add Reno". Any change needs
-  approval again.
+  and corrected with edits such as "remove 3" or "add Reno". Other replies
+  patch the list rather than replace it: "sanfrancisco should be San
+  Francisco" fixes that row, "I meant Honolulu for hawaii" replaces the row it
+  names, a reply with one place fixes the closest spelling or adds it, and only
+  "only …" or "… instead" replaces the list. A "place, region" pair that is not
+  found is retried as two places. Any change needs approval again.
 - The product question lists named products, grouped into actual year and
   typical year, e.g. `NSRDB actual year · GOES v4`, `NOAA ISD station
   observations`, `PVGIS TMY 5.3 · SARAH3` or `OneBuilding TMYx.2009-2023`;
