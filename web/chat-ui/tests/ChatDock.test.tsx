@@ -177,7 +177,11 @@ describe('chat dock and controls', () => {
   })
 
   it('shows one card for the jobs of a mixed request with their combined progress', async () => {
-    const running = state(null, { job_id: 'a', job_ids: ['a', 'b'], job_groups: [['a'], ['b']] })
+    const running = state(null, { job_id: 'a', job_ids: ['a', 'b'], job_groups: [['a'], ['b']], events: [
+      { id: 1, type: 'message', text: '- ERA5 actual year · Open-Meteo\n- ERA5-Land actual year · Copernicus CDS',
+        data: { role: 'user', choice: true } },
+      { id: 2, type: 'job', text: 'Weather job started', data: { job_id: 'a' } },
+      { id: 3, type: 'job', text: 'Weather job started', data: { job_id: 'b', queued: true } }] })
     const job = vi.fn(async (id: string) => id === 'a'
       ? { id: 'a', state: 'completed', total: 2, completed: 2, failed: 0 }
       : { id: 'b', state: 'running', total: 1, completed: 0, failed: 0 })
@@ -185,6 +189,11 @@ describe('chat dock and controls', () => {
     const card = await screen.findByLabelText('Current weather job')
     await waitFor(() => expect(card).toHaveTextContent('running · 2/3 outputs · 0 failed'))
     expect(card).toHaveTextContent('Weather jobs (2)')
+    expect(card).toHaveTextContent('Copernicus CDS requests wait in the Copernicus queue')   // why it is slow
+    expect(card).toHaveTextContent('Finished outputs can be downloaded now')
+    const choice = within(screen.getByRole('log')).getAllByRole('listitem')                  // a bullet per product
+    expect(choice.map(item => item.textContent)).toEqual(['ERA5 actual year · Open-Meteo',
+      'ERA5-Land actual year · Copernicus CDS'])
     expect(job).toHaveBeenCalledWith('a')
     expect(job).toHaveBeenCalledWith('b')
   })

@@ -260,6 +260,10 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
     if (card?.kind === 'choice') void act(current => api.answer(current.id, card.revision, id, randomKey()))
   }
   const jobActive = running.length > 0
+  // Jobs of Copernicus CDS products wait in Copernicus's queue, one request per month.
+  const queuedJobs = new Set((session?.events ?? []).filter(event => event.type === 'job' && event.data?.queued)
+    .map(event => String(event.data?.job_id)))
+  const waitingOnQueue = running.some(item => queuedJobs.has(item.id))
   const placeholder = placeholderFor(card ?? null, typing, locationChoice)
   const coordinatesFor = (row: JobManifest['batch_rows'][number]) => {
     const point = row.metadata?.requested_location
@@ -313,7 +317,7 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
               <BackIcon /></button>}
             {item.event.type === 'message' && <span className="event-kind">{item.event.data?.role === 'user' ? 'You' : 'Agent'}</span>}
             {item.event.type === 'plan' && <span className="event-kind">Plan review</span>}
-            {item.event.text && (item.event.data?.role === 'user' ? <p>{item.event.text}</p>
+            {item.event.text && (item.event.data?.role === 'user' && !item.event.data?.choice ? <p>{item.event.text}</p>
               : <div className="md"><Markdown>{item.event.text}</Markdown></div>)}
           </article>)}
         {job && <section className="job-card" aria-label="Current weather job">
@@ -325,7 +329,11 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
             Cancel job</button>}
           {job.failed > 0 && <button type="button" disabled={busy} onClick={() =>
             void act(current => api.retrySession(current.id, current.revision, randomKey()))}>Retry failed</button>}
-          {!mergedJobs.complete && <p className="warning">Verified output mapping is loading or unavailable; downloads wait for the manifest.</p>}
+          {waitingOnQueue && <p className="card-note">Copernicus CDS requests wait in the Copernicus queue, one month
+            per request, so several years can take hours. The other products run alongside and finish first.</p>}
+          {running.length > 0 && heads.length > 1 ? <p className="card-note">Finished outputs can be downloaded now; the
+            full ZIP waits for every job.</p>
+            : !mergedJobs.complete && <p className="warning">Verified output mapping is loading or unavailable; downloads wait for the manifest.</p>}
           {mergedJobs.rows.map((row, index) => <div className="artifact-row" key={`${row.output_id ?? index}`}>
             <span>Location {row.occurrence_index + 1}{coordinatesFor(row)} ·
               {' '}{row.period_start?.slice(0, 4) ?? 'reference'} · {row.dataset_selection?.provider ?? 'source unknown'} · {row.status}

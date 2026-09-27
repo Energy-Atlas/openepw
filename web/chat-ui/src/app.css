@@ -83,7 +83,9 @@ button { cursor: pointer; }
 /* Input and options take the height they need; only the transcript above scrolls. */
 .chat-dock { flex: none; display: flex; flex-direction: column; gap: .45rem; min-height: 0; }
 .chat-dock > * { pointer-events: auto; }
-.chat-dock .action-card { flex: none; width: 100%; max-height: 40dvh; overflow: auto; }
+/* The question and plan card take the height they need; it never scrolls. */
+.chat-dock .action-card { flex: none; width: 100%; }
+.job-card .card-note { margin: .2rem 0; color: var(--oe-muted); font-size: .78rem; line-height: 1.35; }
 .chat-dock .error { margin: 0; padding: .4rem .7rem; border-radius: 10px; background: var(--oe-paper); box-shadow: var(--oe-shadow); }
 .dock-tools { display: flex; justify-content: flex-end; gap: .35rem; }
 .icon-button { display: inline-grid; place-items: center; width: 2rem; height: 2rem; padding: 0; border: 0; border-radius: 50%; background: var(--oe-paper); color: var(--oe-ink); box-shadow: var(--oe-shadow); }
