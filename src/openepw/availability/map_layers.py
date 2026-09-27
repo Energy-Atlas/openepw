@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from pathlib import Path
 
 from .models import ActualScope, CatalogBundle, TMYReferenceScope
@@ -23,6 +24,14 @@ PVGIS_SARAH3_APPROX = [
 ]
 PVGIS_SOURCE = ("https://joint-research-centre.ec.europa.eu/sites/default/files/2024-09/"
                 "PVGIS_53_DB_Coverage.png")
+
+
+def onebuilding_station_name(url: str | None) -> str | None:
+    """Station name from a OneBuilding file name, e.g. AUS_QLD_Coconut.Island.AP.941820_TMYx.zip."""
+    # Station codes are WMO numbers or alphanumeric (A05735, USA109).
+    match = re.search(r"/(?:[A-Z]{3}_)(?:[A-Z]{2,3}_)?([^/_]+?)\.(?:\d{5,6}|[A-Z]{1,3}\d{3,6})_[^/]+\.zip$",
+                      url or "")
+    return match.group(1).replace(".", " ") if match else None
 
 
 def _years_with_reports(scope: ActualScope) -> list[int]:
@@ -118,7 +127,7 @@ def catalog_map(bundle: CatalogBundle, footprints_root: Path) -> dict:
             elif site.lat == 0 and site.lon == 0:
                 zero += 1  # Placeholder origin coordinates are not a station location.
             elif years := _years_with_reports(entry.scope):
-                noaa_points.append([site.lon, site.lat, site.id, _ranges(years)])
+                noaa_points.append([site.lon, site.lat, site.id, _ranges(years), site.name])
         elif product.provider == "onebuilding" and isinstance(entry.scope, TMYReferenceScope):
             if site.lat is None or site.lon is None:
                 onebuilding_missing += 1
@@ -127,7 +136,7 @@ def catalog_map(bundle: CatalogBundle, footprints_root: Path) -> dict:
             period = (f"{scope.start_year}-{scope.end_year}"
                       if scope.start_year and scope.end_year else None)
             onebuilding_points.append([site.lon, site.lat, scope.product_label, period,
-                                       site.position_status])
+                                       site.position_status, onebuilding_station_name(product.native_product_id)])
     noaa_ids = [pid for pid, product in products.items() if product.provider == "noaa"]
     if noaa_points:
         mapped |= {(products[pid].provider, products[pid].dataset) for pid in noaa_ids}

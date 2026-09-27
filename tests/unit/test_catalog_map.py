@@ -105,14 +105,14 @@ def _layer(result, identifier):
 def test_noaa_stations_keep_reported_years_and_skip_unplaceable_sites(tmp_path):
     result = catalog_map(_bundle(), tmp_path)
     noaa = _layer(result, "noaa")
-    assert noaa["points"] == [[-76.0, 42.0, "S1", [[2016, 2018]]]]
+    assert noaa["points"] == [[-76.0, 42.0, "S1", [[2016, 2018]], None]]
     assert noaa["omitted"] == {"no_coordinates": 1, "zero_origin": 1}
 
 
 def test_onebuilding_sites_carry_product_period_and_position(tmp_path):
     sites = _layer(catalog_map(_bundle(), tmp_path), "onebuilding")["points"]
-    assert [143.07, -10.05, "TMYx.2009-2023", "2009-2023", "published"] in sites
-    assert [-157.8, 21.3, "TMY3", None, "approximate_locality"] in sites
+    assert [143.07, -10.05, "TMYx.2009-2023", "2009-2023", "published", None] in sites
+    assert [-157.8, 21.3, "TMY3", None, "approximate_locality", None] in sites
 
 
 def test_era5_extent_uses_catalog_footprint_and_names_documented_members(tmp_path):
@@ -159,3 +159,30 @@ def test_service_serves_active_catalog_map(tmp_path):
     result = service.catalog_map()
     assert result["snapshot"]["generation_id"] == staged.generation_id
     assert [layer["id"] for layer in result["layers"]] == ["noaa", "onebuilding", "pvgis", "era5"]
+
+
+def test_station_names_come_from_site_records_and_onebuilding_file_names(tmp_path):
+    from openepw.availability.map_layers import onebuilding_station_name
+
+    bundle = _bundle()
+    bundle.sites[0].name = "BOSTON LOGAN INTL"
+    bundle.products[1].native_product_id = ("https://climate.onebuilding.org/WMO_Region_5_Southwest_Pacific/"
+                                            "AUS_Australia/QLD_Queensland/AUS_QLD_Coconut.Island.AP.941820_TMYx.2009-2023.zip")
+    result = catalog_map(bundle, tmp_path)
+    assert _layer(result, "noaa")["points"][0][4] == "BOSTON LOGAN INTL"
+    names = {point[2]: point[5] for point in _layer(result, "onebuilding")["points"]}
+    assert names["TMYx.2009-2023"] == "Coconut Island AP"
+    assert names["TMY3"] is None
+    assert onebuilding_station_name("https://x/FRA_Paris.Orly.071490_TMYx.zip") == "Paris Orly"
+    assert onebuilding_station_name("https://x/USA_TX_Bowie.Muni.AP.A05735_TMYx.2009-2023.zip") == "Bowie Muni AP"
+    assert onebuilding_station_name("not a onebuilding url") is None
+
+
+def test_stage1_import_keeps_noaa_station_names():
+    from openepw.availability.stage1 import _noaa
+
+    inventories = {"noaa-history": {"sites": [{"id": "72509014739", "name": "BOSTON LOGAN INTL", "lat": 42.36,
+                                                "lon": -71.01, "start": "1936-01-01", "end": "2025-08-28"}]},
+                   "noaa-inventory-authorized": {"station_years": {"72509014739": {"2018": [1] * 12}}}}
+    _, sites, _ = _noaa(inventories, {"noaa-history", "noaa-inventory-authorized"})
+    assert sites[0].name == "BOSTON LOGAN INTL"

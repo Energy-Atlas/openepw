@@ -72,7 +72,8 @@ def _noaa(inventories: dict, known: set[str]) -> tuple[list[ProductRecord], list
     for source in history.get("sites", []):
         station_id = str(source["id"])
         sites_by_id[station_id] = SiteRecord(
-            id=station_id, product_id=product.id, lat=source.get("lat"), lon=source.get("lon"),
+            id=station_id, product_id=product.id, name=source.get("name") or None,
+            lat=source.get("lat"), lon=source.get("lon"),
             elevation_m=source.get("elevation_m"), position_status="published",
             station_identity_status="verified", candidate_station_ids=[station_id],
             operating_start=date.fromisoformat(source["start"]) if source.get("start") else None,

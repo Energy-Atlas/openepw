@@ -353,7 +353,7 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
         }
       }
       const visibility = hiddenLayers.includes(layer.id) ? 'none' : 'visible'
-      for (const suffix of ['fill', 'line', 'point'])
+      for (const suffix of ['fill', 'line', 'point', 'label'])
         if (sceneMap.getLayer(`${id}-${suffix}`)) sceneMap.setLayoutProperty(`${id}-${suffix}`, 'visibility', visibility)
     }
   }, [catalogMap, yearKey, hiddenLayers, styleEpoch])

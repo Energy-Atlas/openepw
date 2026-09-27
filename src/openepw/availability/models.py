@@ -52,6 +52,7 @@ class ProductRecord(Model):
 class SiteRecord(Model):
     id: str
     product_id: str
+    name: str | None = None          # published station name, display only
     lat: float | None = Field(default=None, ge=-90, le=90)
     lon: float | None = Field(default=None, ge=-180, le=180)
     elevation_m: float | None = None
