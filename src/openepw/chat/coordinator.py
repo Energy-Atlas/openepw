@@ -740,9 +740,10 @@ class ChatCoordinator:
                 self._event(state, "tool", "Reading your message", {"tool": "model", "phase": "call"})
                 intents = self.parser.parse_many(safe_prompt(dated_prompt(prompt), limit=4000))
             except ModelUnavailable as error:
-                # A list already previewed stands; otherwise say the message could not be read.
-                intents = []
-                if not places_handled:
+                # Without the model, the offline parser still reads coordinates, years and products;
+                # a list already previewed stands; otherwise say the message could not be read.
+                intents = [] if places_handled else OfflineParser().parse_many(safe_prompt(text, limit=4000))
+                if not places_handled and not intents:
                     self._event(state, "message", "I could not read that message (" + str(error).rstrip(".")
                                 + "). Try a shorter message, or one place, product or year at a time.",
                                 {"role": "assistant"})

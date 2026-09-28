@@ -319,3 +319,17 @@ def test_written_ranges_win_when_the_model_returns_only_their_ends(tmp_path):
     state = chat.create()
     first = chat.turn(state["id"], "Historical Cambridge, MA 2012–2014", 0, "one")
     assert chat.turn(state["id"], "2012-18", first["revision"], "two")["facts"]["years"] == list(range(2012, 2019))
+
+def test_the_offline_parser_reads_the_message_when_the_model_fails(tmp_path):
+    from openepw.harness.model import ModelUnavailable
+
+    class Down:
+        def parse_many(self, text):
+            raise ModelUnavailable("OpenAI request could not complete")
+
+    chat = ChatCoordinator(Service(), parser=Down(), path=tmp_path / "chat.sqlite")
+    state = chat.create()
+    typed = chat.turn(state["id"], "42.36, -71.06 historical 2018", 0, "one")
+    assert typed["facts"]["location"]["lat"] == 42.36 and typed["facts"]["years"] == [2018]
+    assert typed["active_card"]["kind"] == "location_review"            # understood without the model
+    assert not any("could not read" in (event.get("text") or "") for event in typed["events"])
