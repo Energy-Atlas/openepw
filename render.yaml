@@ -27,7 +27,7 @@ services:
         sync: false
       - key: OPENAI_API_KEY
         sync: false
-      - key: OPENEPW_SEED_URL
+      - key: OPENEPW_CATALOG_URL
         sync: false
-      - key: OPENEPW_SEED_SHA256
+      - key: OPENEPW_CATALOG_SHA256
         sync: false

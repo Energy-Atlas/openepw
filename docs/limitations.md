@@ -209,7 +209,7 @@ boroughs) appear as separate places, and continent-wide sets are not supported.
 
 The Render deployment ([guide](deploy/render.md)) is a single instance behind one shared
 site password: there are no user accounts, and everyone who signs in uses the owner's
-NLR, Copernicus and OpenAI credentials and shares chat storage. The Stage 1 catalog is a
-copy of a local catalog installed from a checksummed seed, so it is only as fresh as that
-copy. Deploys restart running jobs, which resume but resend queued Copernicus requests.
-Licensing of redistributed provider files has not been reviewed for public use.
+NLR, Copernicus and OpenAI credentials and shares chat storage. The Stage 1 catalog is
+built from a pinned, checksummed version of the public catalog package in
+Energy-Atlas/open-data, so it is only as fresh as that version. Deploys restart running jobs, which resume but resend queued Copernicus requests.
+The package holds catalog metadata only; OneBuilding's redistribution terms are unclear and it is published by owner decision (see the package's data card).
