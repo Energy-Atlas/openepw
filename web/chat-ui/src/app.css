@@ -245,4 +245,10 @@ button:disabled, input:disabled { cursor: var(--oe-cursor); }
 .point-dot.none { border: 1.5px solid var(--oe-l4); }
 .point-note { margin: .2rem 0 0; color: var(--oe-muted); }
 .point-card.updating > div { opacity: .55; transition: opacity .12s ease; }
+/* Station products: distance as signal bars, green when listed, grey when checked only when planning. */
+.point-signal { flex: none; display: block; }
+.point-where + .point-signal { margin-left: 0; }
+.point-signal rect.off { fill: var(--oe-l3); }
+.point-signal.supported rect.on { fill: var(--oe-yes); }
+.point-signal.unknown rect.on { fill: var(--oe-l5); }
 

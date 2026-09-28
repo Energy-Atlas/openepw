@@ -241,7 +241,11 @@ describe('map canvas overlays', () => {
       { id: 'nsrdb-actual', label: 'NSRDB actual year · GOES v4', group: 'actual' as const, status: 'unknown' as const },
       { id: 'noaa-isd', label: 'NOAA ISD station observations', group: 'actual' as const, status: 'supported' as const,
         station: { lat: 42.1, lon: -76.2, name: 'ITHACA TOMPKINS REGIONAL AIRPORT', distance_km: 5.2 } },
-      { id: 'pvgis-tmy', label: 'PVGIS TMY 5.3 · SARAH3', group: 'typical' as const, status: 'none' as const }] }))
+      { id: 'pvgis-tmy', label: 'PVGIS TMY 5.3 · SARAH3', group: 'typical' as const, status: 'none' as const },
+      { id: 'onebuilding:TMY3', label: 'OneBuilding TMY3', group: 'typical' as const, status: 'supported' as const,
+        station: { lat: 40, lon: -74, name: 'Far Field', distance_km: 180 } },
+      { id: 'onebuilding:TMYx', label: 'OneBuilding TMYx', group: 'typical' as const, status: 'unknown' as const,
+        station: { lat: 38, lon: -70, name: 'Very Far', distance_km: 400 } }] }))
     render(<MapCanvas catalogMap={catalog} pointAvailability={pointAvailability} />)
     await waitFor(() => expect(fake.maps).toHaveLength(1))
     const map = fake.maps[0] as unknown as { parsed: boolean; options: Record<string, unknown>; emit(event: string, payload?: unknown): void }
@@ -255,8 +259,14 @@ describe('map canvas overlays', () => {
     await waitFor(() => expect(card).toHaveTextContent('ERA5 actual year · Open-Meteo'))
     expect(pointAvailability).toHaveBeenCalledWith(42, -76)
     const rows = [...card.querySelectorAll('.point-row')]
-    expect(rows.map(row => row.querySelector('.point-dot')!.className)).toEqual([
-      'point-dot supported', 'point-dot unknown', 'point-dot supported', 'point-dot none'])
+    expect(rows.map(row => row.querySelector('.point-dot')?.className ?? null)).toEqual([
+      'point-dot supported', 'point-dot unknown', null, 'point-dot none', null, null])
+    // Station products show distance as signal bars: <10 km 3, 10–100 km 2, 100–250 km 1, >250 km 0.
+    const signals = rows.map(row => row.querySelector('.point-signal'))
+    expect(signals.map(signal => signal?.getAttribute('data-level') ?? null)).toEqual([null, null, '3', null, '1', '0'])
+    expect(signals[2]!).toHaveClass('supported')
+    expect(signals[5]!).toHaveClass('unknown')
+    expect(signals[2]!.getAttribute('aria-label')).toBe('listed in the catalog, station 5.2 km away')
     expect(rows[2].querySelector('.point-station')!.textContent).toBe('ITHACA TOMPKINS REGIONAL AIRPORT')
     expect(rows[2]).toHaveTextContent('5.2 km')
     move(600, 20, -76, 42)                                                      // off the globe, in space

@@ -647,6 +647,20 @@ function layerCount(layer: CatalogLayer, years: number[]): string {
 
 const STATUS_TEXT = { supported: 'listed in the catalog', unknown: 'checked when planning', none: 'not available here' }
 
+/** Station distance as signal strength: <10 km 3 bars, 10–100 km 2, 100–250 km 1, farther 0. */
+export function signalLevel(distanceKm: number | null | undefined): 0 | 1 | 2 | 3 {
+  if (distanceKm == null) return 0
+  return distanceKm < 10 ? 3 : distanceKm <= 100 ? 2 : distanceKm <= 250 ? 1 : 0
+}
+
+function SignalBars({ level, status, label }: { level: number; status: string; label: string }) {
+  return <svg className={`point-signal ${status}`} data-level={level} role="img" aria-label={label}
+    width="14" height="12" viewBox="0 0 14 12">
+    {[0, 1, 2].map(bar => <rect key={bar} className={bar < level ? 'on' : 'off'}
+      x={bar * 5} y={8 - bar * 4} width="3.4" height={4 + bar * 4} rx="1" />)}
+  </svg>
+}
+
 /** Weather products at the cursor: a dot per product (green = listed here) and the station for station products. */
 function PointCard({ hover, data: current, lastPoint, size }: { hover: { x: number; y: number; key: string }
   data: PointAvailability | 'loading' | 'error' | undefined; lastPoint: { current: PointAvailability | null }
@@ -675,7 +689,10 @@ function PointCard({ hover, data: current, lastPoint, size }: { hover: { x: numb
             <span className="point-station">{row.station.name ?? 'station'}</span>
             {row.station.distance_km != null && <span className="point-km">{row.station.distance_km} km</span>}
           </span>}
-          <i className={`point-dot ${row.status}`} role="img" aria-label={STATUS_TEXT[row.status]} />
+          {row.station && row.status !== 'none'
+            ? <SignalBars level={signalLevel(row.station.distance_km)} status={row.status}
+              label={`${STATUS_TEXT[row.status]}, station ${row.station.distance_km ?? '?'} km away`} />
+            : <i className={`point-dot ${row.status}`} role="img" aria-label={STATUS_TEXT[row.status]} />}
         </div>)}
       </div>)}
   </section>
