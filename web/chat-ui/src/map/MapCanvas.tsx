@@ -14,7 +14,7 @@ import { utcSceneTime } from './sun'
 import { THEME } from '../theme'
 import { MinimizeIcon, TickIcon } from '../icons'
 import type { WeatherGeography } from '../geography'
-import type { AvailabilitySummary, CatalogLayer, CatalogMap } from '../types'
+import type { AvailabilitySummary, CatalogLayer, CatalogMap, PointAvailability } from '../types'
 
 const initial: SceneSettings = {
   appearance: 'light', view3d: false, terrain: false, terrainExaggeration: 1,
@@ -31,7 +31,8 @@ function styleParsed(map: MapLibreMap | null): map is MapLibreMap {
 
 export function MapCanvas({ location, candidates = [], geography, resolvedPoints = [], availability, catalogMap, years = [],
   pickMode = false, onExitPickMode, onPickPoint, onPickCandidate, onPickGeometry,
-  pendingCandidate = null, onConfirmCandidate, productAvailability = null, selectedProducts = [], onToggleProduct }: {
+  pendingCandidate = null, onConfirmCandidate, productAvailability = null, selectedProducts = [], onToggleProduct,
+  pointAvailability }: {
   location?: MapPoint | null
   candidates?: MapPoint[]
   geography?: WeatherGeography | null
@@ -51,6 +52,8 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
   /** Products ticked for download; clicking a tag toggles its product. */
   selectedProducts?: string[]
   onToggleProduct?: (option: string) => void
+  /** Named-product availability at a point, for the hover card on the globe. */
+  pointAvailability?: (lat: number, lon: number) => Promise<PointAvailability>
 }) {
   const host = useRef<HTMLDivElement>(null)
   const map = useRef<MapLibreMap | null>(null)
@@ -68,6 +71,12 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
   const updateLabels = useRef<() => void>(() => {})
   const updateCallouts = useRef<() => void>(() => {})
   const updateMarkers = useRef<() => void>(() => {})
+  // The hover card: where the cursor is on the globe, and cached availability per 0.1° cell.
+  const [hover, setHover] = useState<{ x: number; y: number; key: string } | null>(null)
+  const pointCache = useRef(new Map<string, PointAvailability | 'loading' | 'error'>())
+  const [, setPointTick] = useState(0)
+  const pointAvailabilityRef = useRef(pointAvailability)
+  pointAvailabilityRef.current = pointAvailability
   const [markers, setMarkers] = useState<Array<{ id: string; x: number; y: number; label: string }>>([])
   const calloutBoxes = useRef<Array<{ x: number; y: number; width: number; height: number }>>([])
   const [callouts, setCallouts] = useState<{ tags: CalloutTag[]; lines: CalloutLine[] }>({ tags: [], lines: [] })
@@ -125,6 +134,8 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
         style: appearanceStyle(settingsRef.current.appearance),
         center: [0, 18], zoom: 1.65,
         canvasContextAttributes: { antialias: true },
+        // A click on the globe has no effect of its own; dragging still pans and rotates.
+        doubleClickZoom: false,
         // The floating chat covers the bottom-right corner; .scene-attribution carries the same credits.
         attributionControl: false,
       })
@@ -173,6 +184,37 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
       sceneMap.on('sourcedata', event => {
         if (event.sourceId === 'openmaptiles' || event.sourceId === 'openepw-terrain') scheduleShadows()
       })
+      let hoverTimer = 0
+      const hideHover = () => { window.clearTimeout(hoverTimer); setHover(null) }
+      sceneMap.on('mousemove', event => {
+        const canvas = sceneMap.getCanvas()
+        const overCandidate = sceneMap.getLayer('openepw-candidates')
+          && sceneMap.queryRenderedFeatures(event.point, { layers: ['openepw-candidates'] }).length > 0
+        canvas.style.cursor = overCandidate ? 'var(--oe-cursor-pointer)' : ''
+        // Only on the globe itself: a point in space does not project back to where the cursor is.
+        const back = sceneMap.project([event.lngLat.lng, event.lngLat.lat])
+        if ((event.originalEvent as MouseEvent | undefined)?.buttons || !pointAvailabilityRef.current
+            || Math.hypot(back.x - event.point.x, back.y - event.point.y) > 3) {
+          hideHover()
+          return
+        }
+        const lat = Math.round(event.lngLat.lat * 10) / 10
+        const lon = Math.round((((event.lngLat.lng + 180) % 360 + 360) % 360 - 180) * 10) / 10
+        const key = `${lat.toFixed(1)},${lon.toFixed(1)}`
+        setHover({ x: event.point.x, y: event.point.y, key })
+        window.clearTimeout(hoverTimer)
+        if (pointCache.current.has(key)) return
+        // Ask only once the cursor rests, so moving across the globe sends no requests.
+        hoverTimer = window.setTimeout(() => {
+          pointCache.current.set(key, 'loading')
+          setPointTick(value => value + 1)
+          void pointAvailabilityRef.current?.(lat, lon)
+            .then(value => pointCache.current.set(key, value), () => pointCache.current.set(key, 'error'))
+            .finally(() => setPointTick(value => value + 1))
+        }, 250)
+      })
+      sceneMap.on('mouseout', hideHover)
+      sceneMap.on('dragstart', hideHover)
       sceneMap.on('click', event => {
         if (drawRef.current) {
           const point: [number, number] = [((event.lngLat.lng + 180) % 360 + 360) % 360 - 180,
@@ -449,6 +491,8 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
   useEffect(() => { updateMarkers.current() }, [location?.lat, location?.lon, resolvedPoints, styleEpoch])
 
   const yearKey = years.join(',')
+  // Hover availability depends on the chosen years.
+  useEffect(() => { pointCache.current.clear() }, [yearKey])
   useEffect(() => {
     const sceneMap = map.current
     if (!styleParsed(sceneMap) || !catalogMap) return
@@ -500,7 +544,7 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
       <button type="button" onClick={onExitPickMode}>Close map input</button>
     </section>}
     {catalogMap && <aside className="evidence-legend" aria-label="Data availability scope">
-      <div className="legend-head"><strong>Where Stage 1 found weather sources</strong>
+      <div className="legend-head"><strong>Weather Product Coverage</strong>
         <InfoTip label="About these layers">
           <p>Dot = record · ring = approximate or candidate · hatch = source area · dashed = documented extent ·
             amber = your selection.</p>
@@ -558,6 +602,8 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
         style={{ left: label.x, top: label.y, width: label.width, background: label.color }}>
         {label.prefix && <span className="station-prefix">{label.prefix}</span>}{label.text}</span>)}
     </div>}
+    {hover && <PointCard hover={hover} data={pointCache.current.get(hover.key)}
+      size={{ width: host.current?.clientWidth || window.innerWidth, height: host.current?.clientHeight || window.innerHeight }} />}
     {markers.length > 0 && <div className="location-markers" data-testid="location-markers" aria-hidden="true">
       {markers.map(marker => <span key={marker.id} className={`location-marker${marker.label ? ' numbered' : ''}`}
         style={{ left: marker.x, top: marker.y }}>{marker.label}</span>)}
@@ -595,6 +641,36 @@ function layerCount(layer: CatalogLayer, years: number[]): string {
   if (layer.kind === 'cells') return `${layer.count.toLocaleString()} cells`
   if (layer.kind === 'area') return 'approximate'
   return 'documented extent'
+}
+
+const STATUS_TEXT = { supported: 'listed in the catalog', unknown: 'checked when planning', none: 'not available here' }
+
+/** Weather products at the cursor: a dot per product (green = listed here) and the station for station products. */
+function PointCard({ hover, data, size }: { hover: { x: number; y: number; key: string }
+  data: PointAvailability | 'loading' | 'error' | undefined; size: { width: number; height: number } }) {
+  const flipX = hover.x + 16 + 320 > size.width
+  const flipY = hover.y > size.height * .55
+  const [lat, lon] = hover.key.split(',')
+  const groups = typeof data === 'object' ? (['actual', 'typical'] as const)
+    .map(group => ({ group, rows: data.products.filter(row => row.group === group) })).filter(item => item.rows.length) : []
+  return <section className="point-card" role="status" aria-label="Weather products here"
+    style={{ left: hover.x + (flipX ? -16 : 16), top: hover.y + (flipY ? -16 : 16),
+      transform: `translate(${flipX ? '-100%' : '0'}, ${flipY ? '-100%' : '0'})` }}>
+    <header>{lat}°, {lon}°{typeof data === 'object' && data.years_assumed ? ` · ${data.years.join(', ')}` : ''}</header>
+    {data === undefined || data === 'loading' ? <p className="point-note">Checking the catalog…</p>
+      : data === 'error' ? <p className="point-note">Availability could not be read.</p>
+      : groups.map(({ group, rows }) => <div key={group}>
+        <h3>{group === 'actual' ? 'Actual year' : 'Typical year'}</h3>
+        {rows.map(row => <div key={row.id} className="point-row">
+          <span className="point-name">{row.label}</span>
+          {row.station && row.status !== 'none' && <span className="point-where">
+            <span className="point-station">{row.station.name ?? 'station'}</span>
+            {row.station.distance_km != null && <span className="point-km">{row.station.distance_km} km</span>}
+          </span>}
+          <i className={`point-dot ${row.status}`} role="img" aria-label={STATUS_TEXT[row.status]} />
+        </div>)}
+      </div>)}
+  </section>
 }
 
 /** Marker shapes and polygon hatches; a style reload drops them, so each user adds them again. */

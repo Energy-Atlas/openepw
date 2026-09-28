@@ -108,3 +108,10 @@ export type CatalogMap = {
   layers: CatalogLayer[]
   unmapped: Array<{ provider: string; dataset: string; reason: string }>
 }
+
+/** Named-product availability at one map point (GET /v1/catalog/point). */
+export type PointAvailability = {
+  lat: number; lon: number; years: number[]; years_assumed: boolean
+  products: Array<{ id: string; label: string; group: 'actual' | 'typical'; status: 'supported' | 'unknown' | 'none'
+    station?: { lat: number; lon: number; name?: string | null; distance_km?: number | null } }>
+}

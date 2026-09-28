@@ -9,19 +9,20 @@ const fake = vi.hoisted(() => ({ maps: [] as Array<Record<string, unknown>> }))
 vi.mock('maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url', () => ({ default: 'worker.js' }))
 vi.mock('maplibre-gl', () => {
   class FakeMap {
-    handlers = new Map<string, Array<() => void>>()
+    handlers = new Map<string, Array<(event?: unknown) => void>>()
+    options: Record<string, unknown>
     sources = new Map<string, unknown>()
     layers: Array<{ id: string }> = []
     parsed = false
-    constructor() { fake.maps.push(this as unknown as Record<string, unknown>) }
-    on(event: string, handler: () => void) { this.handlers.set(event, [...this.handlers.get(event) ?? [], handler]) }
+    constructor(options: Record<string, unknown>) { this.options = options; fake.maps.push(this as unknown as Record<string, unknown>) }
+    on(event: string, handler: (event?: unknown) => void) { this.handlers.set(event, [...this.handlers.get(event) ?? [], handler]) }
     once() {}
     off() {}
     inView = true
     getBounds() { return { contains: () => this.inView } }
     project([lon, lat]: [number, number]) { return { x: lon + 200, y: 300 - lat } }
     flyTo = vi.fn()
-    emit(event: string) { for (const handler of this.handlers.get(event) ?? []) handler() }
+    emit(event: string, payload?: unknown) { for (const handler of this.handlers.get(event) ?? []) handler(payload) }
     isStyleLoaded() { return false }
     getStyle() { return this.parsed ? { version: 8, sources: {}, layers: this.layers } : undefined }
     getSource(id: string) { return this.sources.get(id) }
@@ -88,6 +89,7 @@ describe('map canvas overlays', () => {
     expect(map.getLayer('openepw-catalog-era5-fill')).toBeFalsy()
     expect(map.getSource('openepw-evidence')).toBeTruthy()
     const legend = screen.getByLabelText('Data availability scope')
+    expect(legend).toHaveTextContent('Weather Product Coverage')
     expect(legend).not.toHaveTextContent('1 reporting 2017')                       // names only
     const about = within(legend).getByRole('button', { name: 'About NOAA ISD stations' })
     fireEvent.mouseEnter(about)
@@ -231,5 +233,38 @@ describe('map canvas overlays', () => {
     const overlays = [...document.querySelectorAll('.map-canvas > div')].map(node => node.className)
     expect(overlays.indexOf('location-markers')).toBeGreaterThan(overlays.indexOf('station-labels'))
   })
-})
 
+  it('shows product availability under the cursor on the globe, and a click does nothing else', async () => {
+    const { MapCanvas } = await import('../src/map/MapCanvas')
+    const pointAvailability = vi.fn(async () => ({ lat: 42, lon: -76, years: [2025], years_assumed: true, products: [
+      { id: 'era5-openmeteo', label: 'ERA5 actual year · Open-Meteo', group: 'actual' as const, status: 'supported' as const },
+      { id: 'nsrdb-actual', label: 'NSRDB actual year · GOES v4', group: 'actual' as const, status: 'unknown' as const },
+      { id: 'noaa-isd', label: 'NOAA ISD station observations', group: 'actual' as const, status: 'supported' as const,
+        station: { lat: 42.1, lon: -76.2, name: 'ITHACA TOMPKINS REGIONAL AIRPORT', distance_km: 5.2 } },
+      { id: 'pvgis-tmy', label: 'PVGIS TMY 5.3 · SARAH3', group: 'typical' as const, status: 'none' as const }] }))
+    render(<MapCanvas catalogMap={catalog} pointAvailability={pointAvailability} />)
+    await waitFor(() => expect(fake.maps).toHaveLength(1))
+    const map = fake.maps[0] as unknown as { parsed: boolean; options: Record<string, unknown>; emit(event: string, payload?: unknown): void }
+    expect(map.options.doubleClickZoom).toBe(false)                          // clicks do not zoom
+    map.parsed = true
+    map.emit('style.load')
+    const move = (x: number, y: number, lng: number, lat: number) => map.emit('mousemove',
+      { point: { x, y }, lngLat: { lng, lat }, originalEvent: { buttons: 0 } })
+    move(124, 258, -76, 42)                                                     // on the globe
+    const card = await screen.findByRole('status', { name: 'Weather products here' })
+    await waitFor(() => expect(card).toHaveTextContent('ERA5 actual year · Open-Meteo'))
+    expect(pointAvailability).toHaveBeenCalledWith(42, -76)
+    const rows = [...card.querySelectorAll('.point-row')]
+    expect(rows.map(row => row.querySelector('.point-dot')!.className)).toEqual([
+      'point-dot supported', 'point-dot unknown', 'point-dot supported', 'point-dot none'])
+    expect(rows[2].querySelector('.point-station')!.textContent).toBe('ITHACA TOMPKINS REGIONAL AIRPORT')
+    expect(rows[2]).toHaveTextContent('5.2 km')
+    move(600, 20, -76, 42)                                                      // off the globe, in space
+    await waitFor(() => expect(screen.queryByRole('status', { name: 'Weather products here' })).not.toBeInTheDocument())
+    move(124, 258, -76, 42)
+    await screen.findByRole('status', { name: 'Weather products here' })
+    expect(pointAvailability).toHaveBeenCalledTimes(1)                          // cached for this place
+    map.emit('mouseout')
+    await waitFor(() => expect(screen.queryByRole('status', { name: 'Weather products here' })).not.toBeInTheDocument())
+  })
+})

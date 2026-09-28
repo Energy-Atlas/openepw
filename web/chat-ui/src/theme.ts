@@ -12,6 +12,7 @@ export const THEME = {
   BACKDROP: '#333333',        // dark grey: page and space around the globe
   AMBER: '#d69b36',           // the single accent: the user's own selection
   AMBER_LINE: '#9f762f',      // amber mixed 30% toward ink for 3:1 lines on paper
+  YES: '#3f9b5d',             // green "available here" dots (owner decision 2026-09-28)
   // Paper→ink ladder (4, 8, 14, 22, 35, 55, 75%): land, water, rules, secondary marks, muted text.
   LADDER: ['#eaeaea', '#e1e1e1', '#d4d4d4', '#c4c4c4', '#a8a8a8', '#7e7e7e', '#545454'],
   // Ordinal ramp for value encodings: light to dark along the same ladder.

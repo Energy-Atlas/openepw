@@ -296,6 +296,7 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
       pendingCandidate={locationChoice ? pendingChoice : null} onConfirmCandidate={confirmChoice}
       productAvailability={productAvailability ?? null} selectedProducts={productChoice ? checkedProducts : []}
       onToggleProduct={productChoice && !busy ? toggleProduct : undefined}
+      pointAvailability={(lat, lon) => api.pointAvailability(lat, lon, (session?.facts.years ?? []) as number[])}
       onPickCandidate={id => { if (locationChoice) setPendingChoice(id) }} />
     <aside className="chat-rail" aria-label="Weather chat">
       <div className="chat-transcript" role="log" aria-live="polite" ref={transcript}>
