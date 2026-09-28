@@ -20,7 +20,7 @@ src/openepw/
   epw/{schema,reader,writer}.py
   qc/checks.py
   providers/{base,http,openmeteo,pvgis,onebuilding,noaa_isd,nsrdb,era5}.py
-  availability/{models,store,stage1,bootstrap,freshness,refresh,evaluate,recommend}.py
+  availability/{models,store,stage1,bootstrap,freshness,refresh,evaluate,recommend,package}.py
   availability/importers/{contracts,climate}.py
   planning/{spatial,hybrid,future,output_identity,batch,store}.py
   service.py             discovery, planning, execution and bundles
@@ -30,7 +30,7 @@ src/openepw/
   jobs/{store,worker}.py  SQLite item records and bounded worker threads
   api/app.py             REST adapter
   api/site_gate.py       site password for hosted deployments (signed 30-day cookie)
-  deploy.py              hosted catalog seed: pack locally, install once on first start
+  deploy.py              hosted catalog: build once from the pinned open-data package
   chat/coordinator.py     browser-neutral durable conversation facts and events
   chat/products.py        named product choices and per-location catalog availability
   mcp/server.py          MCP adapter

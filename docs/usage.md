@@ -15,6 +15,17 @@ openepw catalog status
 openepw availability query.json
 ```
 
+Without the research snapshot, build the same catalog from the public CSV data package
+in [Energy-Atlas/open-data](https://github.com/Energy-Atlas/open-data)
+(`datasets/weather-availability-catalog`). Every file is checked against the size and
+SHA-256 in `datapackage.json` before anything is imported. `catalog export` writes the
+active catalog as such a package; importing an export gives back the same catalog.
+
+```text
+openepw catalog import --from-package ../open-data/datasets/weather-availability-catalog/datapackage.json
+openepw catalog export --out ../open-data/datasets/weather-availability-catalog --package-version 2026.09.28
+```
+
 `query.json` is a tagged weather or future-capability query. For example, the
 weather form wraps the normal request:
 

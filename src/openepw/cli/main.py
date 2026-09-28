@@ -1,4 +1,5 @@
 import argparse
+import hashlib
 import json
 import re
 from pathlib import Path
@@ -6,6 +7,7 @@ from pathlib import Path
 from pydantic import TypeAdapter, ValidationError
 
 from ..availability import AvailabilityQuery
+from ..availability.package import PackageError, export_package, load_package
 from ..availability.stage1 import import_stage1
 from ..availability.store import CatalogImportError
 from ..config import RuntimeConfig
@@ -47,7 +49,14 @@ def main(argv=None):
     catalog_sub = catalog.add_subparsers(dest="catalog_command", required=True)
     catalog_sub.add_parser("status")
     catalog_import = catalog_sub.add_parser("import")
-    catalog_import.add_argument("--from", dest="snapshot_root", type=Path, required=True)
+    source = catalog_import.add_mutually_exclusive_group(required=True)
+    source.add_argument("--from", dest="snapshot_root", type=Path, help="Stage 1 research snapshot folder")
+    source.add_argument("--from-package", type=Path, help="datapackage.json of a published catalog package")
+    catalog_export = catalog_sub.add_parser("export", help="write the active catalog as a CSV data package")
+    catalog_export.add_argument("--out", type=Path, required=True)
+    catalog_export.add_argument("--name", default="weather-availability-catalog")
+    catalog_export.add_argument("--package-version", required=True)
+    catalog_export.add_argument("--metadata", type=Path, help="JSON merged into datapackage.json (title, licenses...)")
     args = parser.parse_args(argv)
     try:
         config = RuntimeConfig.load(
@@ -96,8 +105,26 @@ def main(argv=None):
                     "missing_sources": sorted(expected - found),
                     "stale_sources": view.snapshot.stale_sources if view else [],
                 }
+            elif args.catalog_command == "export":
+                view = service.catalog_store.active()
+                if view is None:
+                    raise CatalogImportError("No active catalog to export")
+                metadata = json.loads(args.metadata.read_text(encoding="utf-8")) if args.metadata else None
+                descriptor = export_package(view.bundle, args.out, config.data_root / "footprints",
+                                            name=args.name, version=args.package_version, metadata=metadata)
+                result = {"datapackage": str(descriptor),
+                          "sha256": hashlib.sha256(descriptor.read_bytes()).hexdigest(),
+                          "bytes": sum(r["bytes"] for r in json.loads(descriptor.read_text(encoding="utf-8"))["resources"])}
             else:
-                bundle = import_stage1(args.snapshot_root)
+                if args.from_package:
+                    loaded = load_package(args.from_package)
+                    bundle = loaded.bundle
+                    for relative, content in loaded.footprints.items():
+                        footprint = config.data_root / "footprints" / relative
+                        footprint.parent.mkdir(parents=True, exist_ok=True)
+                        footprint.write_bytes(content)
+                else:
+                    bundle = import_stage1(args.snapshot_root)
                 staged = service.catalog_store.stage(bundle)
                 active = service.catalog_store.activate(staged.generation_id)
                 result = {
@@ -175,7 +202,7 @@ def main(argv=None):
             exc.issue.model_dump()
             if isinstance(exc, OpenEPWError)
             else {"code": "CATALOG_IMPORT_ERROR", "message": str(exc)}
-            if isinstance(exc, CatalogImportError)
+            if isinstance(exc, (CatalogImportError, PackageError))
             else {
                 "code": "INVALID_REQUEST",
                 "message": "Invalid request, configuration or local input file",
