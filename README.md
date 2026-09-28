@@ -135,6 +135,11 @@ For bbox/polygon grids, source deduplication, explicit hybrids and reproducible
 jobs, see [examples](examples/) and [architecture](ARCHITECTURE.md). Source resolution
 is never increased by requesting a denser grid.
 
+## Deploy
+
+A Docker image and Render Blueprint serve the chat UI and API behind one site password;
+see [docs/deploy/render.md](docs/deploy/render.md).
+
 ## Verify
 
 ```bash

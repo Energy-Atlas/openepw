@@ -29,6 +29,8 @@ src/openepw/
   visualization/{catalog,models,engine,store}.py  weather view semantics and immutable JSON
   jobs/{store,worker}.py  SQLite item records and bounded worker threads
   api/app.py             REST adapter
+  api/site_gate.py       site password for hosted deployments (signed 30-day cookie)
+  deploy.py              hosted catalog seed: pack locally, install once on first start
   chat/coordinator.py     browser-neutral durable conversation facts and events
   chat/products.py        named product choices and per-location catalog availability
   mcp/server.py          MCP adapter

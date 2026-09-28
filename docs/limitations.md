@@ -204,3 +204,12 @@ other phrasing relies on the model parser. Descriptive place sets come from
 GeoNames city dumps (minimum population 1,000; capitals are first-level seats).
 GeoNames populations are its own values, some city sections (such as New York
 boroughs) appear as separate places, and continent-wide sets are not supported.
+
+## Hosted deployment
+
+The Render deployment ([guide](deploy/render.md)) is a single instance behind one shared
+site password: there are no user accounts, and everyone who signs in uses the owner's
+NLR, Copernicus and OpenAI credentials and shares chat storage. The Stage 1 catalog is a
+copy of a local catalog installed from a checksummed seed, so it is only as fresh as that
+copy. Deploys restart running jobs, which resume but resend queued Copernicus requests.
+Licensing of redistributed provider files has not been reviewed for public use.
