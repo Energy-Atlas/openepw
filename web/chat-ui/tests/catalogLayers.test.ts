@@ -119,5 +119,12 @@ describe('OpenEPW map palette', () => {
     const pixels = (name: string) => [...images[name].data].join()
     expect(new Set(HATCH_IMAGES.map(image => pixels(image.name))).size).toBe(4)               // distinct patterns
     expect(MAP_PALETTE.NSRDB).toBe('#f07c2e')
+    expect(images['oe-hatch-land'].width).toBeLessThan(images['oe-hatch-nsrdb'].width)       // a finer ERA5 hatch
+  })
+
+  it('shows the ERA5-Land hatch in the legend swatch', async () => {
+    const { layerSwatch } = await import('../src/map/catalogLayers')
+    expect(layerSwatch(layer('era5-land', 'extent')).shape).toBe('lines')
+    expect(layerSwatch(layer('era5', 'extent')).shape).toBe('dash')
   })
 })

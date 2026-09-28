@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { App } from '../src/App'
 import type { ChatApi } from '../src/api'
@@ -52,7 +52,8 @@ describe('map-first shell', () => {
     const legend = await screen.findByLabelText('Data availability scope')
     for (const name of ['NOAA ISD stations', 'OneBuilding published EPWs', 'ERA5 global reanalysis'])
       expect(screen.getByRole('checkbox', { name: new RegExp(name) })).toBeChecked()
-    expect(legend).toHaveTextContent('No reviewed geometry: nsrdb/aggregate')
+    fireEvent.mouseEnter(within(legend).getByRole('button', { name: 'About these layers' }))
+    expect(screen.getByRole('tooltip')).toHaveTextContent('No reviewed geometry: nsrdb/aggregate')
   })
 
   it('renders a tool call as one outlined line with an icon, not a message bubble', async () => {

@@ -8,6 +8,7 @@ import { availabilityFeatures } from './evidence'
 import { HATCH_IMAGES, MAP_PALETTE, SHAPE_IMAGES, STATION_LABEL_ZOOM, catalogFeatures, catalogLayerSpecs, layerSwatch,
   legendRows } from './catalogLayers'
 import { calloutEnd, placeLabels, type LabelInput, type PlacedLabel } from './labels'
+import { InfoTip } from '../InfoTip'
 import { layoutCallouts, type CalloutLine, type CalloutTag, type ProductAvailability } from './availabilityCallouts'
 import { utcSceneTime } from './sun'
 import { THEME } from '../theme'
@@ -499,28 +500,34 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
       <button type="button" onClick={onExitPickMode}>Close map input</button>
     </section>}
     {catalogMap && <aside className="evidence-legend" aria-label="Data availability scope">
-      <strong>Where Stage 1 found weather sources</strong>
-      <small className="legend-key">dot = record · ring = approximate or candidate · shade = source grid ·
-        dashed = documented extent · amber = your selection</small>
-      {legendRows(catalogMap.layers).map(row => <label key={row.ids.join()} className="scope-row" title={row.layers
-        .map(layer => layer.caveat).join(' ')}>
-        <input type="checkbox" checked={!row.ids.every(id => hiddenLayers.includes(id))} onChange={() =>
-          setHiddenLayers(current => row.ids.every(id => current.includes(id))
-            ? current.filter(item => !row.ids.includes(item)) : [...new Set([...current, ...row.ids])])} />
-        <i className={`swatch swatch-${layerSwatch(row.layers[0]).shape}`} style={{ color: layerSwatch(row.layers[0]).color }} />
-        <span>{row.label}</span>
-        <small>{layerCount(row.layers[0], years)}</small>
-      </label>)}
-      <details><summary>What these layers mean</summary>
-        {catalogMap.layers.map(layer => <p key={layer.id}><b>{layer.label}.</b> {layer.caveat}
-          {layer.evidence_dates.length ? ` Evidence ${layer.evidence_dates.at(-1)}.` : ''}</p>)}
-        {catalogMap.unmapped.length > 0 && <p>No reviewed geometry: {catalogMap.unmapped
-          .map(item => `${item.provider}/${item.dataset}`).join(', ')}.</p>}
-        <p>Credits: NOAA NCEI ISD; OneBuilding.org; NLR NSRDB (CC BY 3.0 US); PVGIS © European Union/JRC;
-          Copernicus ERA5 and Open-Meteo.</p>
-      </details>
-      <small className="legend-source">Stage 1 catalog · {catalogMap.snapshot?.created_at.slice(0, 10) ?? 'bundled contracts'}
-        {' '}· documentary, not point eligibility</small>
+      <div className="legend-head"><strong>Where Stage 1 found weather sources</strong>
+        <InfoTip label="About these layers">
+          <p>Dot = record · ring = approximate or candidate · hatch = source area · dashed = documented extent ·
+            amber = your selection.</p>
+          <p>Stage 1 catalog · {catalogMap.snapshot?.created_at.slice(0, 10) ?? 'bundled contracts'} · documentary,
+            not point eligibility.</p>
+          {catalogMap.unmapped.length > 0 && <p>No reviewed geometry: {catalogMap.unmapped
+            .map(item => `${item.provider}/${item.dataset}`).join(', ')}.</p>}
+          <p>Credits: NOAA NCEI ISD; OneBuilding.org; NLR NSRDB (CC BY 3.0 US); PVGIS © European Union/JRC;
+            Copernicus ERA5 and Open-Meteo.</p>
+        </InfoTip></div>
+      {legendRows(catalogMap.layers).map(row => {
+        // The ERA5-Land hatch stands for the merged extent row, as on the map.
+        const swatch = layerSwatch(row.layers.find(layer => layer.id === 'era5-land') ?? row.layers[0])
+        return <div key={row.ids.join()} className="scope-row">
+          <label>
+            <input type="checkbox" checked={!row.ids.every(id => hiddenLayers.includes(id))} onChange={() =>
+              setHiddenLayers(current => row.ids.every(id => current.includes(id))
+                ? current.filter(item => !row.ids.includes(item)) : [...new Set([...current, ...row.ids])])} />
+            <i className={`swatch swatch-${swatch.shape}`} style={{ color: swatch.color }} />
+            <span>{row.label}</span>
+          </label>
+          <InfoTip label={`About ${row.label}`}>
+            {row.layers.map(layer => <p key={layer.id}><b>{layer.label}</b> · {layerCount(layer, years)}. {layer.caveat}
+              {layer.evidence_dates.length ? ` Evidence ${layer.evidence_dates.at(-1)}.` : ''}</p>)}
+          </InfoTip>
+        </div>
+      })}
     </aside>}
     {(callouts.tags.length > 0 || callouts.lines.length > 0) && <div className="availability-callouts"
       aria-label="Product availability at your locations" role="group">
@@ -590,13 +597,14 @@ function layerCount(layer: CatalogLayer, years: number[]): string {
   return 'documented extent'
 }
 
-let measureContext: CanvasRenderingContext2D | null | undefined
-/** Pill text width in CSS pixels; falls back to an estimate where canvas is unavailable. */
 /** Marker shapes and polygon hatches; a style reload drops them, so each user adds them again. */
 function addPatternImages(sceneMap: MapLibreMap) {
   for (const image of [...SHAPE_IMAGES, ...HATCH_IMAGES])
     if (!sceneMap.hasImage(image.name)) sceneMap.addImage(image.name, image, { pixelRatio: 2 })
 }
+
+let measureContext: CanvasRenderingContext2D | null | undefined
+/** Pill text width in CSS pixels; falls back to an estimate where canvas is unavailable. */
 
 function textWidth(text: string): number {
   if (measureContext === undefined) {

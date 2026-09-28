@@ -19,7 +19,7 @@ export const MAP_PALETTE = {
   EXTENT: SOURCE_COLORS.EXTENT,
 } as const
 
-type Swatch = { color: string; shape: 'dot' | 'square' | 'fill' | 'outline' | 'dash' }
+type Swatch = { color: string; shape: 'dot' | 'square' | 'fill' | 'outline' | 'dash' | 'lines' }
 const swatches: Record<CatalogLayer['kind'], Swatch> = {
   stations: { color: MAP_PALETTE.OBSERVED, shape: 'dot' },
   sites: { color: MAP_PALETTE.PUBLISHED, shape: 'square' },
@@ -32,6 +32,7 @@ const swatches: Record<CatalogLayer['kind'], Swatch> = {
 export const STATION_LABEL_ZOOM = 8.5
 
 export function layerSwatch(layer: Pick<CatalogLayer, 'id' | 'kind'>): Swatch {
+  if (layer.id === 'era5-land') return { color: MAP_PALETTE.EXTENT, shape: 'lines' }   // its land hatch
   return layer.id === 'nsrdb' ? { ...swatches[layer.kind], color: MAP_PALETTE.NSRDB } : swatches[layer.kind]
 }
 
@@ -59,9 +60,7 @@ export const SHAPE_IMAGES = [square('oe-square', SOURCE_COLORS.PUBLISHED, false)
  * Seamless 16×16 px hatch tiles (drawn at pixel ratio 2, so 8 px apart on screen) for polygon
  * layers. Each layer has its own direction, so overlapping areas read as cross-hatching.
  */
-function hatch(name: string, hex: string, direction: '/' | '\\' | '-' | 'x') {
-  const size = 16
-  const width = 3
+function hatch(name: string, hex: string, direction: '/' | '\\' | '-' | 'x', size = 16, width = 3) {
   const data = new Uint8Array(size * size * 4)
   const [r, g, b] = rgb(hex)
   for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
@@ -75,7 +74,7 @@ function hatch(name: string, hex: string, direction: '/' | '\\' | '-' | 'x') {
 }
 
 export const HATCH_IMAGES = [hatch('oe-hatch-nsrdb', SOURCE_COLORS.NSRDB, '/'),
-  hatch('oe-hatch-region', SOURCE_COLORS.REGION, '\\'), hatch('oe-hatch-land', SOURCE_COLORS.EXTENT, '-'),
+  hatch('oe-hatch-region', SOURCE_COLORS.REGION, '\\'), hatch('oe-hatch-land', SOURCE_COLORS.EXTENT, '-', 8, 2),   // finer: 4 px apart on screen
   hatch('oe-hatch-selection', THEME.AMBER, 'x')]
 
 /** True when every requested year falls in one of the station's reported-year ranges. */
