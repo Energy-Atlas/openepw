@@ -53,10 +53,11 @@ Node or this UI.
   such as "the one in England" or "no, Somerville" is read as a correction of
   that location. A place list is approved the same way (`Approve locations`)
   and corrected with edits such as "remove 3" or "add Reno". Other replies
-  patch the list rather than replace it: "sanfrancisco should be San
-  Francisco" fixes that row, "I meant Honolulu for hawaii" replaces the row it
-  names, a reply with one place fixes the closest spelling or adds it, and only
-  "only …" or "… instead" replaces the list. A "place, region" pair that is not
+  patch the list rather than replace it: "should be San Francisco" or just
+  "San Francisco" fixes a row that was not found (the closest spelling if
+  several), "I meant Honolulu for hawaii" replaces the row it names, a place
+  spelled like a listed one fixes it, "and / also / add …" appends, anything
+  else is added, and only "only …" or "… instead" replaces the list. A "place, region" pair that is not
   found is retried as two places. Any change needs approval again.
 - The product question lists named products, grouped into actual year and
   typical year, e.g. `NSRDB actual year · GOES v4`, `NOAA ISD station
