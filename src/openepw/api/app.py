@@ -208,6 +208,10 @@ def create_app(service=None, *, remote=False, chat_parser=None):
     def get_chat(session_id: str):
         return chat.get(session_id)
 
+    @app.get("/v1/chat/sessions/{session_id}/progress")
+    def chat_progress(session_id: str):
+        return chat.progress(session_id)
+
     @app.get("/v1/chat/sessions/{session_id}/events")
     def chat_events(session_id: str, after: int = 0):
         state = chat.get(session_id)

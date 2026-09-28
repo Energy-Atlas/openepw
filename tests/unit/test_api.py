@@ -305,3 +305,12 @@ def test_catalog_point_answers_repeat_places_from_a_cache(tmp_path, monkeypatch)
         client.get("/v1/catalog/point", params={"lat": 42.44, "lon": -76.5, "years": "2018"})
         assert len(calls) == 2                                               # other years, other entry
 
+
+def test_chat_progress_route_lists_no_steps_when_idle(tmp_path):
+    from openepw.chat.coordinator import OfflineParser
+
+    service = WeatherService(RuntimeConfig(data_root=tmp_path), providers=[StationProvider()])
+    with TestClient(create_app(service, chat_parser=OfflineParser())) as client:
+        sid = client.post("/v1/chat/sessions").json()["id"]
+        assert client.get(f"/v1/chat/sessions/{sid}/progress").json() == {"steps": []}
+

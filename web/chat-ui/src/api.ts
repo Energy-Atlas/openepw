@@ -29,6 +29,11 @@ export class ChatApi {
   catalogScopes(): Promise<CatalogScopes> { return this.request('/v1/catalog/scopes') }
   catalogMap(): Promise<CatalogMap> { return this.request('/v1/catalog/map') }
 
+  /** The tool steps of the action now running on a session. */
+  progress(id: string): Promise<{ steps: Array<{ tool: string; text: string }> }> {
+    return this.request(`/v1/chat/sessions/${encodeURIComponent(id)}/progress`)
+  }
+
   pointAvailability(lat: number, lon: number, years: number[] = []): Promise<PointAvailability> {
     const query = new URLSearchParams({ lat: lat.toFixed(2), lon: lon.toFixed(2), years: years.join(',') })
     return this.request(`/v1/catalog/point?${query}`)

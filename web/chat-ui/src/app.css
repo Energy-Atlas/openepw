@@ -256,4 +256,8 @@ button:disabled, input:disabled { cursor: var(--oe-cursor); }
 .point-signal.level-2 rect.on { fill: var(--oe-fair); }
 .point-signal.level-1 rect.on { fill: var(--oe-weak); }
 .point-signal.unknown rect.on { opacity: .45; }
-
+/* Steps of a running action: shown as they start, with a quiet ellipsis. */
+.tool-line.live .tool-text { color: var(--oe-muted); }
+.tool-line.live .live-dots::after { content: '…'; display: inline-block; animation: live-dots 1.2s steps(4, end) infinite; overflow: hidden; vertical-align: bottom; width: 0; }
+@keyframes live-dots { to { width: 1.1em; } }
+@media (prefers-reduced-motion: reduce) { .tool-line.live .live-dots::after { animation: none; width: auto; } }

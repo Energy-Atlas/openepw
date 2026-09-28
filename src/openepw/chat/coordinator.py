@@ -227,6 +227,10 @@ class ChatCoordinator:
         self.path = Path(path or service.config.data_root / "chat" / "sessions.sqlite")
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.lock = threading.RLock()
+        # Tool steps of the action now running, readable without the session lock.
+        self.live: dict[str, list[dict]] = {}
+        self.live_lock = threading.Lock()
+        self.running = threading.local()
         with self._db() as db:
             db.execute("CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY, state TEXT NOT NULL)")
             db.execute("CREATE TABLE IF NOT EXISTS actions (session_id TEXT, key TEXT, response TEXT, "
@@ -382,6 +386,20 @@ class ChatCoordinator:
         if data is not None:
             event["data"] = data
         state["events"].append(event)
+        if kind == "tool" and text is not None:
+            self._note((data or {}).get("tool", "tool"), event["text"])
+
+    def _note(self, tool: str, text: str) -> None:
+        """Show a step of the running action at once; notes alone are not saved."""
+        session_id = getattr(self.running, "session", None)
+        if session_id:
+            with self.live_lock:
+                self.live.setdefault(session_id, []).append({"tool": tool, "text": text})
+
+    def progress(self, session_id: str) -> dict:
+        """The steps of the action now running on this session, oldest first."""
+        with self.live_lock:
+            return {"steps": list(self.live.get(session_id, []))}
 
     def _change(self, session_id: str, revision: int, key: str, update):
         if not key or len(key) > 100:
@@ -402,7 +420,15 @@ class ChatCoordinator:
             db.execute("DELETE FROM history WHERE session_id=? AND seq NOT IN (SELECT seq FROM history "
                        "WHERE session_id=? ORDER BY seq DESC LIMIT ?)", (session_id, session_id, HISTORY_LIMIT))
             state["revision"] += 1
-            update(state)
+            self.running.session = session_id
+            with self.live_lock:
+                self.live[session_id] = []
+            try:
+                update(state)
+            finally:
+                self.running.session = None
+                with self.live_lock:
+                    self.live.pop(session_id, None)
             serialized = json.dumps(state, allow_nan=False)
             db.execute("UPDATE sessions SET state=? WHERE id=?", (serialized, session_id))
             db.execute("INSERT INTO actions VALUES (?, ?, ?)", (session_id, key, serialized))
@@ -496,6 +522,7 @@ class ChatCoordinator:
                     "data": {"summary": request_location_summary(facts), "several": several}}
         elif not facts.get("selections"):
             # Each option names one downloadable product; the map shows where each is available.
+            self._note("availability", "Checking where each product is available")
             offers = product_offers(self.service, request_location(facts), facts)
             card = {"kind": "choice", "prompt": "Which weather product?", "options": offers["options"],
                     "data": {"field": "product", "availability": offers["availability"]}}
@@ -713,6 +740,7 @@ class ChatCoordinator:
                       "only the region changes); if it does not change the place, give no place. "
                       f"Reply: {text}") if reviewed else text
             try:
+                self._note("model", "Reading your message")
                 intents = self.parser.parse_many(safe_prompt(dated_prompt(prompt), limit=4000))
             except ModelUnavailable as error:
                 # A list already previewed stands; otherwise say the message could not be read.

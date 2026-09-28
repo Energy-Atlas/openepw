@@ -34,6 +34,8 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
   // Products ticked in the dialog or clicked on the map, confirmed together.
   const [checkedProducts, setCheckedProducts] = useState<string[]>([])
   const [busy, setBusy] = useState(false)
+  // Steps of the running action, shown as they start rather than only when it finishes.
+  const [liveSteps, setLiveSteps] = useState<Array<{ tool: string; text: string }>>([])
   const acting = useRef(false)
   const [pendingTurns, setPendingTurns] = useState<Array<{ id: string; text: string }>>([])
   const [queuePaused, setQueuePaused] = useState(false)
@@ -97,10 +99,20 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
     return () => { live = false }
   }, [manifestIds])
 
-  useEffect(() => { transcript.current?.scrollTo?.(0, transcript.current.scrollHeight) }, [session?.events.length])
+  useEffect(() => { transcript.current?.scrollTo?.(0, transcript.current.scrollHeight) }, [session?.events.length, liveSteps.length])
   useEffect(() => { setTyping(false); setPendingChoice(null); setCheckedProducts([]) },
     [session?.active_card?.id, session?.active_card?.revision])
   useEffect(() => { if (typing) document.getElementById('chat-message')?.focus() }, [typing])
+
+  useEffect(() => {
+    if (!busy || !session?.id || typeof api.progress !== 'function') return
+    let live = true
+    let timer: number | undefined
+    const poll = () => void api.progress(session.id).then(value => { if (live) setLiveSteps(value.steps) })
+      .catch(() => undefined).finally(() => { if (live) timer = window.setTimeout(poll, 350) })
+    poll()
+    return () => { live = false; window.clearTimeout(timer); setLiveSteps([]) }
+  }, [busy, session?.id])
 
   async function act(operation: (current: SessionSnapshot) => Promise<SessionSnapshot>,
     callbacks: { success?: () => void; failure?: () => void } = {}) {
@@ -325,6 +337,11 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
             {item.event.text && (item.event.data?.role === 'user' && !item.event.data?.choice ? <p>{item.event.text}</p>
               : <div className="md"><Markdown>{item.event.text}</Markdown></div>)}
           </article>)}
+        {busy && liveSteps.map((step, index) => <div key={`live-${index}`} className="tool-line live" role="status"
+          aria-label={`Running: ${step.text}`}>
+          <span className="tool-icon" aria-hidden="true"><ToolIcon /></span>
+          <span className="tool-text">{step.text}<span className="live-dots" aria-hidden="true" /></span>
+        </div>)}
         {job && <section className="job-card" aria-label="Current weather job">
           <h2>{heads.length > 1 ? `Weather jobs (${heads.length})` : 'Weather job'}</h2>
           <p>{job.state} · {processed}/{job.total} outputs · {job.failed} failed</p>
@@ -434,7 +451,7 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
         {error && <p className="error" role="alert">{error}</p>}
         {!session && error && <button type="button" onClick={() => setSessionAttempt(value => value + 1)}>
           Reconnect to local service</button>}
-        {busy && <p className="dock-status" role="status" aria-label="Working">Working…</p>}
+        {busy && !liveSteps.length && <p className="dock-status" role="status" aria-label="Working">Working…</p>}
         {(busy && replyMode !== 'text') || (jobActive && !card) ? null : <>
     <form className="composer" onSubmit={send} aria-label="Reply">
       {replyMode === 'text' ? <>

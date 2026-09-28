@@ -217,4 +217,21 @@ describe('chat dock and controls', () => {
     await screen.findByLabelText('Current weather job')
     expect(screen.getByRole('button', { name: 'Start over' })).toBeInTheDocument()
   })
+
+  it('shows the running steps as tool lines instead of only Working', async () => {
+    let finish!: (value: SessionSnapshot) => void
+    const prepare = vi.fn(() => new Promise(resolve => { finish = resolve }))
+    const progress = vi.fn(async () => ({ steps: [{ tool: 'availability', text: 'Assessing catalog' },
+      { tool: 'weather_plan', text: 'Preparing weather plan' }] }))
+    const review = state({ id: 'r', revision: 3, kind: 'plan_review', prompt: 'Assess options and review a plan' })
+    render(<App api={api(review, { prepare, progress })} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Assess and review plan' }))
+    const log = screen.getByRole('log')
+    await waitFor(() => expect(log).toHaveTextContent('Preparing weather plan'))
+    expect(log).toHaveTextContent('Assessing catalog')
+    expect(log.querySelectorAll('.tool-line.live')).toHaveLength(2)
+    expect(screen.queryByRole('status', { name: 'Working' })).not.toBeInTheDocument()   // steps shown instead
+    finish({ ...review, revision: 4 })
+    await waitFor(() => expect(log.querySelectorAll('.tool-line.live')).toHaveLength(0))
+  })
 })
