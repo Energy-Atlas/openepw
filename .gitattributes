@@ -1,2 +1,6 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Container scripts run under Linux sh; keep LF on every checkout.
+*.sh text eol=lf
+Dockerfile text eol=lf

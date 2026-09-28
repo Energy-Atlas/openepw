@@ -1,0 +1,33 @@
+# Render Blueprint: one Docker web service with a persistent disk.
+# Secrets (sync: false) are entered in the Render dashboard, never committed.
+# See docs/deploy/render.md.
+services:
+  - type: web
+    name: openepw
+    runtime: docker
+    plan: standard
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    # Deploys restart running weather jobs (they resume); deploy deliberately.
+    autoDeploy: false
+    disk:
+      name: openepw-data
+      mountPath: /var/data
+      sizeGB: 10
+    envVars:
+      - key: OPENEPW_DATA_ROOT
+        value: /var/data/openepw
+      - key: OPENEPW_SITE_PASSWORD
+        sync: false
+      - key: OPENEPW_NLR_API_KEY
+        sync: false
+      - key: OPENEPW_NLR_EMAIL
+        sync: false
+      - key: OPENEPW_CDS_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENEPW_SEED_URL
+        sync: false
+      - key: OPENEPW_SEED_SHA256
+        sync: false
