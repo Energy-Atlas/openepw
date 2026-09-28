@@ -2,7 +2,7 @@
 
 :root {
   --oe-paper: #f2f2f2; --oe-ink: #1f1f1f; --oe-backdrop: #333333; --oe-amber: #d69b36;
-  --oe-amber-line: #9f762f; --oe-yes: #3f9b5d;
+  --oe-amber-line: #9f762f; --oe-yes: #3f9b5d; --oe-fair: #e2c341; --oe-weak: #cf5b45;
   --oe-l0: #eaeaea; --oe-l1: #e1e1e1; --oe-l2: #d4d4d4; --oe-l3: #c4c4c4; --oe-l4: #a8a8a8;
   --oe-l5: #7e7e7e; --oe-l6: #545454;
   --oe-muted: var(--oe-l6); --oe-tint: var(--oe-l1);
@@ -96,7 +96,9 @@ button { cursor: var(--oe-cursor-pointer); }
 .chat-dock .action-card { flex: none; width: 100%; }
 .job-card .card-note { margin: .2rem 0; color: var(--oe-muted); font-size: .78rem; line-height: 1.35; }
 .chat-dock .error { margin: 0; padding: .4rem .7rem; border-radius: 10px; background: var(--oe-paper); box-shadow: var(--oe-shadow); }
-.dock-tools { display: flex; justify-content: flex-end; gap: .35rem; }
+/* Start over sits left of the message field; without one it keeps its place bottom-left. */
+.dock-reset { display: flex; justify-content: flex-start; }
+.composer-row > .icon-button { flex: none; box-shadow: none; background: transparent; }
 .icon-button { display: inline-grid; place-items: center; width: 2rem; height: 2rem; padding: 0; border: 0; border-radius: 50%; background: var(--oe-paper); color: var(--oe-ink); box-shadow: var(--oe-shadow); }
 .icon-button:disabled { opacity: .45; cursor: var(--oe-cursor); }
 .icon-button svg, .icon-submit svg, .icon-confirm svg, .popup-confirm svg { display: block; }
@@ -249,6 +251,9 @@ button:disabled, input:disabled { cursor: var(--oe-cursor); }
 .point-signal { flex: none; display: block; }
 .point-where + .point-signal { margin-left: 0; }
 .point-signal rect.off { fill: var(--oe-l3); }
-.point-signal.supported rect.on { fill: var(--oe-yes); }
-.point-signal.unknown rect.on { fill: var(--oe-l5); }
+/* Strength sets the colour: 3 bars green, 2 yellow, 1 red; unverified stations are faded. */
+.point-signal.level-3 rect.on { fill: var(--oe-yes); }
+.point-signal.level-2 rect.on { fill: var(--oe-fair); }
+.point-signal.level-1 rect.on { fill: var(--oe-weak); }
+.point-signal.unknown rect.on { opacity: .45; }
 

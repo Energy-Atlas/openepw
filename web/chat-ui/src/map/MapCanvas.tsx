@@ -654,7 +654,7 @@ export function signalLevel(distanceKm: number | null | undefined): 0 | 1 | 2 | 
 }
 
 function SignalBars({ level, status, label }: { level: number; status: string; label: string }) {
-  return <svg className={`point-signal ${status}`} data-level={level} role="img" aria-label={label}
+  return <svg className={`point-signal ${status} level-${level}`} data-level={level} role="img" aria-label={label}
     width="14" height="12" viewBox="0 0 14 12">
     {[0, 1, 2].map(bar => <rect key={bar} className={bar < level ? 'on' : 'off'}
       x={bar * 5} y={8 - bar * 4} width="3.4" height={4 + bar * 4} rx="1" />)}

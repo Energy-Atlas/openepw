@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { App } from '../src/App'
 import type { ChatApi } from '../src/api'
@@ -197,5 +197,24 @@ describe('chat dock and controls', () => {
     expect(job).toHaveBeenCalledWith('a')
     expect(job).toHaveBeenCalledWith('b')
   })
-})
 
+  it('keeps Start over at the left of the message field, and present without one', async () => {
+    render(<App api={api(state({ id: 'y', revision: 1, kind: 'text', prompt: 'Which actual year or years?' }))} />)
+    const field = await screen.findByRole('textbox', { name: 'Message' })
+    const reset = screen.getByRole('button', { name: 'Start over' })
+    expect(reset.parentElement).toBe(field.parentElement)                          // the composer row
+    expect(reset.compareDocumentPosition(field) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    cleanup()
+    render(<App api={api(state({ id: 'p', revision: 2, kind: 'choice', prompt: 'Which weather product?',
+      options: [{ id: 'era5-openmeteo', label: 'ERA5 actual year · Open-Meteo', group: 'actual' }],
+      data: { field: 'product' } }))} />)
+    await screen.findByRole('region', { name: 'Choose weather products' })
+    expect(screen.queryByRole('textbox', { name: 'Message' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Start over' })).toBeInTheDocument()   // always there
+    cleanup()
+    const job = vi.fn(async () => ({ id: 'job-1', state: 'running', total: 2, completed: 0, failed: 0 }))
+    render(<App api={api(state(null, { job_id: 'job-1' }), { job })} />)
+    await screen.findByLabelText('Current weather job')
+    expect(screen.getByRole('button', { name: 'Start over' })).toBeInTheDocument()
+  })
+})

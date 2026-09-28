@@ -6,7 +6,7 @@ import { MAP_PALETTE } from '../src/map/catalogLayers'
 
 // One hue: paper, ink and the ladder mixed between them. Amber is the only other colour.
 const mono = new Set<string>([THEME.PAPER, THEME.INK, THEME.BACKDROP, ...THEME.LADDER].map(value => value.toLowerCase()))
-const allowed = new Set<string>([...mono, THEME.AMBER, THEME.AMBER_LINE, THEME.YES])
+const allowed = new Set<string>([...mono, THEME.AMBER, THEME.AMBER_LINE, THEME.YES, THEME.FAIR, THEME.WEAK])
 
 describe('one OpenEPW colour system', () => {
   it('mirrors every theme token as a CSS variable', () => {
@@ -18,6 +18,9 @@ describe('one OpenEPW colour system', () => {
     expect(vars['oe-amber']).toBe(THEME.AMBER)
     expect(vars['oe-amber-line']).toBe(THEME.AMBER_LINE)
     expect(vars['oe-yes']).toBe(THEME.YES)                                   // availability "yes" green
+    expect(vars['oe-fair']).toBe(THEME.FAIR)                                 // two-bar station yellow
+    expect(vars['oe-weak']).toBe(THEME.WEAK)                                 // one-bar station red
+    expect(new Set([THEME.YES, THEME.FAIR, THEME.WEAK, THEME.AMBER]).size).toBe(4)
     THEME.LADDER.forEach((value, index) => expect(vars[`oe-l${index}`]).toBe(value))
   })
 

@@ -260,6 +260,10 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
     if (card?.kind === 'choice') void act(current => api.answer(current.id, card.revision, id, randomKey()))
   }
   const jobActive = running.length > 0
+  // Start over is always available: beside the message field, or on its own when there is none.
+  const inlineReset = replyMode === 'text' && !((busy && replyMode !== 'text') || (jobActive && !card))
+  const resetButton = <button type="button" className="icon-button" aria-label="Start over" title="Start over"
+    disabled={busy} onClick={startOver}><RestartIcon /></button>
   // Jobs of Copernicus CDS products wait in Copernicus's queue, one request per month.
   const queuedJobs = new Set((session?.events ?? []).filter(event => event.type === 'job' && event.data?.queued)
     .map(event => String(event.data?.job_id)))
@@ -388,10 +392,6 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
         </section>}
       </div>
       <div className="chat-dock">
-        <div className="dock-tools">
-          <button type="button" className="icon-button" aria-label="Start over" title="Start over"
-            disabled={busy} onClick={startOver}><RestartIcon /></button>
-        </div>
       {card && <section className="action-card" aria-label="Current question">
         <span className="event-kind">Agent</span>
         <h2>{card.prompt}</h2>
@@ -443,6 +443,7 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
           <TickIcon />{card.data?.several ? 'Approve locations' : 'Approve location'}</button>}
         <label className="visually-hidden" htmlFor="chat-message">Message</label>
         <div className="composer-row">
+          {resetButton}
           {ATTACH_AND_MAP_INPUT && <>
             {attachControl('.epw,.geojson,.json,text/plain,application/geo+json')}
             <button className="map-input-trigger" type="button" aria-label="Pick geography on map" aria-pressed={pickMode}
@@ -491,6 +492,7 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
       </div>}
     </form>
         </>}
+        {!inlineReset && <div className="dock-reset">{resetButton}</div>}
       </div>
     </aside>
     {openViews.map((id, index) => <ViewPanel key={id} id={id} index={index} api={api}

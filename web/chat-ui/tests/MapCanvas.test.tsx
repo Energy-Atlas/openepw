@@ -266,6 +266,9 @@ describe('map canvas overlays', () => {
     expect(signals.map(signal => signal?.getAttribute('data-level') ?? null)).toEqual([null, null, '3', null, '1', '0'])
     expect(signals[2]!).toHaveClass('supported')
     expect(signals[5]!).toHaveClass('unknown')
+    // Strength sets the colour: 3 bars green, 2 yellow, 1 red.
+    expect(signals[2]!.getAttribute('class')).toContain('level-3')
+    expect(signals[4]!.getAttribute('class')).toContain('level-1')
     expect(signals[2]!.getAttribute('aria-label')).toBe('listed in the catalog, station 5.2 km away')
     expect(rows[2].querySelector('.point-station')!.textContent).toBe('ITHACA TOMPKINS REGIONAL AIRPORT')
     expect(rows[2]).toHaveTextContent('5.2 km')
