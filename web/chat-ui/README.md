@@ -65,8 +65,8 @@ Node or this UI.
   available, and the looked-up station and distance for station products,
   whose icon is a three-bar signal for distance (under 10 km 3 bars, 10–100 km
   2, 100–250 km 1, farther 0; 3 bars green, 2 yellow, 1 red, faded when
-  unverified). Start over sits left of the message field, or bottom-left of the
-  chat when there is no field, so it is always available. The
+  unverified). Start over sits outside the chat panel, left of the reply area,
+  in every state, and asks "Start over?" before starting a new conversation. The
   card waits for the cursor to rest, caches each 0.1° cell and follows the
   session's years. Clicking the globe does nothing (no double-click zoom);
   dragging pans. Custom cursors mark normal, selectable, text, globe and
