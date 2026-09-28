@@ -18,6 +18,9 @@ class RuntimeConfig(Model):
     cds_key: SecretStr | None = None
     openmeteo_api_key: SecretStr | None = None
     bearer_token: SecretStr | None = None
+    # Hosted deployments: one password for the browser UI and API, and the built UI to serve.
+    site_password: SecretStr | None = None
+    web_root: Path | None = None
     timeout: float = Field(default=60, gt=0, le=300)
     retries: int = Field(default=2, ge=0, le=5)
     max_response_bytes: int = Field(default=50_000_000, gt=0)

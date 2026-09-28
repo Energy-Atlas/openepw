@@ -1,7 +1,8 @@
 import hmac
 from contextlib import asynccontextmanager
+from pathlib import Path
 
-from fastapi import Depends, FastAPI, File, Header, HTTPException, Query, UploadFile
+from fastapi import Depends, FastAPI, File, Header, HTTPException, Query, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, ValidationError, model_validator
@@ -13,6 +14,7 @@ from ..jobs.worker import JobRunner
 from ..models import FutureRequest, OpenEPWError, WeatherPlan, WeatherRequest
 from ..service import WeatherService
 from ..visualization.models import VisualizationRequest
+from .site_gate import SiteGate
 
 
 class JobSubmission(BaseModel):
@@ -84,8 +86,8 @@ class ChatView(ChatAction):
 
 def create_app(service=None, *, remote=False, chat_parser=None):
     service = service or WeatherService()
-    if remote and not service.config.bearer_token:
-        raise ValueError("Remote mode requires OPENEPW_BEARER_TOKEN")
+    if remote and not (service.config.bearer_token or service.config.site_password):
+        raise ValueError("Remote mode requires OPENEPW_BEARER_TOKEN or OPENEPW_SITE_PASSWORD")
     runner = JobRunner(service)
     if chat_parser is None:
         try:
@@ -109,7 +111,10 @@ def create_app(service=None, *, remote=False, chat_parser=None):
         yield
         runner.close()
 
-    def authenticate(authorization: str | None = Header(default=None)):
+    def authenticate(request: Request, authorization: str | None = Header(default=None)):
+        # A browser signed in through the site password needs no bearer token; health stays open.
+        if getattr(request.state, "site_ok", False) or request.url.path == "/health":
+            return
         token = service.config.bearer_token
         if token and not hmac.compare_digest(
             authorization or "", "Bearer " + token.get_secret_value()
@@ -120,6 +125,8 @@ def create_app(service=None, *, remote=False, chat_parser=None):
         title="OpenEPW", version="0.1.0", lifespan=lifespan, dependencies=[Depends(authenticate)]
     )
     app.state.service = service
+    if service.config.site_password:
+        SiteGate(service.config.site_password.get_secret_value()).install(app)
     app.state.runner = runner
     app.state.chat = chat
 
@@ -382,4 +389,10 @@ def create_app(service=None, *, remote=False, chat_parser=None):
         ref, path = service.artifacts.resolve(artifact_id)
         return FileResponse(path, media_type=ref.media_type, filename=path.name)
 
+    # The built chat UI, served from the same origin as the API (mounted last, after /v1).
+    web_root = service.config.web_root
+    if web_root and (Path(web_root) / "index.html").is_file():
+        from fastapi.staticfiles import StaticFiles
+
+        app.mount("/", StaticFiles(directory=web_root, html=True), name="web")
     return app
