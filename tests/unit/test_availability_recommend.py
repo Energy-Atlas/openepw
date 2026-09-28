@@ -60,3 +60,14 @@ def test_thermal_extremes_labels_typical_year_limitation():
         locations=Location(lat=42, lon=-76), product="tmy"), purpose="thermal_extremes")
     ranked = rank(result, query)
     assert "TYPICAL_YEAR_LIMITATION" in ranked.options[0].reasons
+
+
+def test_ranking_leaves_the_input_result_unchanged_and_shares_catalog_records():
+    query = WeatherAvailabilityQuery(request=WeatherRequest(
+        locations=Location(lat=42, lon=-76), years=[2024]), purpose="solar")
+    result = _result()
+    before = result.model_dump()
+    ranked = rank(result, query)
+    assert result.model_dump() == before                       # reasons and ranks only on the copy
+    assert ranked.options[0].rank == 2 and result.options[0].rank is None       # NOAA lacks radiation
+    assert {id(o.product) for o in ranked.options} == {id(o.product) for o in result.options}

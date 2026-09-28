@@ -7,7 +7,12 @@ from .models import AvailabilityQuery, AvailabilityResult, FutureAvailabilityQue
 
 def rank(result: AvailabilityResult, query: AvailabilityQuery) -> AvailabilityResult:
     """Rank each input occurrence independently, retaining uncertain alternatives."""
-    ranked = result.model_copy(deep=True)
+    # Copy what ranking changes (each option's reasons and rank, each location's ids); the
+    # product and site records stay shared with the catalog instead of being deep-copied.
+    ranked = result.model_copy(update={
+        "options": [option.model_copy(update={"reasons": list(option.reasons)}) for option in result.options],
+        "locations": [location.model_copy() for location in result.locations],
+    })
     provider_order = (query.request.providers if not isinstance(query, FutureAvailabilityQuery)
                       else [])
     status_order = {"supported": 0, "unknown": 1, "excluded": 2}
