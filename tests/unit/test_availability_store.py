@@ -91,6 +91,18 @@ def test_pinned_view_survives_later_activation(tmp_path):
     assert store.active().bundle.entries[0].scope.years == [2025]
 
 
+def test_active_contents_are_loaded_once_per_generation(tmp_path):
+    store = CatalogStore(tmp_path)
+    first = store.stage(bundle())
+    store.activate(first.generation_id)
+    assert store.active().bundle is store.active().bundle           # not re-read and re-validated
+    second = store.stage(bundle())
+    store.activate(second.generation_id)
+    assert store.active().snapshot.generation_id == second.generation_id
+    store.mark_stale("inventory")
+    assert "inventory" in store.active().snapshot.stale_sources      # stale marks still apply
+
+
 def test_refresh_never_does_not_call_http(tmp_path):
     from openepw.availability.refresh import refresh_if_relevant
 

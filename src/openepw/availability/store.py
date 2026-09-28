@@ -146,16 +146,21 @@ class CatalogStore:
             generation_id, raw_snapshot = row
             snapshot = CatalogSnapshotRef.model_validate_json(raw_snapshot)
             self._check_versions(snapshot)
-            contents = {}
-            for name, kind in _TABLES:
-                records = db.execute(f"SELECT body FROM {name} WHERE generation_id = ? ORDER BY id",
-                                     (generation_id,)).fetchall()
-                contents[name] = [kind.model_validate(json.loads(r[0])) for r in records]
+            # A generation's contents never change once staged, so they are read and validated
+            # once; the snapshot, version check and stale marks are still read on every call.
+            loaded = getattr(self, "_loaded", None)
+            if loaded is None or loaded[0] != generation_id:
+                contents = {}
+                for name, kind in _TABLES:
+                    records = db.execute(f"SELECT body FROM {name} WHERE generation_id = ? ORDER BY id",
+                                         (generation_id,)).fetchall()
+                    contents[name] = [kind.model_validate(json.loads(r[0])) for r in records]
+                loaded = self._loaded = (generation_id, CatalogBundle(**contents))
             stale = [row[0] for row in db.execute("SELECT source_id FROM stale_sources ORDER BY source_id")]
-        stale.extend(e.id for e in contents["evidence"] if aged(e))
+        bundle = loaded[1]
+        stale.extend(e.id for e in bundle.evidence if aged(e))
         snapshot.stale_sources = sorted(set(snapshot.stale_sources) | set(stale))
-        return CatalogView(snapshot,
-                           CatalogBundle(**contents))
+        return CatalogView(snapshot, bundle)
 
     def mark_stale(self, source_id: str):
         with self._connect() as db:
