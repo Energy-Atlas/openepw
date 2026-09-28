@@ -29,8 +29,8 @@ button { cursor: pointer; }
 .evidence-legend .swatch { display: block; width: .6rem; height: .6rem; }
 .evidence-legend .swatch-dot { border-radius: 50%; background: currentColor; opacity: 1; }
 .evidence-legend .swatch-square { border-radius: 1px; background: currentColor; opacity: 1; }
-.evidence-legend .swatch-fill { border-radius: 2px; background: currentColor; opacity: .45; }
-.evidence-legend .swatch-outline { border-radius: 2px; border: 1.2px solid currentColor; opacity: 1; }
+.evidence-legend .swatch-fill { border-radius: 2px; background: repeating-linear-gradient(-45deg, currentColor 0 1.5px, transparent 1.5px 4px); opacity: .9; }
+.evidence-legend .swatch-outline { box-sizing: border-box; border-radius: 2px; border: 1.2px solid currentColor; background: repeating-linear-gradient(45deg, currentColor 0 1px, transparent 1px 3.5px); opacity: 1; }
 .evidence-legend .swatch-dash { height: 0; border-top: 1.5px dashed currentColor; opacity: 1; }
 .evidence-legend .legend-key { color: var(--oe-l6); }
 .evidence-legend .legend-source { text-transform: uppercase; letter-spacing: .06em; font-size: .58rem; }

@@ -109,7 +109,7 @@ export function applyLighting(map: MapLibreMap, settings: SceneSettings): void {
     'horizon-color': daylight > 0 ? THEME.LADDER[1] : THEME.LADDER[6],
     'fog-color': THEME.LADDER[2], 'sky-horizon-blend': 0.35 + settings.diffusion / 500,
     'horizon-fog-blend': 0.4, 'fog-ground-blend': settings.haze / 200,
-    'atmosphere-blend': 0.55 })
+    'atmosphere-blend': 0 })                // no atmosphere halo around the globe
   if (map.getLayer('openepw-hillshade')) {
     map.setPaintProperty('openepw-hillshade', 'hillshade-illumination-direction', sun.azimuthDeg)
   }

@@ -55,6 +55,29 @@ function square(name: string, hex: string, hollow: boolean) {
 export const SHAPE_IMAGES = [square('oe-square', SOURCE_COLORS.PUBLISHED, false),
   square('oe-square-hollow', SOURCE_COLORS.PUBLISHED_FAINT, true)]
 
+/**
+ * Seamless 16×16 px hatch tiles (drawn at pixel ratio 2, so 8 px apart on screen) for polygon
+ * layers. Each layer has its own direction, so overlapping areas read as cross-hatching.
+ */
+function hatch(name: string, hex: string, direction: '/' | '\\' | '-' | 'x') {
+  const size = 16
+  const width = 3
+  const data = new Uint8Array(size * size * 4)
+  const [r, g, b] = rgb(hex)
+  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+    const rising = (x + y) % size < width
+    const falling = (x - y + size) % size < width
+    const on = direction === '/' ? rising : direction === '\\' ? falling : direction === '-' ? y % size < width
+      : rising || falling
+    if (on) data.set([r, g, b, 255], (y * size + x) * 4)
+  }
+  return { name, width: size, height: size, data }
+}
+
+export const HATCH_IMAGES = [hatch('oe-hatch-nsrdb', SOURCE_COLORS.NSRDB, '/'),
+  hatch('oe-hatch-region', SOURCE_COLORS.REGION, '\\'), hatch('oe-hatch-land', SOURCE_COLORS.EXTENT, '-'),
+  hatch('oe-hatch-selection', THEME.AMBER, 'x')]
+
 /** True when every requested year falls in one of the station's reported-year ranges. */
 export function reportsEveryYear(ranges: number[][], years: number[]): boolean {
   return years.every(year => ranges.some(([first, last]) => first <= year && year <= last))
@@ -121,11 +144,11 @@ export function catalogLayerSpecs(layer: CatalogLayer, id: string): AddLayerObje
       'icon-size': ['interpolate', ['linear'], ['zoom'], 1, .3, 4, .5, 8, .8, 12, 1.1],
       'icon-allow-overlap': true, 'icon-ignore-placement': true } }]
   if (layer.kind === 'cells') return [{ id: `${id}-fill`, type: 'fill', source: id, filter: polygons,
-    paint: { 'fill-color': layer.id === 'nsrdb' ? MAP_PALETTE.NSRDB : MAP_PALETTE.REGION,
-      'fill-antialias': false, 'fill-opacity': fade(.22) } }]
+    paint: { 'fill-pattern': layer.id === 'nsrdb' ? 'oe-hatch-nsrdb' : 'oe-hatch-region',
+      'fill-antialias': false, 'fill-opacity': fade(.6) } }]
   if (layer.kind === 'area') return [
     { id: `${id}-fill`, type: 'fill', source: id, filter: polygons,
-      paint: { 'fill-color': MAP_PALETTE.REGION, 'fill-opacity': fade(.07) } },
+      paint: { 'fill-pattern': 'oe-hatch-region', 'fill-opacity': fade(.4) } },
     { id: `${id}-line`, type: 'line', source: id, filter: polygons,
       paint: { 'line-color': MAP_PALETTE.REGION, 'line-width': .9, 'line-opacity': .85 } },
     { id: `${id}-point`, type: 'circle', source: id, filter: points,
@@ -138,6 +161,6 @@ export function catalogLayerSpecs(layer: CatalogLayer, id: string): AddLayerObje
   if (layer.id !== 'era5-land') return [rims]
   return [{ id: `${id}-fill`, type: 'fill', source: id, filter: polygons,
     metadata: { 'openepw:before': 'water' },
-    paint: { 'fill-color': MAP_PALETTE.EXTENT, 'fill-opacity': ['interpolate', ['linear'], ['zoom'], 3, .28, 9, .1] } },
+    paint: { 'fill-pattern': 'oe-hatch-land', 'fill-opacity': ['interpolate', ['linear'], ['zoom'], 3, .55, 9, .2] } },
   rims]
 }

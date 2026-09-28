@@ -5,7 +5,7 @@ import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
 import { appearanceStyle, applyAppearance, applyLighting, applyScene, autoView3d, scenePitch, type SceneSettings } from './scene'
 import { renderShadows } from './renderShadows'
 import { availabilityFeatures } from './evidence'
-import { MAP_PALETTE, SHAPE_IMAGES, STATION_LABEL_ZOOM, catalogFeatures, catalogLayerSpecs, layerSwatch,
+import { HATCH_IMAGES, MAP_PALETTE, SHAPE_IMAGES, STATION_LABEL_ZOOM, catalogFeatures, catalogLayerSpecs, layerSwatch,
   legendRows } from './catalogLayers'
 import { calloutEnd, placeLabels, type LabelInput, type PlacedLabel } from './labels'
 import { layoutCallouts, type CalloutLine, type CalloutTag, type ProductAvailability } from './availabilityCallouts'
@@ -320,10 +320,11 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
         geometry: { type: 'Point', coordinates: [point.lon, point.lat] } })
     }
     const data: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features }
+    addPatternImages(sceneMap)
     if (!sceneMap.getSource('openepw-selection')) {
       sceneMap.addSource('openepw-selection', { type: 'geojson', data })
       sceneMap.addLayer({ id: 'openepw-selection-fill', type: 'fill', source: 'openepw-selection',
-        filter: ['==', ['geometry-type'], 'Polygon'], paint: { 'fill-color': MAP_PALETTE.HERO, 'fill-opacity': .14 } })
+        filter: ['==', ['geometry-type'], 'Polygon'], paint: { 'fill-pattern': 'oe-hatch-selection', 'fill-opacity': .6 } })
       sceneMap.addLayer({ id: 'openepw-selection-outline', type: 'line', source: 'openepw-selection',
         filter: ['==', ['geometry-type'], 'Polygon'], paint: { 'line-color': MAP_PALETTE.HERO_LINE, 'line-width': 2 } })
       sceneMap.addLayer({ id: 'openepw-selection-points', type: 'circle', source: 'openepw-selection',
@@ -344,10 +345,11 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
     const sceneMap = map.current
     if (!styleParsed(sceneMap)) return
     const data = availabilityFeatures(availability)
+    addPatternImages(sceneMap)
     if (!sceneMap.getSource('openepw-evidence')) {
       sceneMap.addSource('openepw-evidence', { type: 'geojson', data })
       sceneMap.addLayer({ id: 'openepw-evidence-fill', type: 'fill', source: 'openepw-evidence',
-        paint: { 'fill-color': ['get', 'color'], 'fill-opacity': .045 } })
+        paint: { 'fill-pattern': 'oe-hatch-region', 'fill-opacity': .18 } })
       sceneMap.addLayer({ id: 'openepw-evidence-line', type: 'line', source: 'openepw-evidence',
         paint: { 'line-color': ['get', 'color'], 'line-width': 1.1,
           'line-dasharray': [2, 2], 'line-opacity': .34 } })
@@ -454,8 +456,7 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
     const before = sceneMap.getStyle().layers.find(item => own.has(item.id))?.id
     const stack = ['extent', 'cells', 'area', 'sites', 'stations']
     const ordered = [...catalogMap.layers].sort((a, b) => stack.indexOf(a.kind) - stack.indexOf(b.kind))
-    for (const image of SHAPE_IMAGES)
-      if (!sceneMap.hasImage(image.name)) sceneMap.addImage(image.name, image, { pixelRatio: 2 })
+    addPatternImages(sceneMap)
     for (const layer of ordered) {
       const id = `openepw-catalog-${layer.id}`
       const data = catalogFeatures(layer, layer.kind === 'stations' ? years : [])
@@ -591,6 +592,12 @@ function layerCount(layer: CatalogLayer, years: number[]): string {
 
 let measureContext: CanvasRenderingContext2D | null | undefined
 /** Pill text width in CSS pixels; falls back to an estimate where canvas is unavailable. */
+/** Marker shapes and polygon hatches; a style reload drops them, so each user adds them again. */
+function addPatternImages(sceneMap: MapLibreMap) {
+  for (const image of [...SHAPE_IMAGES, ...HATCH_IMAGES])
+    if (!sceneMap.hasImage(image.name)) sceneMap.addImage(image.name, image, { pixelRatio: 2 })
+}
+
 function textWidth(text: string): number {
   if (measureContext === undefined) {
     try { measureContext = document.createElement('canvas').getContext('2d') } catch { measureContext = null }

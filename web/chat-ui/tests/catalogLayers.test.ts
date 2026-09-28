@@ -68,7 +68,7 @@ describe('OpenEPW map palette', () => {
   it('gives NSRDB its own orange and OneBuilding a square symbol', async () => {
     const { MAP_PALETTE, catalogLayerSpecs, SHAPE_IMAGES, layerSwatch } = await import('../src/map/catalogLayers')
     const cells = catalogLayerSpecs(layer('nsrdb', 'cells'), 'x')[0] as { paint: Record<string, unknown> }
-    expect(cells.paint['fill-color']).toBe(MAP_PALETTE.NSRDB)
+    expect(cells.paint['fill-pattern']).toBe('oe-hatch-nsrdb')
     expect(MAP_PALETTE.NSRDB).not.toBe(MAP_PALETTE.HERO)
     const sites = catalogLayerSpecs(layer('onebuilding', 'sites'), 'y')[0] as { type: string; layout: Record<string, unknown> }
     expect(sites.type).toBe('symbol')
@@ -99,5 +99,25 @@ describe('OpenEPW map palette', () => {
     expect(catalogFeatures(ob).features[0].properties?.name).toBe('Coconut Island AP')
     // Names are drawn by the overlay (pills and callouts), not by MapLibre symbol layers.
     expect(catalogLayerSpecs(noaa, 'x').some(spec => spec.id === 'x-label')).toBe(false)
+  })
+
+  it('hatches every polygon layer in its own colour and direction', async () => {
+    const { catalogLayerSpecs, HATCH_IMAGES, MAP_PALETTE } = await import('../src/map/catalogLayers')
+    const land = { ...layer('era5-land', 'extent'), bounds: [-180, -89, 180, 89] as [number, number, number, number] }
+    const fills = [layer('nsrdb', 'cells'), layer('pvgis', 'area'), land]
+      .flatMap(item => catalogLayerSpecs(item, `x-${item.id}`))
+      .filter(spec => spec.type === 'fill') as Array<{ paint: Record<string, unknown> }>
+    expect(fills.map(spec => spec.paint['fill-pattern'])).toEqual(['oe-hatch-nsrdb', 'oe-hatch-region', 'oe-hatch-land'])
+    expect(fills.every(spec => !('fill-color' in spec.paint))).toBe(true)
+    const images = Object.fromEntries(HATCH_IMAGES.map(image => [image.name, image]))
+    expect(Object.keys(images)).toEqual(['oe-hatch-nsrdb', 'oe-hatch-region', 'oe-hatch-land', 'oe-hatch-selection'])
+    const nsrdb = images['oe-hatch-nsrdb']
+    const alphas = [...Array(nsrdb.width * nsrdb.height).keys()].map(index => nsrdb.data[index * 4 + 3])
+    expect(alphas.some(alpha => alpha === 0) && alphas.some(alpha => alpha > 0)).toBe(true)   // lines and gaps
+    const inked = [...Array(nsrdb.width * nsrdb.height).keys()].find(index => nsrdb.data[index * 4 + 3] > 0)!
+    expect([...nsrdb.data.slice(inked * 4, inked * 4 + 3)]).toEqual([0xf0, 0x7c, 0x2e])       // NSRDB orange
+    const pixels = (name: string) => [...images[name].data].join()
+    expect(new Set(HATCH_IMAGES.map(image => pixels(image.name))).size).toBe(4)               // distinct patterns
+    expect(MAP_PALETTE.NSRDB).toBe('#f07c2e')
   })
 })

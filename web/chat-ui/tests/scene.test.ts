@@ -42,6 +42,7 @@ describe('map scene', () => {
     }))
     expect(map.setTerrain).toHaveBeenCalledWith({ source: 'openepw-terrain', exaggeration: 1 })
     expect(map.setLight).toHaveBeenCalledWith(expect.objectContaining({ anchor: 'map' }))
+    expect(map.setSky).toHaveBeenCalledWith(expect.objectContaining({ 'atmosphere-blend': 0 }))  // no globe halo
     expect(map.setLayoutProperty).toHaveBeenCalledWith('base-building', 'visibility', 'none')
   })
 })
