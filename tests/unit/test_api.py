@@ -285,3 +285,23 @@ def test_catalog_point_lists_named_products_for_the_hover_card(tmp_path):
         assert all(row["status"] in ("supported", "unknown", "none") for row in body["products"])
         assert client.get("/v1/catalog/point", params={"lat": 91, "lon": 0}).status_code == 422
 
+
+def test_catalog_point_answers_repeat_places_from_a_cache(tmp_path, monkeypatch):
+    import openepw.chat.products as products
+
+    calls = []
+    real = products.point_availability
+
+    def counted(*args, **kwargs):
+        calls.append(args[1:3])
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(products, "point_availability", counted)
+    service = WeatherService(RuntimeConfig(data_root=tmp_path), providers=[StationProvider()])
+    with TestClient(create_app(service)) as client:
+        first = client.get("/v1/catalog/point", params={"lat": 42.44, "lon": -76.5}).json()
+        again = client.get("/v1/catalog/point", params={"lat": 42.44, "lon": -76.5}).json()
+        assert first == again and calls == [(42.44, -76.5)]                  # the repeat is cached
+        client.get("/v1/catalog/point", params={"lat": 42.44, "lon": -76.5, "years": "2018"})
+        assert len(calls) == 2                                               # other years, other entry
+

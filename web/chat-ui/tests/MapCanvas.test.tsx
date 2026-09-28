@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CatalogMap } from '../src/types'
 
@@ -266,7 +266,11 @@ describe('map canvas overlays', () => {
     expect(pointAvailability).toHaveBeenCalledTimes(1)                          // cached for this place
     const clear = window.innerWidth - (window.innerWidth > 650 ? 430 : 0)          // left of the chat panel
     expect(124 + 16 + 320 <= clear ? card.style.transform.startsWith('translate(0') : true).toBe(true)
-    move(clear - 100, 258, clear - 300, 42)                                     // near the chat: opens leftward
+    act(() => move(clear - 100, 258, clear - 300, 42))                          // near the chat: opens leftward
+    const moving = screen.getByRole('status', { name: 'Weather products here' })
+    expect(moving).toHaveClass('updating')                                      // the last place stays while loading
+    expect(moving).toHaveTextContent('ERA5 actual year · Open-Meteo')
+    expect(moving).not.toHaveTextContent('Checking the catalog')
     await waitFor(() => expect(screen.getByRole('status', { name: 'Weather products here' }).style.transform)
       .toContain('-100%'))
     map.emit('mouseout')

@@ -244,4 +244,5 @@ button:disabled, input:disabled { cursor: var(--oe-cursor); }
 .point-dot.unknown { border: 2px solid var(--oe-yes); }
 .point-dot.none { border: 1.5px solid var(--oe-l4); }
 .point-note { margin: .2rem 0 0; color: var(--oe-muted); }
+.point-card.updating > div { opacity: .55; transition: opacity .12s ease; }
 

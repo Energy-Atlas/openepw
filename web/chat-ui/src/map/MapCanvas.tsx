@@ -74,6 +74,8 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
   // The hover card: where the cursor is on the globe, and cached availability per 0.1° cell.
   const [hover, setHover] = useState<{ x: number; y: number; key: string } | null>(null)
   const pointCache = useRef(new Map<string, PointAvailability | 'loading' | 'error'>())
+  // The last place shown, kept on screen (dimmed) while the next place loads.
+  const lastPoint = useRef<PointAvailability | null>(null)
   const [, setPointTick] = useState(0)
   const pointAvailabilityRef = useRef(pointAvailability)
   pointAvailabilityRef.current = pointAvailability
@@ -211,7 +213,7 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
           void pointAvailabilityRef.current?.(lat, lon)
             .then(value => pointCache.current.set(key, value), () => pointCache.current.set(key, 'error'))
             .finally(() => setPointTick(value => value + 1))
-        }, 250)
+        }, 80)
       })
       sceneMap.on('mouseout', hideHover)
       sceneMap.on('dragstart', hideHover)
@@ -602,7 +604,7 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
         style={{ left: label.x, top: label.y, width: label.width, background: label.color }}>
         {label.prefix && <span className="station-prefix">{label.prefix}</span>}{label.text}</span>)}
     </div>}
-    {hover && <PointCard hover={hover} data={pointCache.current.get(hover.key)}
+    {hover && <PointCard hover={hover} data={pointCache.current.get(hover.key)} lastPoint={lastPoint}
       size={{ width: host.current?.clientWidth || window.innerWidth, height: host.current?.clientHeight || window.innerHeight }} />}
     {markers.length > 0 && <div className="location-markers" data-testid="location-markers" aria-hidden="true">
       {markers.map(marker => <span key={marker.id} className={`location-marker${marker.label ? ' numbered' : ''}`}
@@ -646,18 +648,23 @@ function layerCount(layer: CatalogLayer, years: number[]): string {
 const STATUS_TEXT = { supported: 'listed in the catalog', unknown: 'checked when planning', none: 'not available here' }
 
 /** Weather products at the cursor: a dot per product (green = listed here) and the station for station products. */
-function PointCard({ hover, data, size }: { hover: { x: number; y: number; key: string }
-  data: PointAvailability | 'loading' | 'error' | undefined; size: { width: number; height: number } }) {
+function PointCard({ hover, data: current, lastPoint, size }: { hover: { x: number; y: number; key: string }
+  data: PointAvailability | 'loading' | 'error' | undefined; lastPoint: { current: PointAvailability | null }
+  size: { width: number; height: number } }) {
+  if (typeof current === 'object') lastPoint.current = current
+  // While a new place loads, the previous rows stay (dimmed) rather than a blank card.
+  const updating = typeof current !== 'object' && current !== 'error' && lastPoint.current !== null
+  const data = updating ? lastPoint.current! : current
   // Open leftward before reaching the floating chat on the right, not only at the map's edge.
   const flipX = hover.x + 16 + 320 > size.width - (size.width > 650 ? 430 : 0)
   const flipY = hover.y > size.height * .55
   const [lat, lon] = hover.key.split(',')
   const groups = typeof data === 'object' ? (['actual', 'typical'] as const)
     .map(group => ({ group, rows: data.products.filter(row => row.group === group) })).filter(item => item.rows.length) : []
-  return <section className="point-card" role="status" aria-label="Weather products here"
+  return <section className={`point-card${updating ? ' updating' : ''}`} role="status" aria-label="Weather products here"
     style={{ left: hover.x + (flipX ? -16 : 16), top: hover.y + (flipY ? -16 : 16),
       transform: `translate(${flipX ? '-100%' : '0'}, ${flipY ? '-100%' : '0'})` }}>
-    <header>{lat}°, {lon}°{typeof data === 'object' && data.years_assumed ? ` · ${data.years.join(', ')}` : ''}</header>
+    <header>{lat}°, {lon}°{typeof data === 'object' && data !== null && data.years_assumed ? ` · ${data.years.join(', ')}` : ''}</header>
     {data === undefined || data === 'loading' ? <p className="point-note">Checking the catalog…</p>
       : data === 'error' ? <p className="point-note">Availability could not be read.</p>
       : groups.map(({ group, rows }) => <div key={group}>
