@@ -75,6 +75,8 @@ TMY-only selections skipping the year question, an `xx / xx` availability
 column with a hover message for several sites, the info icon beside the name,
 year lists and ranges read deterministically with the model expanding
 relative phrases, and no height limit or scrolling on input dialogs.
+Later: no atmosphere halo ("globe shadow") around the globe, and every
+polygon layer drawn with a patterned hatch instead of a flat tint.
 
 - Open directly on the full-canvas map. There is **one** chat experience: no
   Guided/Text mode choice, splash selector, or mode switch. Free text and
