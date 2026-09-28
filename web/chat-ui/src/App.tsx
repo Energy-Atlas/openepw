@@ -459,8 +459,9 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
           disabled={busy} onClick={() => void act(current => api.approveLocation(current.id, current.revision, randomKey()))}>
           <TickIcon />{card.data?.several ? 'Approve locations' : 'Approve location'}</button>}
         <label className="visually-hidden" htmlFor="chat-message">Message</label>
+        <div className="composer-line">
+        {resetButton}
         <div className="composer-row">
-          {resetButton}
           {ATTACH_AND_MAP_INPUT && <>
             {attachControl('.epw,.geojson,.json,text/plain,application/geo+json')}
             <button className="map-input-trigger" type="button" aria-label="Pick geography on map" aria-pressed={pickMode}
@@ -471,6 +472,7 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
           {typing && card?.kind === 'choice'
             ? <button type="submit" className="icon-submit" aria-label="Confirm" title="Confirm" disabled={!session}><TickIcon /></button>
             : <button type="submit" className="icon-submit" aria-label="Send" title="Send" disabled={!session}><EnterIcon /></button>}
+        </div>
         </div>
         {typing && backLabel && <button className="reply-alt" type="button" onClick={() => setTyping(false)}>{backLabel}</button>}
       </> : productChoice ? <ProductDialog options={card.options ?? []} selected={checkedProducts}

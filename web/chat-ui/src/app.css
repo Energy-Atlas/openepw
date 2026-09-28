@@ -98,7 +98,9 @@ button { cursor: var(--oe-cursor-pointer); }
 .chat-dock .error { margin: 0; padding: .4rem .7rem; border-radius: 10px; background: var(--oe-paper); box-shadow: var(--oe-shadow); }
 /* Start over sits left of the message field; without one it keeps its place bottom-left. */
 .dock-reset { display: flex; justify-content: flex-start; }
-.composer-row > .icon-button { flex: none; box-shadow: none; background: transparent; }
+.composer-line { display: flex; align-items: center; gap: .4rem; }
+.composer-line > .composer-row { flex: 1; min-width: 0; }
+.composer-line > .icon-button { flex: none; }
 .icon-button { display: inline-grid; place-items: center; width: 2rem; height: 2rem; padding: 0; border: 0; border-radius: 50%; background: var(--oe-paper); color: var(--oe-ink); box-shadow: var(--oe-shadow); }
 .icon-button:disabled { opacity: .45; cursor: var(--oe-cursor); }
 .icon-button svg, .icon-submit svg, .icon-confirm svg, .popup-confirm svg { display: block; }

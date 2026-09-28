@@ -202,8 +202,9 @@ describe('chat dock and controls', () => {
     render(<App api={api(state({ id: 'y', revision: 1, kind: 'text', prompt: 'Which actual year or years?' }))} />)
     const field = await screen.findByRole('textbox', { name: 'Message' })
     const reset = screen.getByRole('button', { name: 'Start over' })
-    expect(reset.parentElement).toBe(field.parentElement)                          // the composer row
-    expect(reset.compareDocumentPosition(field) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    const row = field.closest('.composer-row')!
+    expect(row.contains(reset)).toBe(false)                                        // outside the field's box
+    expect(reset.nextElementSibling).toBe(row)                                     // directly to its left
     cleanup()
     render(<App api={api(state({ id: 'p', revision: 2, kind: 'choice', prompt: 'Which weather product?',
       options: [{ id: 'era5-openmeteo', label: 'ERA5 actual year · Open-Meteo', group: 'actual' }],
