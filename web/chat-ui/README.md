@@ -59,6 +59,14 @@ Node or this UI.
   spelled like a listed one fixes it, "and / also / add …" appends, anything
   else is added, and only "only …" or "… instead" replaces the list. A "place, region" pair that is not
   found is retried as two places. Any change needs approval again.
+- Hovering the globe (outside the chat) opens a card listing every named
+  product at the cursor: a filled green dot when the catalog lists it there, a
+  green ring when it is checked only when planning, a grey ring when it is not
+  available, and the looked-up station and distance for station products. The
+  card waits for the cursor to rest, caches each 0.1° cell and follows the
+  session's years. Clicking the globe does nothing (no double-click zoom);
+  dragging pans. Custom cursors mark normal, selectable, text, globe and
+  dragging states. The legend is titled "Weather Product Coverage".
 - The product question lists named products, grouped into actual year and
   typical year, e.g. `NSRDB actual year · GOES v4`, `NOAA ISD station
   observations`, `PVGIS TMY 5.3 · SARAH3` or `OneBuilding TMYx.2009-2023`;

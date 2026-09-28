@@ -77,6 +77,10 @@ year lists and ranges read deterministically with the model expanding
 relative phrases, and no height limit or scrolling on input dialogs.
 Later: no atmosphere halo ("globe shadow") around the globe, and every
 polygon layer drawn with a patterned hatch instead of a flat tint.
+Then: legend title "Weather Product Coverage", custom cursors, and a hover card
+on the globe with per-product availability dots (green = yes) and the station
+and distance for station products; clicks have no effect beyond dragging. Green
+joins the palette for "available" only.
 
 - Open directly on the full-canvas map. There is **one** chat experience: no
   Guided/Text mode choice, splash selector, or mode switch. Free text and
