@@ -96,11 +96,15 @@ button { cursor: var(--oe-cursor-pointer); }
 .chat-dock .action-card { flex: none; width: 100%; }
 .job-card .card-note { margin: .2rem 0; color: var(--oe-muted); font-size: .78rem; line-height: 1.35; }
 .chat-dock .error { margin: 0; padding: .4rem .7rem; border-radius: 10px; background: var(--oe-paper); box-shadow: var(--oe-shadow); }
-/* Start over sits left of the message field; without one it keeps its place bottom-left. */
-.dock-reset { display: flex; justify-content: flex-start; }
-.composer-line { display: flex; align-items: center; gap: .4rem; }
-.composer-line > .composer-row { flex: 1; min-width: 0; }
-.composer-line > .icon-button { flex: none; }
+/* Start over sits outside the chat panel, left of the reply area, so the field keeps its width. */
+.chat-dock { position: relative; }
+.dock-reset { position: absolute; right: calc(100% + .5rem); bottom: .45rem; pointer-events: auto; }
+.reset-confirm { position: absolute; bottom: calc(100% + .45rem); left: 0; z-index: 6; display: flex; flex-direction: column; gap: .35rem; width: 15rem; padding: .65rem .75rem; border-radius: 12px; background: var(--oe-paper); color: var(--oe-ink); box-shadow: var(--oe-shadow); font-size: .8rem; }
+.reset-confirm > div { display: flex; justify-content: flex-end; gap: .35rem; }
+.reset-confirm button { min-height: 2rem; padding: .35rem .75rem; border: 0; border-radius: 999px; font-size: .8rem; }
+.reset-confirm .reply-primary { background: var(--oe-ink); color: var(--oe-paper); }
+.reset-confirm .reply-alt { background: transparent; box-shadow: none; }
+@media (max-width: 650px) { .dock-reset { right: auto; left: 0; bottom: calc(100% + .4rem); } .reset-confirm { left: 0; } }
 .icon-button { display: inline-grid; place-items: center; width: 2rem; height: 2rem; padding: 0; border: 0; border-radius: 50%; background: var(--oe-paper); color: var(--oe-ink); box-shadow: var(--oe-shadow); }
 .icon-button:disabled { opacity: .45; cursor: var(--oe-cursor); }
 .icon-button svg, .icon-submit svg, .icon-confirm svg, .popup-confirm svg { display: block; }

@@ -10,7 +10,7 @@ import { mergeJobManifests } from './jobs'
 import { ViewPanel } from './views/ViewPanel'
 import { transcriptItems } from './transcript'
 import { BackIcon, DownloadIcon, EnterIcon, RestartIcon, TickIcon, ToolIcon } from './icons'
-import type { AvailabilitySummary, CatalogMap, JobManifest, JobSnapshot, SessionSnapshot } from './types'
+import type { AvailabilitySummary, CatalogMap, ChatEvent, JobManifest, JobSnapshot, SessionSnapshot } from './types'
 
 const sessionKey = 'openepw-chat-session'
 // Owner decision 2026-09-27: attachments (+) and map geography input stay hidden for now.
@@ -35,7 +35,8 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
   const [checkedProducts, setCheckedProducts] = useState<string[]>([])
   const [busy, setBusy] = useState(false)
   // Steps of the running action, shown as they start rather than only when it finishes.
-  const [liveSteps, setLiveSteps] = useState<Array<{ tool: string; text: string }>>([])
+  const [liveSteps, setLiveSteps] = useState<ChatEvent[]>([])
+  const [confirmReset, setConfirmReset] = useState(false)
   const acting = useRef(false)
   const [pendingTurns, setPendingTurns] = useState<Array<{ id: string; text: string }>>([])
   const [queuePaused, setQueuePaused] = useState(false)
@@ -272,10 +273,9 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
     if (card?.kind === 'choice') void act(current => api.answer(current.id, card.revision, id, randomKey()))
   }
   const jobActive = running.length > 0
-  // Start over is always available: beside the message field, or on its own when there is none.
-  const inlineReset = replyMode === 'text' && !((busy && replyMode !== 'text') || (jobActive && !card))
+  // Start over is always available, outside the chat panel to the left of the reply area; it asks first.
   const resetButton = <button type="button" className="icon-button" aria-label="Start over" title="Start over"
-    disabled={busy} onClick={startOver}><RestartIcon /></button>
+    aria-expanded={confirmReset} disabled={busy} onClick={() => setConfirmReset(value => !value)}><RestartIcon /></button>
   // Jobs of Copernicus CDS products wait in Copernicus's queue, one request per month.
   const queuedJobs = new Set((session?.events ?? []).filter(event => event.type === 'job' && event.data?.queued)
     .map(event => String(event.data?.job_id)))
@@ -337,10 +337,11 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
             {item.event.text && (item.event.data?.role === 'user' && !item.event.data?.choice ? <p>{item.event.text}</p>
               : <div className="md"><Markdown>{item.event.text}</Markdown></div>)}
           </article>)}
-        {busy && liveSteps.map((step, index) => <div key={`live-${index}`} className="tool-line live" role="status"
-          aria-label={`Running: ${step.text}`}>
+        {busy && transcriptItems(liveSteps).map(item => item.kind === 'tool' && <div key={`live-${item.id}`}
+          className="tool-line live" role="status" aria-label={`Running: ${item.action}`}>
           <span className="tool-icon" aria-hidden="true"><ToolIcon /></span>
-          <span className="tool-text">{step.text}<span className="live-dots" aria-hidden="true" /></span>
+          <span className="tool-text">{item.action}{item.result && <span className="tool-result"> · {item.result}</span>}
+            <span className="live-dots" aria-hidden="true" /></span>
         </div>)}
         {job && <section className="job-card" aria-label="Current weather job">
           <h2>{heads.length > 1 ? `Weather jobs (${heads.length})` : 'Weather job'}</h2>
@@ -459,8 +460,6 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
           disabled={busy} onClick={() => void act(current => api.approveLocation(current.id, current.revision, randomKey()))}>
           <TickIcon />{card.data?.several ? 'Approve locations' : 'Approve location'}</button>}
         <label className="visually-hidden" htmlFor="chat-message">Message</label>
-        <div className="composer-line">
-        {resetButton}
         <div className="composer-row">
           {ATTACH_AND_MAP_INPUT && <>
             {attachControl('.epw,.geojson,.json,text/plain,application/geo+json')}
@@ -472,7 +471,6 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
           {typing && card?.kind === 'choice'
             ? <button type="submit" className="icon-submit" aria-label="Confirm" title="Confirm" disabled={!session}><TickIcon /></button>
             : <button type="submit" className="icon-submit" aria-label="Send" title="Send" disabled={!session}><EnterIcon /></button>}
-        </div>
         </div>
         {typing && backLabel && <button className="reply-alt" type="button" onClick={() => setTyping(false)}>{backLabel}</button>}
       </> : productChoice ? <ProductDialog options={card.options ?? []} selected={checkedProducts}
@@ -511,7 +509,18 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
       </div>}
     </form>
         </>}
-        {!inlineReset && <div className="dock-reset">{resetButton}</div>}
+        <div className="dock-reset">
+          {resetButton}
+          {confirmReset && <div className="reset-confirm" role="alertdialog" aria-label="Start over?">
+            <strong>Start over?</strong>
+            <span>This starts a new conversation.</span>
+            <div>
+              <button type="button" className="reply-alt" onClick={() => setConfirmReset(false)}>Cancel</button>
+              <button type="button" className="reply-primary" autoFocus
+                onClick={() => { setConfirmReset(false); startOver() }}>Start over</button>
+            </div>
+          </div>}
+        </div>
       </div>
     </aside>
     {openViews.map((id, index) => <ViewPanel key={id} id={id} index={index} api={api}

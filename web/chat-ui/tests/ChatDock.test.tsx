@@ -109,6 +109,12 @@ describe('chat dock and controls', () => {
     fireEvent.click(within(earlier).getByRole('button', { name: 'Roll back to here' }))
     await waitFor(() => expect(back).toHaveBeenCalledWith('test', 5, expect.any(String), 1))
     fireEvent.click(screen.getByRole('button', { name: 'Start over' }))
+    expect(client.create).toHaveBeenCalledTimes(1)                                // asks before resetting
+    const confirm = screen.getByRole('alertdialog', { name: 'Start over?' })
+    fireEvent.click(within(confirm).getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Start over' }))
+    fireEvent.click(within(screen.getByRole('alertdialog', { name: 'Start over?' })).getByRole('button', { name: 'Start over' }))
     await waitFor(() => expect(client.create).toHaveBeenCalledTimes(2))
   })
 
@@ -202,9 +208,8 @@ describe('chat dock and controls', () => {
     render(<App api={api(state({ id: 'y', revision: 1, kind: 'text', prompt: 'Which actual year or years?' }))} />)
     const field = await screen.findByRole('textbox', { name: 'Message' })
     const reset = screen.getByRole('button', { name: 'Start over' })
-    const row = field.closest('.composer-row')!
-    expect(row.contains(reset)).toBe(false)                                        // outside the field's box
-    expect(reset.nextElementSibling).toBe(row)                                     // directly to its left
+    expect(field.closest('form')!.contains(reset)).toBe(false)                     // the field keeps its width
+    expect(reset.closest('.dock-reset')!.parentElement).toHaveClass('chat-dock')   // its own place beside the dock
     cleanup()
     render(<App api={api(state({ id: 'p', revision: 2, kind: 'choice', prompt: 'Which weather product?',
       options: [{ id: 'era5-openmeteo', label: 'ERA5 actual year · Open-Meteo', group: 'actual' }],
@@ -222,15 +227,19 @@ describe('chat dock and controls', () => {
   it('shows the running steps as tool lines instead of only Working', async () => {
     let finish!: (value: SessionSnapshot) => void
     const prepare = vi.fn(() => new Promise(resolve => { finish = resolve }))
-    const progress = vi.fn(async () => ({ steps: [{ tool: 'availability', text: 'Assessing catalog' },
-      { tool: 'weather_plan', text: 'Preparing weather plan' }] }))
+    const progress = vi.fn(async () => ({ steps: [
+      { id: 7, type: 'tool', text: 'Assessing catalog', data: { tool: 'availability', phase: 'call' } },
+      { id: 8, type: 'tool', text: 'Catalog assessment complete', data: { tool: 'availability', phase: 'result' } },
+      { id: 9, type: 'tool', text: 'Preparing weather plan', data: { tool: 'weather_plan', phase: 'call' } }] }))
     const review = state({ id: 'r', revision: 3, kind: 'plan_review', prompt: 'Assess options and review a plan' })
     render(<App api={api(review, { prepare, progress })} />)
     fireEvent.click(await screen.findByRole('button', { name: 'Assess and review plan' }))
     const log = screen.getByRole('log')
     await waitFor(() => expect(log).toHaveTextContent('Preparing weather plan'))
-    expect(log).toHaveTextContent('Assessing catalog')
-    expect(log.querySelectorAll('.tool-line.live')).toHaveLength(2)
+    const lines = [...log.querySelectorAll('.tool-line.live')].map(line => line.textContent)
+    expect(lines).toHaveLength(2)                                                  // a call and its result: one line
+    expect(lines[0]).toContain('Assessing catalog')
+    expect(lines[0]).toContain('Catalog assessment complete')
     expect(screen.queryByRole('status', { name: 'Working' })).not.toBeInTheDocument()   // steps shown instead
     finish({ ...review, revision: 4 })
     await waitFor(() => expect(log.querySelectorAll('.tool-line.live')).toHaveLength(0))

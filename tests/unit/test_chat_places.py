@@ -30,7 +30,7 @@ def test_place_list_previews_points_without_a_location_choice(tmp_path):
     listing = _texts(state, role="assistant")[-1]
     assert "1. Boston, Massachusetts, United States" in listing and "top of 2 matches" in listing
     assert "3. 'Nowhereville' not found" in listing
-    assert "Previewed 2 of 3 places" in _texts(state, kind="tool")[-1]
+    assert any("Previewed 2 of 3 places" in text for text in _texts(state, kind="tool"))
     review = state["active_card"]                                  # the list is approved first
     assert review["kind"] == "location_review" and review["prompt"] == "Are these the right locations?"
     assert review["data"]["summary"].startswith("**2 places** · 1 not found and left out · Boston")

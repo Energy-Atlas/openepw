@@ -1,4 +1,4 @@
-import type { CatalogMap, CatalogScopes, JobManifest, JobSnapshot, PointAvailability, SessionSnapshot, ViewPage } from './types'
+import type { CatalogMap, ChatEvent, CatalogScopes, JobManifest, JobSnapshot, PointAvailability, SessionSnapshot, ViewPage } from './types'
 
 export class ApiError extends Error {
   constructor(public code: string, message: string, public status: number,
@@ -30,7 +30,7 @@ export class ChatApi {
   catalogMap(): Promise<CatalogMap> { return this.request('/v1/catalog/map') }
 
   /** The tool steps of the action now running on a session. */
-  progress(id: string): Promise<{ steps: Array<{ tool: string; text: string }> }> {
+  progress(id: string): Promise<{ steps: ChatEvent[] }> {
     return this.request(`/v1/chat/sessions/${encodeURIComponent(id)}/progress`)
   }
 

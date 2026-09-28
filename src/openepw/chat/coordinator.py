@@ -386,15 +386,11 @@ class ChatCoordinator:
         if data is not None:
             event["data"] = data
         state["events"].append(event)
-        if kind == "tool" and text is not None:
-            self._note((data or {}).get("tool", "tool"), event["text"])
-
-    def _note(self, tool: str, text: str) -> None:
-        """Show a step of the running action at once; notes alone are not saved."""
         session_id = getattr(self.running, "session", None)
-        if session_id:
+        if kind == "tool" and session_id:
+            # The running step's tool lines, exactly as they will be saved, visible at once.
             with self.live_lock:
-                self.live.setdefault(session_id, []).append({"tool": tool, "text": text})
+                self.live.setdefault(session_id, []).append(dict(event))
 
     def progress(self, session_id: str) -> dict:
         """The steps of the action now running on this session, oldest first."""
@@ -522,7 +518,8 @@ class ChatCoordinator:
                     "data": {"summary": request_location_summary(facts), "several": several}}
         elif not facts.get("selections"):
             # Each option names one downloadable product; the map shows where each is available.
-            self._note("availability", "Checking where each product is available")
+            self._event(state, "tool", "Checking where each product is available",
+                        {"tool": "availability", "phase": "call"})
             offers = product_offers(self.service, request_location(facts), facts)
             card = {"kind": "choice", "prompt": "Which weather product?", "options": offers["options"],
                     "data": {"field": "product", "availability": offers["availability"]}}
@@ -740,7 +737,7 @@ class ChatCoordinator:
                       "only the region changes); if it does not change the place, give no place. "
                       f"Reply: {text}") if reviewed else text
             try:
-                self._note("model", "Reading your message")
+                self._event(state, "tool", "Reading your message", {"tool": "model", "phase": "call"})
                 intents = self.parser.parse_many(safe_prompt(dated_prompt(prompt), limit=4000))
             except ModelUnavailable as error:
                 # A list already previewed stands; otherwise say the message could not be read.
@@ -817,7 +814,8 @@ class ChatCoordinator:
                 facts.pop("selections", None)
                 facts.pop("product_labels", None)
             # Say so rather than silently asking the same question again.
-            if len(state["events"]) == mark and json.dumps(facts, sort_keys=True) == before:
+            quiet = all((event.get("data") or {}).get("tool") == "model" for event in state["events"][mark:])
+            if quiet and json.dumps(facts, sort_keys=True) == before:
                 card = state["active_card"] or ({"prompt": "Where do you need weather?"} if not facts else None)
                 self._event(state, "message", self._unchanged_notice(card),
                             {"role": "assistant", "unchanged": True})

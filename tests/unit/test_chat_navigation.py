@@ -169,8 +169,8 @@ def test_a_chosen_or_typed_location_is_summarised_for_approval(tmp_path):
     approved = chat.approve_location(state["id"], steered["revision"], "four")
     assert approved["active_card"]["prompt"] == "Which weather product?"   # historical was typed
     assert all(option["group"] == "actual" for option in approved["active_card"]["options"])
-    assert approved["events"][-2]["data"]["role"] == "user"
-    assert approved["events"][-2]["text"] == "Approved 41.5000, -70.9000 · typed coordinates"
+    said = [event for event in approved["events"] if (event.get("data") or {}).get("role") == "user"][-1]
+    assert said["text"] == "Approved 41.5000, -70.9000 · typed coordinates"
     approved = chat.answer(state["id"], approved["active_card"]["revision"], "era5-openmeteo", "product")
     assert approved["active_card"]["kind"] == "plan_review"          # the years were already given
     moved = chat.turn(state["id"], "40.7, -74.0", approved["revision"], "five")

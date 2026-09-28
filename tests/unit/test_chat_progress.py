@@ -23,12 +23,13 @@ def test_steps_show_while_the_action_runs_and_clear_after(tmp_path):
     worker.start()
     assert reading.wait(timeout=5)
     steps = chat.progress(state["id"])["steps"]                      # read while the model is still working
-    assert steps == [{"tool": "model", "text": "Reading your message"}]
+    assert [(step["text"], step["data"]["tool"]) for step in steps] == [("Reading your message", "model")]
     release.set()
     worker.join(timeout=5)
     assert chat.progress(state["id"]) == {"steps": []}               # finished: the saved events take over
-    saved = chat.get(state["id"])["events"]
-    assert not any(event.get("text") == "Reading your message" for event in saved)   # progress only
+    saved = [event for event in chat.get(state["id"])["events"] if event["type"] == "tool"]
+    assert [event["text"] for event in saved] == [step["text"] for step in steps]      # live = saved lines
+    assert [event["id"] for event in saved] == [step["id"] for step in steps]
 
 
 def test_saved_tool_events_also_show_while_running(tmp_path):
@@ -44,5 +45,6 @@ def test_saved_tool_events_also_show_while_running(tmp_path):
     chat = ChatCoordinator(Watching(), parser=Parser(), path=tmp_path / "chat.sqlite")
     state = chat.create()
     chat.turn(state["id"], "Historical Cambridge, MA 2012–2014", 0, "one")
-    assert seen == [[{"tool": "model", "text": "Reading your message"},
-                     {"tool": "geocode", "text": "Geocoding place"}]]
+    assert [[step["text"] for step in steps] for steps in seen] == [["Reading your message", "Geocoding place"]]
+    saved = [event["text"] for event in chat.get(state["id"])["events"] if event["type"] == "tool"]
+    assert saved[:2] == ["Reading your message", "Geocoding place"]         # the live lines are the saved ones
