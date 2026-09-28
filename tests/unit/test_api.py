@@ -274,3 +274,14 @@ def test_chat_runs_actual_and_typical_year_products_as_one_job_each(tmp_path):
             app.state.runner.run(job_id)
         exported = client.post(f"/v1/chat/sessions/{sid}/export/compact")
         assert exported.status_code == 200
+
+
+def test_catalog_point_lists_named_products_for_the_hover_card(tmp_path):
+    service = WeatherService(RuntimeConfig(data_root=tmp_path), providers=[StationProvider()])
+    with TestClient(create_app(service)) as client:
+        body = client.get("/v1/catalog/point", params={"lat": 42.44, "lon": -76.5, "years": "2018,2019"}).json()
+        assert body["years"] == [2018, 2019] and body["years_assumed"] is False
+        assert {row["id"] for row in body["products"]} >= {"era5-openmeteo", "nsrdb-actual", "noaa-isd", "pvgis-tmy"}
+        assert all(row["status"] in ("supported", "unknown", "none") for row in body["products"])
+        assert client.get("/v1/catalog/point", params={"lat": 91, "lon": 0}).status_code == 422
+

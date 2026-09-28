@@ -98,3 +98,18 @@ def test_without_a_catalog_every_named_product_is_offered_for_checking_when_plan
     assert len(offers["options"]) == 8
     assert all(option["detail"].endswith("availability is checked when planning") for option in offers["options"])
     assert offers["availability"]["locations"] == []
+
+
+def test_point_availability_lists_every_product_with_its_status_here():
+    from openepw.chat.products import point_availability
+    point = point_availability(Catalog(), 42.444, -76.5019, [], today=date(2026, 9, 27))
+    assert point["years"] == [2025] and point["years_assumed"] is True
+    rows = {row["id"]: row for row in point["products"]}
+    assert rows["era5-openmeteo"]["status"] == "supported"
+    assert rows["nsrdb-actual"]["status"] == "unknown"
+    assert rows["era5land-cds"]["status"] == "none"                  # excluded here: listed, not available
+    assert rows["noaa-isd"]["station"]["name"] == "ITHACA TOMPKINS REGIONAL AIRPORT"
+    assert rows["noaa-isd"]["label"] == "NOAA ISD station observations"
+    assert [row["group"] for row in point["products"]] == sorted(
+        (row["group"] for row in point["products"]), key=lambda group: group != "actual")
+

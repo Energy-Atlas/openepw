@@ -1,7 +1,7 @@
 import hmac
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI, File, Header, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, Header, HTTPException, Query, UploadFile
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, ValidationError, model_validator
@@ -176,6 +176,15 @@ def create_app(service=None, *, remote=False, chat_parser=None):
     async def invalid_chat_geography(request, exc):
         return JSONResponse({"code": "INVALID_REQUEST", "message": "Invalid request fields",
                              "fields": [list(item["loc"]) for item in exc.errors()]}, status_code=422)
+
+    @app.get("/v1/catalog/point")
+    def catalog_point(lat: float = Query(ge=-90, le=90), lon: float = Query(ge=-180, le=180),
+                      years: str = Query(default="", max_length=400)):
+        """Named-product availability at one point, for the map's hover card (offline catalog)."""
+        from ..chat.products import point_availability
+
+        wanted = sorted({int(item) for item in years.split(",") if item.strip().isdigit()})[:30]
+        return point_availability(service, round(lat, 3), round(lon, 3), wanted)
 
     @app.post("/v1/chat/sessions", status_code=201)
     def create_chat():

@@ -188,3 +188,29 @@ def product_offers(service, locations: Any, facts: dict, *, today: date | None =
     return {"options": options, "availability": {
         "years": years, "years_assumed": years_assumed, "locations": tags,
         "omitted_locations": max(0, count - MAX_CALLOUT_LOCATIONS)}}
+
+
+def point_availability(service, lat: float, lon: float, years: list[int] | None = None, *,
+                       today: date | None = None) -> dict:
+    """Every named product at one point: "supported" (listed in the catalog), "unknown"
+    (checked when planning) or "none" (not available here), with the station for station products."""
+    offers = product_offers(service, {"lat": lat, "lon": lon}, {"years": years or []}, today=today)
+    availability = offers["availability"]
+    here = availability["locations"][0]["products"] if availability["locations"] else []
+    tags = {tag["option"]: tag for tag in here}
+    catalogued = bool(availability["locations"])
+    rows = []
+    for option in offers["options"]:
+        tag = tags.get(option["id"])
+        row = {"id": option["id"], "label": option["label"], "group": option["group"],
+               "status": tag["status"] if tag else "unknown" if not catalogued else "none"}
+        if tag and "station" in tag:
+            row["station"] = tag["station"]
+        rows.append(row)
+    listed = {row["id"] for row in rows}
+    rows += [{"id": product.id, "label": product.label, "group": "actual" if product.actual else "typical",
+              "status": "none"} for product in FIXED_PRODUCTS if product.id not in listed]
+    rows.sort(key=lambda row: (row["group"] != "actual", _ORDER.get(row["id"], len(_ORDER)), row["id"]))
+    return {"lat": lat, "lon": lon, "years": availability["years"],
+            "years_assumed": availability["years_assumed"], "products": rows}
+
