@@ -62,7 +62,9 @@ Node or this UI.
 - Hovering the globe (outside the chat) opens a card listing every named
   product at the cursor: a filled green dot when the catalog lists it there, a
   green ring when it is checked only when planning, a grey ring when it is not
-  available, and the looked-up station and distance for station products. The
+  available, and the looked-up station and distance for station products,
+  whose icon is a three-bar signal for distance (under 10 km 3 bars, 10–100 km
+  2, 100–250 km 1, farther 0; green when listed, grey when unverified). The
   card waits for the cursor to rest, caches each 0.1° cell and follows the
   session's years. Clicking the globe does nothing (no double-click zoom);
   dragging pans. Custom cursors mark normal, selectable, text, globe and
