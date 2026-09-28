@@ -648,7 +648,8 @@ const STATUS_TEXT = { supported: 'listed in the catalog', unknown: 'checked when
 /** Weather products at the cursor: a dot per product (green = listed here) and the station for station products. */
 function PointCard({ hover, data, size }: { hover: { x: number; y: number; key: string }
   data: PointAvailability | 'loading' | 'error' | undefined; size: { width: number; height: number } }) {
-  const flipX = hover.x + 16 + 320 > size.width
+  // Open leftward before reaching the floating chat on the right, not only at the map's edge.
+  const flipX = hover.x + 16 + 320 > size.width - (size.width > 650 ? 430 : 0)
   const flipY = hover.y > size.height * .55
   const [lat, lon] = hover.key.split(',')
   const groups = typeof data === 'object' ? (['actual', 'typical'] as const)

@@ -264,6 +264,11 @@ describe('map canvas overlays', () => {
     move(124, 258, -76, 42)
     await screen.findByRole('status', { name: 'Weather products here' })
     expect(pointAvailability).toHaveBeenCalledTimes(1)                          // cached for this place
+    const clear = window.innerWidth - (window.innerWidth > 650 ? 430 : 0)          // left of the chat panel
+    expect(124 + 16 + 320 <= clear ? card.style.transform.startsWith('translate(0') : true).toBe(true)
+    move(clear - 100, 258, clear - 300, 42)                                     // near the chat: opens leftward
+    await waitFor(() => expect(screen.getByRole('status', { name: 'Weather products here' }).style.transform)
+      .toContain('-100%'))
     map.emit('mouseout')
     await waitFor(() => expect(screen.queryByRole('status', { name: 'Weather products here' })).not.toBeInTheDocument())
   })
