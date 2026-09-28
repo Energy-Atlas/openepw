@@ -44,29 +44,38 @@ def _names(state):
     return [row.get("name") or row["input"] for row in state["facts"]["place_rows"]]
 
 
-def test_a_named_correction_fixes_that_row_and_keeps_the_rest(tmp_path):
+def test_should_be_y_fixes_the_row_that_was_not_found(tmp_path):
     chat, service = _chat(tmp_path)
     state = chat.create()
     state = chat.turn(state["id"], "New York; sanfrancisco; Chicago", 0, "one")
     assert _names(state) == ["New York, New York, United States", "sanfrancisco", "Chicago, Illinois, United States"]
     service.http.calls.clear()
-    fixed = chat.turn(state["id"], "sanfrancisco should be San Francisco", state["revision"], "two")
+    fixed = chat.turn(state["id"], "should be San Francisco", state["revision"], "two")
     assert _names(fixed) == ["New York, New York, United States", "San Francisco, California, United States",
                              "Chicago, Illinois, United States"]
     assert service.http.calls == ["geocode:San Francisco"]                 # only the corrected row
     assert fixed["active_card"]["kind"] == "location_review"
 
 
-def test_a_free_form_reply_patches_the_closest_row_or_adds_the_place(tmp_path):
+def test_a_bare_place_fixes_the_missing_row_and_also_adds(tmp_path):
     chat, _ = _chat(tmp_path)
     state = chat.create()
     state = chat.turn(state["id"], "New York; sanfrancisco; Chicago", 0, "one")
-    meant = chat.turn(state["id"], "I meant San Francisco", state["revision"], "two")
-    assert _names(meant)[1] == "San Francisco, California, United States" and len(_names(meant)) == 3
-    added = chat.turn(state["id"], "and Reno please", meant["revision"], "three")
+    bare = chat.turn(state["id"], "San Francisco", state["revision"], "two")
+    assert _names(bare)[1] == "San Francisco, California, United States" and len(_names(bare)) == 3
+    added = chat.turn(state["id"], "and Reno please", bare["revision"], "three")
     assert _names(added)[-1] == "Reno, Nevada, United States" and len(_names(added)) == 4
     only = chat.turn(state["id"], "only Chicago instead", added["revision"], "four")
     assert "place_rows" not in only["facts"] and only["facts"]["candidates"]   # an explicit override
+
+
+def test_also_adds_even_while_a_row_is_missing(tmp_path):
+    chat, _ = _chat(tmp_path)
+    state = chat.create()
+    state = chat.turn(state["id"], "New York; sanfrancisco; Chicago", 0, "one")
+    added = chat.turn(state["id"], "also Reno", state["revision"], "two")
+    assert _names(added) == ["New York, New York, United States", "sanfrancisco",
+                             "Chicago, Illinois, United States", "Reno, Nevada, United States"]
 
 
 def test_a_place_and_region_pair_that_is_not_found_is_tried_as_two_places(tmp_path):
@@ -103,3 +112,13 @@ def test_a_reply_that_names_a_listed_place_replaces_that_row(tmp_path):
     assert _names(fixed) == ["New York, New York, United States", "Los Angeles, California, United States",
                              "Reno, Nevada, United States", "Chicago, Illinois, United States"]
 
+
+
+def test_should_be_y_fixes_a_missing_row_that_looks_nothing_like_y(tmp_path):
+    chat, _ = _chat(tmp_path)
+    state = chat.create()
+    state = chat.turn(state["id"], "New York; sf; Chicago", 0, "one")
+    assert _names(state)[1] == "sf"
+    fixed = chat.turn(state["id"], "should be San Francisco", state["revision"], "two")
+    assert _names(fixed) == ["New York, New York, United States", "San Francisco, California, United States",
+                             "Chicago, Illinois, United States"]

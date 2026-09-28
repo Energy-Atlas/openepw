@@ -141,8 +141,8 @@ def request_location_summary(facts: dict) -> str:
 
 
 HISTORY_LIMIT = 50
-# "X should be Y", "X is Y", "X -> Y": a correction of one listed place.
-CORRECTION = re.compile(r"^\s*(?:no,?\s*)?['\"]?(.+?)['\"]?\s+(?:should be|is|means|=|->|→)\s+(.+?)\s*[.!]?\s*$", re.I)
+# Replies that add a place to a previewed list rather than fixing one.
+APPEND = re.compile(r"^\s*(?:and|also|plus|add)\b|\b(?:as well|too)\b", re.I)
 # Words that make a place reply replace the list instead of patching it.
 OVERRIDE = re.compile(r"\b(?:only|instead|just|start over|replace (?:the|all|everything))\b", re.I)
 
@@ -555,28 +555,39 @@ class ChatCoordinator:
         self._apply_preview(state, preview)
 
     def _patch_place(self, state: dict, place: str, text: str = "") -> None:
-        """Fix the listed place a reply most likely means, or add the place to the list."""
+        """Patch the previewed list with one place from a reply.
+
+        "and / also / add Y" appends. Otherwise Y replaces, in order: the row the reply names
+        ("Honolulu for hawaii"), a row that was not found (the closest spelling if several),
+        or a row spelled like Y; with none of those, Y is added.
+        """
         rows = state["facts"]["place_rows"]
         target = compact_name(place)
-        # A reply that names one listed place ("Honolulu for hawaii") replaces that row.
-        said = compact_name(text)
-        named = [index for index, row in enumerate(rows)
-                 if any(len(name) >= 3 and name in said and name not in target
-                        for name in (compact_name(row["input"]), compact_name((row.get("name") or "").split(",")[0])))]
-        if len(named) == 1:
-            items = list(rows)
-            items[named[0]] = place
-            self._preview(state, items)
-            return
-        scores = [max(SequenceMatcher(None, target, compact_name(text)).ratio()
-                      for text in (row["input"], (row.get("name") or "").split(",")[0]))
-                  for row in rows]
-        best = max(range(len(rows)), key=lambda index: scores[index]) if rows else None
+
+        def similarity(row: dict) -> float:
+            return max(SequenceMatcher(None, target, compact_name(item)).ratio()
+                       for item in (row["input"], (row.get("name") or "").split(",")[0]))
+
+        index = None
+        if not APPEND.search(text):
+            said = compact_name(text)
+            named = [position for position, row in enumerate(rows)
+                     if any(len(name) >= 3 and name in said and name not in target
+                            for name in (compact_name(row["input"]),
+                                         compact_name((row.get("name") or "").split(",")[0])))]
+            missing = [position for position, row in enumerate(rows) if row.get("status") != "resolved"]
+            if len(named) == 1:
+                index = named[0]
+            elif missing:
+                index = max(missing, key=lambda position: similarity(rows[position]))
+            elif rows:
+                best = max(range(len(rows)), key=lambda position: similarity(rows[position]))
+                index = best if similarity(rows[best]) >= 0.75 else None
         items: list = list(rows)
-        if best is not None and scores[best] >= 0.75:
-            items[best] = place
-        else:
+        if index is None:
             items.append(place)
+        else:
+            items[index] = place
         self._preview(state, items)
 
     def _continue_place_set(self, state: dict, reply: str) -> None:
@@ -608,14 +619,6 @@ class ChatCoordinator:
         if rows:
             labels = [row.get("name") or row["input"] for row in rows]
             edited = apply_edit(labels, text)
-            if edited is None and (match := CORRECTION.match(text)):
-                # "sanfrancisco should be San Francisco" fixes that row and keeps the others.
-                wrong = compact_name(match.group(1))
-                hits = [index for index, row in enumerate(rows)
-                        if wrong in (compact_name(row["input"]), compact_name((row.get("name") or "").split(",")[0]))]
-                if hits:
-                    edited = list(labels)
-                    edited[hits[0]] = match.group(2).strip(" '\"")
             if edited is not None:
                 if not edited:
                     for key in ("place_rows", "geography", "resolved_points"):
