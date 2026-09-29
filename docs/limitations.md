@@ -73,9 +73,13 @@ QC distinguishes structural failures from physical warnings. Outputs always carr
 simulation suitability. EnergyPlus execution is not part of ordinary tests.
 
 Meteorology may be instantaneous at interval ends while solar is interval energy.
-EPWs use fixed standard time; callers must supply the offset they intend (UTC is
-the default). Area sampling can explicitly use a longitude-derived nominal offset;
-this is not a legal time-zone lookup and can differ from local civil time.
+EPWs use fixed standard time. Direct Python, REST, MCP and CLI callers must supply
+the offset they intend (UTC is the default). Browser chat estimates a whole-hour
+offset from longitude for points without one and uses longitude-based offsets for
+sampled areas; it shows the estimate in the reviewed plan. This is not a legal
+time-zone lookup and can differ from local civil standard time. Explicit offsets
+are preserved. Existing files retain the offset used when they were generated;
+download a new EPW after changing it.
 Historical retrieval currently requires output offsets aligned to
 whole provider hours; use UTC for fractional-hour zones pending explicit temporal
 interpolation support. No DST shifts, gap interpolation or implicit hybrid fill.

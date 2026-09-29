@@ -106,7 +106,71 @@ def test_offline_coordinate_entry_accepts_integer_degrees(tmp_path):
     result = coordinator.turn(state["id"], "40,-105 historical 2018", 0, "one")
     assert result["facts"]["location"]["lat"] == 40
     assert result["facts"]["location"]["lon"] == -105
+    assert result["facts"]["location"]["standard_offset_minutes"] == -420
     assert result["facts"]["years"] == [2018]
+
+
+def test_chat_geocoded_location_uses_local_standard_offset(tmp_path):
+    from openepw.chat.coordinator import location_key, standard_time_summary
+    from openepw.providers.openmeteo import interval_bounds
+
+    coordinator = ChatCoordinator(Service(), parser=Parser(), path=tmp_path / "chat.sqlite")
+    state = coordinator.create()
+    first = coordinator.turn(state["id"], "Historical Cambridge, MA 2012", 0, "one")
+    chosen = coordinator.answer(state["id"], first["active_card"]["revision"],
+                                "cambridge", "two")
+    assert chosen["facts"]["location"]["standard_offset_minutes"] == -300
+    facts = chosen["facts"] | {
+        "location_approved": location_key(chosen["facts"]["location"]),
+        "selections": [{"provider": "openmeteo", "dataset": "era5"}],
+    }
+    request = coordinator._request(facts)
+    assert request.locations.standard_offset_minutes == -300
+    start, end = interval_bounds({"location": request.locations.model_dump(),
+                                  "start": "2012-01-01", "end": "2012-12-31"})
+    assert start.isoformat() == "2012-01-01T05:00:00+00:00"
+    assert end.isoformat() == "2013-01-01T05:00:00+00:00"
+    assert "UTC-05:00" in standard_time_summary(request, facts["offset_estimated"])
+    assert "estimated from longitude" in standard_time_summary(request, facts["offset_estimated"])
+
+
+def test_chat_geography_estimates_missing_offsets_but_preserves_explicit_utc(tmp_path):
+    from openepw.models import Location
+
+    class GeographyService(Service):
+        def locations(self, request):
+            return request.locations if isinstance(request.locations, list) else [request.locations]
+
+    coordinator = ChatCoordinator(GeographyService(), parser=Parser(), path=tmp_path / "chat.sqlite")
+    state = coordinator.create()
+    selected = coordinator.set_geography(state["id"], [
+        {"lat": 42.44, "lon": -76.5},
+        Location(lat=42.44, lon=-76.5, standard_offset_minutes=0).model_dump(),
+    ], 0, "geo")
+    assert [point["standard_offset_minutes"] for point in selected["facts"]["geography"]] == [-300, 0]
+
+
+def test_chat_area_uses_longitude_standard_time_for_sampling(tmp_path):
+    from openepw.models import BoundingBox
+    from openepw.planning.spatial import sample
+
+    class GeographyService(Service):
+        def locations(self, request):
+            return sample(request.locations, request.sampling)
+
+    coordinator = ChatCoordinator(GeographyService(), parser=Parser(), path=tmp_path / "chat.sqlite")
+    state = coordinator.create()
+    area = BoundingBox(west=-76.6, east=-76.4, south=42.3, north=42.5).model_dump()
+    selected = coordinator.set_geography(state["id"], area, 0, "geo")
+    assert selected["facts"]["sampling"]["standard_offset"] == "longitude"
+    assert {point["standard_offset_minutes"] for point in selected["facts"]["resolved_points"]} == {-300}
+    from openepw.chat.coordinator import location_key
+    facts = selected["facts"] | {
+        "location_approved": location_key(selected["facts"]["geography"]),
+        "product": "historical", "years": [2024],
+        "selections": [{"provider": "openmeteo", "dataset": "era5"}],
+    }
+    assert coordinator._request(facts).sampling.standard_offset == "longitude"
 
 
 def test_retry_replaces_durable_session_job_and_is_idempotent(tmp_path):

@@ -107,6 +107,9 @@ Wh/m². State samples may be instantaneous at the interval end and are identifie
 as such in lineage. No daily-to-hourly fabrication, hidden DST conversion or gaps
 filled as zero. Fractional-hour historical conversion currently fails explicitly;
 request UTC or an integer-hour fixed offset.
+Browser chat supplies a nominal longitude-derived offset when a point lacks one,
+and uses the same policy for sampled areas; its plan review labels the estimate.
+The service and codec still use the request's explicit fixed offset.
 
 The EPW codec owns eight headers and 35 fields, field-specific missing sentinels,
 hour 24, native minute-zero compatibility and independent partial/annual QC. Native

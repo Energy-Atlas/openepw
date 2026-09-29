@@ -74,6 +74,30 @@ def test_leap_local_year_bundle_and_exact_replay(tmp_path):
     assert len(calls) == 1
 
 
+def test_chat_location_produces_local_standard_time_epw(tmp_path):
+    from openepw.chat.coordinator import ChatCoordinator, OfflineParser, location_key
+
+    config = RuntimeConfig(data_root=tmp_path)
+    service = WeatherService(config, http=HttpClient(config, transport=httpx.MockTransport(transport)))
+    chat = ChatCoordinator(service, parser=OfflineParser(), path=tmp_path / "chat.sqlite")
+    state = chat.create()
+    state = chat.turn(state["id"], "42.44,-76.5 historical 2024", 0, "location")
+    facts = state["facts"] | {
+        "location_approved": location_key(state["facts"]["location"]),
+        "selections": [{"provider": "openmeteo", "dataset": "era5"}],
+    }
+    bundle = service.fetch(chat._request(facts))
+    path = tmp_path / bundle.weather[0].path
+    lines = path.read_text().splitlines()
+    assert lines[0].split(",")[8] == "-5.0"
+    assert [row.split(",")[1:5] for row in (lines[8], lines[-1])] == [
+        ["1", "1", "1", "60"], ["12", "31", "24", "60"]]
+    data = read_epw(path)
+    assert len(data.data) == 8784
+    assert data.data.index[0] == pd.Timestamp("2024-01-01T06:00Z")
+    assert data.data.index[-1] == pd.Timestamp("2025-01-01T05:00Z")
+
+
 def test_skip_feb_29_emits_explicit_noleap_year(tmp_path):
     requests = []
 

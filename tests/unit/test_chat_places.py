@@ -25,6 +25,7 @@ def test_place_list_previews_points_without_a_location_choice(tmp_path):
     state = chat.turn(state["id"], "Boston; Denver; Nowhereville 2018 historical", 0, "one")
     facts = state["facts"]
     assert [(point["lat"], point["lon"]) for point in facts["geography"]] == [(42.36, -71.06), (39.74, -104.98)]
+    assert [point["standard_offset_minutes"] for point in facts["geography"]] == [-300, -420]
     assert facts["resolved_points"] == facts["geography"]
     assert "candidates" not in facts and facts["product"] == "historical" and facts["years"] == [2018]
     listing = _texts(state, role="assistant")[-1]
@@ -54,6 +55,7 @@ def test_coordinate_lists_preview_and_single_places_keep_the_choice_flow(tmp_pat
     state = chat.create()
     state = chat.turn(state["id"], "40,-105; 41,-100 tmy", 0, "one")
     assert len(state["facts"]["geography"]) == 2 and state["facts"]["product"] == "tmy"
+    assert [point["standard_offset_minutes"] for point in state["facts"]["geography"]] == [-420, -420]
     single = chat.create()
     single = chat.turn(single["id"], "historical 2018 weather in Boston", 0, "two")
     assert single["active_card"]["kind"] == "choice" and len(single["facts"]["candidates"]) == 2

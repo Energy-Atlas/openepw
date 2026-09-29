@@ -17,7 +17,7 @@ from typing import Any
 from ..availability import WeatherAvailabilityQuery
 from ..harness.agent import safe_prompt
 from ..harness.model import ModelUnavailable
-from ..models import Location, OpenEPWError, WeatherRequest
+from ..models import Location, OpenEPWError, WeatherRequest, nominal_offset_minutes
 from ..places.models import PlacePreview, PlaceSetQuery
 from ..places.parse import apply_edit, classify_places, describe_place_set
 from ..visualization.models import VisualizationRequest
@@ -115,6 +115,39 @@ def preview_listing(preview: PlacePreview) -> str:
 def location_key(location: dict) -> str:
     """Identifies the reviewed location, so a changed one needs approval again."""
     return hashlib.sha256(json.dumps(location, sort_keys=True).encode()).hexdigest()[:16]
+
+
+def chat_geography(value: Any) -> tuple[Any, dict | None, bool]:
+    """Choose a fixed offset for chat points that lack one; preserve supplied offsets."""
+    if isinstance(value, list):
+        points = [chat_geography(point) for point in value]
+        return [point for point, _, _ in points], None, any(estimated for _, _, estimated in points)
+    if isinstance(value, dict) and ("west" in value or value.get("type") == "Polygon"):
+        return value, {"standard_offset": "longitude"}, True
+    point = Location.model_validate(value)
+    if "standard_offset_minutes" not in point.model_fields_set:
+        local = point.model_copy(update={"standard_offset_minutes": nominal_offset_minutes(point.lon)})
+        return local.model_dump(mode="json"), None, True
+    return point.model_dump(mode="json"), None, False
+
+
+def standard_time_summary(request: WeatherRequest, estimated: bool) -> str:
+    """Show the clock convention before the user runs an actual-year plan."""
+    from ..planning.spatial import sample
+
+    if isinstance(request.locations, Location):
+        points = [request.locations]
+    elif isinstance(request.locations, list):
+        points = request.locations
+    else:
+        points = sample(request.locations, request.sampling)
+    offsets = sorted({point.standard_offset_minutes for point in points})
+    labels = [f"UTC{'+' if minutes >= 0 else '-'}{abs(minutes) // 60:02d}:{abs(minutes) % 60:02d}"
+              for minutes in offsets]
+    note = "Fixed standard time: " + ", ".join(labels) + "; no daylight-saving shift."
+    if estimated:
+        note += " Some offsets were estimated from longitude and may differ from local civil standard time."
+    return note
 
 
 def location_summary(location: dict) -> str:
@@ -549,7 +582,9 @@ class ChatCoordinator:
         summary += f" · {missing} not found" if missing else ""
         self._event(state, "tool", summary, {"tool": "places", "phase": "result",
                                              "digest": preview.digest})
-        points = [location.model_dump(mode="json") for location in preview.locations]
+        points, _, estimated = chat_geography(preview.locations)
+        facts["offset_estimated"] = estimated
+        facts.pop("sampling", None)
         facts["place_rows"] = [row.model_dump(mode="json", exclude_none=True) for row in preview.rows]
         facts.pop("location", None)
         facts.pop("candidates", None)
@@ -778,14 +813,19 @@ class ChatCoordinator:
                 elif getattr(intent, "lat", None) is not None and getattr(intent, "lon", None) is not None \
                         and not (reviewed and abs(intent.lat - facts["location"]["lat"]) < 1e-4
                                  and abs(intent.lon - facts["location"]["lon"]) < 1e-4):
-                    facts["location"] = Location(lat=intent.lat, lon=intent.lon).model_dump(mode="json")
+                    facts["location"], _, facts["offset_estimated"] = chat_geography(
+                        {"lat": intent.lat, "lon": intent.lon})
                     facts.pop("candidates", None)
                     facts.pop("geography", None)
                     facts.pop("resolved_points", None)
+                    facts.pop("sampling", None)
                 elif getattr(intent, "locations", None):
-                    request = WeatherRequest.model_validate({"locations": intent.locations,
-                                                            "years": [2000]})
+                    geography, sampling, estimated = chat_geography(intent.locations)
+                    request = WeatherRequest.model_validate({"locations": geography,
+                                                            "sampling": sampling or {}, "years": [2000]})
                     facts["geography"] = request.model_dump(mode="json")["locations"]
+                    facts["sampling"] = request.sampling.model_dump(mode="json")
+                    facts["offset_estimated"] = estimated
                     facts["resolved_points"] = [item.model_dump(mode="json")
                                                 for item in self.service.locations(request)]
                     facts.pop("location", None)
@@ -796,11 +836,14 @@ class ChatCoordinator:
                     facts.pop("place_rows", None)                # a new place replaces the old list
                     self._event(state, "tool", "Geocoding place", {"tool": "geocode", "phase": "call"})
                     geocoded = self.service.geocode(intent.place)
-                    candidates = [c.model_dump(mode="json") for c in geocoded.candidates]
+                    normalized = [chat_geography(c) for c in geocoded.candidates]
+                    candidates = [point for point, _, _ in normalized]
                     facts["candidates"] = candidates
+                    facts["offset_estimated"] = any(estimated for _, _, estimated in normalized)
                     facts.pop("location", None)
                     facts.pop("geography", None)
                     facts.pop("resolved_points", None)
+                    facts.pop("sampling", None)
                     self._event(state, "tool", f"Found {len(candidates)} location candidates",
                                 {"tool": "geocode", "phase": "result"})
                 if getattr(intent, "product_id", None):
@@ -940,16 +983,21 @@ class ChatCoordinator:
             groups.append((types.pop() if len(types) == 1 else "tmy", [selection for selection, _ in typical]))
         return [WeatherRequest.model_validate({
             "locations": location, "product": product,
+            "sampling": facts.get("sampling") or {},
             "years": facts.get("years", []) if product == "historical" else [],
             "dataset_selections": group}) for product, group in groups]
 
     def set_geography(self, session_id: str, geography: Any, revision: int, key: str) -> dict:
         # Validate through the canonical service request model, including sampling caps.
-        validated = WeatherRequest.model_validate({"locations": geography, "years": [2000]})
+        geography, sampling, estimated = chat_geography(geography)
+        validated = WeatherRequest.model_validate({"locations": geography,
+                                                   "sampling": sampling or {}, "years": [2000]})
         resolved = [point.model_dump(mode="json") for point in self.service.locations(validated)]
 
         def update(state):
             state["facts"]["geography"] = validated.model_dump(mode="json")["locations"]
+            state["facts"]["sampling"] = validated.sampling.model_dump(mode="json")
+            state["facts"]["offset_estimated"] = estimated
             state["facts"]["resolved_points"] = resolved
             state["facts"].pop("location", None)
             state["facts"].pop("candidates", None)
@@ -1002,6 +1050,8 @@ class ChatCoordinator:
             state["plan_hashes"] = hashes
             summaries = [plan_summary_markdown(request.model_dump(mode="json"),
                                                [row.model_dump(mode="json") for row in plan.batch_rows])
+                         + ("\n\n" + standard_time_summary(request, bool(state["facts"].get("offset_estimated")))
+                            if request.product == "historical" else "")
                          for request, plan in zip(requests, plans)]
             def heading(request):
                 if request.product != "historical":
