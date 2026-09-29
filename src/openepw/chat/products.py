@@ -178,11 +178,11 @@ def product_offers(service, locations: Any, facts: dict, *, today: date | None =
     for index, point in enumerate(points[:MAX_CALLOUT_LOCATIONS]):
         entries = []
         for product in products:
-            entry = assessed.get(product.id, {}).get(index)
-            if entry:
+            best = assessed.get(product.id, {}).get(index)
+            if best:
                 entries.append({"option": product.id, "layer": product.layer, "tag": product.tag,
-                                "status": entry["status"], **({"station": entry["station"]}
-                                                               if "station" in entry else {})})
+                                "status": best["status"], **({"station": best["station"]}
+                                                              if "station" in best else {})})
         tags.append({"index": index, "lat": point["lat"], "lon": point["lon"], "name": point.get("name"),
                      "products": entries})
     return {"options": options, "availability": {

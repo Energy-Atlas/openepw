@@ -12,7 +12,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
-      - run: python -m pip install -e ".[dev,api,mcp,harness]"
+      - run: python -m pip install -e ".[dev,api,mcp,harness,cds]"
       - run: python -m pytest
       - run: python -m ruff check .
       - run: python -m mypy

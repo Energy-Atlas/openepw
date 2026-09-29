@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import sys
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator
@@ -26,7 +27,7 @@ def session_lock(root: str | Path, thread_id: str) -> Iterator[None]:
             file.flush()
         file.seek(0)
         try:
-            if os.name == "nt":
+            if sys.platform == "win32":
                 import msvcrt
 
                 msvcrt.locking(file.fileno(), msvcrt.LK_NBLCK, 1)
@@ -43,7 +44,7 @@ def session_lock(root: str | Path, thread_id: str) -> Iterator[None]:
             yield
         finally:
             file.seek(0)
-            if os.name == "nt":
+            if sys.platform == "win32":
                 msvcrt.locking(file.fileno(), msvcrt.LK_UNLCK, 1)
             else:
                 fcntl.flock(file.fileno(), fcntl.LOCK_UN)

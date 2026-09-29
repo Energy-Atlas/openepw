@@ -25,9 +25,10 @@ def _cities_file(query: PlaceSetQuery) -> str:
     """The smallest dump that is complete for the request (capitals need first-level seats)."""
     if query.kind == "capital":
         return "cities5000.zip"                         # all PPLA seats are included here
-    if query.min_population >= 15000:
+    minimum = query.min_population or 0              # set for every city query
+    if minimum >= 15000:
         return "cities15000.zip"
-    return "cities5000.zip" if query.min_population >= 5000 else "cities1000.zip"
+    return "cities5000.zip" if minimum >= 5000 else "cities1000.zip"
 
 
 class GeoNamesStore:
@@ -114,7 +115,7 @@ class GeoNamesStore:
             population = int(row[14] or 0)
             if query.kind == "capital" and row[7] != "PPLA":
                 continue
-            if query.kind == "city" and population < query.min_population:
+            if query.kind == "city" and population < (query.min_population or 0):
                 continue
             matching.append((population, row))
         matching.sort(key=lambda item: (-item[0], item[1][1]))

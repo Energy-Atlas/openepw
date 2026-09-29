@@ -230,8 +230,10 @@ class GraphChatSession:
                      for row in rows if row.get("status") == "resolved"]
         if locations:
             self.chat._merge(AgentIntent(kind="weather", locations=locations))
-            self.chat.draft.place = None
-            self.chat.draft.lat = self.chat.draft.lon = None
+            draft = self.chat.draft
+            if draft is not None:                     # _merge always leaves a draft
+                draft.place = None
+                draft.lat = draft.lon = None
         self.chat.pending_choices = ()
         self.chat.selected_location = None
         return rows
@@ -333,7 +335,7 @@ class GraphChatSession:
             # Keep product, years and other facts from the same message.
             self.chat._merge(target.model_copy(update={"place": None, "kind": "weather"}))
         rest = [intent.model_dump(mode="json") for intent in intents if intent is not target]
-        common = {"intents": [], "waiting": list(state.get("waiting", [])) + rest, "handled": True}
+        common: GraphState = {"intents": [], "waiting": list(state.get("waiting", [])) + rest, "handled": True}
         if kind == "invalid":
             self._answer = result["issue"]["message"]
             return common | {"chat": self.chat.export_state()}

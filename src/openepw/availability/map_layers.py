@@ -199,7 +199,9 @@ def catalog_map(bundle: CatalogBundle, footprints_root: Path) -> dict:
         footprints = [products[pid] for pid in members if products[pid].footprint]
         if not footprints:
             continue  # Documentation-only members need a catalog footprint to be drawn.
-        west, south, east, north = footprints[0].footprint
+        box = footprints[0].footprint
+        assert box is not None                       # filtered above
+        west, south, east, north = box
         convention = footprints[0].longitude_convention
         bounds = ([-180.0, float(south), 180.0, float(north)] if east - west >= 359.999
                   else [_lon180(west, convention), float(south), _lon180(east, convention), float(north)])

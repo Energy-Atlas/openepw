@@ -195,7 +195,7 @@ def _period_rows(source: Source, variable: str, family: str, operation: str,
             if month is not None:
                 mask &= local.month == month
             expected = _expected_hours(year, month, source.dataset.calendar)
-            value, valid, quality = _aggregate(values.iloc[mask], expected,
+            value, valid, quality = _aggregate(values.iloc[np.flatnonzero(mask)], expected,
                                                operation, allow_partial)
             display_year = (None if source.temporal_kind == "reference" or
                             source.dataset.calendar == "synthetic" else year)

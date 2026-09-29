@@ -38,6 +38,9 @@ class SimpleIntent:
     def __init__(self, **values):
         self.__dict__.update(values)
 
+    def __getattr__(self, name: str) -> Any:        # facts are set per instance; absent ones raise
+        raise AttributeError(name)
+
 
 class OfflineParser:
     """Grounded fallback when no optional model credential/runtime is configured."""
@@ -62,9 +65,9 @@ class OfflineParser:
         coordinates = re.search(r"(?<!\d)(-?\d{1,2}(?:\.\d+)?)\s*,\s*"
                                 r"(-?\d{1,3}(?:\.\d+)?)(?!\d)", text)
         place = None
-        match = re.search(r"\b(?:in|for|at|near)\s+([A-Za-z][A-Za-z ]{2,35})(?:,\s*([A-Za-z]{2}))?", text, re.I)
-        if match:
-            place = match.group(1).strip() + (", " + match.group(2) if match.group(2) else "")
+        named = re.search(r"\b(?:in|for|at|near)\s+([A-Za-z][A-Za-z ]{2,35})(?:,\s*([A-Za-z]{2}))?", text, re.I)
+        if named:
+            place = named.group(1).strip() + (", " + named.group(2) if named.group(2) else "")
             place = re.split(r"\b(?:for|from|during|years?|with|amy|historical)\b", place,
                              maxsplit=1, flags=re.I)[0].strip()
         if not place and re.fullmatch(r"[A-Za-z][A-Za-z ]+[,]?\s*[A-Za-z]{2}", text.strip()):
@@ -567,7 +570,7 @@ class ChatCoordinator:
         # try its parts once, keeping every row that did resolve as it is.
         if any(row.status != "resolved" and isinstance(item, str) and "," in item
                for item, row in zip(items, preview.rows)):
-            expanded = []
+            expanded: list[Any] = []
             for item, row in zip(items, preview.rows):
                 if row.status != "resolved" and isinstance(item, str) and "," in item:
                     expanded.extend(part.strip() for part in item.split(",") if part.strip())
@@ -879,8 +882,9 @@ class ChatCoordinator:
     def choose_products(self, session_id: str, question_revision: int, product_ids: list[str],
                         key: str) -> dict:
         """Answer the product card with one or more named products, actual or typical year."""
-        products = [product_for(item) for item in dict.fromkeys(product_ids)]
-        if not products or len(products) > 20 or any(product is None for product in products):
+        found = [product_for(item) for item in dict.fromkeys(product_ids)]
+        products = [product for product in found if product is not None]
+        if not products or len(products) > 20 or len(products) != len(found):
             raise ChatActionError("Choose one or more listed weather products")
 
         def update(state):

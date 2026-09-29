@@ -8,9 +8,11 @@ import json
 import re
 from dataclasses import replace
 
-import h5py
 import numpy as np
 import pytest
+
+pytest.importorskip("h5py")
+import h5py
 
 from scripts.mcp_availability_map.acquire_nsrdb_meta import acquire_meta, source_spec
 from scripts.mcp_availability_map.acquire_nsrdb_meta import main as acquire_main
