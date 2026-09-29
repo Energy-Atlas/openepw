@@ -150,6 +150,14 @@ def standard_time_summary(request: WeatherRequest, estimated: bool) -> str:
     return note
 
 
+def require_reviewed_standard_time(facts: dict) -> None:
+    """An old saved chat cannot run its UTC plan without a new location review."""
+    if facts.get("product") in ("historical", "amy") and "offset_estimated" not in facts:
+        raise ChatActionError(
+            "Re-enter the location to review its fixed standard-time offset before running this plan"
+        )
+
+
 def location_summary(location: dict) -> str:
     coordinates = f"{location['lat']:.4f}, {location['lon']:.4f}"
     if location.get("name"):
@@ -1011,6 +1019,7 @@ class ChatCoordinator:
 
     def prepare(self, session_id: str, revision: int, key: str) -> dict:
         def update(state):
+            require_reviewed_standard_time(state["facts"])
             requests = self._requests(state["facts"])
             self._event(state, "tool", "Assessing catalog", {"tool": "availability", "phase": "call"})
             results = [self.service.assess_availability(WeatherAvailabilityQuery(request=request))
@@ -1086,6 +1095,7 @@ class ChatCoordinator:
             card = state.get("active_card")
             if not plan_hash or not card or card.get("data", {}).get("plan_hash") != plan_hash:
                 raise ChatActionError("A current reviewed plan is required")
+            require_reviewed_standard_time(state["facts"])
             hashes = state.get("plan_hashes") or [plan_hash]
             jobs = [runner.submit(self.service.plan_store.get(item),
                                   f"chat:{session_id}:{key}" + (f":{index}" if index else ""))

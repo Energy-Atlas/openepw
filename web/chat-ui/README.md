@@ -44,7 +44,9 @@ Node or this UI.
   before retrieval. For actual-year EPWs, chat uses a fixed standard-time offset
   estimated from longitude when none is supplied. The plan displays the offset
   and its estimated basis before Run. This is not a civil time-zone lookup and
-  may differ from the site's legal standard time; EPWs never apply DST.
+  may differ from the site's legal standard time; EPWs never apply DST. An older
+  saved conversation must re-enter and approve its location before a new plan
+  can run under this clock convention.
 - Geocoder candidates appear as numbered options in chat and matching filled,
   numbered markers on the map. Choosing either only selects: the globe rotates
   to the point (zooming out and back in when it is off screen) and a popup

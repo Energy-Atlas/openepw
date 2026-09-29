@@ -1,3 +1,5 @@
+import pytest
+
 from openepw.chat.coordinator import ChatCoordinator
 
 
@@ -171,6 +173,22 @@ def test_chat_area_uses_longitude_standard_time_for_sampling(tmp_path):
         "selections": [{"provider": "openmeteo", "dataset": "era5"}],
     }
     assert coordinator._request(facts).sampling.standard_offset == "longitude"
+
+
+def test_old_chat_plan_cannot_run_with_unreviewed_utc_offset(tmp_path):
+    from openepw.chat.coordinator import ChatActionError
+
+    coordinator = ChatCoordinator(Service(), parser=Parser(), path=tmp_path / "chat.sqlite")
+    state = coordinator.create()
+    legacy = coordinator._change(state["id"], 0, "old", lambda item: item.update(
+        plan_hash="old-plan", active_card={"kind": "plan_review", "data": {"plan_hash": "old-plan"}},
+        facts={"product": "historical", "location": {"lat": 42.44, "lon": -76.5,
+                                                      "standard_offset_minutes": 0}}))
+
+    with pytest.raises(ChatActionError, match="Re-enter the location"):
+        coordinator.run(state["id"], legacy["revision"], "run", object())
+    with pytest.raises(ChatActionError, match="Re-enter the location"):
+        coordinator.prepare(state["id"], legacy["revision"], "prepare")
 
 
 def test_retry_replaces_durable_session_job_and_is_idempotent(tmp_path):

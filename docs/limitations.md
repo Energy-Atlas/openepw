@@ -79,7 +79,8 @@ offset from longitude for points without one and uses longitude-based offsets fo
 sampled areas; it shows the estimate in the reviewed plan. This is not a legal
 time-zone lookup and can differ from local civil standard time. Explicit offsets
 are preserved. Existing files retain the offset used when they were generated;
-download a new EPW after changing it.
+download a new EPW after changing it. Older saved browser chats require the
+location to be re-entered and reviewed before an actual-year plan can run.
 Historical retrieval currently requires output offsets aligned to
 whole provider hours; use UTC for fractional-hour zones pending explicit temporal
 interpolation support. No DST shifts, gap interpolation or implicit hybrid fill.
