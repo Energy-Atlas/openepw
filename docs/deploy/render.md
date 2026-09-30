@@ -100,7 +100,7 @@ revoked alone.
   Render shell, `openepw accounts list` shows them and `openepw accounts disable EMAIL`
   locks one out and ends its sessions (`enable` undoes it). Ten failed sign-ins per
   address or client in 10 minutes are refused; at most three account emails per address
-  and 100 overall are sent per hour.
+  and 100 overall are sent per hour (counting only emails Resend accepted).
 - **Scripts** call `/v1` with `Authorization: Bearer <OPENEPW_BEARER_TOKEN>`.
 - **The catalog installs only when none is active.** To move to a new package version,
   update the two variables, delete `/var/data/openepw/catalog` from the Render shell and

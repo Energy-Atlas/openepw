@@ -185,16 +185,17 @@ class AccountStore:
             self._run("DELETE FROM sessions WHERE hash = ?", (_digest(token),))
 
     def may_mail(self, email: str) -> bool:
-        """Record an account email unless the address or the hour is over its limit."""
+        """Whether another account email may go to this address within the hourly limits."""
         now = time.time()
         with self._db() as db, db:
             db.execute("DELETE FROM mail_log WHERE at < ?", (now - 3600,))
             to_address = db.execute("SELECT COUNT(*) FROM mail_log WHERE email = ?", (email,)).fetchone()[0]
             total = db.execute("SELECT COUNT(*) FROM mail_log").fetchone()[0]
-            if to_address >= MAILS_PER_ADDRESS or total >= MAILS_PER_HOUR:
-                return False
-            db.execute("INSERT INTO mail_log (email, at) VALUES (?, ?)", (email, now))
-            return True
+            return to_address < MAILS_PER_ADDRESS and total < MAILS_PER_HOUR
+
+    def mailed(self, email: str) -> None:
+        """Count an email the mail service accepted; refused attempts are not counted."""
+        self._run("INSERT INTO mail_log (email, at) VALUES (?, ?)", (email, time.time()))
 
     def accounts(self) -> list[dict]:
         rows = self._run("SELECT email, verified_at, disabled, created_at FROM users ORDER BY email")
@@ -376,6 +377,7 @@ class Accounts:
         except MailError as error:
             _log.error("not sent to %s (%s): %s", masked(email), subject, error)
             raise
+        self.store.mailed(email)
         _log.info("sent to %s (%s)%s", masked(email), subject, f", id {sent}" if isinstance(sent, str) and sent else "")
 
     def _cookie(self, request: Request, response: Response, user_id: int) -> Response:

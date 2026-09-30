@@ -327,3 +327,25 @@ def test_the_test_mail_command_reports_resends_answer(tmp_path, monkeypatch, cap
     assert main(["--data-root", str(tmp_path), "accounts", "test-mail", "ada@cornell.edu"]) == 2
     printed = capsys.readouterr().out
     assert "domain is not verified" in printed and "onboarding@resend.dev" in printed and "re_test" not in printed
+
+
+def test_refused_sends_do_not_use_up_the_hourly_limit(tmp_path):
+    class Flaky(Mailbox):
+        def __init__(self):
+            super().__init__()
+            self.refuse = True
+
+        def send(self, to, subject, text):
+            if self.refuse:
+                from openepw.api.accounts import MailError
+
+                raise MailError("Resend refused the message: HTTP 403 test sender")
+            super().send(to, subject, text)
+
+    mailbox = Flaky()
+    with _client(tmp_path, mailbox) as client:
+        for _ in range(3):                                          # e.g. before the sender was fixed
+            assert client.post("/auth/signup", json={"email": "ada@cornell.edu"}).status_code == 503
+        mailbox.refuse = False
+        assert client.post("/auth/signup", json={"email": "ada@cornell.edu"}).status_code == 200
+        assert [m["to"] for m in mailbox.sent] == ["ada@cornell.edu"]

@@ -42,7 +42,8 @@ verification link. Password reset uses the same link-and-set-password page.
   stored as SHA-256 in SQLite, valid 30 days; sign-out deletes it on the server.
 - **Throttling.** Ten failed sign-ins per address and per client in 10 minutes are
   refused. At most three account emails per address per hour and 100 per hour overall,
-  which also protects the Resend quota.
+  which also protects the Resend quota; only emails Resend accepted count, so refused
+  attempts (for example before the sender was fixed) do not lock an address out.
 - **Storage.** `accounts/accounts.sqlite3` in the data root, next to the chat sessions.
 - **Mail.** Resend's HTTPS API with `OPENEPW_RESEND_API_KEY` from an address on a domain
   verified in Resend (`OPENEPW_MAIL_FROM`). Links use `OPENEPW_PUBLIC_URL`, or Render's
