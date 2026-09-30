@@ -33,13 +33,23 @@ the research catalog, add it to open-data as a new version, then update both val
 openepw --data-root .local/openepw catalog export --out ../open-data/datasets/weather-availability-catalog --package-version YYYY.MM.DD
 ```
 
-## 2. Create the service
+## 2. Create the services
 
-1. Push the deployment branch to GitHub.
-2. In Render: **New → Blueprint**, pick the repository and branch. Render reads
-   `render.yaml`: one Docker web service `openepw`, Standard plan, a 10 GB disk at
-   `/var/data`, health check `/health`, auto-deploy off.
-3. Fill in the secrets it asks for. Paste bare values, without quotes:
+1. Push `feature/render-deploy` and `deploy/staging` to GitHub.
+2. In Render: **New → Blueprint**, pick the repository. Render reads `render.yaml`, which
+   defines two Docker web services on the Standard plan, each with its own disk at
+   `/var/data` and health check `/health`:
+
+   | Service | Branch | Disk | Deploys |
+   |---|---|---|---|
+   | `openepw` (production) | `feature/render-deploy` | 10 GB | manual |
+   | `openepw-staging` (internal testing) | `deploy/staging` | 5 GB | on every push |
+
+   New features go `feature/...` → `deploy/staging` (tested on staging) → `main` and
+   `feature/render-deploy` (deployed to production by hand).
+3. Fill in the secrets it asks for, separately for each service. Give staging its own
+   password and, where possible, its own provider keys or spending limits, so testing
+   does not use up production's. Paste bare values, without quotes:
 
    | Variable | Value |
    |---|---|
