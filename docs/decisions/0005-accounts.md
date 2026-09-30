@@ -52,6 +52,13 @@ verification link. Password reset uses the same link-and-set-password page.
 - **Scripts.** `OPENEPW_BEARER_TOKEN`, if set, still authorises `/v1` calls with an
   `Authorization: Bearer` header.
 - **Administration.** `openepw accounts list|disable|enable` on the server's data root.
+- **Landing page (owner request, 2026-09-30).** With the built UI, visitors get the UI's
+  landing page: the globe alone, and a sign-in window on any click. The static UI is
+  public; `/v1`, `/docs` and `/openapi.json` stay behind sign-in. The window uses JSON
+  endpoints (`/auth/session`, `/auth/login`, `/auth/signup`, `/auth/reset`,
+  `/auth/logout`); a JSON body cannot be posted cross-site without a CORS preflight, which
+  the app never grants. HTML pages are served with `Cache-Control: no-cache` so a deploy
+  reaches returning browsers. Signed in, a sign-out button sits beside Start over.
 
 ## Consequences
 

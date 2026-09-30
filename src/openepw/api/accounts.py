@@ -104,6 +104,10 @@ class AccountStore:
         with self._db() as db, db:
             return db.execute(sql, args).fetchall()
 
+    def email(self, user_id: int | None) -> str | None:
+        rows = self._run("SELECT email FROM users WHERE id = ?", (user_id,)) if user_id is not None else []
+        return rows[0][0] if rows else None
+
     def user(self, email: str):
         rows = self._run("SELECT id, password_hash, verified_at, disabled FROM users WHERE email = ?",
                          (normalize_email(email),))
@@ -309,9 +313,10 @@ def _sent_page() -> HTMLResponse:
 
 class Accounts:
     def __init__(self, store: AccountStore, mailer: Mailer, public_url: str | None, domains: list[str],
-                 bearer_token: str | None = None):
+                 bearer_token: str | None = None, public_ui: bool = False):
         self.store, self.mailer, self.domains = store, mailer, [d.lower() for d in domains]
         self.bearer_token = bearer_token
+        self.public_ui = public_ui                  # the built UI is served to visitors as a landing page
         self.public_url = (public_url or "").rstrip("/")
         self.failures: dict[str, list[float]] = {}
         self.lock = threading.Lock()
@@ -351,12 +356,72 @@ class Accounts:
                             httponly=True, secure=secure, samesite="lax", path="/")
         return response
 
+    # the account operations, shared by the HTML pages and the JSON endpoints of the landing page
+
+    def _sign_in(self, request: Request, email: str, password: str) -> tuple[int, int | None, str]:
+        """(status, user, message) for a sign-in attempt."""
+        email = normalize_email(email)
+        keys = ("client:" + self._client(request), "email:" + email)
+        if self._blocked(*keys):
+            return 429, None, "Too many attempts; try again in 10 minutes."
+        user = self.store.sign_in(email, password[:MAX_PASSWORD])
+        if user is None:
+            self._fail(*keys)
+            return 401, None, "That email and password do not match an account."
+        return 200, user, ""
+
+    def _sign_up(self, request: Request, email: str) -> tuple[int, str]:
+        email = normalize_email(email)
+        if not self.allowed_email(email):
+            return 400, f"Only {self.domain_text} addresses can sign up."
+        row = self.store.user(email)
+        try:
+            if row is not None and row[2] is not None:
+                token = self.store.issue(row[0], "reset", RESET_LIFETIME)
+                self._mail(email, "Your OpenEPW account", (
+                    "Someone asked to create an OpenEPW account for this address, which already has an "
+                    "account.\n\nSign in, or set a new password with this link (valid for 1 hour):\n"
+                    f"{self._link(request, token)}\n\nIf this was not you, ignore this email."))
+            else:
+                user = self.store.create_pending(email)
+                token = self.store.issue(user, "setup", SETUP_LIFETIME)
+                self._mail(email, "Finish creating your OpenEPW account", (
+                    "Choose your password with this link (valid for 24 hours, once):\n"
+                    f"{self._link(request, token)}\n\nIf you did not ask for an OpenEPW account, "
+                    "ignore this email."))
+        except MailError:
+            return 503, "The email service is not answering; try again later."
+        return 200, ""
+
+    def _reset(self, request: Request, email: str) -> tuple[int, str]:
+        email = normalize_email(email)
+        row = self.store.user(email) if self.allowed_email(email) else None
+        if row is not None and row[2] is not None and not row[3]:
+            token = self.store.issue(row[0], "reset", RESET_LIFETIME)
+            try:
+                self._mail(email, "Reset your OpenEPW password", (
+                    "Choose a new password with this link (valid for 1 hour, once):\n"
+                    f"{self._link(request, token)}\n\nIf you did not ask for this, ignore this email; "
+                    "your password stays the same."))
+            except MailError:
+                return 503, "The email service is not answering; try again later."
+        return 200, ""
+
+    @property
+    def domain_text(self) -> str:
+        return " or ".join("@" + domain for domain in self.domains)
+
     def install(self, app: FastAPI) -> None:
-        domains = " or ".join("@" + domain for domain in self.domains)
+        domains = self.domain_text
+        sent = ("If that address can use OpenEPW, a link is on its way. It works once; "
+                "check spam if it does not arrive.")
+
+        def open_path(path: str) -> bool:
+            return path in OPEN_PATHS or path.startswith("/auth/")
 
         @app.middleware("http")
         async def account_gate(request: Request, call_next):
-            if request.url.path in OPEN_PATHS:
+            if open_path(request.url.path):
                 return await call_next(request)
             user = self.store.session_user(request.cookies.get(COOKIE))
             if user is not None:
@@ -368,9 +433,57 @@ class Accounts:
                 request.state.signed_in = True           # a script with the bearer token
                 return await call_next(request)
             if request.method == "GET" and not request.url.path.startswith("/v1/"):
+                if self.public_ui and not request.url.path.startswith(("/docs", "/redoc", "/openapi")):
+                    return await call_next(request)      # the built UI shows its landing page and sign-in
                 target = request.url.path + (f"?{request.url.query}" if request.url.query else "")
                 return RedirectResponse(f"/login?next={quote(target, safe='/?=&')}", status_code=303)
             return JSONResponse({"code": "AUTH_REQUIRED", "message": "Sign in to OpenEPW first"}, status_code=401)
+
+        # JSON endpoints for the landing page's sign-in window. A JSON body cannot be sent
+        # cross-site without a CORS preflight, which this app never grants.
+        async def json_body(request: Request) -> dict:
+            try:
+                body = await request.json()
+            except ValueError:
+                body = None
+            return body if isinstance(body, dict) else {}
+
+        def answer(status: int, message: str = "") -> JSONResponse:
+            return JSONResponse({"ok": status == 200, "message": message}, status_code=status)
+
+        @app.get("/auth/session", include_in_schema=False)
+        def auth_session(request: Request):
+            user = self.store.session_user(request.cookies.get(COOKIE))
+            return {"accounts": True, "signed_in": user is not None, "email": self.store.email(user),
+                    "domains": self.domains}
+
+        @app.post("/auth/login", include_in_schema=False)
+        async def auth_login(request: Request) -> Response:
+            body = await json_body(request)
+            status, user, message = self._sign_in(request, str(body.get("email") or ""),
+                                                  str(body.get("password") or ""))
+            if user is None:
+                return answer(status, message)
+            return self._cookie(request, answer(200), user)
+
+        @app.post("/auth/signup", include_in_schema=False)
+        async def auth_signup(request: Request) -> Response:
+            status, message = self._sign_up(request, str((await json_body(request)).get("email") or ""))
+            return answer(status, message or sent)
+
+        @app.post("/auth/reset", include_in_schema=False)
+        async def auth_reset(request: Request) -> Response:
+            status, message = self._reset(request, str((await json_body(request)).get("email") or ""))
+            return answer(status, message or sent)
+
+        @app.post("/auth/logout", include_in_schema=False)
+        def auth_logout(request: Request) -> Response:
+            self.store.close_session(request.cookies.get(COOKIE))
+            response = answer(200)
+            response.delete_cookie(COOKIE, path="/")
+            return response
+
+        # HTML pages: the emailed link's password page, and sign-in without the built UI.
 
         @app.get("/login", include_in_schema=False)
         def login_page(next: str = "/"):
@@ -380,21 +493,16 @@ class Accounts:
         async def login(request: Request) -> Response:
             form = await request.form()
             next_path = _safe_next(str(form.get("next") or "/"))
-            email = normalize_email(str(form.get("email") or ""))
-            keys = ("client:" + self._client(request), "email:" + email)
-            if self._blocked(*keys):
-                return _login_page(next_path, "Too many attempts; try again in 10 minutes.", 429)
-            password = str(form.get("password") or "")[:MAX_PASSWORD]
-            user = self.store.sign_in(email, password)
+            status, user, message = self._sign_in(request, str(form.get("email") or ""),
+                                                  str(form.get("password") or ""))
             if user is None:
-                self._fail(*keys)
-                return _login_page(next_path, "That email and password do not match an account.", 401)
+                return _login_page(next_path, message, status)
             return self._cookie(request, RedirectResponse(next_path, status_code=303), user)
 
         @app.get("/logout", include_in_schema=False)
         def logout(request: Request):
             self.store.close_session(request.cookies.get(COOKIE))
-            response = RedirectResponse("/login", status_code=303)
+            response = RedirectResponse("/" if self.public_ui else "/login", status_code=303)
             response.delete_cookie(COOKIE, path="/")
             return response
 
@@ -405,28 +513,10 @@ class Accounts:
 
         @app.post("/signup", include_in_schema=False)
         async def signup(request: Request) -> Response:
-            email = normalize_email(str((await request.form()).get("email") or ""))
-            if not self.allowed_email(email):
+            status, message = self._sign_up(request, str((await request.form()).get("email") or ""))
+            if status != 200:
                 return _email_page("/signup", "Create an account", f"Use your {domains} address.",
-                                   f"Only {domains} addresses can sign up.", 400)
-            row = self.store.user(email)
-            try:
-                if row is not None and row[2] is not None:
-                    token = self.store.issue(row[0], "reset", RESET_LIFETIME)
-                    self._mail(email, "Your OpenEPW account", (
-                        "Someone asked to create an OpenEPW account for this address, which already has an "
-                        "account.\n\nSign in, or set a new password with this link (valid for 1 hour):\n"
-                        f"{self._link(request, token)}\n\nIf this was not you, ignore this email."))
-                else:
-                    user = self.store.create_pending(email)
-                    token = self.store.issue(user, "setup", SETUP_LIFETIME)
-                    self._mail(email, "Finish creating your OpenEPW account", (
-                        "Choose your password with this link (valid for 24 hours, once):\n"
-                        f"{self._link(request, token)}\n\nIf you did not ask for an OpenEPW account, "
-                        "ignore this email."))
-            except MailError:
-                return _email_page("/signup", "Create an account", "The email could not be sent.",
-                                   "The email service is not answering; try again later.", 503)
+                                   message, status)
             return _sent_page()
 
         @app.get("/reset", include_in_schema=False)
@@ -436,18 +526,10 @@ class Accounts:
 
         @app.post("/reset", include_in_schema=False)
         async def reset(request: Request) -> Response:
-            email = normalize_email(str((await request.form()).get("email") or ""))
-            row = self.store.user(email) if self.allowed_email(email) else None
-            if row is not None and row[2] is not None and not row[3]:
-                token = self.store.issue(row[0], "reset", RESET_LIFETIME)
-                try:
-                    self._mail(email, "Reset your OpenEPW password", (
-                        "Choose a new password with this link (valid for 1 hour, once):\n"
-                        f"{self._link(request, token)}\n\nIf you did not ask for this, ignore this email; "
-                        "your password stays the same."))
-                except MailError:
-                    return _email_page("/reset", "Reset your password", "The email could not be sent.",
-                                       "The email service is not answering; try again later.", 503)
+            status, message = self._reset(request, str((await request.form()).get("email") or ""))
+            if status != 200:
+                return _email_page("/reset", "Reset your password", "The email could not be sent.",
+                                   message, status)
             return _sent_page()
 
         @app.get("/password", include_in_schema=False)

@@ -96,7 +96,9 @@ def _accounts(config, remote: bool, mailer) -> Accounts | None:
         return None
     domains = [d.strip() for d in config.allowed_email_domains.split(",") if d.strip()]
     bearer = config.bearer_token.get_secret_value() if config.bearer_token else None
-    return Accounts(AccountStore(config.data_root / "accounts"), mailer, config.public_url, domains, bearer)
+    public_ui = config.web_root is not None and (Path(config.web_root) / "index.html").is_file()
+    return Accounts(AccountStore(config.data_root / "accounts"), mailer, config.public_url, domains, bearer,
+                    public_ui=public_ui)
 
 
 def create_app(service=None, *, remote=False, chat_parser=None, mailer=None):
@@ -134,7 +136,7 @@ def create_app(service=None, *, remote=False, chat_parser=None, mailer=None):
         if getattr(request.state, "signed_in", False) or request.url.path == "/health":
             return
         if accounts is not None:
-            if request.url.path in OPEN_PATHS:
+            if request.url.path in OPEN_PATHS or request.url.path.startswith("/auth/"):
                 return
             raise HTTPException(401, "Authentication required")
         token = service.config.bearer_token
@@ -417,4 +419,12 @@ def create_app(service=None, *, remote=False, chat_parser=None, mailer=None):
         from fastapi.staticfiles import StaticFiles
 
         app.mount("/", StaticFiles(directory=web_root, html=True), name="web")
+
+        @app.middleware("http")
+        async def fresh_page(request, call_next):
+            # Pages are revalidated so a deploy reaches returning browsers; hashed assets stay cacheable.
+            response = await call_next(request)
+            if response.headers.get("content-type", "").startswith("text/html"):
+                response.headers["Cache-Control"] = "no-cache"
+            return response
     return app

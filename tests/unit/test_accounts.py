@@ -47,11 +47,14 @@ def _account(client, mailbox, email="ada@cornell.edu", password=GOOD):
     return done
 
 
-def test_everything_but_health_and_the_account_pages_needs_a_session(tmp_path):
+def test_visitors_get_the_landing_page_but_not_the_api(tmp_path):
     with _client(tmp_path, Mailbox()) as client:
         assert client.get("/health").status_code == 200
         page = client.get("/")
-        assert page.status_code == 303 and page.headers["location"] == "/login?next=/"
+        assert page.status_code == 200 and page.headers["cache-control"] == "no-cache"   # the landing page
+        assert client.get("/auth/session").json() == {"accounts": True, "signed_in": False, "email": None,
+                                                      "domains": ["cornell.edu"]}
+        assert client.get("/docs").status_code == 303 and client.get("/openapi.json").status_code == 303
         assert client.get("/v1/catalog/map").status_code == 401
         assert client.post("/v1/chat/sessions").status_code == 401
         for path in ("/login", "/signup", "/reset", "/password"):
@@ -219,3 +222,35 @@ def test_accounts_cli_lists_and_disables(tmp_path, capsys):
     capsys.readouterr()
     assert store.sign_in("ada@cornell.edu", GOOD) is None
     assert main(["--data-root", str(tmp_path), "accounts", "disable", "nobody@cornell.edu"]) == 2
+
+
+def test_the_landing_window_signs_in_and_out_with_json(tmp_path):
+    mailbox = Mailbox()
+    with _client(tmp_path, mailbox) as client:
+        refused = client.post("/auth/signup", json={"email": "ada@gmail.com"})
+        assert refused.status_code == 400 and "@cornell.edu" in refused.json()["message"]
+        sent = client.post("/auth/signup", json={"email": "ada@cornell.edu"})
+        assert sent.status_code == 200 and sent.json()["ok"] and "link" in sent.json()["message"]
+        assert client.post("/password", data={"token": mailbox.token("ada@cornell.edu"), "password": GOOD,
+                                              "confirm": GOOD}).status_code == 303
+        client.cookies.clear()
+        assert client.post("/auth/login", json={"email": "ada@cornell.edu", "password": "wrong guess"}
+                           ).status_code == 401
+        assert client.post("/auth/login", data={"email": "ada@cornell.edu", "password": GOOD}
+                           ).status_code == 401                                 # forms are not accepted here
+        signed = client.post("/auth/login", json={"email": "Ada@cornell.edu", "password": GOOD})
+        assert signed.status_code == 200 and COOKIE in signed.cookies
+        assert client.get("/auth/session").json()["email"] == "ada@cornell.edu"
+        assert client.post("/v1/chat/sessions").status_code == 201
+        assert client.post("/auth/reset", json={"email": "nobody@cornell.edu"}).status_code == 200
+        assert client.post("/auth/logout").status_code == 200
+        assert client.get("/auth/session").json()["signed_in"] is False
+        assert client.post("/v1/chat/sessions").status_code == 401
+
+
+def test_without_the_built_ui_visitors_go_to_the_sign_in_page(tmp_path):
+    service = WeatherService(RuntimeConfig(data_root=tmp_path / "data", public_url=PUBLIC),
+                             providers=[StationProvider()])
+    with TestClient(create_app(service, remote=True, mailer=Mailbox()), follow_redirects=False) as client:
+        page = client.get("/")
+        assert page.status_code == 303 and page.headers["location"] == "/login?next=/"

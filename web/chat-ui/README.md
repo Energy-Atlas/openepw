@@ -22,9 +22,22 @@ npm run dev
 ```
 
 Open `http://127.0.0.1:5173`. For a local production-build check, run
-`npm run build` followed by `npm run preview`. Both Vite modes proxy `/v1` to
-the loopback API on port 8000. The package can be installed and used without
+`npm run build` followed by `npm run preview`. Both Vite modes proxy `/v1` and
+`/auth` to the loopback API on port 8000. The package can be installed and used without
 Node or this UI.
+
+## Accounts and the landing page
+
+When the server has accounts ([ADR 0005](../../docs/decisions/0005-accounts.md)), a
+visitor who is not signed in sees a landing page: the globe alone, without the chat,
+the legend or catalog layers, and an OpenEPW prompt in the corner. Dragging turns the
+globe; a click anywhere opens the sign-in window, which also creates an account (the
+password is chosen from the emailed link) and resets a password. Signed in, a sign-out
+button sits above Start over; it also forgets the browser's current chat session. A
+session that ends while the chat is open (expired, signed out elsewhere) returns to the
+landing page. A local server without accounts opens the chat directly, without
+sign-out. To try accounts locally, start the API with `OPENEPW_ACCOUNTS_DEV_MAIL=1`;
+account links are printed in its console.
 
 ## Use
 

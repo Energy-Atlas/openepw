@@ -98,7 +98,7 @@ button { cursor: var(--oe-cursor-pointer); }
 .chat-dock .error { margin: 0; padding: .4rem .7rem; border-radius: 10px; background: var(--oe-paper); box-shadow: var(--oe-shadow); }
 /* Start over sits outside the chat panel, left of the reply area, so the field keeps its width. */
 .chat-dock { position: relative; }
-.dock-reset { position: absolute; right: calc(100% + .5rem); bottom: .45rem; pointer-events: auto; }
+.dock-reset { position: absolute; right: calc(100% + .5rem); bottom: .45rem; display: flex; flex-direction: column; gap: .4rem; pointer-events: auto; }
 .reset-confirm { position: absolute; bottom: calc(100% + .45rem); left: 0; z-index: 6; display: flex; flex-direction: column; gap: .35rem; width: 15rem; padding: .65rem .75rem; border-radius: 12px; background: var(--oe-paper); color: var(--oe-ink); box-shadow: var(--oe-shadow); font-size: .8rem; }
 .reset-confirm > div { display: flex; justify-content: flex-end; gap: .35rem; }
 .reset-confirm button { min-height: 2rem; padding: .35rem .75rem; border: 0; border-radius: 999px; font-size: .8rem; }
@@ -267,3 +267,22 @@ button:disabled, input:disabled { cursor: var(--oe-cursor); }
 .tool-line.live .live-dots::after { content: '…'; display: inline-block; animation: live-dots 1.2s steps(4, end) infinite; overflow: hidden; vertical-align: bottom; width: 0; }
 @keyframes live-dots { to { width: 1.1em; } }
 @media (prefers-reduced-motion: reduce) { .tool-line.live .live-dots::after { animation: none; width: auto; } }
+
+/* Landing page for visitors: the globe alone, a prompt, and the sign-in window on any click. */
+.landing .map-canvas { cursor: var(--oe-cursor-pointer); }
+.landing-prompt { position: absolute; z-index: 5; right: 1rem; bottom: 1rem; display: flex; flex-direction: column; align-items: flex-start; gap: .15rem; max-width: min(22rem, calc(100vw - 2rem)); padding: .7rem .95rem; border: 0; border-radius: 14px; background: color-mix(in srgb, var(--oe-paper) 97%, transparent); color: var(--oe-ink); box-shadow: var(--oe-shadow); text-align: left; font-size: .82rem; }
+.landing-prompt strong { font-size: .95rem; }
+.landing-prompt span { color: var(--oe-muted); }
+.auth-backdrop { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; padding: 1rem; background: color-mix(in srgb, var(--oe-ink) 35%, transparent); }
+.auth-dialog { display: flex; flex-direction: column; gap: .55rem; width: min(22rem, 100%); padding: 1rem 1.1rem; border-radius: 16px; background: var(--oe-paper); color: var(--oe-ink); box-shadow: 0 10px 30px color-mix(in srgb, var(--oe-ink) 30%, transparent); font-size: .85rem; }
+.auth-head { display: flex; align-items: center; justify-content: space-between; }
+.auth-head h2 { margin: 0; font-size: 1rem; }
+.auth-close { width: 1.8rem; height: 1.8rem; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--oe-ink); font-size: 1.2rem; line-height: 1; }
+.auth-dialog label { display: flex; flex-direction: column; gap: .25rem; font-size: .78rem; color: var(--oe-muted); }
+.auth-dialog input { padding: .55rem .7rem; border: 1px solid var(--oe-l3); border-radius: 10px; background: var(--oe-paper); color: var(--oe-ink); font-size: .85rem; }
+.auth-dialog .reply-primary { min-height: 2.25rem; padding: .5rem .8rem; border: 0; border-radius: 999px; background: var(--oe-ink); color: var(--oe-paper); font-weight: 600; }
+.auth-dialog .reply-primary:disabled { opacity: .6; }
+.auth-notice { margin: 0; padding: .45rem .6rem; border-radius: 10px; background: var(--oe-tint); font-size: .8rem; }
+.auth-notice.error { font-weight: 600; }
+.auth-links { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .3rem; }
+.auth-links button { padding: .2rem 0; border: 0; background: transparent; color: var(--oe-ink); text-decoration: underline; font-size: .78rem; }

@@ -21,6 +21,11 @@ export function BackIcon() {
   return <svg {...iconProps}><path d="M9 14 4 9l5-5" /><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" /></svg>
 }
 
+/** Door with an outward arrow: sign out of the hosted service. */
+export function SignOutIcon() {
+  return <svg {...iconProps}><path d="M14 4H6v16h8" /><path d="M10 12h10" /><path d="m17 8.5 3.5 3.5-3.5 3.5" /></svg>
+}
+
 export function RestartIcon() {
   return <svg {...iconProps}><path d="M4 4v6h6" /><path d="M5.5 15a7 7 0 1 0 1.6-7.3L4 10" /></svg>
 }

@@ -9,17 +9,17 @@ import { geojsonGeography } from './geography'
 import { mergeJobManifests } from './jobs'
 import { ViewPanel } from './views/ViewPanel'
 import { transcriptItems } from './transcript'
-import { BackIcon, DownloadIcon, EnterIcon, RestartIcon, TickIcon, ToolIcon } from './icons'
+import { BackIcon, DownloadIcon, EnterIcon, RestartIcon, SignOutIcon, TickIcon, ToolIcon } from './icons'
 import type { AvailabilitySummary, CatalogMap, ChatEvent, JobManifest, JobSnapshot, SessionSnapshot } from './types'
 
-const sessionKey = 'openepw-chat-session'
+export const sessionKey = 'openepw-chat-session'
 // Owner decision 2026-09-27: attachments (+) and map geography input stay hidden for now.
 const ATTACH_AND_MAP_INPUT = false
 let openingSession: Promise<SessionSnapshot> | null = null
 
 function randomKey(): string { return crypto.randomUUID() }
 
-export function App({ api: suppliedApi }: { api?: ChatApi }) {
+export function App({ api: suppliedApi, onSignOut }: { api?: ChatApi; onSignOut?: () => void }) {
   const api = useRef(suppliedApi ?? new ChatApi()).current
   const [session, setSession] = useState<SessionSnapshot | null>(null)
   const [catalogMap, setCatalogMap] = useState<CatalogMap | null>(null)
@@ -510,6 +510,8 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
     </form>
         </>}
         <div className="dock-reset">
+          {onSignOut && <button type="button" className="icon-button" aria-label="Sign out" title="Sign out"
+            onClick={() => { sessionStorage.removeItem(sessionKey); onSignOut() }}><SignOutIcon /></button>}
           {resetButton}
           {confirmReset && <div className="reset-confirm" role="alertdialog" aria-label="Start over?">
             <strong>Start over?</strong>

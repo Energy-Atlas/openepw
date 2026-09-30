@@ -36,7 +36,9 @@ openepw --data-root .local/openepw catalog export --out ../open-data/datasets/we
 
 ## 2. Set up account email (Resend)
 
-Account links are sent through [Resend](https://resend.com). It sends only from a domain
+Account links are sent through [Resend](https://resend.com). Resend's shared test sender
+(`onboarding@resend.dev`) delivers only to the email address of your own Resend account,
+which is enough to try staging yourself. To send to other people, Resend needs a domain
 you control and have verified; `cornell.edu` cannot be the sender.
 
 1. In Resend, add a sending domain you control, preferably a subdomain such as
@@ -82,10 +84,10 @@ revoked alone.
 
 4. **Apply**. The first build takes a few minutes. The log should show
    `Catalog installed from the data package`, then `Uvicorn running on http://0.0.0.0:10000`.
-5. Open the `onrender.com` address and choose **Create an account** with your
-   `@cornell.edu` address. The emailed link opens a page to choose a password (at least 12
-   characters) and signs you in; the browser stays signed in for 30 days. `/logout` signs
-   out, **Forgot password** emails a new link.
+5. Open the `onrender.com` address. Visitors see the globe alone; click anywhere, choose
+   **Create an account** and enter your `@cornell.edu` address. The emailed link opens a page to choose a password (at least 12
+   characters) and signs you in; the browser stays signed in for 30 days. The button
+   above Start over signs out; **Forgot password** emails a new link.
 
 ## Running it
 
