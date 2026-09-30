@@ -114,8 +114,13 @@ revoked alone.
 | Symptom | Cause |
 |---|---|
 | The service stops at start with "Remote mode requires …" | neither `OPENEPW_RESEND_API_KEY` with `OPENEPW_MAIL_FROM` nor `OPENEPW_BEARER_TOKEN` is set |
-| "The email service is not answering" on sign-up | the Resend key or sender is wrong, or the domain is not verified yet |
-| No email arrives | check spam; Resend's dashboard lists each message and whether it was delivered |
+| "The email service is not answering" on sign-up | Resend refused the message; the service log shows why (`accounts: not sent to … HTTP 4xx …`). Common reasons: the test sender `onboarding@resend.dev` only delivers to your Resend account's own address; the sender's domain is not verified yet; the sender or key was pasted with quotes |
+| "A link is on its way" but no email arrives | the log shows `sent to …, id …` (then check spam and Resend's Emails page), `hourly email limit reached` (three per address per hour; wait), or nothing for an unknown address on **Forgot password** |
+
+To test the mail settings directly, open the service's **Shell** in Render and run
+`openepw --data-root /var/data/openepw accounts test-mail you@cornell.edu`. It prints
+Resend's message id, or Resend's reason for refusing, with the sender and link settings
+in use (never the key).
 | The map legend is empty and products show "checked when planning" | no catalog: the package URL is unset or unreachable, or a checksum differs (see the start log) |
 | Every message says "could not read" | the OpenAI key is missing or wrong, and the offline parser found nothing in the message |
 | The login page keeps coming back | the browser blocks cookies for the site |

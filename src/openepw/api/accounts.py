@@ -14,6 +14,7 @@ import hashlib
 import hmac
 import html
 import json
+import logging
 import re
 import secrets
 import sqlite3
@@ -38,6 +39,13 @@ ATTEMPTS, WINDOW = 10, 600                  # failed sign-ins per address and pe
 MAILS_PER_ADDRESS, MAILS_PER_HOUR = 3, 100
 OPEN_PATHS = {"/health", "/login", "/logout", "/signup", "/reset", "/password"}
 _SCRYPT = {"n": 2 ** 14, "r": 8, "p": 1}
+_log = logging.getLogger("openepw.accounts")
+if not _log.handlers:                          # visible in the server log (Render's Logs tab)
+    _handler = logging.StreamHandler()
+    _handler.setFormatter(logging.Formatter("accounts: %(message)s"))
+    _log.addHandler(_handler)
+    _log.setLevel(logging.INFO)
+    _log.propagate = False
 _EMAIL = re.compile(r"^[^@\s]+@([^@\s]+)$")
 
 
@@ -72,6 +80,12 @@ def _digest(token: str) -> str:
 
 def normalize_email(value: str) -> str:
     return value.strip().lower()
+
+
+def masked(email: str) -> str:
+    """An address as the log shows it: first letter and domain."""
+    name, _, domain = email.partition("@")
+    return f"{name[:1]}***@{domain}" if domain else "***"
 
 
 # -- storage -----------------------------------------------------------------------------
@@ -202,7 +216,7 @@ class AccountStore:
 # -- mail --------------------------------------------------------------------------------
 
 class Mailer(Protocol):
-    def send(self, to: str, subject: str, text: str) -> None: ...
+    def send(self, to: str, subject: str, text: str) -> object: ...
 
 
 class MailError(RuntimeError):
@@ -215,17 +229,24 @@ class ResendMailer:
     def __init__(self, api_key: str, sender: str, timeout: float = 20):
         self.api_key, self.sender, self.timeout = api_key, sender, timeout
 
-    def send(self, to: str, subject: str, text: str) -> None:
+    def send(self, to: str, subject: str, text: str) -> str:
+        """Hand the message to Resend; returns Resend's message id."""
         body = json.dumps({"from": self.sender, "to": [to], "subject": subject, "text": text}).encode()
         request = urllib.request.Request(self.URL, data=body, method="POST", headers={
             "Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json",
             "User-Agent": "openepw", "Idempotency-Key": secrets.token_hex(16)})
         try:
             with urllib.request.urlopen(request, timeout=self.timeout) as response:
-                response.read()
+                return str(json.loads(response.read() or b"{}").get("id", ""))
+        except urllib.error.HTTPError as error:
+            # Resend explains a refusal (unverified domain, test sender to another address, bad key).
+            try:
+                reason = json.loads(error.read() or b"{}").get("message", "")
+            except ValueError:
+                reason = ""
+            raise MailError(f"Resend refused the message: HTTP {error.code} {reason}".strip()) from None
         except (urllib.error.URLError, OSError) as error:
-            status = getattr(error, "code", None)
-            raise MailError(f"Resend refused the message ({status or type(error).__name__})") from None
+            raise MailError(f"Resend could not be reached: {type(error).__name__}") from None
 
 
 class ConsoleMailer:
@@ -347,8 +368,15 @@ class Accounts:
         return f"{base}/password#t={token}"
 
     def _mail(self, email: str, subject: str, text: str) -> None:
-        if self.store.may_mail(email):
-            self.mailer.send(email, subject, text)
+        if not self.store.may_mail(email):
+            _log.warning("not sent to %s (%s): hourly email limit reached", masked(email), subject)
+            return
+        try:
+            sent = self.mailer.send(email, subject, text)
+        except MailError as error:
+            _log.error("not sent to %s (%s): %s", masked(email), subject, error)
+            raise
+        _log.info("sent to %s (%s)%s", masked(email), subject, f", id {sent}" if isinstance(sent, str) and sent else "")
 
     def _cookie(self, request: Request, response: Response, user_id: int) -> Response:
         secure = request.headers.get("x-forwarded-proto", request.url.scheme) == "https"

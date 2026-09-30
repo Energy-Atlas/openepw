@@ -254,3 +254,76 @@ def test_without_the_built_ui_visitors_go_to_the_sign_in_page(tmp_path):
     with TestClient(create_app(service, remote=True, mailer=Mailbox()), follow_redirects=False) as client:
         page = client.get("/")
         assert page.status_code == 303 and page.headers["location"] == "/login?next=/"
+
+
+class Refusing:
+    def send(self, to, subject, text):
+        from openepw.api.accounts import MailError
+
+        raise MailError("Resend refused the message: HTTP 403 You can only send testing emails to your own address")
+
+
+def _log_lines():
+    import logging
+
+    lines = []
+
+    class Keep(logging.Handler):
+        def emit(self, record):
+            lines.append(record.getMessage())
+
+    logging.getLogger("openepw.accounts").addHandler(Keep())
+    return lines
+
+
+def test_resend_refusals_are_explained_in_the_window_and_the_log(tmp_path):
+    lines = _log_lines()
+    with _client(tmp_path, Refusing()) as client:
+        refused = client.post("/auth/signup", json={"email": "ada@cornell.edu"})
+        assert refused.status_code == 503 and "not answering" in refused.json()["message"]
+    assert any("a***@cornell.edu" in line and "HTTP 403" in line and "own address" in line for line in lines)
+    assert not any("ada@cornell.edu" in line for line in lines)                  # addresses are masked
+
+
+def test_sent_and_throttled_mail_is_logged(tmp_path):
+    lines = _log_lines()
+    mailbox = Mailbox()
+    with _client(tmp_path, mailbox) as client:
+        for _ in range(4):
+            client.post("/auth/signup", json={"email": "ada@cornell.edu"})
+    assert sum(line.startswith("sent to a***@cornell.edu") for line in lines) == 3
+    assert any("hourly email limit" in line for line in lines)
+
+
+def test_resend_errors_carry_resends_reason(monkeypatch):
+    import io
+    import urllib.error
+
+    from openepw.api.accounts import MailError, ResendMailer
+
+    def refuse(request, timeout):
+        assert request.get_header("Authorization") == "Bearer re_test"
+        raise urllib.error.HTTPError(request.full_url, 422, "Unprocessable", {},
+                                     io.BytesIO(b'{"message": "Invalid `from` field."}'))
+    monkeypatch.setattr("urllib.request.urlopen", refuse)
+    with pytest.raises(MailError, match=r"HTTP 422 Invalid `from` field\."):
+        ResendMailer("re_test", '"OpenEPW <onboarding@resend.dev>"').send("ada@cornell.edu", "s", "t")
+
+
+def test_the_test_mail_command_reports_resends_answer(tmp_path, monkeypatch, capsys):
+    from openepw.api.accounts import MailError, ResendMailer
+    from openepw.cli.main import main
+
+    monkeypatch.setenv("OPENEPW_RESEND_API_KEY", "re_test")
+    monkeypatch.setenv("OPENEPW_MAIL_FROM", "OpenEPW <onboarding@resend.dev>")
+    monkeypatch.setattr(ResendMailer, "send", lambda self, to, subject, text: "msg-1")
+    assert main(["--data-root", str(tmp_path), "accounts", "test-mail", "ada@cornell.edu"]) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["sent"] and out["id"] == "msg-1" and "re_test" not in json.dumps(out)
+
+    def refuse(self, to, subject, text):
+        raise MailError("Resend refused the message: HTTP 403 domain is not verified")
+    monkeypatch.setattr(ResendMailer, "send", refuse)
+    assert main(["--data-root", str(tmp_path), "accounts", "test-mail", "ada@cornell.edu"]) == 2
+    printed = capsys.readouterr().out
+    assert "domain is not verified" in printed and "onboarding@resend.dev" in printed and "re_test" not in printed

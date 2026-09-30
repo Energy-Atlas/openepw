@@ -62,6 +62,8 @@ def main(argv=None):
     accounts_sub.add_parser("list")
     for action in ("disable", "enable"):
         accounts_sub.add_parser(action).add_argument("email")
+    accounts_sub.add_parser("test-mail", help="send a test email with this server's Resend settings"
+                            ).add_argument("email")
     args = parser.parse_args(argv)
     try:
         config = RuntimeConfig.load(
@@ -103,6 +105,21 @@ def main(argv=None):
             store = AccountStore(config.data_root / "accounts")
             if args.accounts_command == "list":
                 result = {"accounts": store.accounts()}
+            elif args.accounts_command == "test-mail":
+                from ..api.accounts import MailError, ResendMailer
+
+                if not (config.resend_api_key and config.mail_from):
+                    raise OpenEPWError("MAIL_NOT_CONFIGURED",
+                                       "Set OPENEPW_RESEND_API_KEY and OPENEPW_MAIL_FROM on this server")
+                settings = {"mail_from": config.mail_from, "public_url": config.public_url,
+                            "allowed_email_domains": config.allowed_email_domains}
+                try:
+                    message_id = ResendMailer(config.resend_api_key.get_secret_value(), config.mail_from).send(
+                        args.email.strip(), "OpenEPW test email",
+                        "This is a test from the OpenEPW server's account email settings.")
+                except MailError as refusal:
+                    raise OpenEPWError("MAIL_REFUSED", f"{refusal} (settings: {json.dumps(settings)})") from None
+                result = {"sent": True, "id": message_id, **settings}
             else:
                 if not store.set_disabled(args.email, args.accounts_command == "disable"):
                     raise OpenEPWError("UNKNOWN_ACCOUNT", f"No account for {args.email}")
