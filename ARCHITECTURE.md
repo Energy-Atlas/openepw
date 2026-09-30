@@ -29,7 +29,7 @@ src/openepw/
   visualization/{catalog,models,engine,store}.py  weather view semantics and immutable JSON
   jobs/{store,worker}.py  SQLite item records and bounded worker threads
   api/app.py             REST adapter
-  api/site_gate.py       site password for hosted deployments (signed 30-day cookie)
+  api/accounts.py        Cornell email accounts for hosted deployments (ADR 0005)
   deploy.py              hosted catalog: build once from the pinned open-data package
   chat/coordinator.py     browser-neutral durable conversation facts and events
   chat/products.py        named product choices and per-location catalog availability

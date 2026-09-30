@@ -42,6 +42,7 @@ are recorded separately. Installed source package version: 0.1.0.
 | Globe and decorative scene shadows | Bounded renderer implemented for local review | OpenFreeMap globe/buildings, automatic 3D at district zoom (no scene panel; terrain and alternate appearances not exposed in the UI), projected building ground/roof shadows and sampled relief occlusion; vector heights/DEM grid are approximations and never energy-model inputs |
 | Agent and real-client local pilot | MCP Stage 6 accepted on Windows | Real SDK stdio journeys and bounded Open-Meteo/OneBuilding runs; no human participant, other desktop host or EnergyPlus certification |
 | Local availability map | Research artifact, outside installed package | [PVGIS source-region approximation, NSRDB published grid, CMIP6 license counts](docs/validation/README.md); layers have different evidence bases and do not certify request eligibility |
+| Hosted accounts | Implemented on `feature/account-login`, offline and local-browser tested; live Resend delivery pending a verified sending domain | `@cornell.edu` sign-up by emailed link, password set from the link, reset, 30-day server-side sessions, throttling, `openepw accounts` CLI; bearer token kept for scripts ([ADR 0005](docs/decisions/0005-accounts.md)) |
 | Packaging/CI | Wheel/sdist built; local installation verified | Cross-OS runners configured; see actual run evidence |
 
 Reserved: sampled/stochastic weather, additional hourly scenarios/geographies,

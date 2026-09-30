@@ -212,9 +212,12 @@ boroughs) appear as separate places, and continent-wide sets are not supported.
 
 ## Hosted deployment
 
-The Render deployment ([guide](deploy/render.md)) is a single instance behind one shared
-site password: there are no user accounts, and everyone who signs in uses the owner's
-NLR, Copernicus and OpenAI credentials and shares chat storage. The Stage 1 catalog is
+The Render deployment ([guide](deploy/render.md)) is a single instance. People sign in
+with personal `@cornell.edu` accounts ([ADR 0005](decisions/0005-accounts.md)), but everyone
+signed in uses the owner's NLR, Copernicus and OpenAI credentials and one model spending
+stop, and chat sessions are not separated per user. Account email needs a Resend domain
+the owner controls. There is no admin page; accounts are listed and disabled from the
+server shell. The Stage 1 catalog is
 built from a pinned, checksummed version of the public catalog package in
 Energy-Atlas/open-data, so it is only as fresh as that version. Deploys restart running jobs, which resume but resend queued Copernicus requests.
 The package holds catalog metadata only; OneBuilding's redistribution terms are unclear and it is published by owner decision (see the package's data card).

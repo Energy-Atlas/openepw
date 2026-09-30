@@ -14,7 +14,7 @@ from ..jobs.worker import JobRunner
 from ..models import FutureRequest, OpenEPWError, WeatherPlan, WeatherRequest
 from ..service import WeatherService
 from ..visualization.models import VisualizationRequest
-from .site_gate import SiteGate
+from .accounts import OPEN_PATHS, Accounts, AccountStore, ConsoleMailer, ResendMailer
 
 
 class JobSubmission(BaseModel):
@@ -84,10 +84,27 @@ class ChatView(ChatAction):
     prompt: str | None = None
 
 
-def create_app(service=None, *, remote=False, chat_parser=None):
+def _accounts(config, remote: bool, mailer) -> Accounts | None:
+    """Cornell email accounts when a mail route is configured (ADR 0005), else None."""
+    if mailer is None and config.resend_api_key and config.mail_from:
+        mailer = ResendMailer(config.resend_api_key.get_secret_value(), config.mail_from)
+    elif mailer is None and config.accounts_dev_mail:
+        if remote:
+            raise ValueError("OPENEPW_ACCOUNTS_DEV_MAIL prints sign-in links and is for local development only")
+        mailer = ConsoleMailer()
+    if mailer is None:
+        return None
+    domains = [d.strip() for d in config.allowed_email_domains.split(",") if d.strip()]
+    bearer = config.bearer_token.get_secret_value() if config.bearer_token else None
+    return Accounts(AccountStore(config.data_root / "accounts"), mailer, config.public_url, domains, bearer)
+
+
+def create_app(service=None, *, remote=False, chat_parser=None, mailer=None):
     service = service or WeatherService()
-    if remote and not (service.config.bearer_token or service.config.site_password):
-        raise ValueError("Remote mode requires OPENEPW_BEARER_TOKEN or OPENEPW_SITE_PASSWORD")
+    accounts = _accounts(service.config, remote, mailer)
+    if remote and not (service.config.bearer_token or accounts):
+        raise ValueError("Remote mode requires OPENEPW_BEARER_TOKEN, or accounts through "
+                         "OPENEPW_RESEND_API_KEY and OPENEPW_MAIL_FROM")
     runner = JobRunner(service)
     if chat_parser is None:
         try:
@@ -112,9 +129,14 @@ def create_app(service=None, *, remote=False, chat_parser=None):
         runner.close()
 
     def authenticate(request: Request, authorization: str | None = Header(default=None)):
-        # A browser signed in through the site password needs no bearer token; health stays open.
-        if getattr(request.state, "site_ok", False) or request.url.path == "/health":
+        # The account gate has already admitted signed-in browsers and bearer scripts; its own
+        # pages and health stay open.
+        if getattr(request.state, "signed_in", False) or request.url.path == "/health":
             return
+        if accounts is not None:
+            if request.url.path in OPEN_PATHS:
+                return
+            raise HTTPException(401, "Authentication required")
         token = service.config.bearer_token
         if token and not hmac.compare_digest(
             authorization or "", "Bearer " + token.get_secret_value()
@@ -125,8 +147,8 @@ def create_app(service=None, *, remote=False, chat_parser=None):
         title="OpenEPW", version="0.1.0", lifespan=lifespan, dependencies=[Depends(authenticate)]
     )
     app.state.service = service
-    if service.config.site_password:
-        SiteGate(service.config.site_password.get_secret_value()).install(app)
+    if accounts is not None:
+        accounts.install(app)
     app.state.runner = runner
     app.state.chat = chat
 

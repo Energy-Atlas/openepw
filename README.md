@@ -137,7 +137,8 @@ is never increased by requesting a denser grid.
 
 ## Deploy
 
-A Docker image and Render Blueprint serve the chat UI and API behind one site password;
+A Docker image and Render Blueprint serve the chat UI and API behind Cornell email
+accounts (production and an auto-deployed staging service);
 see [docs/deploy/render.md](docs/deploy/render.md).
 
 ## Verify

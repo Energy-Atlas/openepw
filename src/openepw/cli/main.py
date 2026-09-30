@@ -57,6 +57,11 @@ def main(argv=None):
     catalog_export.add_argument("--name", default="weather-availability-catalog")
     catalog_export.add_argument("--package-version", required=True)
     catalog_export.add_argument("--metadata", type=Path, help="JSON merged into datapackage.json (title, licenses...)")
+    accounts = sub.add_parser("accounts", help="hosted accounts on this data root (ADR 0005)")
+    accounts_sub = accounts.add_subparsers(dest="accounts_command", required=True)
+    accounts_sub.add_parser("list")
+    for action in ("disable", "enable"):
+        accounts_sub.add_parser(action).add_argument("email")
     args = parser.parse_args(argv)
     try:
         config = RuntimeConfig.load(
@@ -92,6 +97,16 @@ def main(argv=None):
             result = service.visualize_weather(request)
         elif args.command == "view-page":
             result = service.page_weather_data(args.input, args.offset, args.limit)
+        elif args.command == "accounts":
+            from ..api.accounts import AccountStore
+
+            store = AccountStore(config.data_root / "accounts")
+            if args.accounts_command == "list":
+                result = {"accounts": store.accounts()}
+            else:
+                if not store.set_disabled(args.email, args.accounts_command == "disable"):
+                    raise OpenEPWError("UNKNOWN_ACCOUNT", f"No account for {args.email}")
+                result = {"email": args.email.strip().lower(), "disabled": args.accounts_command == "disable"}
         elif args.command == "catalog":
             if args.catalog_command == "status":
                 view = service.catalog_store.active()

@@ -18,9 +18,13 @@ class RuntimeConfig(Model):
     cds_key: SecretStr | None = None
     openmeteo_api_key: SecretStr | None = None
     bearer_token: SecretStr | None = None
-    # Hosted deployments: one password for the browser UI and API, and the built UI to serve.
-    site_password: SecretStr | None = None
+    # Hosted deployments: the built UI to serve, and Cornell email accounts (ADR 0005).
     web_root: Path | None = None
+    resend_api_key: SecretStr | None = None
+    mail_from: str | None = None                 # e.g. "OpenEPW <accounts@mail.example.org>"
+    public_url: str | None = None                # base of emailed links; Render's URL when unset
+    allowed_email_domains: str = "cornell.edu"   # comma-separated, exact domains
+    accounts_dev_mail: bool = False              # local only: print account links to the console
     timeout: float = Field(default=60, gt=0, le=300)
     retries: int = Field(default=2, ge=0, le=5)
     max_response_bytes: int = Field(default=50_000_000, gt=0)
@@ -52,5 +56,7 @@ class RuntimeConfig(Model):
             key = "OPENEPW_" + name.upper()
             if environment.get(key):
                 values[name] = environment[key]
+        if "public_url" not in values and environment.get("RENDER_EXTERNAL_URL"):
+            values["public_url"] = environment["RENDER_EXTERNAL_URL"]
         values.update(overrides)
         return cls(**values)

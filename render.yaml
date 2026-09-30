@@ -18,7 +18,13 @@ services:
     envVars:
       - key: OPENEPW_DATA_ROOT
         value: /var/data/openepw
-      - key: OPENEPW_SITE_PASSWORD
+      - key: OPENEPW_ALLOWED_EMAIL_DOMAINS
+        value: cornell.edu
+      - key: OPENEPW_RESEND_API_KEY
+        sync: false
+      - key: OPENEPW_MAIL_FROM
+        sync: false
+      - key: OPENEPW_BEARER_TOKEN
         sync: false
       - key: OPENEPW_NLR_API_KEY
         sync: false
@@ -49,7 +55,13 @@ services:
     envVars:
       - key: OPENEPW_DATA_ROOT
         value: /var/data/openepw
-      - key: OPENEPW_SITE_PASSWORD
+      - key: OPENEPW_ALLOWED_EMAIL_DOMAINS
+        value: cornell.edu
+      - key: OPENEPW_RESEND_API_KEY
+        sync: false
+      - key: OPENEPW_MAIL_FROM
+        sync: false
+      - key: OPENEPW_BEARER_TOKEN
         sync: false
       - key: OPENEPW_NLR_API_KEY
         sync: false
