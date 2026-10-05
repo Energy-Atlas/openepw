@@ -27,50 +27,73 @@ Never paste EPW bytes into a model prompt.
 
 ## Tools and results
 
-| Journey | Tools | Result to retain |
-| --- | --- | --- |
-| Geography and choices | `weather_geocode`, `weather_assess`, `weather_discover` | Explicit location candidate; occurrence-level reasons and evidence date |
-| Place inputs | `weather_places_interpret`, `weather_places_preview`, `weather_place_set` | Route place text; numbered point preview (top geocoder match per name, ambiguity flagged, unresolved rows kept) with digest; clarification questions and draft for descriptive sets; GeoNames attribution |
-| Planning | `weather_plan`, `plan_inspect` | Immutable `plan_hash`, selected/output rows, warnings and estimated calls |
-| EPW input | `epw_upload`, `epw_register_path` | Checksummed `artifact_id`, row count and input QC |
-| Execution | `weather_submit` | Durable `job_id` from a stored weather plan hash |
-| Progress | `job_inspect`, `job_cancel`, `job_retry_failed` | State, counts, completed output IDs, issue codes and artifact IDs |
-| Results | `artifact_inspect`, `weather_export_compact` | Checksum, media type, size, QC/manifest summary and resource URI |
-| Visualization | `weather_visualization_capabilities`, `weather_data_describe`, `weather_visualize`, `weather_data_page` | Framework-neutral JSON spec, factual summary, stable `view_id` and bounded prepared-data pages |
+Tools are grouped by who calls them (`openepw.mcp.access`). Each result's text content is a
+short summary for model context with the identifiers needed to continue; `structuredContent`
+holds the bounded full data for renderers. Dict parameters publish inlined JSON schemas.
+Summaries (`openepw.mcp.summaries`) never put data rows into text; an unknown or failed
+summary falls back to a key-only stub (field names plus identifier values) and logs a warning.
 
-`weather_fetch` and `weather_inspect` remain v0.1 compatibility aliases for
-weather submission and inspection. Future-weather MCP endpoints are temporarily
-absent: `future_plan`, `future_submit` and `weather_generate_future` are not
-registered. Compatibility requests using `weather_plan(kind="future")`,
-`weather_assess(kind="future")`, or retry of an existing future job return
-`FEATURE_SUSPENDED`. Existing plans, jobs and artifacts remain readable; this
-MCP suspension does not change the Python scientific core or REST API. New
-clients should use the stored weather plan tools. Normal results are structured JSON capped at
-160 KB; plans and job summaries page or truncate at 50 rows. An oversized
-query returns `RESOURCE_LIMIT`, so narrow it. Large EPWs and ZIPs are never
-inline tool results.
+| Group | Tools |
+| --- | --- |
+| Model may call | `weather_places_interpret`, `weather_geocode`, `weather_places_preview`, `weather_place_set`, `weather_locations_review`, `weather_product_offers`, `weather_assess`, `weather_plan`, `plan_inspect`, `job_inspect`, `artifact_inspect`, `weather_data_describe`, `weather_visualization_capabilities`, `weather_visualize` |
+| Host on a person's action | `weather_submit`, `job_cancel`, `job_retry_failed`, `weather_export_compact`, `epw_upload`, `epw_register_path`, `weather_data_page` |
+| Legacy | `weather_discover` (planning discovers internally), `weather_fetch`, `weather_inspect` |
+
+`weather_locations_review` returns points with fixed standard-time offsets (estimated from
+longitude when missing), a standard-time note and a location key. `weather_product_offers`
+returns named downloadable products with catalog availability per location.
+
+Future-weather MCP endpoints are temporarily absent: `future_plan`, `future_submit` and
+`weather_generate_future` are not registered. Compatibility requests using
+`weather_plan(kind="future")`, `weather_assess(kind="future")`, or retry of an existing future
+job return `FEATURE_SUSPENDED`. Existing plans, jobs and artifacts remain readable; this MCP
+suspension does not change the Python scientific core or REST API.
 
 `weather://artifacts/{artifact_id}` reads checksum-verified bytes under the
 configured data root, up to 10 MB. A client may represent these as base64
 blob content and may impose a lower host limit. The tested MCP SDK client
 could read a full synthetic annual EPW. Inspect metadata/QC before requesting
 bulk resource data. An artifact URI is an opaque local identifier, not a path
-or authorization token.
+or authorization token. Large EPWs and ZIPs are never inline tool results.
 
-Tool execution failures set MCP `isError=true` and carry a safe JSON error
-with `code`, `message` and `retryable`. Invalid tool names/arguments are
-protocol errors. Ordinary output does not include credentials, local paths or
-full-year hourly arrays. A catalog `supported` answer means eligible to try retrieval;
-only output QC describes retrieved-weather gaps. Every manifest currently
-records `simulation_ready=false`; do not claim simulator certification.
+## Approval
+
+`weather_submit`, the legacy `weather_fetch` and `job_retry_failed` ask the client to confirm
+with the person through MCP elicitation before any provider retrieval. A retry names the
+original job's plan hash in the prompt. Validation that cannot start anything runs before the
+prompt, so a weather plan with no outputs is refused with `NO_EXECUTABLE_OUTPUTS` before any
+confirmation is requested. A client without elicitation support receives `APPROVAL_REQUIRED`;
+a declined confirmation returns `APPROVAL_DECLINED`. Jobs record `approved_via`
+(`elicitation`, `api` or `chat`). The legacy console answers the confirmation for plans it was
+told to submit and approves the original plan for `/retry` (`StdioMCPPort.approve`). REST
+`/v1/jobs/{id}/retry` and the web chat retry keep the original job's `approved_via`.
+
+## Errors and limits
+
+Tool failures set `isError=true` with JSON `{code, message, retryable}`. Invalid tool names or
+arguments are protocol errors. Validation errors add `details: [{loc, msg}]` without input
+values; unexpected failures add a `correlation_id` that is logged on the server. Ordinary
+output does not include credentials, local paths or full-year hourly arrays. Results are capped
+at 160 KB; plans and job summaries page or truncate at 50 rows; an oversized query returns
+`RESOURCE_LIMIT`, so narrow it.
+
+The data-root lock is per process: owners within one process (for example the API and its
+in-process MCP server) share one job runner. A stdio `openepw mcp` started on a data root that
+a running `openepw serve`, or any other process, already holds fails at startup with
+`DATA_ROOT_BUSY`; use separate data roots. Future-weather endpoints remain suspended
+(`FEATURE_SUSPENDED`). A catalog `supported` answer means eligible to try retrieval; only
+output QC describes retrieved-weather gaps. Every manifest currently records
+`simulation_ready=false`; do not claim simulator certification.
 
 ## Example flow
 
-1. Call `weather_assess` or `weather_discover` with an explicit location,
+1. Call `weather_assess` with an explicit location,
    product and period. If geocoding returns multiple candidates, select one
    before planning.
-2. Call `weather_plan`, inspect its `plan_hash`, occurrence rows and
-   warnings, then `weather_submit` with that hash.
+2. Call `weather_locations_review`, get the person's approval, call
+   `weather_product_offers` and let them choose, then `weather_plan`; inspect its `plan_hash`,
+   rows and warnings. After the person approves, call `weather_submit` with that hash and
+   confirm when asked.
 3. Poll `job_inspect` by job ID. Inspect the emitted weather artifact and its
    manifest/QC IDs. A partial job can retain successful outputs.
 4. Call `weather_export_compact` explicitly for a completed weather job if

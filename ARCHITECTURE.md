@@ -253,6 +253,15 @@ requires an explicit allowed root. Stdio and loopback Streamable HTTP are
 supported; remote MCP authentication is deferred rather than exposed without
 protection. See [local MCP contract](docs/mcp/README.md).
 
+Since 2026-10 (ADR 0005, P1) the MCP server is shaped for tool-calling agents: product offers
+and location offset review are `WeatherService` operations with MCP tools; dict parameters
+publish inlined schemas; results carry a short model summary plus structured data; submission
+and retry require an MCP elicitation confirmation; and the API process shares its single
+`JobRunner` with an in-process MCP server (`app.state.mcp_server`). A data-root lock keeps job
+execution to one process: owners within a process share it, but a stdio `openepw mcp` started
+on a data root already held by a running `openepw serve` (or another process) fails at startup
+with `DATA_ROOT_BUSY`, so use separate data roots.
+
 The optional [reference harness](docs/harness/README.md) consumes only these
 MCP tools through a real stdio client. Its small model adapter extracts typed
 intent; the service retains scientific authority. Safe local run state stores

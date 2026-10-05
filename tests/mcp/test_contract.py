@@ -86,3 +86,13 @@ def test_results_carry_a_summary_and_structured_data(tmp_path):
     assert result.structuredContent["families"]
     text = result.content[0].text
     assert text.startswith("View families:") and len(text) <= 1500
+
+
+def test_every_registered_tool_has_exactly_one_access_class(tmp_path):
+    from openepw.mcp.access import HOST_TOOLS, LEGACY_TOOLS, MODEL_TOOLS
+
+    server = create_server(WeatherService(RuntimeConfig(data_root=tmp_path)))
+    names = {tool.name for tool in asyncio.run(server.list_tools())}
+    assert names == MODEL_TOOLS | HOST_TOOLS | LEGACY_TOOLS
+    assert not (MODEL_TOOLS & HOST_TOOLS or MODEL_TOOLS & LEGACY_TOOLS or HOST_TOOLS & LEGACY_TOOLS)
+    assert "weather_submit" in HOST_TOOLS and "weather_plan" in MODEL_TOOLS

@@ -244,6 +244,7 @@ is retired.
 - Descriptions state purpose, when to use, prerequisites and what not to do;
   server instructions describe workflow order and gates.
 - `weather_submit` uses elicitation confirmation and records `approved_via`.
+- `job_retry_failed` asks the same elicitation confirmation for the original plan hash (owner decision 2026-10-05).
 - `weather_fetch` remains for compatibility but stores the plan and requires the
   same confirmation. `weather_inspect` remains as a deprecated alias.
 

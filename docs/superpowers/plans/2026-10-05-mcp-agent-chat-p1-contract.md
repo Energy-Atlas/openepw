@@ -2545,3 +2545,20 @@ interfaces rather than guesses.
 Merging into `deploy/staging` needs the owner's explicit go-ahead after P4. The
 `feature/account-login` branch also edits `api/app.py` (site gate); expect a merge conflict
 there when the branches meet.
+
+## Execution notes (2026-10-05)
+
+Owner-approved deviations made during execution. The code blocks above are left as written
+and are superseded where they differ.
+
+- Task 3 (summaries): MCP result summaries never put data rows into text. An unknown or
+  failed summary falls back to a key-only stub (field names plus identifier values) and logs a
+  warning. Full summarizer tests were added.
+- Task 7 (retry): `job_retry_failed` does not run "under the original approval" as the
+  description text above says. It asks the person to confirm through elicitation, naming the
+  original job's plan hash; validation that cannot start anything runs before the prompt, and a
+  weather plan with no outputs is refused with `NO_EXECUTABLE_OUTPUTS` before any prompt. REST
+  `/v1/jobs/{id}/retry` and the web chat retry keep the original job's `approved_via`. The
+  legacy console approves the original plan for `/retry`.
+- Data-root lock: it is per process, so owners within one process share it; a second process
+  on the same data root fails at startup with `DATA_ROOT_BUSY`.

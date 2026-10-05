@@ -1,7 +1,6 @@
 # ADR 0005 — One MCP agent core for web and CLI chat
 
-Date: 2026-10-05. Status: design agreed with the owner in conversation on
-2026-10-04/05; implementation not started. Full design:
+Date: 2026-10-05. Status: design agreed with the owner on 2026-10-04/05; P1 (service moves and MCP contract) implemented on feature/mcp-agent-chat; P2–P5 pending. Full design:
 [unified MCP agent chat](../superpowers/specs/2026-10-05-mcp-agent-chat-design.md).
 
 ## Context
