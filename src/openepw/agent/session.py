@@ -174,6 +174,16 @@ class AgentSession:
         self.emit("notice", "Went back to: " + (restored.form.prompt if restored.form else "the start"),
                   form=restored.form.model_dump(mode="json") if restored.form else None)
 
+    async def set_mode(self, mode: str) -> None:
+        """Switch between agent and guided mode; agent mode needs a policy with a model."""
+        switch = getattr(self.policy, "set_mode", None)
+        if switch is None:
+            if mode != self.state.mode:
+                self.emit("error", "Agent mode needs a configured model (OPENAI_API_KEY).",
+                          code="MODEL_UNAVAILABLE")
+            return
+        await self._guard(switch(self, mode))
+
     async def new_request(self) -> None:
         self.facts.new_request()
         self.close_form()

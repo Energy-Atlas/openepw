@@ -13,11 +13,13 @@ from ..models import OpenEPWError
 from .guided import GuidedPolicy
 from .interactions import Answer, Event, Interaction
 from .mcp_port import ApprovalBook, InProcessMCP
-from .session import MAX_UPLOAD, AgentSession
+from .model_port import DEFAULT_MODEL, ModelPort, OpenAIModel, load_openai_key
+from .policy_model import ModelPolicy
+from .session import MAX_UPLOAD, AgentSession, Policy
 from .store import SessionStore
 
 HELP = ("Type a weather request, or answer the current form.\n"
-        "/back  /new  /upload <path to .epw>  /status  /mode  /help  /quit\n"
+        "/back  /new  /upload <path to .epw>  /status  /mode [agent|guided]  /help  /quit\n"
         "EPW bytes stay out of the conversation; review QC before simulation.")
 _NUMBERS = re.compile(r"\d+(?:\s*,\s*\d+)*")
 
@@ -33,6 +35,24 @@ def prepare_console(stream: Any = None) -> None:
     reconfigure = getattr(stream, "reconfigure", None)
     if reconfigure is not None:
         reconfigure(errors="replace")
+
+
+def chat_model(mode: str | None, *, model: str | None = None, max_cost: float = 5.0,
+               data_root: str | Path = ".", env_file: str | Path | None = ".env"
+               ) -> tuple[ModelPort | None, str | None]:
+    """The model for `openepw chat`, or None for guided mode, with a notice to show.
+
+    Agent mode is the default when an OpenAI key is in the environment or the ignored dotenv
+    file; usage is recorded in ``<data root>/agent/model-usage.json`` and stops at ``max_cost``.
+    """
+    if mode == "guided":
+        return None, None
+    key = load_openai_key(env_file)
+    if not key:
+        return None, ("No OPENAI_API_KEY found; using guided mode (rule-based forms)."
+                      if mode == "agent" or mode is None else None)
+    return OpenAIModel(key, model=model or DEFAULT_MODEL, max_cost_usd=max_cost,
+                       ledger_path=Path(data_root) / "agent" / "model-usage.json"), None
 
 
 def _read_upload(argument: str, write: Callable[[str], Any]) -> tuple[bytes, str] | None:
@@ -99,7 +119,9 @@ def parse_reply(form: Interaction, line: str) -> Answer | None:
 
 async def main_chat(service: Any, *, session_id: str | None = None,
                     read: Callable[[str], str] = input, write: Callable[[str], Any] = print,
-                    poll_seconds: float = 0.5, follow_seconds: float = 120.0) -> int:
+                    poll_seconds: float = 0.5, follow_seconds: float = 120.0,
+                    model: ModelPort | None = None) -> int:
+    """The chat loop; agent mode when a model is given, otherwise guided mode."""
     from ..mcp.server import create_server
 
     runner = JobRunner(service)
@@ -121,11 +143,15 @@ async def main_chat(service: Any, *, session_id: str | None = None,
     seen = 0
     try:
         async with InProcessMCP(create_server(service, runner=runner), approvals) as port:
-            policy = GuidedPolicy()
+            policy: Policy = ModelPolicy(model) if model is not None else GuidedPolicy()
             session = (AgentSession.resume(store, port, approvals, policy, session_id, poll_seconds=poll_seconds)
                        if session_id else
                        AgentSession.start(store, port, approvals, policy, poll_seconds=poll_seconds))
-            write(f"OpenEPW chat (guided mode) · session {session.id}. Type /help for commands.")
+            if model is None and session.state.mode == "agent":
+                session.state.mode = "guided"          # a saved agent session without a model
+                session.emit("notice", "No model is configured; continuing in guided mode.", mode="guided")
+            write(f"OpenEPW chat ({session.state.mode} mode) · session {session.id}. "
+                  "Type /help for commands.")
             await session.begin()
 
             def flush() -> None:
@@ -169,11 +195,20 @@ async def main_chat(service: Any, *, session_id: str | None = None,
                         write(HELP)
                         continue
                     if command == "/mode":
-                        write("Guided mode: rule-based forms. Agent mode arrives with the model loop.")
+                        wanted = argument.strip().lower() or (
+                            "guided" if session.state.mode == "agent" else "agent")
+                        if wanted not in ("agent", "guided"):
+                            write("Use /mode, /mode agent or /mode guided.")
+                            continue
+                        await session.set_mode(wanted)
+                        flush()
+                        write(f"Mode: {session.state.mode}.")
+                        if session.form and session.form != before:
+                            write(render_form(session.form))
                         continue
                     if command == "/status":
                         finished = set(session.facts.finished_job_ids)
-                        write("Jobs: " + (", ".join(f"{job} ({'finished' if job in finished else 'running'})"
+                        write(f"Mode: {session.state.mode}. Jobs: " + (", ".join(f"{job} ({'finished' if job in finished else 'running'})"
                                                     for job in session.facts.job_ids) or "none"))
                         continue
                     if command == "/back":

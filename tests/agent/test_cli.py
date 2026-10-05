@@ -110,4 +110,60 @@ def test_the_command_returns_130_when_interrupted(tmp_path, monkeypatch):
 
     monkeypatch.setattr(agent_cli, "main_chat", interrupted)
     monkeypatch.setattr(agent_cli, "prepare_console", lambda: None)
+    monkeypatch.setattr(agent_cli, "chat_model", lambda mode, **options: (None, None))
     assert main(["--data-root", str(tmp_path), "chat"]) == 130
+
+
+ITHACA = {"lat": 42.44, "lon": -76.50, "name": "Ithaca, New York, United States"}
+
+
+def test_an_agent_mode_conversation_uses_the_same_text_forms(tmp_path):
+    from openepw.agent.model_port import ScriptedModel, call, say
+
+    model = ScriptedModel([
+        call("review_location", {"locations": ITHACA}), call("choose_products", {}),
+        call("weather_plan", {"request": {"product": "historical", "years": [2018],
+                                          "dataset_selections": [{"provider": "openmeteo", "dataset": "era5"}]}}),
+        call("review_plan"),
+        say("Done: one EPW, not certified simulation-ready (simulation_ready=false).")])
+    lines = iter(["AMY 2018 for Ithaca NY", "a", "1", "run", "/quit"])
+    output = []
+    code = asyncio.run(main_chat(scenario_service(tmp_path), read=lambda prompt: next(lines),
+                                 write=output.append, poll_seconds=0.05, model=model))
+    text = "\n".join(output)
+    assert code == 0 and "(agent mode)" in output[0]
+    assert "Is this the right location?" in text and "Which weather products?" in text
+    assert "Review the plan" in text and "simulation_ready=false" in text and "What next?" in text
+
+
+def test_mode_switches_in_the_cli(tmp_path):
+    from openepw.agent.model_port import ScriptedModel
+
+    lines = iter(["/mode", "/status", "/mode agent", "/mode nope", "/quit"])
+    output = []
+    asyncio.run(main_chat(scenario_service(tmp_path), read=lambda prompt: next(lines),
+                          write=output.append, model=ScriptedModel([])))
+    assert "Mode: guided." in output and "Where do you need weather?" in "\n".join(output)
+    assert any(line.startswith("Mode: guided. Jobs:") for line in output) and "Mode: agent." in output
+    assert "Use /mode, /mode agent or /mode guided." in output
+
+
+def test_agent_mode_without_a_model_is_refused(tmp_path):
+    lines = iter(["/mode agent", "/quit"])
+    output = []
+    asyncio.run(main_chat(scenario_service(tmp_path), read=lambda prompt: next(lines), write=output.append))
+    assert "(guided mode)" in output[0] and any("needs a configured model" in line for line in output)
+
+
+def test_the_chat_model_follows_the_key_and_the_mode(tmp_path, monkeypatch):
+    from openepw.agent import cli as agent_cli
+    from openepw.agent.model_port import OpenAIModel
+
+    monkeypatch.setattr(agent_cli, "load_openai_key", lambda env_file: None)
+    assert agent_cli.chat_model("guided") == (None, None)
+    model, notice = agent_cli.chat_model(None, data_root=tmp_path)
+    assert model is None and "guided mode" in notice
+    monkeypatch.setattr(agent_cli, "load_openai_key", lambda env_file: "sk-test-not-real")
+    model, notice = agent_cli.chat_model(None, data_root=tmp_path, max_cost=1.5)
+    assert isinstance(model, OpenAIModel) and notice is None and model.max_cost_usd == 1.5
+    assert model.ledger_path == tmp_path / "agent" / "model-usage.json"

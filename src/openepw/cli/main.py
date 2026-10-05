@@ -46,8 +46,13 @@ def main(argv=None):
     mcp.add_argument("--transport", choices=["stdio", "streamable-http"], default="stdio")
     mcp.add_argument("--allow-root", action="append", default=[],
                      help="Allow MCP baseline path registration beneath this local directory")
-    chat = sub.add_parser("chat", help="Guided weather chat over the local MCP server")
+    chat = sub.add_parser("chat", help="Weather chat over the local MCP server (agent or guided mode)")
     chat.add_argument("--session", help="Resume a saved chat session by ID")
+    chat.add_argument("--mode", choices=["agent", "guided"],
+                      help="Default: agent when OPENAI_API_KEY is set, otherwise guided")
+    chat.add_argument("--model", default=None, help="OpenAI model id for agent mode")
+    chat.add_argument("--max-cost", type=float, default=5.0,
+                      help="Budget stop in USD for the local model usage ledger (default 5)")
     catalog = sub.add_parser("catalog")
     catalog_sub = catalog.add_subparsers(dest="catalog_command", required=True)
     catalog_sub.add_parser("status")
@@ -87,11 +92,15 @@ def main(argv=None):
                 server.openepw_runner.close()  # type: ignore[attr-defined]
             return 0
         if args.command == "chat":
-            from ..agent.cli import main_chat, prepare_console
+            from ..agent.cli import chat_model, main_chat, prepare_console
 
             prepare_console()
+            model, notice = chat_model(args.mode, model=args.model, max_cost=args.max_cost,
+                                       data_root=config.data_root, env_file=args.env_file or ".env")
+            if notice:
+                print(notice)
             try:
-                return asyncio.run(main_chat(service, session_id=args.session))
+                return asyncio.run(main_chat(service, session_id=args.session, model=model))
             except KeyboardInterrupt:
                 print("\nChat interrupted; the session and completed artifacts stay in the data root.")
                 return 130
