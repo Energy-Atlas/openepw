@@ -2510,3 +2510,79 @@ git commit -m "fix(docs): document the guided agent core and openepw chat"
 | P3 | `ModelPort` (OpenAI adapter with ledger/budget stop; `ScriptedModel`), model policy: tool-calling loop over `MODEL_TOOLS` plus ask-tools that open these same forms, `check_plan_request` before `weather_plan`, limits (8 steps, 2 retries, 60 s), one repair attempt then guided fallback, mode switching (`/mode`), scenarios S6–S8, S13, S14, S16, S19, S20, and the reusable `openepw eval` runner with opt-in live runs. |
 | P4 | `/v2/agent` REST + SSE over `app.state.mcp_server` (one long-lived in-memory client per session task), React rendering of the same forms, mode toggle, parity tests (CLI text vs API), vitest fixtures from Python events, CI `web` job, optional `/mcp` streamable HTTP behind bearer auth, lock hardening. |
 | P5 | Retire `ChatCoordinator`, `chat/products.py`, `ReferenceAgent`, `ChatSession`, `GraphChatSession`, `/v1/chat/*`; docs and validation record. |
+
+## Execution notes (2026-10-05)
+
+Executed on branch `feature/mcp-agent-core` from `feature/chat-ui` at `639aa12` (the handoff
+commit; it contains `d32a449`). The handoff's default branch was used; the owner named none.
+The code blocks above are left as written and are superseded where they differ.
+
+- Environment: this machine's venv had no `harness` or `cds` extras, so `tests/harness` failed to
+  collect (`langsmith` missing). The CI extras (`.[dev,api,mcp,harness,cds]`) were installed into
+  the local venv; nothing in the repository changed for this. Only Python 3.14 is installed
+  locally, so 3.11 compatibility was checked by review, not by running.
+- Process: tasks were implemented test-first in plan order by one agent; reviews (spec and
+  quality) ran as separate read-only reviewer agents over tasks 1-2, 3-5 and 6-8, then a
+  whole-branch review and a focused re-review of the final run guard. Findings were fixed in
+  follow-up commits rather than by rewriting task commits.
+- Task 2: the `# type: ignore[arg-type]` in `SessionStore.append` was unused under mypy and was
+  dropped, as the plan allowed.
+- Tasks 1-8 matched the plan's code; no test fake needed changing. Review fixes, each with tests:
+  - Text reading: scenario names such as SSP5-8.5, SSP2-4.5, RCP 4.5, rcp85 and CMIP6 are future
+    requests (previously "SSP5-8.5 2050" would have been read as actual year 2050). Upper-case IN
+    and AT stay in place text as state or country codes; "2010s" without "the", from/between
+    ranges and TMY3 are no longer place text.
+  - Session: `OpenEPWError` becomes an error event with its own code and any other exception
+    becomes `INTERNAL_ERROR` with a correlation id logged locally (no exception text in events),
+    so the CLI no longer crashes. Following jobs with none pending changes nothing. Back keeps
+    uploaded and retrieved artifacts.
+  - Gates: `check_plan_request` treats TMY, TMYx and published as one typical group (the chosen
+    selections decide) and keeps a model's own subset of the stated years. `next_need` keeps the
+    plan review open while a runnable plan has not started.
+  - Approvals: a submission that fails before the server asks for confirmation drops its one-shot
+    approval. `parse_failure` keeps `details` only as a list of objects.
+  - Guided plan review (blocker found in review): after a replan such as "2019 instead" the open
+    review still showed the old plan while "run" submitted the new one. The review now reopens
+    whenever its plans differ from the plans that run submits, and S9 asserts it. A partly failed
+    run reopens the review marking plans that already started; running again submits only the
+    rest. A place typed at the plan review starts a new location review; years typed before a
+    product choice refresh the offers. Export continues past a job without a bundle.
+  - Final branch review (second blocker in the same place): a replan that failed partway kept a
+    half-built plan set under the old review, so "run" could submit an unseen plan. Plans are
+    now replaced all at once, and run refuses with `GATE_REQUIRED` (and reopens the review)
+    unless the open review shows exactly the plans it would submit. Population thresholds and
+    place-set limits ("over 2000 people", "top 1900") are not weather years. Started plan
+    hashes are kept for the session so Back after `/new` cannot restore a started plan.
+  - Focused re-review of that guard: no way found to submit a plan the open review did not show
+    (replan then Back, product or place change, failed replan then resume, partly failed run
+    then resume, no false-refusal loops). Follow-ups: years typed at a place-set question are
+    read again (a bare number is the answer), "the 2000 largest cities" is not a year, and the
+    review keeps its own copy of the plans it shows.
+  - CLI: `openepw chat` quiets per-request MCP SDK and httpx INFO logs and replaces characters a
+    redirected Windows console cannot encode; an unknown `--session` is `SESSION_NOT_FOUND`
+    (exit 2); input is read on the main thread so Ctrl-C ends the chat cleanly (exit 130 if it
+    interrupts elsewhere); jobs are followed only while no form is open, for up to two minutes at
+    a time before the prompt returns; `/upload` checks the size before reading the file. The final
+    "session saved" line is written inside the client block so the session is always bound.
+- Verification at `4c9c575` (Python 3.14.7, Windows): `pytest -q` 725 passed, 18 skipped and
+  exactly the 4 known pre-existing failures (2 in `test_availability_adapters.py`, 2 in
+  `test_availability_service.py`) with the one known starlette/anyio `DeprecationWarning`;
+  `tests/agent` 69 passed; `ruff check .` clean; `mypy` clean (104 files); `build` produced
+  the sdist and wheel.
+- Manual run (2026-10-05, real network, scratch data root `.local/agent-try`): "AMY 2018 for
+  Ithaca NY" geocoded to two candidates (the city and its airport), so a choice form appeared;
+  the location review showed UTC-05:00 estimated from longitude; four ERA5/ERA5-Land offers were
+  listed from the catalog; resuming with `--session` worked; ERA5 via Open-Meteo planned with two
+  warnings, ran after "run", and completed with one EPW, no QC issue codes and the
+  `simulation_ready=false` notice. That run found the log noise and encoding problem fixed above.
+- Deferred, with reasons:
+  - `/quit` while a job runs waits for it, because `JobRunner.close()` shuts its pool down with
+    `wait=True` (P1 behaviour). A long Copernicus job therefore holds the chat open; cancelling or
+    detaching jobs belongs with P4's lock and runner hardening.
+  - Resuming a session prints its whole earlier transcript (tool lines included) before the open
+    form; a compact resume view can come with the P4 renderer work.
+  - Offers still carry no availability evidence dates (P1 deferral); the product form shows
+    catalog listing status only.
+  - Place-set caps and the offers location cap (P1 deferrals) are unchanged.
+  - The export choice is offered whenever a job finished, even if it produced nothing; a failed
+    export is reported per job.

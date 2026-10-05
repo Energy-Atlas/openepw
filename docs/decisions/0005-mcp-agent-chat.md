@@ -1,7 +1,8 @@
 # ADR 0005 — One MCP agent core for web and CLI chat
 
 Date: 2026-10-05. Status: design agreed with the owner on 2026-10-04/05; P1
-(service moves and MCP contract) implemented on feature/mcp-agent-chat; P2–P5
+(service moves and MCP contract) implemented on feature/mcp-agent-chat; P2
+(agent core, guided mode, CLI) implemented on feature/mcp-agent-core; P3–P5
 pending. Full design:
 [unified MCP agent chat](../superpowers/specs/2026-10-05-mcp-agent-chat-design.md).
 REST and web-chat retries keep the original job's `approved_via` and need no new

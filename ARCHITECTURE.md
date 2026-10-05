@@ -262,6 +262,13 @@ execution to one process: owners within a process share it, but a stdio `openepw
 on a data root already held by a running `openepw serve` (or another process) fails at startup
 with `DATA_ROOT_BUSY`, so use separate data roots.
 
+P2 adds `openepw.agent`: an `AgentSession` (SQLite events, typed facts, form snapshots for Back)
+that talks to the MCP server through the in-memory transport, host gates that build plan
+requests only from approved facts, a rule-based guided policy, and the `openepw chat` CLI that
+renders every form as text. The MCP-facing parts need the `mcp` extra; the scientific and
+data core never imports the agent package (the legacy chat coordinator shares only its
+dependency-free year reader, `openepw.agent.text`).
+
 The optional [reference harness](docs/harness/README.md) consumes only these
 MCP tools through a real stdio client. Its small model adapter extracts typed
 intent; the service retains scientific authority. Safe local run state stores
