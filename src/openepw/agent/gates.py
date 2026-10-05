@@ -85,16 +85,18 @@ def check_plan_request(facts: Facts, request: dict[str, Any]) -> dict[str, Any]:
     """Rewrite a proposed plan request to the approved facts, or say which step is missing.
 
     Locations and sampling always come from the approved review; datasets must be among the
-    chosen offers; years must be among the person's stated years.
+    chosen offers; years must be among the person's stated years. Typical products (TMY, TMYx,
+    published) are one group, so the chosen selections, not the product word, decide the match.
     """
     approved = build_requests(facts)
-    product = request.get("product", "historical")
+    historical = request.get("product", "historical") == "historical"
     proposed = [_selection(item) for item in request.get("dataset_selections") or []]
-    match = next((item for item in approved if item["product"] == product
+    match = next((item for item in approved if (item["product"] == "historical") == historical
                   and all(selection in item["dataset_selections"] for selection in proposed)), None)
     if match is None:
         raise GateRequired("choose_products", "The plan's product or datasets differ from the person's choice")
-    years = list(request.get("years") or [])
+    years = sorted(set(request.get("years") or []))
     if not set(years) <= set(facts.years):
         raise GateRequired("years", "The plan's years differ from the years the person stated")
-    return {**match, "dataset_selections": proposed or match["dataset_selections"]}
+    return {**match, "dataset_selections": proposed or match["dataset_selections"],
+            "years": (years or match["years"]) if historical else []}

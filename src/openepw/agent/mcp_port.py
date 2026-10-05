@@ -31,9 +31,11 @@ def parse_failure(text: str) -> ToolFailure:
     """Tool errors are bare JSON (P1 contract); anything else becomes MCP_TOOL_ERROR."""
     try:
         payload = json.loads(text[text.index("{"):])
+        details = payload.get("details")
         return ToolFailure(str(payload["code"]), str(payload.get("message", "")),
                            retryable=bool(payload.get("retryable", False)),
-                           details=list(payload.get("details") or []))
+                           details=[item for item in details if isinstance(item, dict)]
+                           if isinstance(details, list) else [])
     except (ValueError, KeyError, TypeError):
         return ToolFailure("MCP_TOOL_ERROR", text[:200] or "MCP tool failed")
 

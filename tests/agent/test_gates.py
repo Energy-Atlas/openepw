@@ -73,3 +73,27 @@ def test_a_model_request_cannot_add_products_or_years():
         check_plan_request(approved(), {"product": "historical", "years": [2017],
                                         "dataset_selections": [{"provider": "openmeteo", "dataset": "era5"}]})
     assert error.value.need == "years"
+
+
+TMYX = {"id": "tmyx-onebuilding", "label": "TMYx",
+        "request": {"product": "tmyx", "dataset_selections": [{"provider": "onebuilding", "dataset": "TMYx"}]}}
+
+
+def test_typical_requests_match_any_chosen_typical_offer():
+    facts = approved(chosen=[PVGIS, TMYX], years=[])
+    tmyx = {"product": "tmyx", "dataset_selections": TMYX["request"]["dataset_selections"]}
+    checked = check_plan_request(facts, tmyx)
+    assert [(item["provider"], item["dataset"]) for item in checked["dataset_selections"]] == [
+        ("onebuilding", "TMYx")]
+    only = approved(chosen=[TMYX], years=[])
+    assert check_plan_request(only, {**tmyx, "product": "tmy"})["product"] == "tmyx"
+    with pytest.raises(GateRequired):
+        check_plan_request(facts, {"product": "historical", "dataset_selections": tmyx["dataset_selections"]})
+
+
+def test_a_model_request_keeps_its_own_subset_of_stated_years():
+    facts = approved(years=[2018, 2019])
+    proposed = {"product": "historical", "years": [2018],
+                "dataset_selections": [{"provider": "openmeteo", "dataset": "era5"}]}
+    assert check_plan_request(facts, proposed)["years"] == [2018]
+    assert check_plan_request(facts, {**proposed, "years": []})["years"] == [2018, 2019]

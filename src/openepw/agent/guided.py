@@ -241,8 +241,12 @@ class GuidedPolicy:
             return
         for plan in plans:
             s.approvals.approve(plan["plan_hash"])
-            job = (await s.tool("weather_submit", plan_hash=plan["plan_hash"],
-                                idempotency_key=f"agent:{s.id}:{plan['plan_hash'][:16]}")).data
+            try:
+                job = (await s.tool("weather_submit", plan_hash=plan["plan_hash"],
+                                    idempotency_key=f"agent:{s.id}:{plan['plan_hash'][:16]}")).data
+            finally:
+                # One approval, one submission: never leave it pending if the server did not ask.
+                s.approvals.consume(plan["plan_hash"])
             s.facts.job_ids.append(job["id"])
             s.emit("job", f"Weather job {job['id'][:8]} started", job_id=job["id"], state=job.get("state"))
         s.close_form()

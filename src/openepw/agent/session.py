@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import logging
+import uuid
 from typing import Any, Callable, Protocol
 
+from ..models import OpenEPWError
 from .gates import GateRequired
 from .interactions import Answer, Event, Interaction
 from .mcp_port import ApprovalBook, MCPPort, ToolFailure, ToolResult
@@ -14,6 +17,7 @@ from .store import SessionStore
 
 TERMINAL = frozenset({"completed", "partially_completed", "failed", "cancelled"})
 MAX_UPLOAD = 5_000_000
+logger = logging.getLogger("openepw.agent")
 
 
 class Policy(Protocol):
@@ -101,6 +105,16 @@ class AgentSession:
                       retryable=failure.retryable)
         except GateRequired as gate:
             self.emit("error", str(gate), code="GATE_REQUIRED", need=gate.need)
+        except OpenEPWError as error:
+            self.emit("error", f"{error.issue.code}: {error.issue.message}", code=error.issue.code,
+                      retryable=error.issue.retryable)
+        except Exception:
+            # The exception text may carry payloads, so only a correlation id reaches the person.
+            correlation_id = uuid.uuid4().hex[:12]
+            logger.exception("agent turn failed (correlation id %s)", correlation_id)
+            self.emit("error", f"INTERNAL_ERROR: Something went wrong; the form is kept "
+                               f"(correlation id {correlation_id}).",
+                      code="INTERNAL_ERROR", correlation_id=correlation_id)
         finally:
             self.store.save(self.state)
 
@@ -137,6 +151,9 @@ class AgentSession:
                       code="JOB_STARTED")
             return
         self.store.drop_snapshot(self.id)
+        # Back undoes choices, not results: uploaded and retrieved EPWs stay available.
+        restored.facts.artifact_ids = list(self.facts.artifact_ids)
+        restored.facts.finished_job_ids = list(self.facts.finished_job_ids)
         restored.revision = self.state.revision + 1
         if restored.form is not None:
             restored.form = restored.form.model_copy(update={"revision": restored.revision})
@@ -177,6 +194,8 @@ class AgentSession:
         deadline = loop.time() + timeout
         seen: dict[str, tuple] = {}
         pending = [job_id for job_id in self.facts.job_ids if job_id not in self.facts.finished_job_ids]
+        if not pending:
+            return
         while pending:
             for job_id in list(pending):
                 job = (await self.port.call("job_inspect", job_id=job_id)).data

@@ -122,3 +122,22 @@ def test_an_unknown_choice_is_refused(tmp_path):
             await h.choose("nope")
             assert h.form == form and h.session.events()[-1].data["code"] == "UNKNOWN_CHOICE"
     asyncio.run(main())
+
+
+def test_a_failed_submission_leaves_no_approval_pending(tmp_path):
+    async def main():
+        async with Harness(tmp_path) as h:
+            await to_plan_review(h)
+            real = h.port.call
+
+            async def refuse(name, **arguments):
+                if name == "weather_submit":
+                    raise ToolFailure("NO_EXECUTABLE_OUTPUTS", "nothing to run")
+                return await real(name, **arguments)
+
+            h.port.call = refuse
+            await h.approve()
+            assert h.session.events()[-1].data["code"] == "NO_EXECUTABLE_OUTPUTS"
+            assert h.approvals.pending == frozenset() and not h.session.facts.job_ids
+            assert h.form.gate == "review_plan"
+    asyncio.run(main())

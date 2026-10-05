@@ -52,3 +52,9 @@ def test_in_process_client_calls_tools_and_submits_only_once_per_approval(tmp_pa
         asyncio.run(scenario())
     finally:
         runner.close()
+
+
+def test_failure_details_must_be_a_list_of_objects():
+    assert parse_failure('{"code": "X", "message": "m", "details": {"a": 1}}').details == []
+    assert parse_failure('{"code": "X", "message": "m", "details": [{"loc": "a"}, "junk"]}').details == [
+        {"loc": "a"}]

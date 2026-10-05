@@ -97,3 +97,41 @@ def test_a_session_resumes_with_its_open_form(tmp_path):
     asyncio.run(session.begin())
     resumed = AgentSession.resume(store, Port(), ApprovalBook(), policy, session.id)
     assert resumed.form == session.form
+
+
+class Broken(StepPolicy):
+    def __init__(self, error):
+        super().__init__()
+        self.error = error
+
+    async def on_text(self, session, text):
+        raise self.error
+
+
+def test_unexpected_policy_errors_become_error_events(tmp_path):
+    from openepw.models import OpenEPWError
+
+    store = SessionStore(tmp_path / "sessions.sqlite")
+    for error, code in ((OpenEPWError("INVALID_REQUEST", "bad"), "INVALID_REQUEST"),
+                        (KeyError("secret-value"), "INTERNAL_ERROR")):
+        session = AgentSession.start(store, Port(), ApprovalBook(), Broken(error))
+        asyncio.run(session.send_text("Ithaca"))
+        last = session.events()[-1]
+        assert last.type == "error" and last.data["code"] == code and "secret-value" not in last.text
+
+
+def test_following_no_jobs_changes_nothing(tmp_path):
+    session, _, _ = make(tmp_path)
+    asyncio.run(session.begin())
+    form = session.form
+    asyncio.run(session.follow_jobs())
+    assert session.facts.stage == "request" and session.form == form
+
+
+def test_back_keeps_uploaded_artifacts(tmp_path):
+    session, _, _ = make(tmp_path)
+    asyncio.run(session.begin())
+    asyncio.run(session.send_text("Ithaca"))
+    session.facts.artifact_ids.append("artifact-1")
+    asyncio.run(session.back())
+    assert session.form.gate == "a" and session.facts.artifact_ids == ["artifact-1"]
