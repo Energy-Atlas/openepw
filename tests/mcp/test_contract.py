@@ -96,3 +96,4 @@ def test_every_registered_tool_has_exactly_one_access_class(tmp_path):
     assert names == MODEL_TOOLS | HOST_TOOLS | LEGACY_TOOLS
     assert not (MODEL_TOOLS & HOST_TOOLS or MODEL_TOOLS & LEGACY_TOOLS or HOST_TOOLS & LEGACY_TOOLS)
     assert "weather_submit" in HOST_TOOLS and "weather_plan" in MODEL_TOOLS
+    assert "job_retry_failed" in HOST_TOOLS and "weather_fetch" in LEGACY_TOOLS

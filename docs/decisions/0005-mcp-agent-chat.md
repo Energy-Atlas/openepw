@@ -24,10 +24,12 @@ CLI is not exercised by the web, and web forms have no CLI counterpart.
 - The host enforces location review (including standard-time offsets), product
   choice and grounded years before planning, and plan approval before submit.
   Submit, cancel, retry, export and upload are not model tools.
-- `weather_submit` requires an MCP elicitation confirmation. The openepw host
-  answers it only for a recorded user approval; other clients show their own
-  confirmation; clients without elicitation receive `APPROVAL_REQUIRED`. No
-  model-callable approval token exists.
+- `weather_submit`, the legacy `weather_fetch` alias and `job_retry_failed`
+  each require an MCP elicitation confirmation (for a retry, the confirmation
+  names the original plan hash). The openepw host answers it only for a
+  recorded user approval; other clients show their own confirmation; clients
+  without elicitation receive `APPROVAL_REQUIRED`. No model-callable approval
+  token exists.
 
 ## Consequences
 
@@ -37,5 +39,6 @@ CLI is not exercised by the web, and web forms have no CLI counterpart.
   model summary and structured data.
 - `ChatCoordinator`, `ReferenceAgent`, `ChatSession`, `GraphChatSession` and
   `/v1/chat/*` are retired after both renderers pass the shared scenario evals.
-- External MCP clients see one behaviour change: submission (including the
-  `weather_fetch` alias) needs a confirmation.
+- External MCP clients see one behaviour change: submission (`weather_submit`
+  and the `weather_fetch` alias) and retrying failed work (`job_retry_failed`,
+  confirmed against the original plan hash) need a confirmation.
