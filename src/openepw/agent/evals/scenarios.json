@@ -106,7 +106,8 @@
         "location_review": "approve",
         "product_choice": null,
         "choice": "first",
-        "text": "TMYx for those coordinates"
+        "text": "TMYx for those coordinates",
+        "map_input": "42.44, -76.5"
       },
       "checks": {
         "forms": [

@@ -187,6 +187,10 @@ class AgentSession:
     async def new_request(self) -> None:
         self.facts.new_request()
         self.close_form()
+        # A model question left open belongs to the old request.
+        self.state.pending_call, self.state.turn = None, []
+        events = self.events()
+        self.state.turn_seq = events[-1].seq if events else 0
         await self._guard(self.policy.advance(self))
 
     async def upload_epw(self, content: bytes, filename: str | None = None) -> None:

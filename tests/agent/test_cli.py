@@ -183,3 +183,20 @@ def test_an_unreadable_or_spent_ledger_means_guided_mode_with_a_reason(tmp_path,
     ledger.write_text(json.dumps({"calls": 9, "estimated_usd": 6.0}), encoding="utf-8")
     model, notice = agent_cli.chat_model(None, data_root=tmp_path, max_cost=5.0)
     assert model is None and "--max-cost" in notice and "sk-test" not in notice
+
+
+def test_an_agent_session_resumed_without_a_model_gets_a_guided_form(tmp_path):
+    from openepw.agent.model_port import ScriptedModel, call
+
+    service = scenario_service(tmp_path)
+    first = iter(["AMY 2018 for Ithaca NY", "/quit"])
+    output = []
+    model = ScriptedModel([call("review_location", {"locations": ITHACA})])
+    asyncio.run(main_chat(service, read=lambda prompt: next(first), write=output.append, model=model))
+    session_id = output[-1].split("--session ")[1]
+    again = iter(["a", "/quit"])
+    output = []
+    asyncio.run(main_chat(scenario_service(tmp_path), session_id=session_id, read=lambda prompt: next(again),
+                          write=output.append))
+    text = "\n".join(output)
+    assert "(guided mode)" in output[0] and "STALE_FORM" not in text and "Which weather products?" in text

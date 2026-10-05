@@ -158,6 +158,9 @@ async def main_chat(service: Any, *, session_id: str | None = None,
                        AgentSession.start(store, port, approvals, policy, poll_seconds=poll_seconds))
             if model is None and session.state.mode == "agent":
                 session.state.mode = "guided"          # a saved agent session without a model
+                session.state.pending_call, session.state.turn = None, []
+                if session.form is not None and "call_id" in session.form.data:
+                    session.close_form()               # the model's question; guided rules ask anew
                 session.emit("notice", "No model is configured; continuing in guided mode.", mode="guided")
             write(f"OpenEPW chat ({session.state.mode} mode) · session {session.id}. "
                   "Type /help for commands.")

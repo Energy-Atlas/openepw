@@ -82,6 +82,8 @@ class ModelPolicy:
                 s.close_form()
                 await self.guided.advance(s)
         else:
+            if s.form is not None and "call_id" in s.form.data:
+                s.close_form()                   # a question from an earlier model turn; no longer open
             s.emit("notice", "Agent mode: describe what you need in your own words.", mode="agent")
 
     async def _to_guided(self, s: AgentSession, reason: str, text: str | None = None) -> None:
@@ -169,6 +171,8 @@ class ModelPolicy:
         s.state.turn.append({"type": "tool_result", "call_id": pending["id"], "name": pending["name"],
                              "output": json.dumps(result)})
         s.state.pending_call = None
+        if s.form is not None and s.form.data.get("call_id") == pending["id"]:
+            s.close_form()                   # answered; the model opens the next form if it needs one
         if resume:
             await self._loop(s)
 
@@ -387,16 +391,16 @@ class ModelPolicy:
             # Geocoder candidates carry standard_offset_minutes 0 as a default; let the review estimate.
             cleaned = [host.point(item) for item in points if isinstance(item, dict)]
             geography = cleaned if isinstance(locations, list) else cleaned[0]
+            if facts.stage == "results":                # a new request after earlier results
+                asked = next((item["text"] for item in s.state.turn if item["type"] == "user"), "")
+                facts.stage, facts.job_ids, facts.years = "request", [], sorted(written_years(asked))
+                facts.chosen, facts.plans, facts.offers, facts.offer_availability = [], [], [], None
             try:
                 review = (await s.tool("weather_locations_review", by="model", locations=geography)).data
             except ToolFailure as failure:
                 return "error", {"code": failure.code, "message": failure.message, "details": failure.details}
             if facts.approved_key and review.get("key") == facts.approved_key:
                 return "ok", {"approved": True, "location_key": review["key"], "note": "already approved"}
-            if facts.stage == "results":                # a new request after earlier results
-                facts.stage, facts.job_ids = "request", []
-                asked = next((item["text"] for item in s.state.turn if item["type"] == "user"), "")
-                facts.years = sorted(written_years(asked))
             facts.reset_place()
             facts.set_geography(geography)
             facts.review = review
@@ -417,6 +421,10 @@ class ModelPolicy:
         if name == "review_plan":
             if not facts.plans:
                 return "gate", self._gate(s, name, "plan", "Make a plan with weather_plan first")
+            if all(plan.get("job_id") or not plan["output_count"] for plan in facts.plans):
+                return "refused", {"code": "NOTHING_TO_RUN", "message": (
+                    "These plans already ran or have no outputs; for a new request review the "
+                    "location and make a new plan.")}
             return self._asked(s, call, host.plan_form(facts))
         if name == "ask_text":
             if arguments.get("purpose") == "years":
@@ -454,7 +462,9 @@ class ModelPolicy:
                     "point_count": facts.review["point_count"]}
         if name == "review_plan" and answer.approve:
             started = await host.run_plans(s, self._reopen_plan_review)
-            return {"submitted_job_ids": started} if started else None
+            if started or s.form is None:        # nothing new to run also answers the question
+                return {"submitted_job_ids": started}
+            return None                          # the review was reopened; the question stays open
         if name == "request_map_input" and answer.value is not None:
             return {"geography": answer.value}
         known = {option.id for option in form.options}

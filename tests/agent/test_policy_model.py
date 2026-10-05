@@ -448,3 +448,62 @@ def test_a_model_lost_before_any_step_hands_the_message_to_guided_rules(tmp_path
             assert h.session.state.mode == "guided" and h.form.gate == "review_location"
             assert h.session.facts.years == [2018]
     run(main)
+
+
+def test_an_answered_ask_form_closes_when_the_model_replies_in_words(tmp_path):
+    h, model = agent(tmp_path, [call("review_location", {"locations": ITHACA}),
+                                say("Thanks; which products do you want?")])
+
+    async def main():
+        async with h:
+            await h.say("AMY 2018 for Ithaca NY")
+            await h.approve()
+            assert h.session.facts.approved_key and h.form is None
+            assert h.session.state.pending_call is None
+    run(main)
+
+
+def test_a_new_request_drops_the_question_the_model_was_waiting_on(tmp_path):
+    h, model = agent(tmp_path, [call("review_location", {"locations": ITHACA}), say("Which place?")])
+
+    async def main():
+        async with h:
+            await h.say("AMY 2018 for Ithaca NY")
+            await h.session.new_request()
+            await h.say("TMY for Boston")
+            last = model.requests[-1]["items"]
+            assert [item["type"] for item in last[1:]] == ["user"] and last[1]["text"] == "TMY for Boston"
+    run(main)
+
+
+def test_a_new_request_at_the_same_place_starts_fresh_but_keeps_the_approval(tmp_path):
+    h, model = agent(tmp_path, [*HAPPY, call("review_location", {"locations": ITHACA}), say("Approved already.")])
+
+    async def main():
+        async with h:
+            await h.say("AMY 2018 for Ithaca NY")
+            await h.approve()
+            await h.choose("era5-openmeteo")
+            await h.approve()
+            await h.session.follow_jobs(timeout=120)
+            await h.say("Now actual year 2020 for Ithaca NY")
+            facts = h.session.facts
+            assert facts.stage == "request" and facts.years == [2020] and facts.approved_key
+            assert facts.plans == [] and facts.chosen == [] and facts.job_ids == []
+    run(main)
+
+
+def test_review_plan_after_every_plan_ran_is_refused(tmp_path):
+    h, model = agent(tmp_path, [*HAPPY, call("review_plan"), say("Those already ran.")])
+
+    async def main():
+        async with h:
+            await h.say("AMY 2018 for Ithaca NY")
+            await h.approve()
+            await h.choose("era5-openmeteo")
+            await h.approve()
+            await h.session.follow_jobs(timeout=120)
+            await h.say("run it again")
+            assert results(model, "review_plan")[-1]["code"] == "NOTHING_TO_RUN"
+            assert h.session.state.pending_call is None
+    run(main)
