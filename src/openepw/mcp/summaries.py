@@ -6,7 +6,7 @@ to continue (identifiers, counts, statuses) and never repeats data rows.
 
 from __future__ import annotations
 
-import json
+import logging
 from typing import Any, Callable
 
 LIMIT = 1500
@@ -183,12 +183,36 @@ SUMMARIES: dict[str, Callable[[dict], str]] = {
 }
 
 
-def summarize(tool: str, data: dict[str, Any]) -> str:
-    """A short text for model context; unknown tools or odd data fall back to clipped JSON."""
+def _inspect(data: dict) -> str:
+    return _artifact(data) if data.get("artifact_id") and "state" not in data else _job(data)
+
+
+SUMMARIES["weather_inspect"] = _inspect
+
+IDENTIFIER_KEYS = ("plan_hash", "id", "job_id", "artifact_id", "view_id", "digest", "key", "state",
+                   "kind", "code")
+
+
+def _stub(tool: str, data: Any) -> str:
+    """Field names and identifiers only; never data values, so it is safe for any payload."""
+    try:
+        if not isinstance(data, dict):
+            return f"{tool} result"
+        text = f"{tool} result; fields: " + ", ".join(sorted(map(str, data)))
+        pairs = [f"{key}={data[key]}" for key in IDENTIFIER_KEYS
+                 if isinstance(data.get(key), (str, int, bool))]
+        return _clip(text + ("; " + ", ".join(pairs) if pairs else ""))
+    except Exception:
+        return f"{tool} result"
+
+
+def summarize(tool: str, data: Any) -> str:
+    """A short text for model context; unknown tools or odd data fall back to a key-only stub."""
     function = SUMMARIES.get(tool)
-    if function is not None:
+    if function is not None and isinstance(data, dict):
         try:
             return _clip(function(data))
-        except Exception:
-            pass
-    return _clip(json.dumps(data, sort_keys=True, allow_nan=False))
+        except Exception as exc:
+            logging.getLogger("openepw.mcp").warning(
+                "summary failed for %s: %s", tool, type(exc).__name__)
+    return _stub(tool, data)
