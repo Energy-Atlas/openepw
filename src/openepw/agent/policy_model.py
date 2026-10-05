@@ -22,7 +22,7 @@ from .interactions import Answer, Interaction, Option
 from .mcp_port import ToolFailure
 from .model_port import ModelPort, ModelReply, ModelUnavailable, ToolCall
 from .session import AgentSession
-from .text import FUTURE, explicit_weather_years
+from .text import FUTURE, written_years
 from .tools import ASK_TOOLS, NEED_TOOL, model_tools, shape
 
 SYSTEM = """You are the openepw weather assistant. You help a person get EPW weather files by \
@@ -115,6 +115,7 @@ class ModelPolicy:
         self._note_years(s, text)
         pending = s.state.pending_call
         if pending:
+            s.close_form()                          # answered in words; the model may ask again
             await self._resolve(s, pending, {"status": "person_replied", "text": text})
             return
         s.state.turn = [{"type": "user", "text": text}]
@@ -123,10 +124,14 @@ class ModelPolicy:
 
     async def on_answer(self, s: AgentSession, form: Interaction, answer: Answer) -> None:
         pending = s.state.pending_call
-        if s.state.mode == "guided" or not pending or form.data.get("call_id") != pending["id"]:
+        if "call_id" in form.data and (not pending or form.data["call_id"] != pending["id"]):
+            s.emit("error", "That form is no longer current; answer the latest one.", code="STALE_FORM")
+            return
+        if s.state.mode == "guided" or not pending:
             await self.guided.on_answer(s, form, answer)      # a form the guided rules opened
             return
         if answer.text:
+            s.close_form()
             self._note_years(s, answer.text)
             await self._resolve(s, pending, {"status": "person_replied", "text": answer.text})
             return
@@ -146,7 +151,7 @@ class ModelPolicy:
     # Turn -----------------------------------------------------------------------------------
     def _note_years(self, s: AgentSession, text: str) -> None:
         """Years the person wrote in this request; a model plan may use only these."""
-        years = explicit_weather_years(text)
+        years = written_years(text)
         if years and not years <= set(s.facts.years):
             s.facts.years = sorted(set(s.facts.years) | years)
 
@@ -168,6 +173,7 @@ class ModelPolicy:
                 s.emit("assistant", "This turn took too long and stopped; the open form is kept. "
                                     "Try again or rephrase.", code="TURN_TIMEOUT")
                 return
+            self._pair_calls(s)
             try:
                 reply = await self.model.respond(SYSTEM, self._items(s), tools)
             except ModelUnavailable as error:
@@ -210,6 +216,21 @@ class ModelPolicy:
                 return
             if s.state.pending_call:
                 return                                          # waiting for the person
+
+    @staticmethod
+    def _pair_calls(s: AgentSession) -> None:
+        """Give every earlier call without a result a SKIPPED one (after Back, uploads, fallbacks).
+
+        The provider rejects a conversation where a function call has no output.
+        """
+        answered = {item["call_id"] for item in s.state.turn if item["type"] == "tool_result"}
+        pending = (s.state.pending_call or {}).get("id")
+        for item in list(s.state.turn):
+            calls = item.get("tool_calls") or [] if item["type"] == "assistant" else []
+            for call in calls:
+                if call["id"] not in answered and call["id"] != pending:
+                    s.state.turn.append({"type": "tool_result", "call_id": call["id"], "name": call["name"],
+                                         "output": json.dumps({"code": "SKIPPED", "message": "No longer current."})})
 
     def _result(self, s: AgentSession, call: ToolCall, output: dict[str, Any] | str) -> None:
         s.state.turn.append({"type": "tool_result", "call_id": call.id, "name": call.name,
@@ -265,7 +286,12 @@ class ModelPolicy:
     @staticmethod
     def _history(s: AgentSession) -> str:
         lines = []
-        for event in [event for event in s.events() if event.seq <= s.state.turn_seq][-20:]:
+        # Keep the conversation lines first, then the window, so tool and form events don't
+        # push the person's request out of it.
+        shown = [event for event in s.events() if event.seq <= s.state.turn_seq
+                 and (event.type in ("user", "assistant", "job", "notice", "view")
+                      or (event.type == "tool" and event.data.get("phase") == "result"))]
+        for event in shown[-20:]:
             if event.type == "user":
                 lines.append("person: " + event.text)
             elif event.type in ("assistant", "job", "notice", "view"):
@@ -282,6 +308,8 @@ class ModelPolicy:
             arguments = None
         if not isinstance(arguments, dict):
             return "invalid", {"code": "INVALID_ARGUMENTS", "message": "Arguments must be a JSON object."}
+        if "by" in arguments:                         # reserved by the host's tool events
+            return "invalid", {"code": "INVALID_ARGUMENTS", "message": "Unknown argument 'by'."}
         if call.name in ASK_TOOLS:
             return await self._ask(s, call, arguments)
         if call.name in HOST_TOOLS or call.name in LEGACY_TOOLS:
@@ -324,8 +352,8 @@ class ModelPolicy:
     @staticmethod
     def _asked(s: AgentSession, call: ToolCall, form: Interaction) -> tuple[str, dict[str, Any]]:
         s.emit("tool", call.name, tool=call.name, phase="call", by="model")
+        s.state.pending_call = {"id": call.id, "name": call.name}     # before the Back snapshot
         s.open_form(form.model_copy(update={"data": {**form.data, "call_id": call.id}}))
-        s.state.pending_call = {"id": call.id, "name": call.name}
         return "suspend", {}
 
     async def _ask(self, s: AgentSession, call: ToolCall,
@@ -348,6 +376,8 @@ class ModelPolicy:
                 return "ok", {"approved": True, "location_key": review["key"], "note": "already approved"}
             if facts.stage == "results":                # a new request after earlier results
                 facts.stage, facts.job_ids = "request", []
+                asked = next((item["text"] for item in s.state.turn if item["type"] == "user"), "")
+                facts.years = sorted(written_years(asked))
             facts.reset_place()
             facts.set_geography(geography)
             facts.review = review
@@ -437,6 +467,8 @@ class ModelPolicy:
                         and event.seq > s.state.turn_seq)
         if not jobs:
             return
+        s.state.pending_call = None
+        self._pair_calls(s)
         s.state.turn.append({"type": "note", "text": SUMMARY.format(jobs=jobs)})
         try:
             reply: ModelReply = await self.model.respond(SYSTEM, self._items(s), [])

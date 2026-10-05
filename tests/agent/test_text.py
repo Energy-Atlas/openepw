@@ -58,3 +58,10 @@ def test_decades_ranges_and_numbered_tmy_are_not_place_text():
 def test_head_counts_are_not_years():
     assert explicit_weather_years("over 2000 people") == set()
     assert explicit_weather_years("1900 residents in 2018") == {2018}
+
+
+def test_redaction_covers_common_local_paths():
+    from openepw.agent.text import safe_prompt
+
+    for path in ("/tmp/site.epw", "/var/data/site.epw", "~/weather/site.epw", r"D:\data\site.epw"):
+        assert safe_prompt(f"use {path} please") == "use [local path] please", path

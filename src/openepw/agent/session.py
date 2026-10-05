@@ -96,7 +96,7 @@ class AgentSession:
     def close_form(self) -> None:
         self.state.form = None
 
-    async def tool(self, name: str, *, by: str = "host", **arguments: Any) -> ToolResult:
+    async def tool(self, name: str, /, *, by: str = "host", **arguments: Any) -> ToolResult:
         """Call an MCP tool; ``by`` records whether the host or the model asked for it."""
         self.emit("tool", name, tool=name, phase="call", by=by)
         result = await self.port.call(name, **arguments)

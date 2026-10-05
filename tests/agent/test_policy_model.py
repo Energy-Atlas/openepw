@@ -88,7 +88,7 @@ def test_s1_agent_mode_reaches_a_job_through_the_same_forms(tmp_path):
             # The plan was rewritten to the approved location, not the model's 0, 0.
             assert h.session.facts.plans[0]["summary"]
             assert results(model, "review_location")[0]["approved"] is True
-            assert "weather_submit" not in model_calls(h)
+            assert "weather_submit" not in model_calls(h) and paired(model)
     run(main)
 
 
@@ -323,4 +323,103 @@ def test_choose_products_before_approval_is_refused(tmp_path):
             await h.say("what's available in Phoenix?")
             assert refused(h) == [("choose_products", "GATE_REQUIRED", "review_location")]
             assert "weather_product_offers" not in h.tools()
+    run(main)
+
+
+def paired(model):
+    """Every function call the model was shown has exactly one result (OpenAI rejects others)."""
+    for request in model.requests:
+        calls = [call["id"] for item in request["items"] if item["type"] == "assistant"
+                 for call in item["tool_calls"]]
+        outputs = [item["call_id"] for item in request["items"] if item["type"] == "tool_result"]
+        assert sorted(calls) == sorted(outputs), request["items"]
+    return True
+
+
+def test_back_keeps_the_pending_call_with_its_form_and_calls_stay_paired(tmp_path):
+    h, model = agent(tmp_path, [call("review_location", {"locations": ITHACA}), call("choose_products", {}),
+                                call("choose_products", {})])
+
+    async def main():
+        async with h:
+            await h.say("AMY 2018 for Ithaca NY")
+            await h.approve()
+            assert h.form.gate == "choose_products"
+            await h.session.back()
+            assert h.form.gate == "review_location"
+            assert h.session.state.pending_call["id"] == h.form.data["call_id"]
+            await h.approve()                                   # answered by the model path again
+            assert h.form.gate == "choose_products" and "call_id" in h.form.data
+            assert paired(model)
+    run(main)
+
+
+def test_reserved_argument_names_are_invalid_not_a_crash(tmp_path):
+    h, model = agent(tmp_path, [call("weather_geocode", {"query": "Ithaca", "by": "x"}),
+                                call("weather_geocode", {"query": "Ithaca, NY", "name": "x"}), say("ok")])
+
+    async def main():
+        async with h:
+            await h.say("Ithaca")
+            codes = [result.get("code") for result in results(model, "weather_geocode")]
+            assert codes[0] == "INVALID_ARGUMENTS"
+            assert not any(event.data.get("code") == "INTERNAL_ERROR" for event in h.session.events())
+            assert paired(model)
+    run(main)
+
+
+def test_a_new_request_after_results_starts_with_its_own_years(tmp_path):
+    h, model = agent(tmp_path, [*HAPPY, call("review_location", {"locations": BOSTON}), call("choose_products", {}),
+                                plan([2018]), say("Which years?")])
+
+    async def main():
+        async with h:
+            await h.say("AMY 2018 for Ithaca NY")
+            await h.approve()
+            await h.choose("era5-openmeteo")
+            await h.approve()
+            await h.session.follow_jobs(timeout=120)
+            await h.say("now actual-year weather for Boston")
+            await h.approve()
+            await h.choose("era5-openmeteo")
+            assert h.session.facts.years == []
+            assert ("weather_plan", "GATE_REQUIRED", "ask_text") in refused(h)
+    run(main)
+
+
+def test_place_set_counts_are_not_years_in_agent_mode(tmp_path):
+    h, model = agent(tmp_path, [say("Which region?")])
+
+    async def main():
+        async with h:
+            await h.say("the top 2000 cities in Texas over 5000 people")
+            assert h.session.facts.years == []
+    run(main)
+
+
+def test_the_history_keeps_the_persons_request(tmp_path):
+    h, model = agent(tmp_path, [call("weather_geocode", {"query": "Ithaca, NY"}) for _ in range(8)]
+                     + [say("Found it."), say("ok")])
+
+    async def main():
+        async with h:
+            await h.say("AMY 2018 for Ithaca NY")
+            await h.say("thanks")
+            history = model.requests[-1]["items"][0]["text"]
+            assert "person: AMY 2018 for Ithaca NY" in history
+    run(main)
+
+
+def test_text_at_an_ask_form_closes_it_and_stale_ask_forms_are_refused(tmp_path):
+    h, model = agent(tmp_path, [call("review_location", {"locations": ITHACA}), say("Please use the form.")])
+
+    async def main():
+        async with h:
+            await h.say("AMY 2018 for Ithaca NY")
+            stale = h.form
+            await h.say("yes that's right")
+            assert h.form is None and h.session.state.pending_call is None
+            h.session.state.form = stale                   # an old client still shows it
+            await h.approve()
+            assert h.session.events()[-1].data["code"] == "STALE_FORM" and not h.session.facts.approved_key
     run(main)

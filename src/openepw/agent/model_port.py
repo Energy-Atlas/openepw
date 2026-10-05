@@ -130,7 +130,10 @@ class OpenAIModel:
         self.usage: dict[str, Any] = {"calls": 0, "input_tokens": 0, "output_tokens": 0,
                                       "estimated_usd": 0.0}
         if self.ledger_path and self.ledger_path.is_file():
-            self.usage.update(json.loads(self.ledger_path.read_text(encoding="utf-8")))
+            try:
+                self.usage.update(json.loads(self.ledger_path.read_text(encoding="utf-8")))
+            except ValueError:                     # an unreadable ledger means an unknown spend
+                raise ModelUnavailable("The model usage ledger is unreadable") from None
 
     def _save(self) -> None:
         if self.ledger_path is None:
@@ -162,12 +165,13 @@ class OpenAIModel:
                       tools: list[dict[str, Any]]) -> ModelReply:
         payload = {
             "model": self.name, "instructions": system, "input": self._input(items),
-            "tools": [{"type": "function", "name": tool["name"], "description": tool["description"],
-                       "parameters": tool["parameters"], "strict": False} for tool in tools],
-            "tool_choice": "auto", "parallel_tool_calls": False,
             "reasoning": {"effort": "low"}, "max_output_tokens": self.max_output_tokens,
             "store": False, "include": ["reasoning.encrypted_content"],
         }
+        if tools:                                  # a summary turn sends no tool fields at all
+            payload.update({"tool_choice": "auto", "parallel_tool_calls": False, "tools": [
+                {"type": "function", "name": tool["name"], "description": tool["description"],
+                 "parameters": tool["parameters"], "strict": False} for tool in tools]})
         size = len(json.dumps(payload))
         # Conservative allowance before every call: about 3 characters per input token.
         projection = (size / 3 * INPUT_USD_PER_MILLION +

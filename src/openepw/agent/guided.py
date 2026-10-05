@@ -6,12 +6,12 @@ import re
 from typing import Any
 
 from ..models import OpenEPWError
-from ..places.parse import POPULATION, apply_edit, describe_place_set
+from ..places.parse import apply_edit, describe_place_set
 from . import host
 from .gates import build_requests, needs_years, next_need
 from .interactions import Answer, Interaction, Option
 from .session import AgentSession
-from .text import FUTURE, explicit_weather_years, place_part, read_product
+from .text import FUTURE, place_part, read_product, written_years
 
 SUSPENDED = ("Future-weather planning is temporarily unavailable; ask for actual-year (historical) "
              "or typical-year weather instead.")
@@ -20,8 +20,6 @@ APPROVE = re.compile(r"a|approve|approved|yes|y|ok|okay|correct|looks good", re.
 RUN = re.compile(r"run|r|yes|go|start|approve", re.I)
 PLACE_GATES = {None, "where", "choose_location", "review_location", "place_set", "review_plan",
                "next_steps"}
-_HEADCOUNT = re.compile(r"\b(?:(?:top|largest|biggest|first)\s+\d+|\d+\s+(?:largest|biggest))\b",
-                        re.I)
 REFERENCE_LABELS = {"tmy": "TMY", "tmyx": "TMYx", "published": "A published EPW"}
 
 
@@ -67,7 +65,7 @@ class GuidedPolicy:
             facts.offers, facts.offer_availability, facts.chosen, facts.plans = [], None, [], []
             changed = True
         # "over 2000 people" and "top 1900" describe a place set, not a weather year.
-        years = sorted(explicit_weather_years(_HEADCOUNT.sub(" ", POPULATION.sub(" ", text))))
+        years = sorted(written_years(text))
         if not years:
             return changed
         reference = product in REFERENCE_LABELS or (product is None and facts.chosen and not needs_years(facts))

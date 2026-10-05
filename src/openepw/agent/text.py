@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import re
 
+from ..places.parse import POPULATION
+
 # Scenario and pathway names in their usual spellings: SSP585, SSP5-8.5, RCP8.5, RCP 4.5, rcp85.
 FUTURE = re.compile(r"\b(?:future|ssp\d{3}|ssp\d(?:-\d\.?\d)?|rcp\s?\d\.?\d|cmip\d"
                     r"|projected|projections?|climate scenarios?)\b", re.I)
@@ -47,6 +49,15 @@ def explicit_weather_years(text: str) -> set[int]:
     return years
 
 
+# Place-set limits ("top 2000 cities", "the 500 largest") that must not become weather years.
+_HEADCOUNT = re.compile(r"\b(?:(?:top|largest|biggest|first)\s+\d+|\d+\s+(?:largest|biggest))\b", re.I)
+
+
+def written_years(text: str) -> set[int]:
+    """Weather years a person wrote, ignoring place-set populations and limits."""
+    return explicit_weather_years(_HEADCOUNT.sub(" ", POPULATION.sub(" ", text)))
+
+
 def read_product(text: str) -> str | None:
     """The weather product a message names, if any; TMYx wins over TMY."""
     for product, pattern in _PRODUCTS:
@@ -69,6 +80,6 @@ def safe_prompt(text: str, *, limit: int = 1000) -> str:
         r"[\"']?\s*[=:]\s*[\"']?\S+|\bBearer\s+\S+|\bsk-[A-Za-z0-9_-]{8,}\b",
         "[redacted]", text,
     )
-    text = re.sub(r"[A-Za-z]:\\[^\s]+|/(?:home|Users)/[^\s]+",
+    text = re.sub(r"[A-Za-z]:\\[^\s]+|/(?:home|Users|tmp|var|opt|mnt|srv)/[^\s]+|~[/\\][^\s]+",
                   "[local path]", text)
     return text[:limit]

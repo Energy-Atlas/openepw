@@ -61,7 +61,7 @@ class ApprovalBook:
 
 
 class MCPPort(Protocol):
-    async def call(self, name: str, **arguments: Any) -> ToolResult: ...
+    async def call(self, name: str, /, **arguments: Any) -> ToolResult: ...
 
 
 class InProcessMCP:
@@ -96,7 +96,7 @@ class InProcessMCP:
         return [{"name": tool.name, "description": tool.description or "",
                  "parameters": tool.inputSchema} for tool in listed.tools]
 
-    async def call(self, name: str, **arguments: Any) -> ToolResult:
+    async def call(self, name: str, /, **arguments: Any) -> ToolResult:
         if self._session is None:
             raise ToolFailure("CLIENT_CLOSED", "The MCP session is closed")
         result = await self._session.call_tool(name, arguments)

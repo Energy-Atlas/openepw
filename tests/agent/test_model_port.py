@@ -131,3 +131,20 @@ def test_the_key_comes_from_the_environment_or_dotenv(tmp_path, monkeypatch):
 def test_reply_items_round_trip():
     reply = ModelReply(text="ok", raw=[{"type": "message"}])
     assert reply.item() == {"type": "assistant", "text": "ok", "raw": [{"type": "message"}], "tool_calls": []}
+
+
+def test_a_summary_request_sends_no_tool_fields(tmp_path):
+    seen = {}
+
+    def handler(request):
+        seen["body"] = json.loads(request.content)
+        return completed([])
+
+    asyncio.run(openai(handler, tmp_path).respond("rules", [{"type": "note", "text": "jobs done"}], []))
+    assert not {"tools", "tool_choice", "parallel_tool_calls"} & set(seen["body"])
+
+
+def test_an_unreadable_ledger_is_model_unavailable(tmp_path):
+    (tmp_path / "usage.json").write_text("{not json", encoding="utf-8")
+    with pytest.raises(ModelUnavailable, match="ledger"):
+        openai(lambda request: completed([]), tmp_path)
