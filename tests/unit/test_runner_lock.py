@@ -3,7 +3,10 @@ import subprocess
 import sys
 from pathlib import Path
 
+from openepw.config import RuntimeConfig
 from openepw.jobs.lock import acquire_runner_lock, release_runner_lock
+from openepw.jobs.worker import JobRunner
+from openepw.service import WeatherService
 
 SRC = Path(__file__).parents[2] / "src"
 PROBE = (
@@ -38,4 +41,15 @@ def test_another_process_is_refused_until_the_lock_is_released(tmp_path):
         assert refused.returncode == 3 and "DATA_ROOT_BUSY" in refused.stdout
     finally:
         release_runner_lock(held)
+    assert _probe(tmp_path).returncode == 0
+
+
+def test_a_recovering_runner_holds_the_root_until_closed(tmp_path):
+    runner = JobRunner(WeatherService(RuntimeConfig(data_root=tmp_path)))
+    try:
+        runner.recover()
+        refused = _probe(tmp_path)
+        assert refused.returncode == 3 and "DATA_ROOT_BUSY" in refused.stdout
+    finally:
+        runner.close()
     assert _probe(tmp_path).returncode == 0

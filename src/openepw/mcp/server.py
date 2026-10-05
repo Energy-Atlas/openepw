@@ -150,21 +150,25 @@ async def acall(name: str, function: Callable[..., Any], *args: Any) -> CallTool
 
 def create_server(service=None, *, allowed_roots: list[str | Path] | None = None,
                   runner: JobRunner | None = None):
-    """Build the MCP server; a supplied runner is shared and left to its owner to close."""
+    """Build the MCP server; a supplied runner is shared and left to its owner to close.
+
+    The SDK enters the lifespan once per client session, so an owned runner recovers on the
+    first session and stays open across sessions; the process closes it at exit through
+    ``server.openepw_runner.close()`` (as the ``openepw mcp`` command does).
+    """
     service = service or WeatherService()
     roots = [Path(root).resolve() for root in (allowed_roots or [])]
     owns_runner = runner is None
     runner = runner or JobRunner(service)
+    recovered = False
 
     @asynccontextmanager
     async def lifespan(server):
-        if owns_runner:
+        nonlocal recovered
+        if owns_runner and not recovered:
             runner.recover()
-        try:
-            yield {"runner": runner}
-        finally:
-            if owns_runner:
-                runner.close()
+            recovered = True
+        yield {"runner": runner}
 
     server = FastMCP("openepw", host="127.0.0.1", port=8001, lifespan=lifespan,
                      instructions=INSTRUCTIONS)

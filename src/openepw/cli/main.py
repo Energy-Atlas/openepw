@@ -77,7 +77,11 @@ def main(argv=None):
         if args.command == "mcp":
             from ..mcp.server import create_server
 
-            create_server(service, allowed_roots=args.allow_root).run(transport=args.transport)
+            server = create_server(service, allowed_roots=args.allow_root)
+            try:
+                server.run(transport=args.transport)
+            finally:
+                server.openepw_runner.close()  # type: ignore[attr-defined]
             return 0
         if args.command == "geocode":
             result = service.geocode(args.input)
