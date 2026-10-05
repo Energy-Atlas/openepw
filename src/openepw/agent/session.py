@@ -14,6 +14,7 @@ from .interactions import Answer, Event, Interaction
 from .mcp_port import ApprovalBook, MCPPort, ToolFailure, ToolResult
 from .state import Facts, SessionState
 from .store import SessionStore
+from .text import safe_prompt
 
 TERMINAL = frozenset({"completed", "partially_completed", "failed", "cancelled"})
 MAX_UPLOAD = 5_000_000
@@ -91,10 +92,11 @@ class AgentSession:
     def close_form(self) -> None:
         self.state.form = None
 
-    async def tool(self, name: str, **arguments: Any) -> ToolResult:
-        self.emit("tool", name, tool=name, phase="call")
+    async def tool(self, name: str, *, by: str = "host", **arguments: Any) -> ToolResult:
+        """Call an MCP tool; ``by`` records whether the host or the model asked for it."""
+        self.emit("tool", name, tool=name, phase="call", by=by)
         result = await self.port.call(name, **arguments)
-        self.emit("tool", result.text, tool=name, phase="result")
+        self.emit("tool", result.text, tool=name, phase="result", by=by)
         return result
 
     async def _guard(self, work: Any) -> None:
@@ -129,6 +131,8 @@ class AgentSession:
         if len(text) > 4000:
             self.emit("error", "Messages are limited to 4,000 characters.", code="MESSAGE_TOO_LONG")
             return
+        # Credentials and local paths never reach the event log or a model.
+        text = safe_prompt(text, limit=4000)
         self.emit("user", text)
         await self._guard(self.policy.on_text(self, text))
 
@@ -137,6 +141,8 @@ class AgentSession:
         if form is None or answer.interaction_id != form.id or answer.revision != form.revision:
             self.emit("error", "That form is no longer current; answer the latest one.", code="STALE_FORM")
             return
+        if answer.text:
+            answer = answer.model_copy(update={"text": safe_prompt(answer.text, limit=4000)})
         self.emit("user", answer_text(form, answer), answer=answer.model_dump(mode="json"))
         await self._guard(self.policy.on_answer(self, form, answer))
 
@@ -181,7 +187,10 @@ class AgentSession:
         self.facts.artifact_ids.append(result.data["artifact_id"])
         self.emit("assistant", f"Registered your EPW ({result.data.get('rows')} rows) as artifact "
                                f"{result.data['artifact_id']}.", artifact_id=result.data["artifact_id"])
-        if self.facts.geography is None and not self.facts.job_ids:
+        on_upload = getattr(self.policy, "on_upload", None)
+        if on_upload is not None:                 # e.g. an open upload form a model asked for
+            await on_upload(self, result.data["artifact_id"])
+        elif self.facts.geography is None and not self.facts.job_ids:
             self.facts.stage = "results"
             self.close_form()
             await self.policy.advance(self)

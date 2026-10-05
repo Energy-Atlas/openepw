@@ -59,3 +59,16 @@ def place_part(text: str) -> str:
     """The place part of a message; newlines are kept because they separate list items."""
     stripped = re.sub(r"[ \t]+", " ", _PLACE_NOISE.sub(" ", text))
     return "\n".join(line.strip(" ,.;:!?") for line in stripped.splitlines()).strip()
+
+
+def safe_prompt(text: str, *, limit: int = 1000) -> str:
+    """Remove credential assignments and absolute paths before model input."""
+    text = re.sub(
+        r"(?i)\b(?:[A-Z][A-Z0-9_]*(?:API_KEY|TOKEN|SECRET|PASSWORD)|"
+        r"api[_-]?key|bearer[_-]?token|access[_-]?token|secret|password)"
+        r"[\"']?\s*[=:]\s*[\"']?\S+|\bBearer\s+\S+|\bsk-[A-Za-z0-9_-]{8,}\b",
+        "[redacted]", text,
+    )
+    text = re.sub(r"[A-Za-z]:\\[^\s]+|/(?:home|Users)/[^\s]+",
+                  "[local path]", text)
+    return text[:limit]

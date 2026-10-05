@@ -7,9 +7,9 @@ from typing import Any
 
 from ..models import OpenEPWError
 from ..places.parse import POPULATION, apply_edit, describe_place_set
+from . import host
 from .gates import build_requests, needs_years, next_need
 from .interactions import Answer, Interaction, Option
-from .mcp_port import ToolFailure
 from .session import AgentSession
 from .text import FUTURE, explicit_weather_years, place_part, read_product
 
@@ -23,19 +23,6 @@ PLACE_GATES = {None, "where", "choose_location", "review_location", "place_set",
 _HEADCOUNT = re.compile(r"\b(?:(?:top|largest|biggest|first)\s+\d+|\d+\s+(?:largest|biggest))\b",
                         re.I)
 REFERENCE_LABELS = {"tmy": "TMY", "tmyx": "TMYx", "published": "A published EPW"}
-VIEWS = (("view:monthly_series", "Monthly dry-bulb temperature chart"),
-         ("view:histogram", "Dry-bulb temperature distribution"))
-
-
-def _offset(minutes: int) -> str:
-    sign = "+" if minutes >= 0 else "-"
-    return f"UTC{sign}{abs(minutes) // 60:02d}:{abs(minutes) % 60:02d}"
-
-
-def _point(candidate: dict[str, Any]) -> dict[str, Any]:
-    """A geocoder candidate as a request point; its default offset (0) must not be kept."""
-    return {key: candidate[key] for key in ("lat", "lon", "name", "id", "elevation")
-            if candidate.get(key) is not None}
 
 
 class GuidedPolicy:
@@ -133,7 +120,7 @@ class GuidedPolicy:
         if not candidates:
             s.emit("assistant", f"No location matched '{name}'. Give coordinates or a more specific place.")
         elif len(candidates) == 1:
-            s.facts.set_geography(_point(candidates[0]))
+            s.facts.set_geography(host.point(candidates[0]))
         else:
             s.facts.set_geography(None)
             s.facts.candidates = candidates[:10]
@@ -222,7 +209,7 @@ class GuidedPolicy:
             candidate = next(item for index, item in enumerate(s.facts.candidates)
                              if str(item.get("id", index)) == choice)
             s.facts.candidates = []
-            s.facts.set_geography(_point(candidate))
+            s.facts.set_geography(host.point(candidate))
         elif gate == "place_set":
             await self._continue_place_set(s, form.data["answers"][choice])
         elif gate == "choose_products":
@@ -244,61 +231,15 @@ class GuidedPolicy:
         await self.advance(s)
 
     async def _run(self, s: AgentSession) -> None:
-        shown = s.form.data.get("plans", []) if s.form and s.form.gate == "review_plan" else []
-        if [plan["plan_hash"] for plan in shown] != [plan["plan_hash"] for plan in s.facts.plans]:
-            # "run" approves the plans on the open review, so they must be the plans submitted.
-            s.emit("error", "The plan changed since it was shown; review it again before running.",
-                   code="GATE_REQUIRED", need="review_plan")
-            await self.advance(s)
-            return
-        plans = [plan for plan in s.facts.plans if plan["output_count"]]
-        if not plans:
-            s.emit("error", "There is no reviewed plan to run.", code="GATE_REQUIRED")
-            return
-        for plan in plans:
-            if plan.get("job_id"):                       # started by an earlier, partly failed run
-                continue
-            s.approvals.approve(plan["plan_hash"])
-            try:
-                job = (await s.tool("weather_submit", plan_hash=plan["plan_hash"],
-                                    idempotency_key=f"agent:{s.id}:{plan['plan_hash'][:16]}")).data
-            except Exception:
-                if s.facts.job_ids:
-                    try:
-                        await self.advance(s)            # show which plans already started
-                    except Exception:
-                        pass                             # the submission failure is the one to report
-                raise
-            finally:
-                # One approval, one submission: never leave it pending if the server did not ask.
-                s.approvals.consume(plan["plan_hash"])
-            s.facts.plans = [{**item, "job_id": job["id"]} if item["plan_hash"] == plan["plan_hash"]
-                             else item for item in s.facts.plans]
-            if job["id"] not in s.facts.job_ids:
-                s.facts.job_ids.append(job["id"])
-            if plan["plan_hash"] not in s.facts.started_plans:
-                s.facts.started_plans.append(plan["plan_hash"])
-            s.emit("job", f"Weather job {job['id'][:8]} started", job_id=job["id"], state=job.get("state"))
-        s.close_form()
+        await host.run_plans(s, self.advance)
 
     async def _next_step(self, s: AgentSession, choice: str) -> None:
         if choice == "new":
             s.facts.new_request()
         elif choice.startswith("view:"):
-            family = choice.split(":", 1)[1]
-            result = await s.tool("weather_visualize", request={
-                "artifact_ids": s.facts.artifact_ids[-100:], "family": family, "variable": "dry_bulb"})
-            s.emit("view", result.text, view_id=result.data["view_id"], family=family, variable="dry_bulb")
+            await host.visualize(s, choice.split(":", 1)[1])
         elif choice == "export":
-            for job_id in s.facts.finished_job_ids:
-                try:
-                    data = (await s.tool("weather_export_compact", job_id=job_id)).data
-                except ToolFailure as failure:          # one job without a bundle must not stop the rest
-                    s.emit("error", f"Job {job_id[:8]}: {failure.code}: {failure.message}",
-                           code=failure.code, job_id=job_id)
-                    continue
-                s.emit("assistant", f"Compact ZIP ready: artifact {data['artifact_id']} ({data['bytes']} bytes).",
-                       artifact_id=data["artifact_id"])
+            await host.export(s)
         await self.advance(s)
 
     # Forms ------------------------------------------------------------------------------
@@ -306,7 +247,7 @@ class GuidedPolicy:
         facts = s.facts
         need = next_need(facts)
         if need == "place_set":
-            s.open_form(self._place_set_form(facts.place_set or {}))
+            s.open_form(host.place_set_form(facts.place_set or {}))
         elif need == "choose_location":
             s.open_form(Interaction(
                 kind="choice", gate="choose_location", prompt="Which location do you mean?",
@@ -321,7 +262,7 @@ class GuidedPolicy:
         elif need == "review_location":
             if facts.review is None:
                 facts.review = (await s.tool("weather_locations_review", locations=facts.geography)).data
-            s.open_form(self._review_form(facts))
+            s.open_form(host.review_form(facts))
         elif need == "choose_products":
             assert facts.review is not None               # next_need guarantees an approved review
             if not facts.offers:
@@ -330,24 +271,17 @@ class GuidedPolicy:
                                      years=facts.years or None)).data
                 facts.offers = data.get("options", [])
                 facts.offer_availability = data.get("availability")
-            s.open_form(Interaction(
-                kind="product_choice", gate="choose_products", multi=True, prompt="Which weather products?",
-                summary="Listed means eligible to try retrieval, not quality assured.",
-                options=[Option(id=offer["id"], label=offer["label"], detail=offer.get("detail"))
-                         for offer in facts.offers],
-                data={"availability": facts.offer_availability}))
+            s.open_form(host.product_form(facts))
         elif need == "years":
-            s.open_form(Interaction(kind="text", gate="years", prompt="Which actual year or years?",
-                                    summary="Actual-year products need calendar years.",
-                                    data={"hint": "e.g. 2018 or 2016-2018"}))
+            s.open_form(host.years_form())
         elif need == "plan":
             await self._plan(s)
         elif need == "review_plan":
             # The open review must show exactly the plans that "run" submits.
             if not (s.form and s.form.gate == "review_plan" and s.form.data.get("plans") == facts.plans):
-                s.open_form(self._plan_form(facts))
+                s.open_form(host.plan_form(facts))
         elif need == "next_steps":
-            s.open_form(self._next_steps_form(facts))
+            s.open_form(host.next_steps_form(facts))
         else:                                              # "jobs": retrieval is running
             s.close_form()
 
@@ -356,69 +290,9 @@ class GuidedPolicy:
         plans = []
         for request in build_requests(facts):
             result = await s.tool("weather_plan", request=request)
-            plans.append({"plan_hash": result.data["plan_hash"], "product": request["product"],
-                          "output_count": result.data.get("output_count", 0), "summary": result.text,
-                          "warnings": result.data.get("warnings", [])})
+            plans.append(host.plan_entry(request, result.data, result.text))
         facts.plans = plans                              # all or nothing: never a half-built plan set
         if not any(plan["output_count"] for plan in facts.plans):
             s.emit("assistant", "The plan has no executable output for these choices; choose other products.")
             facts.chosen, facts.plans = [], []
         await self.advance(s)
-
-    @staticmethod
-    def _place_set_form(place_set: dict[str, Any]) -> Interaction:
-        question = place_set["questions"][0]
-        numbered = bool((place_set.get("draft") or {}).get("region_options"))
-        options, answers = [], {}
-        for index, option in enumerate(question.get("options", []), start=1):
-            if question["field"] == "region":
-                label = option["label"]
-                answer = str(index) if numbered else label
-            elif question["field"] == "definition":
-                label, answer = f"{option['min_population']:,}", str(option["min_population"])
-            else:
-                label = "All (1,000)" if option["limit"] >= 1000 else str(option["limit"])
-                answer = "all" if option["limit"] >= 1000 else f"top {option['limit']}"
-            options.append(Option(id=f"place:{index}", label=label))
-            answers[f"place:{index}"] = answer
-        return Interaction(kind="choice", gate="place_set", prompt=question["prompt"], options=options,
-                           data={"answers": answers, "field": question["field"]})
-
-    @staticmethod
-    def _review_form(facts: Any) -> Interaction:
-        review = facts.review
-        count = review["point_count"]
-        lines = [f"{index}. {point.get('name') or 'point'} ({point['lat']:.4f}, {point['lon']:.4f}) "
-                 f"{_offset(point['standard_offset_minutes'])}"
-                 for index, point in enumerate(review["points"][:25], start=1)]
-        if count > 25:
-            lines.append(f"... and {count - 25} more")
-        lines.append(review["standard_time"])
-        return Interaction(
-            kind="location_review", gate="review_location",
-            prompt="Are these the right locations?" if count > 1 else "Is this the right location?",
-            summary="\n".join(lines), data={**review, "several": count > 1, "rows": facts.place_rows})
-
-    @staticmethod
-    def _plan_form(facts: Any) -> Interaction:
-        lines = []
-        for plan in facts.plans:
-            heading = "Actual year" if plan["product"] == "historical" else "Typical year"
-            started = f" (already started as job {plan['job_id'][:8]})" if plan.get("job_id") else ""
-            lines.append(f"{heading}{started}: {plan['summary']}")
-            lines.extend(f"Warning: {warning}" for warning in plan.get("warnings", [])[:5])
-        if any(plan["product"] == "historical" for plan in facts.plans) and facts.review:
-            lines.append(facts.review["standard_time"])
-        lines.append("Listed sources are eligible to try; retrieved weather is checked by QC afterwards.")
-        return Interaction(kind="plan_review", gate="review_plan",
-                           prompt="Review the plan, then run it to start retrieval.",
-                           # A copy: the run guard compares what was shown with the current plans.
-                           summary="\n".join(lines), data={"plans": [dict(plan) for plan in facts.plans]})
-
-    @staticmethod
-    def _next_steps_form(facts: Any) -> Interaction:
-        options = [Option(id=choice, label=label) for choice, label in VIEWS] if facts.artifact_ids else []
-        if facts.finished_job_ids:
-            options.append(Option(id="export", label="Compact ZIP of the outputs"))
-        options.append(Option(id="new", label="Start a new weather request"))
-        return Interaction(kind="choice", gate="next_steps", prompt="What next?", options=options)

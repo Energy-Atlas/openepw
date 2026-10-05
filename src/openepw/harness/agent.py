@@ -12,6 +12,7 @@ from typing import Any, Callable, Literal, Protocol
 
 from pydantic import BaseModel, Field, field_validator
 
+from ..agent.text import safe_prompt  # noqa: F401 (shared redaction; re-exported)
 from .mcp_client import MCPToolFailure
 
 
@@ -77,19 +78,6 @@ def _batch_row_label(row: dict[str, Any]) -> str:
             period = f"{start}–{end}" if end else start
         return f"{location}, {period}" if location else period
     return location or "output"
-
-
-def safe_prompt(text: str, *, limit: int = 1000) -> str:
-    """Remove credential assignments and absolute paths before model input."""
-    text = re.sub(
-        r"(?i)\b(?:[A-Z][A-Z0-9_]*(?:API_KEY|TOKEN|SECRET|PASSWORD)|"
-        r"api[_-]?key|bearer[_-]?token|access[_-]?token|secret|password)"
-        r"[\"']?\s*[=:]\s*[\"']?\S+|\bBearer\s+\S+|\bsk-[A-Za-z0-9_-]{8,}\b",
-        "[redacted]", text,
-    )
-    text = re.sub(r"[A-Za-z]:\\[^\s]+|/(?:home|Users)/[^\s]+",
-                  "[local path]", text)
-    return text[:limit]
 
 
 class ReferenceAgent:

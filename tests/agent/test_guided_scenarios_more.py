@@ -266,3 +266,13 @@ def test_a_count_before_largest_is_not_a_year(tmp_path):
             await h.say("AMY 2018 for the 2000 largest cities in Texas")
             assert h.session.facts.years == [2018]
     asyncio.run(main())
+
+
+def test_s20_credentials_and_paths_are_redacted_from_the_log(tmp_path):
+    async def main():
+        async with Harness(tmp_path) as h:
+            await h.say(r"AMY 2018 for Ithaca NY api_key=sk-abcdefghijklmnop C:\Users\me\secret.txt")
+            logged = "\n".join(event.text for event in h.session.events())
+            assert "sk-abcdefghijklmnop" not in logged and "secret.txt" not in logged
+            assert "[redacted]" in logged and "[local path]" in logged
+    asyncio.run(main())
