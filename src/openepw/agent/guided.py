@@ -6,7 +6,7 @@ import re
 from typing import Any
 
 from ..models import OpenEPWError
-from ..places.parse import apply_edit, describe_place_set
+from ..places.parse import POPULATION, apply_edit, describe_place_set
 from .gates import build_requests, needs_years, next_need
 from .interactions import Answer, Interaction, Option
 from .mcp_port import ToolFailure
@@ -20,6 +20,7 @@ APPROVE = re.compile(r"a|approve|approved|yes|y|ok|okay|correct|looks good", re.
 RUN = re.compile(r"run|r|yes|go|start|approve", re.I)
 PLACE_GATES = {None, "where", "choose_location", "review_location", "place_set", "review_plan",
                "next_steps"}
+_HEADCOUNT = re.compile(r"\b(?:top|largest|biggest|first)\s+\d+", re.I)
 REFERENCE_LABELS = {"tmy": "TMY", "tmyx": "TMYx", "published": "A published EPW"}
 VIEWS = (("view:monthly_series", "Monthly dry-bulb temperature chart"),
          ("view:histogram", "Dry-bulb temperature distribution"))
@@ -54,7 +55,8 @@ class GuidedPolicy:
         if gate == "next_steps":
             s.facts.new_request()
             gate = "where"
-        changed = self._read_time_and_product(s, text)
+        # Place-set answers are populations and limits, never weather years.
+        changed = self._read_time_and_product(s, text if gate != "place_set" else "")
         place = place_part(text) if gate in PLACE_GATES else ""
         if gate == "place_set" and place and s.facts.place_set:
             await self._continue_place_set(s, place)
@@ -75,7 +77,8 @@ class GuidedPolicy:
             facts.product_type = product
             facts.offers, facts.offer_availability, facts.chosen, facts.plans = [], None, [], []
             changed = True
-        years = sorted(explicit_weather_years(text))
+        # "over 2000 people" and "top 1900" describe a place set, not a weather year.
+        years = sorted(explicit_weather_years(_HEADCOUNT.sub(" ", POPULATION.sub(" ", text))))
         if not years:
             return changed
         reference = product in REFERENCE_LABELS or (product is None and facts.chosen and not needs_years(facts))
@@ -239,6 +242,13 @@ class GuidedPolicy:
         await self.advance(s)
 
     async def _run(self, s: AgentSession) -> None:
+        shown = s.form.data.get("plans", []) if s.form and s.form.gate == "review_plan" else []
+        if [plan["plan_hash"] for plan in shown] != [plan["plan_hash"] for plan in s.facts.plans]:
+            # "run" approves the plans on the open review, so they must be the plans submitted.
+            s.emit("error", "The plan changed since it was shown; review it again before running.",
+                   code="GATE_REQUIRED", need="review_plan")
+            await self.advance(s)
+            return
         plans = [plan for plan in s.facts.plans if plan["output_count"]]
         if not plans:
             s.emit("error", "There is no reviewed plan to run.", code="GATE_REQUIRED")
@@ -252,7 +262,10 @@ class GuidedPolicy:
                                     idempotency_key=f"agent:{s.id}:{plan['plan_hash'][:16]}")).data
             except Exception:
                 if s.facts.job_ids:
-                    await self.advance(s)                # show which plans already started
+                    try:
+                        await self.advance(s)            # show which plans already started
+                    except Exception:
+                        pass                             # the submission failure is the one to report
                 raise
             finally:
                 # One approval, one submission: never leave it pending if the server did not ask.
@@ -261,6 +274,8 @@ class GuidedPolicy:
                              else item for item in s.facts.plans]
             if job["id"] not in s.facts.job_ids:
                 s.facts.job_ids.append(job["id"])
+            if plan["plan_hash"] not in s.facts.started_plans:
+                s.facts.started_plans.append(plan["plan_hash"])
             s.emit("job", f"Weather job {job['id'][:8]} started", job_id=job["id"], state=job.get("state"))
         s.close_form()
 
@@ -336,11 +351,13 @@ class GuidedPolicy:
 
     async def _plan(self, s: AgentSession) -> None:
         facts = s.facts
+        plans = []
         for request in build_requests(facts):
             result = await s.tool("weather_plan", request=request)
-            facts.plans.append({"plan_hash": result.data["plan_hash"], "product": request["product"],
-                                "output_count": result.data.get("output_count", 0), "summary": result.text,
-                                "warnings": result.data.get("warnings", [])})
+            plans.append({"plan_hash": result.data["plan_hash"], "product": request["product"],
+                          "output_count": result.data.get("output_count", 0), "summary": result.text,
+                          "warnings": result.data.get("warnings", [])})
+        facts.plans = plans                              # all or nothing: never a half-built plan set
         if not any(plan["output_count"] for plan in facts.plans):
             s.emit("assistant", "The plan has no executable output for these choices; choose other products.")
             facts.chosen, facts.plans = [], []

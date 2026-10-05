@@ -146,7 +146,9 @@ class AgentSession:
             self.emit("error", "There is no earlier step to go back to.", code="NOTHING_TO_UNDO")
             return
         restored = earlier[0]
-        if restored.facts.job_ids != self.facts.job_ids:
+        # A new request clears job_ids, so started plans (which only grow) also guard Back.
+        if (restored.facts.job_ids != self.facts.job_ids
+                or restored.facts.started_plans != self.facts.started_plans):
             self.emit("error", "A weather job already started after that step; start a new request instead.",
                       code="JOB_STARTED")
             return

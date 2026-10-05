@@ -53,3 +53,8 @@ def test_decades_ranges_and_numbered_tmy_are_not_place_text():
     assert place_part("Ithaca 2010s") == "Ithaca"
     assert place_part("AMY from 2016 to 2018 for Ithaca") == "Ithaca"
     assert read_product("TMY3 for Denver") == "tmy" and place_part("TMY3 for Denver") == "Denver"
+
+
+def test_head_counts_are_not_years():
+    assert explicit_weather_years("over 2000 people") == set()
+    assert explicit_weather_years("1900 residents in 2018") == {2018}

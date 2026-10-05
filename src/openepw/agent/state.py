@@ -30,6 +30,7 @@ class Facts(Model):
     job_ids: list[str] = Field(default_factory=list)
     finished_job_ids: list[str] = Field(default_factory=list)
     artifact_ids: list[str] = Field(default_factory=list)
+    started_plans: list[str] = Field(default_factory=list)   # every plan hash submitted; only grows
 
     def set_geography(self, value: Any) -> None:
         """A new geography needs a new review, approval, product choice and plan."""

@@ -163,6 +163,8 @@ def test_a_partly_failed_run_resubmits_only_the_rest(tmp_path):
             await to_plan_review(h)
             plan = h.session.facts.plans[0]
             h.session.facts.plans = [plan, {**plan, "plan_hash": "f" * 64, "summary": "second plan"}]
+            await h.session.policy.advance(h.session)        # the person sees both plans
+            assert len(h.form.data["plans"]) == 2
             real, calls = h.port.call, []
 
             async def flaky(name, **arguments):
@@ -194,4 +196,53 @@ def test_an_export_failure_does_not_stop_the_other_jobs(tmp_path):
             errors = [event for event in h.session.events() if event.type == "error"]
             assert len(errors) == 2 and h.form.gate == "next_steps"
             assert h.tools().count("weather_export_compact") == 2
+    asyncio.run(main())
+
+
+def test_run_refuses_plans_the_open_review_does_not_show(tmp_path):
+    async def main():
+        async with Harness(tmp_path) as h:
+            await h.say("AMY 2018 for Ithaca NY")
+            await h.approve()
+            await h.choose("era5-openmeteo", "era5-cds")
+            assert h.form.gate == "review_plan" and len(h.form.data["plans"]) == 2
+            real, failed = h.port.call, []
+
+            async def once(name, **arguments):
+                cds = name == "weather_plan" and arguments["request"]["dataset_selections"][0]["provider"] == "cds"
+                if cds and arguments["request"]["years"] == [2019] and not failed:
+                    failed.append(True)
+                    raise ToolFailure("PROVIDER_DOWN", "planning failed", retryable=True)
+                return await real(name, **arguments)
+
+            h.port.call = once
+            await h.say("2019 instead")              # the second plan fails: nothing half-built is kept
+            assert h.session.facts.plans == [] and h.session.events()[-1].data["code"] == "PROVIDER_DOWN"
+            await h.approve()                        # the stale 2018 review cannot run the 2019 plans
+            assert "weather_submit" not in h.tools()
+            assert h.form.gate == "review_plan"
+            shown = [plan["plan_hash"] for plan in h.form.data["plans"]]
+            assert shown == [plan["plan_hash"] for plan in h.session.facts.plans] and len(shown) == 2
+    asyncio.run(main())
+
+
+def test_a_population_threshold_is_not_a_weather_year(tmp_path):
+    async def main():
+        async with Harness(tmp_path) as h:
+            await h.say("all cities in Texas over 2000 people")
+            assert h.session.facts.years == [] and h.session.facts.product_type is None
+            assert h.form.gate == "place_set"
+            await h.say("top 1900")
+            assert h.session.facts.years == []
+    asyncio.run(main())
+
+
+def test_back_after_a_new_request_never_restores_a_started_plan(tmp_path):
+    async def main():
+        async with Harness(tmp_path) as h:
+            await to_plan_review(h)
+            await h.approve()
+            await h.session.new_request()
+            await h.session.back()
+            assert h.session.events()[-1].data["code"] == "JOB_STARTED" and h.form.gate == "where"
     asyncio.run(main())

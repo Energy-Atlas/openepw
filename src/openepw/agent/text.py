@@ -30,7 +30,8 @@ def explicit_weather_years(text: str) -> set[int]:
     """A building count must not turn into a weather year, even if a model proposes it."""
     years = set()
     for match in re.finditer(r"\b(?:18|19|20|21)\d{2}\b", text):
-        if not re.match(r"\s+buildings?\b", text[match.end():], re.I):
+        if not re.match(r"\s+(?:buildings?|people|persons|residents|inhabitants|population)\b",
+                        text[match.end():], re.I):
             years.add(int(match.group()))
     for match in re.finditer(r"\b((?:18|19|20|21)\d{2})\s*(?:-|–|—|to|through)\s*"
                              r"((?:18|19|20|21)\d{2}|\d{2})\b", text, re.I):
