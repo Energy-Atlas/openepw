@@ -246,3 +246,23 @@ def test_back_after_a_new_request_never_restores_a_started_plan(tmp_path):
             await h.session.back()
             assert h.session.events()[-1].data["code"] == "JOB_STARTED" and h.form.gate == "where"
     asyncio.run(main())
+
+
+def test_years_said_at_the_place_set_question_are_kept(tmp_path):
+    async def main():
+        async with Harness(tmp_path) as h:
+            await h.say("all cities in Texas")
+            assert h.form.gate == "place_set"
+            await h.say("AMY 2018")
+            assert h.session.facts.years == [2018] and h.session.facts.product_type == "historical"
+            await h.say("2000")                       # a bare number answers the question, not a year
+            assert h.session.facts.years == [2018]
+    asyncio.run(main())
+
+
+def test_a_count_before_largest_is_not_a_year(tmp_path):
+    async def main():
+        async with Harness(tmp_path) as h:
+            await h.say("AMY 2018 for the 2000 largest cities in Texas")
+            assert h.session.facts.years == [2018]
+    asyncio.run(main())

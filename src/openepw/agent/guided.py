@@ -20,7 +20,8 @@ APPROVE = re.compile(r"a|approve|approved|yes|y|ok|okay|correct|looks good", re.
 RUN = re.compile(r"run|r|yes|go|start|approve", re.I)
 PLACE_GATES = {None, "where", "choose_location", "review_location", "place_set", "review_plan",
                "next_steps"}
-_HEADCOUNT = re.compile(r"\b(?:top|largest|biggest|first)\s+\d+", re.I)
+_HEADCOUNT = re.compile(r"\b(?:(?:top|largest|biggest|first)\s+\d+|\d+\s+(?:largest|biggest))\b",
+                        re.I)
 REFERENCE_LABELS = {"tmy": "TMY", "tmyx": "TMYx", "published": "A published EPW"}
 VIEWS = (("view:monthly_series", "Monthly dry-bulb temperature chart"),
          ("view:histogram", "Dry-bulb temperature distribution"))
@@ -55,8 +56,9 @@ class GuidedPolicy:
         if gate == "next_steps":
             s.facts.new_request()
             gate = "where"
-        # Place-set answers are populations and limits, never weather years.
-        changed = self._read_time_and_product(s, text if gate != "place_set" else "")
+        # A bare number answers a place-set question (a population or limit), never a weather year.
+        bare_answer = gate == "place_set" and re.fullmatch(r"[\d,.\s]+[km]?", text, re.I)
+        changed = self._read_time_and_product(s, "" if bare_answer else text)
         place = place_part(text) if gate in PLACE_GATES else ""
         if gate == "place_set" and place and s.facts.place_set:
             await self._continue_place_set(s, place)
@@ -410,7 +412,8 @@ class GuidedPolicy:
         lines.append("Listed sources are eligible to try; retrieved weather is checked by QC afterwards.")
         return Interaction(kind="plan_review", gate="review_plan",
                            prompt="Review the plan, then run it to start retrieval.",
-                           summary="\n".join(lines), data={"plans": facts.plans})
+                           # A copy: the run guard compares what was shown with the current plans.
+                           summary="\n".join(lines), data={"plans": [dict(plan) for plan in facts.plans]})
 
     @staticmethod
     def _next_steps_form(facts: Any) -> Interaction:
