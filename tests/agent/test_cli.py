@@ -56,6 +56,25 @@ def test_a_cli_conversation_runs_a_plan_and_reports_qc(tmp_path):
     assert "simulation_ready=false" in text and "What next?" in text
 
 
+def test_the_console_survives_a_narrow_encoding_and_hides_request_logs():
+    import io
+    import logging
+
+    from openepw.agent.cli import prepare_console
+
+    levels = {name: logging.getLogger(name).level for name in ("mcp", "httpx")}
+    try:
+        stream = io.TextIOWrapper(io.BytesIO(), encoding="cp1252")
+        prepare_console(stream)
+        stream.write("✗ STALE_FORM · x")
+        stream.flush()
+        assert stream.buffer.getvalue().startswith(b"? STALE_FORM")
+        assert all(logging.getLogger(name).level == logging.WARNING for name in levels)
+    finally:
+        for name, level in levels.items():
+            logging.getLogger(name).setLevel(level)
+
+
 def test_an_unknown_session_is_reported_without_a_traceback(tmp_path):
     output = []
     code = asyncio.run(main_chat(scenario_service(tmp_path), session_id="missing",

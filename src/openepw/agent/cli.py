@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import re
+import sys
 from pathlib import Path
 from typing import Any, Callable
 
@@ -19,6 +21,19 @@ HELP = ("Type a weather request, or answer the current form.\n"
         "/back  /new  /upload <path to .epw>  /status  /mode  /help  /quit\n"
         "EPW bytes stay out of the conversation; review QC before simulation.")
 _NUMBERS = re.compile(r"\d+(?:\s*,\s*\d+)*")
+
+
+def prepare_console(stream: Any = None) -> None:
+    """Keep the chat readable: no per-request SDK or HTTP logs, and no crash on a narrow encoding.
+
+    A redirected Windows stdout uses the ANSI code page, which cannot encode marks such as ✗.
+    """
+    for name in ("mcp", "httpx"):
+        logging.getLogger(name).setLevel(logging.WARNING)
+    stream = sys.stdout if stream is None else stream
+    reconfigure = getattr(stream, "reconfigure", None)
+    if reconfigure is not None:
+        reconfigure(errors="replace")
 
 
 def render_form(form: Interaction) -> str:

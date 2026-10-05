@@ -87,8 +87,9 @@ def main(argv=None):
                 server.openepw_runner.close()  # type: ignore[attr-defined]
             return 0
         if args.command == "chat":
-            from ..agent.cli import main_chat
+            from ..agent.cli import main_chat, prepare_console
 
+            prepare_console()
             return asyncio.run(main_chat(service, session_id=args.session))
         if args.command == "geocode":
             result = service.geocode(args.input)
