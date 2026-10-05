@@ -266,8 +266,16 @@ P2 adds `openepw.agent`: an `AgentSession` (SQLite events, typed facts, form sna
 that talks to the MCP server through the in-memory transport, host gates that build plan
 requests only from approved facts, a rule-based guided policy, and the `openepw chat` CLI that
 renders every form as text. The MCP-facing parts need the `mcp` extra; the scientific and
-data core never imports the agent package (the legacy chat coordinator shares only its
-dependency-free year reader, `openepw.agent.text`).
+data core never imports the agent package (the legacy chat code shares only its text reading
+and redaction, `openepw.agent.text`).
+
+P3 adds agent mode: a `ModelPort` (OpenAI Responses adapter over `httpx` with a usage ledger and
+budget stop, and a `ScriptedModel` for tests) and a `ModelPolicy` that runs a tool-calling loop
+over the MCP model tools plus host ask-tools. Ask-tools open the same forms as guided mode; a
+gatekeeper refuses host-only tools, rewrites plan requests to approved facts and answers
+`GATE_REQUIRED` with the next step. An unavailable model switches the session to guided mode with
+its facts. `openepw eval` runs packaged scenarios through the same session in guided mode, with
+scripted models or with a live model, against offline stubs by default.
 
 The optional [reference harness](docs/harness/README.md) consumes only these
 MCP tools through a real stdio client. Its small model adapter extracts typed

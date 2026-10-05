@@ -2,8 +2,12 @@
 
 Date: 2026-10-05. Status: design agreed with the owner on 2026-10-04/05; P1
 (service moves and MCP contract) implemented on feature/mcp-agent-chat; P2
-(agent core, guided mode, CLI) implemented on feature/mcp-agent-core; P3–P5
-pending. Full design:
+(agent core, guided mode, CLI) implemented on feature/mcp-agent-core; P3
+(agent mode, model port, evals) implemented on feature/mcp-agent-mode; P4–P5
+pending. In the openepw host's agent mode, `weather_locations_review` and
+`weather_product_offers` are reached only through the `review_location` and
+`choose_products` ask-tools, so every review shows the person a form; the MCP
+access classes for external clients are unchanged. Full design:
 [unified MCP agent chat](../superpowers/specs/2026-10-05-mcp-agent-chat-design.md).
 REST and web-chat retries keep the original job's `approved_via` and need no new
 confirmation.

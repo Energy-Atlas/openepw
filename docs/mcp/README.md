@@ -39,6 +39,11 @@ summary falls back to a key-only stub (field names plus identifier values) and l
 | Host on a person's action | `weather_submit`, `job_cancel`, `job_retry_failed`, `weather_export_compact`, `epw_upload`, `epw_register_path`, `weather_data_page` |
 | Legacy | `weather_discover` (planning discovers internally), `weather_fetch`, `weather_inspect` |
 
+The openepw chat's own agent mode adds host ask-tools that open forms (`review_location`,
+`choose_products`, `ask_text`, `ask_choice`, `request_map_input`, `request_upload`,
+`review_plan`). They are not MCP tools, and the chat reaches `weather_locations_review` and
+`weather_product_offers` only through them; see the [agent README](../agent/README.md).
+
 `weather_locations_review` returns points with fixed standard-time offsets (estimated from
 longitude when missing), a standard-time note and a location key. `weather_product_offers`
 returns named downloadable products with catalog availability per location.

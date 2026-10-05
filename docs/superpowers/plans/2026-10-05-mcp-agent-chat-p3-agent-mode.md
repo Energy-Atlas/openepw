@@ -73,7 +73,7 @@ choices below are recorded rather than gated (AGENTS.md).
 | `src/openepw/agent/cli.py` (modify) | Agent mode by default when a key exists, `/mode`, `--mode`, `--max-cost` |
 | `src/openepw/agent/evals/` | Packaged stubs, scenarios, runner, report |
 | `src/openepw/cli/main.py` (modify) | `chat --mode/--model/--max-cost`, `eval` subcommand |
-| `tests/agent/test_model_port.py`, `test_policy_model.py`, `test_agent_scenarios.py`, `test_evals.py`, `test_eval_live.py` | Tests |
+| `tests/agent/test_model_port.py`, `test_policy_model.py`, `test_evals.py` (including the `live`-marked test), `test_cli.py` (extended) | Tests |
 
 ## Tasks
 
@@ -151,3 +151,86 @@ choices below are recorded rather than gated (AGENTS.md).
 
 P4 builds `/v2/agent` (REST + SSE) and the React renderer on this core; P5 retires the legacy
 chat paths (see the P2 plan's table).
+
+## Execution notes (2026-10-05)
+
+Executed on `feature/mcp-agent-mode` from `feature/chat-ui` at `63ee921`, test-first in task
+order. Separate read-only reviewer agents checked tasks 1-3 and 4-5, then the whole branch;
+findings were fixed in follow-up commits. Python 3.14.7 locally (no 3.11 interpreter; 3.11 syntax
+was checked by review, and CI now runs every matrix job).
+
+Deviations and decisions made during execution:
+
+- **Wrapped MCP tools.** The first live eval showed the model calling `weather_locations_review`
+  directly and then asking for approval in plain text, so no form opened. In agent mode the
+  model no longer sees `weather_locations_review` and `weather_product_offers`. A direct call
+  returns `USE_ASK_TOOL`; the `review_location` and `choose_products` ask-tools call them for
+  it. The MCP access classes for external clients are unchanged (ADR 0005 status records this).
+- **Model port written before its tests** after a two-call live check of the Responses
+  function-calling shape (cost $0.00005); the offline `MockTransport` tests followed.
+- **Eval flags.** Agent-mode evals need `--scripted` (offline) or an explicit `--live`, as
+  AGENTS.md requires for live runs. Scenario people can type replies (`"say:..."`), which S19
+  uses. The step limit and guided fallback are checked in every agent run.
+- **Stub geocoder.** It matches the place name before a comma and narrows by region name or
+  US state code, like the real search ("Ithaca" or "Ithaca, NY", not "Ithaca NY"). An exact-key
+  stub made the first live S6 fail for a reason the real geocoder would not have.
+- **Core fix outside the agent package.** `CatalogStore._connect` now closes its SQLite
+  connections. Open connections kept eval data roots locked on Windows; caller behaviour is
+  unchanged.
+- **Grounding from live runs.** These came from failed live runs, not just from the design:
+  - the system prompt equates AMY, historical and "actual year";
+  - the `choose_products` answer names each chosen offer's kind and the next step;
+  - text replies carry the years the person wrote;
+  - the prompt says to make the next tool call rather than announce it, and never to ask for
+    an approval, choice, place or years in plain text.
+- Review fixes (all with tests):
+  - Back, `/new`, uploads, fallbacks and resumes keep every model call paired with exactly one
+    result.
+  - Answered or orphaned ask forms close.
+  - Reserved argument names are invalid calls, not crashes.
+  - A new request after results keeps only its own years, including at an approved place.
+  - Place-set counts are not years (`written_years`), and history keeps the person's lines.
+  - Summary requests send no tool fields.
+  - An unreadable or spent ledger starts guided mode with a reason, and the person's first
+    message is not lost when the model fails.
+  - Evals fail guided fallbacks, require each submission to follow its own "Run", ignore option
+    labels as years, catch unnegated readiness claims, check live requests for keys, redact
+    failed-run transcripts, survive a crashing run, and stop when the budget is spent.
+
+Verification (at `4cc80bd`):
+
+- `pytest -q`: 791 passed, 19 skipped, with exactly the 4 known pre-existing failures in the
+  availability tests and the one known starlette/anyio warning.
+- `tests/agent`: 135 passed, 1 skipped (the `live` test). ruff, mypy (112 files) and `build`
+  are clean, and the wheel contains `openepw/agent/evals/scenarios.json`.
+
+Live results (OpenAI `gpt-6-luna`; providers stubbed for evals, real for the chat run):
+
+| Run | Scenarios × repeats | Passed | Est. cost |
+| --- | --- | --- | --- |
+| First eval | 10 × 1 | 8 | $0.020 |
+| After the stub fix | 10 × 3 | 26 | $0.071 |
+| Targeted S3, S4, S6 | 3 × 4 | 11 | $0.034 |
+| After the ask-tool change and strict checks | 11 × 3 | 31 | $0.072 |
+| After closing answered forms | 11 × 3 | 31 | $0.074 |
+| After the AMY grounding | 11 × 3 | 31 | $0.073 |
+| After the reply grounding (final) | 11 × 3 | 33 | $0.072 |
+
+- Mean model steps per scenario in the final run: 3–10. Mean time per scenario: 5–15 s.
+- Run-to-run variance remains, so the final 33/33 is one sample; earlier runs at similar code
+  scored 31/33.
+- One live `openepw chat` run in agent mode (real geocoder and Open-Meteo, `.local/agent-try-p3`)
+  went geocode → which-Ithaca choice → location review (UTC-05:00 estimated) → four catalog
+  offers → ERA5 plan → "run" → completed job → model summary with `simulation_ready=false`.
+  That was 9 model calls for $0.004, and no key appeared in the session database or ledger.
+- Total live model spend in P3 was about $0.43 (estimates from token counts and the
+  constants in `model_port`).
+
+Deferred:
+
+- Resuming a session with a different `--model` re-sends the earlier model's encrypted reasoning
+  items. That may fail and fall back to guided mode; this was not checked live.
+- Back after `/mode guided` restores the earlier snapshot's mode.
+- Live evals with `--live-providers` were not run.
+- The web renderer, `/v2/agent`, parity tests and runner hardening remain P4; retiring the
+  legacy chat remains P5.

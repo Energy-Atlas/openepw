@@ -3,6 +3,8 @@ on: [push, pull_request]
 jobs:
   test:
     strategy:
+      # Report every OS and Python version even when one fails.
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
         python: ['3.11', '3.13']
