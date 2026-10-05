@@ -75,8 +75,9 @@ DESCRIPTIONS: dict[str, str] = {
         "Host tool: request cancellation of a running job; completed artifacts remain. Use when the "
         "person asks to stop a job. Do not cancel on your own initiative."),
     "job_retry_failed": (
-        "Host tool: retry only missing or failed outputs of a finished job under the original approval. "
-        "Use when the person asks to retry. Do not retry on your own initiative."),
+        "Host tool: retry only missing or failed outputs of a finished job; the server asks the client to "
+        "confirm the original reviewed plan with the person first. Use when the person asks to retry. Do "
+        "not retry on your own initiative; clients that cannot confirm get APPROVAL_REQUIRED."),
     "artifact_inspect": (
         "Verify an artifact checksum and return bounded metadata, linked manifest and QC ids, QC issue "
         "codes and simulation_ready (currently always false). Use before describing a retrieved or "

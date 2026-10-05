@@ -50,8 +50,11 @@ class JobRunner:
         self.enqueue(job.id)
         return job
 
-    def retry_failed(self, job_id, idempotency_key=None):
-        """Submit only output identities that have no verified successful artifact."""
+    def retry_plan(self, job_id):
+        """Return the subplan of outputs with no verified successful artifact.
+
+        Side-effect free, so a caller can validate a retry before asking anyone to confirm it.
+        """
         job = self.store.get(job_id)
         if job.state not in TERMINAL:
             raise OpenEPWError("INVALID_REQUEST", "Only a finished job can be retried")
@@ -97,8 +100,17 @@ class JobRunner:
         missing = [o for o in plan.outputs if (o.id or o.name) not in produced]
         if not missing:
             raise OpenEPWError("NOTHING_TO_RETRY", "Every planned output was produced")
-        return self.submit(subplan(plan, missing), idempotency_key, retry_of=job_id,
-                           approved_via=job.approved_via)
+        return subplan(plan, missing)
+
+    def retry_failed(self, job_id, idempotency_key=None, approved_via=None):
+        """Submit only output identities that have no verified successful artifact.
+
+        The retry inherits the original job's approval unless approved_via overrides it.
+        """
+        retry = self.retry_plan(job_id)
+        inherited = self.store.get(job_id).approved_via
+        return self.submit(retry, idempotency_key, retry_of=job_id,
+                           approved_via=approved_via or inherited)
 
     def enqueue(self, job_id):
         with self.lock:

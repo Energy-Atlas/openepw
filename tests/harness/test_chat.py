@@ -33,6 +33,8 @@ class Port:
             return {"kind": "weather"}
         if name == "job_cancel":
             return {"state": "running", "cancellation_requested": True}
+        if name == "job_inspect":
+            return {"id": arguments["job_id"], "plan_hash": "o" * 64, "state": "failed"}
         if name == "job_retry_failed":
             return {"id": "r" * 32}
         raise AssertionError(name)
@@ -163,3 +165,25 @@ def test_key_loader_reads_env_without_modifying_it(tmp_path, monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "sk-shell-test")
     assert load_model_key(path) == "sk-shell-test"
     assert path.read_bytes() == original
+
+
+def test_retry_approves_the_original_plan_before_asking_the_server():
+    chat, agent, _, port = session()
+
+    class ApprovingPort(Port):
+        def approve(self, plan_hash):
+            self.calls.append(("approve", plan_hash))
+
+    port = ApprovingPort()
+    chat.mcp = port
+    agent.job_id = "j" * 32
+
+    async def exercise():
+        assert "completed" in await chat.handle("/retry")
+
+    asyncio.run(exercise())
+    names = [name for name, _ in port.calls]
+    assert ("job_inspect", {"job_id": "j" * 32}) in port.calls
+    assert ("approve", "o" * 64) in port.calls
+    assert port.calls.index(("approve", "o" * 64)) < names.index("job_retry_failed")
+    assert ("job_retry_failed", {"job_id": "j" * 32}) in port.calls

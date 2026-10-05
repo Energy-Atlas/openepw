@@ -185,6 +185,8 @@ def create_server(service=None, *, allowed_roots: list[str | Path] | None = None
             raise OpenEPWError("FEATURE_SUSPENDED", "Future-weather MCP access is suspended")
         if plan.kind != "weather":
             raise OpenEPWError("INVALID_REQUEST", "Expected a weather plan")
+        if not plan.outputs:  # never ask the person to approve a plan that cannot run
+            raise OpenEPWError("NO_EXECUTABLE_OUTPUTS", "Weather plan has no executable outputs")
         approved_via = await confirm_submission(ctx, plan.plan_hash)
         return _job_summary(runner.submit(plan, idempotency_key, approved_via=approved_via))
 
@@ -348,12 +350,18 @@ def create_server(service=None, *, allowed_roots: list[str | Path] | None = None
         return call("job_cancel", lambda: _job_summary(runner.store.cancel(job_id)))
 
     @tool
-    def job_retry_failed(job_id: str, idempotency_key: str | None = None) -> CallToolResult:
-        def action():
-            if runner.store.get(job_id).kind == "future":
+    async def job_retry_failed(job_id: str, ctx: Context,
+                               idempotency_key: str | None = None) -> CallToolResult:
+        async def action():
+            job = runner.store.get(job_id)
+            if job.kind == "future":
                 raise OpenEPWError("FEATURE_SUSPENDED", "Future-weather MCP retry is suspended")
-            return _job_summary(runner.retry_failed(job_id, idempotency_key))
-        return call("job_retry_failed", action)
+            runner.retry_plan(job_id)  # finished, with something to retry, before asking
+            # The person confirms the original reviewed plan; the retry runs a subset of it.
+            approved_via = await confirm_submission(ctx, job.plan_hash)
+            return _job_summary(runner.retry_failed(job_id, idempotency_key,
+                                                    approved_via=approved_via))
+        return await acall("job_retry_failed", action)
 
     @tool
     def artifact_inspect(artifact_id: str) -> CallToolResult:

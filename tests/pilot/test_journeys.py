@@ -264,6 +264,7 @@ def test_g_noaa_gap_warn_and_error(tmp_path):
             failed = await finished(client, error["id"])
             assert not failed["artifacts"]["weather"]
             assert failed["failed"] >= 1
+            client.approve(failed["plan_hash"])  # a retry is confirmed against the original plan
             retry = await client.call("job_retry_failed", job_id=error["id"])
             retried = await finished(client, retry["id"])
             assert not retried["artifacts"]["weather"]
@@ -389,6 +390,7 @@ def test_recovery_active_cancel_then_retry_through_client(tmp_path):
             assert cancelled["state"] == "cancelled"
             prior = cancelled.get("artifacts", {}).get("weather", [])
             assert len(prior) <= 1
+            client.approve(cancelled["plan_hash"])  # a retry is confirmed against the original plan
             retry = await client.call("job_retry_failed", job_id=job["id"])
             completed = await finished(client, retry["id"])
             assert completed["state"] == "completed", completed
