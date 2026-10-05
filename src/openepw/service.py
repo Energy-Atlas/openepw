@@ -311,13 +311,31 @@ class WeatherService:
         )
 
     def locations(self, request):
-        if isinstance(request.locations, Location):
-            return [request.locations]
-        if isinstance(request.locations, list):
-            return request.locations
-        from .planning.spatial import sample
+        from .planning.offsets import request_points
 
-        return sample(request.locations, request.sampling)
+        return request_points(request)
+
+    def review_locations(self, geography: Any) -> dict:
+        """Points, fixed standard-time offsets and a key for the person to approve before planning."""
+        from .places.models import MAX_PLACES
+        from .planning.offsets import estimate_offsets, location_key, standard_time_note
+
+        normalized, sampling, estimated = estimate_offsets(geography)
+        request = WeatherRequest.model_validate(
+            {"locations": normalized, "sampling": sampling or {}, "years": [2000]})
+        points = self.locations(request)
+        if len(points) > MAX_PLACES:
+            raise OpenEPWError("RESOURCE_LIMIT", f"Review at most {MAX_PLACES} points; narrow the area")
+        canonical = request.model_dump(mode="json")["locations"]
+        return {
+            "geography": canonical,
+            "sampling": request.sampling.model_dump(mode="json") if sampling else None,
+            "offset_estimated": estimated,
+            "point_count": len(points),
+            "points": [point.model_dump(mode="json") for point in points[:50]],
+            "standard_time": standard_time_note(points, estimated),
+            "key": location_key(canonical),
+        }
 
     def product_offers(self, locations: Any, *, product: str | None = None,
                        provider: str | None = None, years: list[int] | None = None) -> dict:

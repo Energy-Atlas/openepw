@@ -18,9 +18,11 @@ from ..availability import WeatherAvailabilityQuery
 from ..availability.products import product_for, product_offers
 from ..harness.agent import safe_prompt
 from ..harness.model import ModelUnavailable
-from ..models import Location, OpenEPWError, WeatherRequest, nominal_offset_minutes
+from ..models import OpenEPWError, WeatherRequest
 from ..places.models import PlacePreview, PlaceSetQuery
 from ..places.parse import apply_edit, classify_places, describe_place_set
+from ..planning.offsets import estimate_offsets as chat_geography
+from ..planning.offsets import location_key, request_points, standard_time_note
 from ..visualization.models import VisualizationRequest
 
 
@@ -112,42 +114,9 @@ def preview_listing(preview: PlacePreview) -> str:
     return "\n".join(lines + ([""] + preview.attribution if preview.attribution else []))
 
 
-def location_key(location: dict) -> str:
-    """Identifies the reviewed location, so a changed one needs approval again."""
-    return hashlib.sha256(json.dumps(location, sort_keys=True).encode()).hexdigest()[:16]
-
-
-def chat_geography(value: Any) -> tuple[Any, dict | None, bool]:
-    """Choose a fixed offset for chat points that lack one; preserve supplied offsets."""
-    if isinstance(value, list):
-        points = [chat_geography(point) for point in value]
-        return [point for point, _, _ in points], None, any(estimated for _, _, estimated in points)
-    if isinstance(value, dict) and ("west" in value or value.get("type") == "Polygon"):
-        return value, {"standard_offset": "longitude"}, True
-    point = Location.model_validate(value)
-    if "standard_offset_minutes" not in point.model_fields_set:
-        local = point.model_copy(update={"standard_offset_minutes": nominal_offset_minutes(point.lon)})
-        return local.model_dump(mode="json"), None, True
-    return point.model_dump(mode="json"), None, False
-
-
 def standard_time_summary(request: WeatherRequest, estimated: bool) -> str:
     """Show the clock convention before the user runs an actual-year plan."""
-    from ..planning.spatial import sample
-
-    if isinstance(request.locations, Location):
-        points = [request.locations]
-    elif isinstance(request.locations, list):
-        points = request.locations
-    else:
-        points = sample(request.locations, request.sampling)
-    offsets = sorted({point.standard_offset_minutes for point in points})
-    labels = [f"UTC{'+' if minutes >= 0 else '-'}{abs(minutes) // 60:02d}:{abs(minutes) % 60:02d}"
-              for minutes in offsets]
-    note = "Fixed standard time: " + ", ".join(labels) + "; no daylight-saving shift."
-    if estimated:
-        note += " Some offsets were estimated from longitude and may differ from local civil standard time."
-    return note
+    return standard_time_note(request_points(request), estimated)
 
 
 def require_reviewed_standard_time(facts: dict) -> None:
