@@ -83,6 +83,16 @@ def test_message_round_trips_the_plan_hash():
     assert plan_hash_from_message("Approve something else?") is None
 
 
+def test_retry_message_names_the_job_and_round_trips_the_plan_hash():
+    message = confirmation_message(HASH, retry_of="job-123")
+    assert message == ("Approve retrying the failed or missing outputs of job job-123 from "
+                       f"reviewed weather plan {HASH}? This starts provider retrieval.")
+    assert plan_hash_from_message(message) == HASH
+    params = ElicitRequestFormParams(message=message,
+                                     requestedSchema={"type": "object", "properties": {}})
+    assert asyncio.run(approval_callback({HASH}.__contains__)(None, params)).action == "accept"
+
+
 def test_client_callback_accepts_only_recorded_approvals():
     callback = approval_callback({HASH}.__contains__)
     params = ElicitRequestFormParams(message=confirmation_message(HASH),
@@ -183,7 +193,7 @@ def test_confirmed_retry_asks_about_the_original_plan_and_records_elicitation(fa
     recorder = Recorder(content={"approve": True})
     result = session_call(server, "job_retry_failed", {"job_id": job.id}, callback=recorder)
     assert not result.isError, result.content[0].text
-    assert recorder.messages == [confirmation_message(job.plan_hash)]
+    assert recorder.messages == [confirmation_message(job.plan_hash, retry_of=job.id)]
     retry = runner.store.get(result.structuredContent["id"])
     assert retry.retry_of == job.id
     assert retry.approved_via == "elicitation"

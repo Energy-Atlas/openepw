@@ -24,7 +24,11 @@ class SubmitConfirmation(BaseModel):
     approve: bool = Field(description="Run this reviewed plan and start provider retrieval")
 
 
-def confirmation_message(plan_hash: str) -> str:
+def confirmation_message(plan_hash: str, *, retry_of: str | None = None) -> str:
+    """The confirmation prompt; it always carries ``plan <hash>`` for client callbacks."""
+    if retry_of is not None:
+        return (f"Approve retrying the failed or missing outputs of job {retry_of} from "
+                f"reviewed weather plan {plan_hash}? This starts provider retrieval.")
     return (f"Approve and run reviewed weather plan {plan_hash}? "
             "This starts provider retrieval.")
 
@@ -34,7 +38,7 @@ def plan_hash_from_message(message: str) -> str | None:
     return match.group(1) if match else None
 
 
-async def confirm_submission(ctx: Context, plan_hash: str) -> str:
+async def confirm_submission(ctx: Context, plan_hash: str, *, retry_of: str | None = None) -> str:
     """Ask the client to confirm; returns how the submission was approved."""
     try:
         session = ctx.session
@@ -45,7 +49,8 @@ async def confirm_submission(ctx: Context, plan_hash: str) -> str:
     if not capable:
         raise OpenEPWError("APPROVAL_REQUIRED",
                            "Submitting needs a client that can confirm the reviewed plan with the person")
-    result = await ctx.elicit(confirmation_message(plan_hash), SubmitConfirmation)
+    result = await ctx.elicit(confirmation_message(plan_hash, retry_of=retry_of),
+                              SubmitConfirmation)
     if not isinstance(result, AcceptedElicitation) or not result.data.approve:
         raise OpenEPWError("APPROVAL_DECLINED", "The plan was not approved; nothing was submitted")
     return "elicitation"

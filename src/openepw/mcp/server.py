@@ -384,7 +384,7 @@ def create_server(service=None, *, allowed_roots: list[str | Path] | None = None
                 raise OpenEPWError("FEATURE_SUSPENDED", "Future-weather MCP retry is suspended")
             runner.retry_plan(job_id)  # finished, with something to retry, before asking
             # The person confirms the original reviewed plan; the retry runs a subset of it.
-            approved_via = await confirm_submission(ctx, job.plan_hash)
+            approved_via = await confirm_submission(ctx, job.plan_hash, retry_of=job_id)
             return _job_summary(runner.retry_failed(job_id, idempotency_key,
                                                     approved_via=approved_via))
         return await acall("job_retry_failed", action)
