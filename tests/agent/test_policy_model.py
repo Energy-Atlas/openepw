@@ -423,3 +423,17 @@ def test_text_at_an_ask_form_closes_it_and_stale_ask_forms_are_refused(tmp_path)
             await h.approve()
             assert h.session.events()[-1].data["code"] == "STALE_FORM" and not h.session.facts.approved_key
     run(main)
+
+
+def test_reviews_and_offers_are_reached_only_through_their_ask_tools(tmp_path):
+    h, model = agent(tmp_path, [call("weather_locations_review", {"locations": ITHACA}), say("ok")])
+
+    async def main():
+        async with h:
+            await h.say("AMY 2018 for Ithaca NY")
+            offered = model.requests[0]["tools"]
+            assert "review_location" in offered and "choose_products" in offered
+            assert "weather_locations_review" not in offered and "weather_product_offers" not in offered
+            assert results(model, "weather_locations_review")[0]["code"] == "USE_ASK_TOOL"
+            assert "weather_locations_review" not in h.tools()
+    run(main)

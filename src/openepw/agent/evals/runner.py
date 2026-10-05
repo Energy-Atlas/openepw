@@ -47,6 +47,7 @@ class RunResult:
     model_steps: int
     seconds: float
     cost_usd: float
+    transcript: list[str] = field(default_factory=list)   # kept for failed runs only
 
 
 @dataclass
@@ -61,6 +62,7 @@ class ScenarioReport:
     mean_seconds: float
     cost_usd: float
     failures: dict[str, int] = field(default_factory=dict)
+    failed_transcripts: list[list[str]] = field(default_factory=list)
 
 
 def load_scenarios(path: str | Path | None = None) -> list[dict[str, Any]]:
@@ -218,7 +220,21 @@ async def run_scenario(scenario: dict[str, Any], *, mode: str, model: ModelPort 
         tools=[event.data["tool"] for event in events if event.type == "tool" and event.data.get("phase") == "call"],
         model_steps=sum(1 for event in events if event.type == "tool" and event.data.get("by") == "model"
                         and event.data.get("phase") in ("call", "refused")),
-        seconds=round(time.monotonic() - started, 3), cost_usd=round(cost, 6))
+        seconds=round(time.monotonic() - started, 3), cost_usd=round(cost, 6),
+        transcript=_transcript(events) if failures else [])
+
+
+def _transcript(events: list[Any]) -> list[str]:
+    """Short, already-redacted lines of a failed run for the report (no tool data)."""
+    lines = []
+    for event in events:
+        if event.type == "tool":
+            if event.data.get("phase") != "result":
+                lines.append(f"tool {event.data.get('phase')} {event.data.get('tool')} by "
+                             f"{event.data.get('by', 'host')} {event.data.get('code') or ''}".rstrip())
+        else:
+            lines.append(f"{event.type}: {event.text[:200]}")
+    return lines[-60:]
 
 
 async def run_evals(scenarios: list[dict[str, Any]], *, mode: str,
@@ -255,7 +271,8 @@ async def run_evals(scenarios: list[dict[str, Any]], *, mode: str,
             pass_rate=round(passed / len(runs), 3),
             mean_model_steps=round(statistics.mean(run.model_steps for run in runs), 2),
             mean_seconds=round(statistics.mean(run.seconds for run in runs), 3),
-            cost_usd=round(sum(run.cost_usd for run in runs), 6), failures=failures))
+            cost_usd=round(sum(run.cost_usd for run in runs), 6), failures=failures,
+            failed_transcripts=[run.transcript for run in runs if not run.passed]))
     return reports
 
 

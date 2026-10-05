@@ -66,12 +66,15 @@ ASK_TOOLS: dict[str, dict[str, Any]] = {
 NEED_TOOL = {"review_location": "review_location", "choose_products": "choose_products",
              "years": "ask_text", "plan": "weather_plan", "review_plan": "review_plan"}
 RESULT_LIMIT = 4000
+# MCP model tools the host calls inside an ask-tool. Calling them directly would let a model
+# "review" locations or offers without a form the person can answer, so agent mode hides them.
+WRAPPED = {"weather_locations_review": "review_location", "weather_product_offers": "choose_products"}
 
 
 async def model_tools(port: Any) -> list[dict[str, Any]]:
     """The model's tool list: the server's model tools (live schemas) plus the ask-tools."""
     listed = await port.list_tools()
-    tools = [tool for tool in listed if tool["name"] in MODEL_TOOLS]
+    tools = [tool for tool in listed if tool["name"] in MODEL_TOOLS and tool["name"] not in WRAPPED]
     return tools + [{"name": name, **spec} for name, spec in ASK_TOOLS.items()]
 
 
