@@ -34,9 +34,16 @@ VALUES = {"dry_bulb": 10.0, "dew_point": 5.0, "relative_humidity": 70.0, "pressu
 
 
 def geocode_results(name: str) -> dict[str, Any]:
-    """An Open-Meteo-shaped geocoder answer from the table (name lookups are exact)."""
+    """An Open-Meteo-shaped geocoder answer from the table.
+
+    Like the real search, the place name before any comma is matched case-insensitively, so
+    "Ithaca" and "Ithaca, NY" find Ithaca but "Ithaca NY" (no comma) finds nothing.
+    """
+    wanted = name.split(",")[0].strip().casefold()
+    rows = [row for key, entries in GEOCODER.items() if key.split(",")[0].strip().casefold() == wanted
+            for row in entries]
     return {"results": [{"id": index + 1, "name": label, "latitude": lat, "longitude": lon}
-                        for index, (label, lat, lon) in enumerate(GEOCODER.get(name, []))]}
+                        for index, (label, lat, lon) in enumerate(rows)]}
 
 
 class StubHttp:
