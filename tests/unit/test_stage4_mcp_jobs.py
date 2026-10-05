@@ -15,7 +15,7 @@ from openepw.service import WeatherService
 
 
 def _call(server, name, **kwargs):
-    return asyncio.run(server.call_tool(name, kwargs))[1]
+    return asyncio.run(server.call_tool(name, kwargs)).structuredContent
 
 
 def test_epw_upload_and_allowlisted_path_registration(tmp_path):
