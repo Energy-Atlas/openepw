@@ -4,21 +4,24 @@ from __future__ import annotations
 
 import re
 
-FUTURE = re.compile(r"\b(?:future|ssp\d{3}|rcp\d{2}|climate scenarios?)\b", re.I)
+# Scenario and pathway names in their usual spellings: SSP585, SSP5-8.5, RCP8.5, RCP 4.5, rcp85.
+FUTURE = re.compile(r"\b(?:future|ssp\d{3}|ssp\d(?:-\d\.?\d)?|rcp\s?\d\.?\d|cmip\d"
+                    r"|projected|projections?|climate scenarios?)\b", re.I)
 
 _PRODUCTS = (
     ("tmyx", r"\btmyx\b"),
-    ("tmy", r"\btmy\b|\btypical (?:meteorological )?year\b"),
+    ("tmy", r"\btmy\d?\b|\btypical (?:meteorological )?year\b"),
     ("published", r"\bpublished\b"),
     ("historical", r"\b(?:historical|amy|actual[- ]year)\b"),
 )
 
 # Years, product words, question words and filler removed so the rest is the place text.
+# Upper-case IN and AT stay: they are state or country codes ("Fort Wayne, IN", "Graz, AT").
 _PLACE_NOISE = re.compile(
     r"\b(?:(?:18|19|20|21)\d{2}(?:\s*(?:-|–|—|to|through)\s*(?:(?:18|19|20|21)\d{2}|\d{2}))?"
-    r"|the\s+(?:18|19|20|21)\d0s|historical|amy|actual[- ]year|tmyx|tmy"
+    r"|(?:the\s+)?(?:18|19|20|21)\d0s|historical|amy|actual[- ]year|tmyx|tmy\d?"
     r"|typical(?:\s+meteorological)?\s+year|published|epw|weather|data|files?|please"
-    r"|get|give me|i need|i want|for|in|at|near|what(?:'s|\s+is|\s+are)?|which|available"
+    r"|get|give me|i need|i want|for|from|between|(?!(?-i:IN|AT)\b)(?:in|at)|near|what(?:'s|\s+is|\s+are)?|which|available"
     r"|options?|sources?|products?|do you have|is there|show me|instead|only|just|use"
     r"|change(?:\s+it)?\s+to|switch to)\b", re.I)
 
