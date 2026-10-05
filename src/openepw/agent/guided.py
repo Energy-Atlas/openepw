@@ -9,6 +9,7 @@ from ..models import OpenEPWError
 from ..places.parse import apply_edit, describe_place_set
 from .gates import build_requests, needs_years, next_need
 from .interactions import Answer, Interaction, Option
+from .mcp_port import ToolFailure
 from .session import AgentSession
 from .text import FUTURE, explicit_weather_years, place_part, read_product
 
@@ -17,7 +18,8 @@ SUSPENDED = ("Future-weather planning is temporarily unavailable; ask for actual
 UNREAD = "Guided mode reads places, coordinates, years and product names. Use the form."
 APPROVE = re.compile(r"a|approve|approved|yes|y|ok|okay|correct|looks good", re.I)
 RUN = re.compile(r"run|r|yes|go|start|approve", re.I)
-PLACE_GATES = {None, "where", "choose_location", "review_location", "place_set", "next_steps"}
+PLACE_GATES = {None, "where", "choose_location", "review_location", "place_set", "review_plan",
+               "next_steps"}
 REFERENCE_LABELS = {"tmy": "TMY", "tmyx": "TMYx", "published": "A published EPW"}
 VIEWS = (("view:monthly_series", "Monthly dry-bulb temperature chart"),
          ("view:histogram", "Dry-bulb temperature distribution"))
@@ -86,6 +88,8 @@ class GuidedPolicy:
         if years != facts.years:
             facts.years = years
             facts.plans = []
+            if not facts.chosen:                 # the offers' availability is per year
+                facts.offers, facts.offer_availability = [], None
             changed = True
         if facts.product_type is None:
             facts.product_type = "historical"
@@ -240,14 +244,23 @@ class GuidedPolicy:
             s.emit("error", "There is no reviewed plan to run.", code="GATE_REQUIRED")
             return
         for plan in plans:
+            if plan.get("job_id"):                       # started by an earlier, partly failed run
+                continue
             s.approvals.approve(plan["plan_hash"])
             try:
                 job = (await s.tool("weather_submit", plan_hash=plan["plan_hash"],
                                     idempotency_key=f"agent:{s.id}:{plan['plan_hash'][:16]}")).data
+            except Exception:
+                if s.facts.job_ids:
+                    await self.advance(s)                # show which plans already started
+                raise
             finally:
                 # One approval, one submission: never leave it pending if the server did not ask.
                 s.approvals.consume(plan["plan_hash"])
-            s.facts.job_ids.append(job["id"])
+            s.facts.plans = [{**item, "job_id": job["id"]} if item["plan_hash"] == plan["plan_hash"]
+                             else item for item in s.facts.plans]
+            if job["id"] not in s.facts.job_ids:
+                s.facts.job_ids.append(job["id"])
             s.emit("job", f"Weather job {job['id'][:8]} started", job_id=job["id"], state=job.get("state"))
         s.close_form()
 
@@ -261,7 +274,12 @@ class GuidedPolicy:
             s.emit("view", result.text, view_id=result.data["view_id"], family=family, variable="dry_bulb")
         elif choice == "export":
             for job_id in s.facts.finished_job_ids:
-                data = (await s.tool("weather_export_compact", job_id=job_id)).data
+                try:
+                    data = (await s.tool("weather_export_compact", job_id=job_id)).data
+                except ToolFailure as failure:          # one job without a bundle must not stop the rest
+                    s.emit("error", f"Job {job_id[:8]}: {failure.code}: {failure.message}",
+                           code=failure.code, job_id=job_id)
+                    continue
                 s.emit("assistant", f"Compact ZIP ready: artifact {data['artifact_id']} ({data['bytes']} bytes).",
                        artifact_id=data["artifact_id"])
         await self.advance(s)
@@ -308,7 +326,8 @@ class GuidedPolicy:
         elif need == "plan":
             await self._plan(s)
         elif need == "review_plan":
-            if not (s.form and s.form.gate == "review_plan"):
+            # The open review must show exactly the plans that "run" submits.
+            if not (s.form and s.form.gate == "review_plan" and s.form.data.get("plans") == facts.plans):
                 s.open_form(self._plan_form(facts))
         elif need == "next_steps":
             s.open_form(self._next_steps_form(facts))
@@ -366,7 +385,8 @@ class GuidedPolicy:
         lines = []
         for plan in facts.plans:
             heading = "Actual year" if plan["product"] == "historical" else "Typical year"
-            lines.append(f"{heading}: {plan['summary']}")
+            started = f" (already started as job {plan['job_id'][:8]})" if plan.get("job_id") else ""
+            lines.append(f"{heading}{started}: {plan['summary']}")
             lines.extend(f"Warning: {warning}" for warning in plan.get("warnings", [])[:5])
         if any(plan["product"] == "historical" for plan in facts.plans) and facts.review:
             lines.append(facts.review["standard_time"])

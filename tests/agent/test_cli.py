@@ -80,3 +80,34 @@ def test_an_unknown_session_is_reported_without_a_traceback(tmp_path):
     code = asyncio.run(main_chat(scenario_service(tmp_path), session_id="missing",
                                  read=lambda prompt: "/quit", write=output.append))
     assert code == 2 and "SESSION_NOT_FOUND" in output[-1]
+
+
+def test_ctrl_c_at_the_prompt_saves_and_ends_the_chat(tmp_path):
+    output = []
+
+    def interrupt(prompt):
+        raise KeyboardInterrupt
+
+    code = asyncio.run(main_chat(scenario_service(tmp_path), read=interrupt, write=output.append))
+    assert code == 0 and "saved. Resume with" in output[-1]
+
+
+def test_uploads_are_checked_before_reading(tmp_path):
+    big = tmp_path / "big.epw"
+    big.write_bytes(b"x" * 5_000_001)
+    lines = iter([f"/upload {tmp_path / 'missing.epw'}", f"/upload {big}", "/quit"])
+    output = []
+    asyncio.run(main_chat(scenario_service(tmp_path), read=lambda prompt: next(lines), write=output.append))
+    assert "✗ No such file." in output and any("RESOURCE_LIMIT" in line for line in output)
+
+
+def test_the_command_returns_130_when_interrupted(tmp_path, monkeypatch):
+    import openepw.agent.cli as agent_cli
+    from openepw.cli.main import main
+
+    async def interrupted(service, **options):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(agent_cli, "main_chat", interrupted)
+    monkeypatch.setattr(agent_cli, "prepare_console", lambda: None)
+    assert main(["--data-root", str(tmp_path), "chat"]) == 130

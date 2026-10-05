@@ -90,7 +90,11 @@ def main(argv=None):
             from ..agent.cli import main_chat, prepare_console
 
             prepare_console()
-            return asyncio.run(main_chat(service, session_id=args.session))
+            try:
+                return asyncio.run(main_chat(service, session_id=args.session))
+            except KeyboardInterrupt:
+                print("\nChat interrupted; the session and completed artifacts stay in the data root.")
+                return 130
         if args.command == "geocode":
             result = service.geocode(args.input)
         elif args.command == "visualization-capabilities":

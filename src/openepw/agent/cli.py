@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import re
 import sys
@@ -14,7 +13,7 @@ from ..models import OpenEPWError
 from .guided import GuidedPolicy
 from .interactions import Answer, Event, Interaction
 from .mcp_port import ApprovalBook, InProcessMCP
-from .session import AgentSession
+from .session import MAX_UPLOAD, AgentSession
 from .store import SessionStore
 
 HELP = ("Type a weather request, or answer the current form.\n"
@@ -34,6 +33,22 @@ def prepare_console(stream: Any = None) -> None:
     reconfigure = getattr(stream, "reconfigure", None)
     if reconfigure is not None:
         reconfigure(errors="replace")
+
+
+def _read_upload(argument: str, write: Callable[[str], Any]) -> tuple[bytes, str] | None:
+    """The EPW to upload, checked for size before it is read; None after telling the person why."""
+    path = Path(argument.strip().strip('"')).expanduser()
+    try:
+        if not path.is_file():
+            write("✗ No such file.")
+            return None
+        if path.stat().st_size > MAX_UPLOAD:
+            write("✗ RESOURCE_LIMIT: EPW uploads must be 1 byte to 5 MB.")
+            return None
+        return path.read_bytes(), path.name
+    except OSError as error:
+        write(f"✗ Could not read the file ({type(error).__name__}).")
+        return None
 
 
 def render_form(form: Interaction) -> str:
@@ -84,7 +99,7 @@ def parse_reply(form: Interaction, line: str) -> Answer | None:
 
 async def main_chat(service: Any, *, session_id: str | None = None,
                     read: Callable[[str], str] = input, write: Callable[[str], Any] = print,
-                    poll_seconds: float = 0.5) -> int:
+                    poll_seconds: float = 0.5, follow_seconds: float = 120.0) -> int:
     from ..mcp.server import create_server
 
     runner = JobRunner(service)
@@ -124,51 +139,66 @@ async def main_chat(service: Any, *, session_id: str | None = None,
             flush()
             if session.form:
                 write(render_form(session.form))
-            while True:
-                pending = [job for job in session.facts.job_ids if job not in session.facts.finished_job_ids]
-                if pending:
-                    await session.follow_jobs(on_update=flush)
-                    flush()
-                    if session.form:
-                        write(render_form(session.form))
-                try:
-                    line = await asyncio.to_thread(read, "> ")
-                except (EOFError, KeyboardInterrupt):
-                    break
-                command, _, argument = line.strip().partition(" ")
-                before = session.form
-                if command in ("/quit", "/exit"):
-                    break
-                if command == "/help":
-                    write(HELP)
-                    continue
-                if command == "/mode":
-                    write("Guided mode: rule-based forms. Agent mode arrives with the model loop.")
-                    continue
-                if command == "/status":
-                    write(f"Jobs: {', '.join(session.facts.job_ids) or 'none'}")
-                    continue
-                if command == "/back":
-                    await session.back()
-                elif command == "/new":
-                    await session.new_request()
-                elif command == "/upload":
-                    path = Path(argument.strip().strip('"')).expanduser()
-                    if not path.is_file():
-                        write("✗ No such file.")
+            waited = False
+            try:
+                while True:
+                    pending = [job for job in session.facts.job_ids
+                               if job not in session.facts.finished_job_ids]
+                    # Follow running jobs only while no form is open (a partly failed run keeps its
+                    # plan review open), and give the prompt back after a bounded wait.
+                    if pending and session.form is None and not waited:
+                        await session.follow_jobs(timeout=follow_seconds, on_update=flush)
+                        flush()
+                        if session.form:
+                            write(render_form(session.form))
+                        elif session.facts.job_ids != session.facts.finished_job_ids:
+                            waited = True
+                            write("Press Enter to keep following the jobs, or type /status or /quit.")
+                    try:
+                        # Read on this thread: jobs run on the runner's pool, and Ctrl-C then
+                        # arrives here as KeyboardInterrupt instead of cancelling the loop.
+                        line = read("> ")
+                    except (EOFError, KeyboardInterrupt):
+                        break
+                    waited = False
+                    command, _, argument = line.strip().partition(" ")
+                    before = session.form
+                    if command in ("/quit", "/exit"):
+                        break
+                    if command == "/help":
+                        write(HELP)
                         continue
-                    await session.upload_epw(path.read_bytes(), path.name)
-                else:
-                    answer = parse_reply(session.form, line) if session.form else None
-                    if answer is not None:
-                        await session.answer(answer)
+                    if command == "/mode":
+                        write("Guided mode: rule-based forms. Agent mode arrives with the model loop.")
+                        continue
+                    if command == "/status":
+                        finished = set(session.facts.finished_job_ids)
+                        write("Jobs: " + (", ".join(f"{job} ({'finished' if job in finished else 'running'})"
+                                                    for job in session.facts.job_ids) or "none"))
+                        continue
+                    if command == "/back":
+                        await session.back()
+                    elif command == "/new":
+                        await session.new_request()
+                    elif command == "/upload":
+                        content = _read_upload(argument, write)
+                        if content is None:
+                            continue
+                        await session.upload_epw(*content)
                     else:
-                        await session.send_text(line)
-                flush()
-                if session.form and session.form != before:
-                    write(render_form(session.form))
-            # Inside the client block so `session` is always bound when this runs.
-            write(f"Session {session.id} saved. Resume with: openepw chat --session {session.id}")
+                        answer = parse_reply(session.form, line) if session.form else None
+                        if answer is not None:
+                            await session.answer(answer)
+                        else:
+                            await session.send_text(line)
+                    flush()
+                    if session.form and session.form != before:
+                        write(render_form(session.form))
+            finally:
+                # Inside the client block so `session` is always bound when this runs.
+                if any(job not in session.facts.finished_job_ids for job in session.facts.job_ids):
+                    write("Running jobs finish before the chat exits; they stay in the data root.")
+                write(f"Session {session.id} saved. Resume with: openepw chat --session {session.id}")
     finally:
         runner.close()
     return 0

@@ -44,8 +44,9 @@ def next_need(facts: Facts) -> str:
         return "years"
     if not facts.plans:
         return "plan"
-    if not facts.job_ids:
-        return "review_plan"
+    if not facts.job_ids or any(plan.get("output_count") and not plan.get("job_id")
+                                for plan in facts.plans):
+        return "review_plan"                 # including plans a partly failed run did not start
     return "jobs"
 
 

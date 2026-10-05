@@ -34,6 +34,10 @@ def test_the_gate_order():
     assert next_need(approved()) == "plan"
     assert next_need(approved(plans=[{"plan_hash": "h"}])) == "review_plan"
     assert next_need(approved(plans=[{"plan_hash": "h"}], job_ids=["j"])) == "jobs"
+    started = {"plan_hash": "h", "output_count": 1, "job_id": "j"}
+    assert next_need(approved(plans=[started], job_ids=["j"])) == "jobs"
+    assert next_need(approved(plans=[started, {"plan_hash": "i", "output_count": 1}],
+                              job_ids=["j"])) == "review_plan"
     assert next_need(Facts(stage="results")) == "next_steps"
 
 

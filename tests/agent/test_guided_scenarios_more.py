@@ -41,10 +41,14 @@ def test_s9_changing_the_year_after_review_needs_a_new_plan(tmp_path):
         async with Harness(tmp_path) as h:
             await to_plan_review(h)
             first = h.session.facts.plans[0]["plan_hash"]
+            shown = h.form
             await h.say("2019 instead")
             assert h.form.gate == "review_plan" and h.session.facts.years == [2019]
-            assert h.session.facts.plans[0]["plan_hash"] != first
-            assert h.approvals.pending == frozenset()
+            second = h.session.facts.plans[0]["plan_hash"]
+            assert second != first and h.approvals.pending == frozenset()
+            # The person must see the plan that "run" submits.
+            assert h.form.revision > shown.revision and h.form.data["plans"][0]["plan_hash"] == second
+            assert second in h.form.summary and first not in h.form.summary
     asyncio.run(main())
 
 
@@ -140,4 +144,54 @@ def test_a_failed_submission_leaves_no_approval_pending(tmp_path):
             assert h.session.events()[-1].data["code"] == "NO_EXECUTABLE_OUTPUTS"
             assert h.approvals.pending == frozenset() and not h.session.facts.job_ids
             assert h.form.gate == "review_plan"
+    asyncio.run(main())
+
+
+def test_a_new_place_at_the_plan_review_drops_the_plan(tmp_path):
+    async def main():
+        async with Harness(tmp_path) as h:
+            await to_plan_review(h)
+            await h.say("Denver instead")
+            assert h.form.gate == "review_location" and "Denver" in h.form.data["points"][0]["name"]
+            assert h.session.facts.plans == [] and h.session.facts.years == [2018]
+    asyncio.run(main())
+
+
+def test_a_partly_failed_run_resubmits_only_the_rest(tmp_path):
+    async def main():
+        async with Harness(tmp_path) as h:
+            await to_plan_review(h)
+            plan = h.session.facts.plans[0]
+            h.session.facts.plans = [plan, {**plan, "plan_hash": "f" * 64, "summary": "second plan"}]
+            real, calls = h.port.call, []
+
+            async def flaky(name, **arguments):
+                if name == "weather_submit":
+                    calls.append(arguments["plan_hash"])
+                    if arguments["plan_hash"] == "f" * 64:
+                        raise ToolFailure("PROVIDER_DOWN", "try again", retryable=True)
+                return await real(name, **arguments)
+
+            h.port.call = flaky
+            await h.approve()
+            assert len(h.session.facts.job_ids) == 1 and h.form.gate == "review_plan"
+            assert "already started" in h.form.summary
+            await h.approve()
+            assert calls == [plan["plan_hash"], "f" * 64, "f" * 64]
+            assert len(h.session.facts.job_ids) == 1 and h.approvals.pending == frozenset()
+    asyncio.run(main())
+
+
+def test_an_export_failure_does_not_stop_the_other_jobs(tmp_path):
+    async def main():
+        async with Harness(tmp_path) as h:
+            h.session.facts.stage = "results"
+            h.session.facts.finished_job_ids = ["missing-1", "missing-2"]
+            await h.session.new_request()
+            h.session.facts.stage = "results"
+            await h.session.policy.advance(h.session)
+            await h.choose("export")
+            errors = [event for event in h.session.events() if event.type == "error"]
+            assert len(errors) == 2 and h.form.gate == "next_steps"
+            assert h.tools().count("weather_export_compact") == 2
     asyncio.run(main())
