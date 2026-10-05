@@ -27,6 +27,7 @@ from ..visualization import VisualizationRequest
 from .descriptions import DESCRIPTIONS, INSTRUCTIONS
 from .schemas import (
     AvailabilityQueryArg,
+    GeographyArg,
     PlaceSetQueryArg,
     VisualizationRequestArg,
     WeatherRequestArg,
@@ -200,6 +201,20 @@ def create_server(service=None, *, allowed_roots: list[str | Path] | None = None
     def weather_place_set(query: PlaceSetQueryArg) -> CallToolResult:
         return call("weather_place_set",
                     lambda: _preview_summary(service.place_set(PlaceSetQuery.model_validate(query))))
+
+    @tool
+    def weather_locations_review(locations: GeographyArg) -> CallToolResult:
+        return call("weather_locations_review", service.review_locations, locations)
+
+    @tool
+    def weather_product_offers(locations: GeographyArg, product: str | None = None,
+                               provider: str | None = None,
+                               years: list[int] | None = None) -> CallToolResult:
+        def action():
+            if product not in (None, "historical", "amy", "tmy", "tmyx", "published"):
+                raise OpenEPWError("INVALID_REQUEST", "Unknown product type")
+            return service.product_offers(locations, product=product, provider=provider, years=years)
+        return call("weather_product_offers", action)
 
     @tool
     def weather_assess(query: AvailabilityQueryArg) -> CallToolResult:
