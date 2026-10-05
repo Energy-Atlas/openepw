@@ -97,3 +97,67 @@ def test_every_registered_tool_has_exactly_one_access_class(tmp_path):
     assert not (MODEL_TOOLS & HOST_TOOLS or MODEL_TOOLS & LEGACY_TOOLS or HOST_TOOLS & LEGACY_TOOLS)
     assert "weather_submit" in HOST_TOOLS and "weather_plan" in MODEL_TOOLS
     assert "job_retry_failed" in HOST_TOOLS and "weather_fetch" in LEGACY_TOOLS
+
+
+@pytest.mark.parametrize(("tool", "arguments", "field", "value"), [
+    ("plan_inspect", {"plan_hash": "a" * 64, "offset": "secret-value-x"}, "offset", "secret-value-x"),
+    ("weather_geocode", {"query": 12345}, "query", "12345"),
+])
+def test_argument_errors_use_the_error_contract_without_echoing_values(tmp_path, tool, arguments,
+                                                                        field, value):
+    server = create_server(WeatherService(RuntimeConfig(data_root=tmp_path)))
+    with pytest.raises(ToolError) as excinfo:
+        asyncio.run(server.call_tool(tool, arguments))
+    text = str(excinfo.value)
+    assert text.startswith("{") and value not in text and "input_value" not in text
+    payload = json.loads(text)
+    assert payload["code"] == "INVALID_REQUEST" and payload["retryable"] is False
+    assert payload["details"][0]["loc"] == field
+
+
+def test_tool_errors_reach_the_client_as_bare_json(tmp_path):
+    from mcp.shared.memory import create_connected_server_and_client_session
+
+    server = create_server(WeatherService(RuntimeConfig(data_root=tmp_path)))
+
+    async def run():
+        async with create_connected_server_and_client_session(server) as client:
+            return [await client.call_tool("weather_geocode", {"query": 12345}),
+                    await client.call_tool("epw_upload", {"content_base64": "bad!"}),
+                    await client.call_tool("no_such_tool", {})]
+
+    try:
+        argument, body, unknown = asyncio.run(run())
+    finally:
+        server.openepw_runner.close()
+    assert argument.isError and json.loads(argument.content[0].text)["code"] == "INVALID_REQUEST"
+    assert body.isError and json.loads(body.content[0].text)["code"] == "INVALID_BASELINE"
+    assert unknown.isError and unknown.content[0].text == "Unknown tool: no_such_tool"
+
+
+def test_in_body_and_internal_errors_are_bare_json(tmp_path):
+    service = WeatherService(RuntimeConfig(data_root=tmp_path))
+    server = create_server(service)
+    with pytest.raises(ToolError) as body:
+        asyncio.run(server.call_tool("epw_upload", {"content_base64": "bad!"}))
+    assert str(body.value).startswith("{")
+    assert json.loads(str(body.value))["code"] == "INVALID_BASELINE"
+
+    def broken(*args, **kwargs):
+        raise RuntimeError("private detail")
+
+    service.visualization_capabilities = broken
+    with pytest.raises(ToolError) as internal:
+        asyncio.run(server.call_tool("weather_visualization_capabilities", {}))
+    assert str(internal.value).startswith("{")
+    payload = json.loads(str(internal.value))
+    assert payload["code"] == "INTERNAL_ERROR" and payload["correlation_id"]
+
+
+def test_generic_value_errors_are_logged_by_type_only(caplog):
+    from openepw.mcp.server import tool_error
+
+    with caplog.at_level("WARNING", logger="openepw.mcp"):
+        error = tool_error(ValueError("private detail"))
+    assert json.loads(str(error))["code"] == "INVALID_REQUEST"
+    assert "ValueError" in caplog.text and "private detail" not in caplog.text

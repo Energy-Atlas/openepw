@@ -117,6 +117,7 @@ def tool_error(exc: Exception) -> ToolError:
         payload = {"code": "INVALID_REQUEST", "message": "Request schema validation failed",
                    "retryable": False, "details": validation_details(exc)}
     elif isinstance(exc, (ValueError, TypeError)):
+        logger.warning("MCP request mapped to INVALID_REQUEST: %s", type(exc).__name__)
         payload = {"code": "INVALID_REQUEST", "message": "Request schema validation failed",
                    "retryable": False}
     else:
@@ -125,6 +126,27 @@ def tool_error(exc: Exception) -> ToolError:
         payload = {"code": "INTERNAL_ERROR", "message": "Local operation failed",
                    "retryable": False, "correlation_id": correlation}
     return ToolError(json.dumps(payload))
+
+
+class OpenEPWMCP(FastMCP):
+    """FastMCP whose tool failures keep the bare JSON error contract.
+
+    The SDK wraps every failure, including argument validation before the tool body runs, as
+    ``ToolError("Error executing tool <name>: <error>")``; that text lacks the code and can echo
+    input values. Unwrap it here: a tool's own ToolError passes through and any other cause is
+    mapped by ``tool_error``. Failures without a cause (an unknown tool) pass unchanged.
+    """
+
+    async def call_tool(self, name: str, arguments: dict[str, Any]) -> Any:
+        try:
+            return await super().call_tool(name, arguments)
+        except ToolError as error:
+            cause = error.__cause__
+            if isinstance(cause, ToolError):
+                raise cause from None
+            if isinstance(cause, Exception):
+                raise tool_error(cause) from None
+            raise
 
 
 def respond(name: str, data: Any) -> CallToolResult:
@@ -170,7 +192,7 @@ def create_server(service=None, *, allowed_roots: list[str | Path] | None = None
             recovered = True
         yield {"runner": runner}
 
-    server = FastMCP("openepw", host="127.0.0.1", port=8001, lifespan=lifespan,
+    server = OpenEPWMCP("openepw", host="127.0.0.1", port=8001, lifespan=lifespan,
                      instructions=INSTRUCTIONS)
     server.openepw_runner = runner  # type: ignore[attr-defined]
 
