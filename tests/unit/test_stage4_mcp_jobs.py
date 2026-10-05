@@ -4,12 +4,14 @@ import time
 
 import pytest
 from mcp.server.fastmcp.exceptions import ToolError
+from mcp_memory import session_call
 from test_batch import StationProvider
 from test_epw import synthetic
 from test_noaa_gap_output import _execute
 
 from openepw.config import RuntimeConfig
 from openepw.epw.writer import epw_bytes
+from openepw.jobs.worker import JobRunner
 from openepw.mcp.server import create_server
 from openepw.service import WeatherService
 
@@ -63,7 +65,8 @@ def test_noaa_gap_remains_visible_in_mcp_artifact_summary(tmp_path, policy):
 
 def test_weather_plan_submit_inspect_and_compact_export(tmp_path):
     service = WeatherService(RuntimeConfig(data_root=tmp_path), providers=[StationProvider()])
-    server = create_server(service)
+    runner = JobRunner(service)
+    server = create_server(service, runner=runner)
     request = {"locations": {"lat": 1, "lon": 0},
                "start": "2024-01-01", "end": "2024-01-01"}
     plan = _call(server, "weather_plan", request=request)
@@ -71,7 +74,8 @@ def test_weather_plan_submit_inspect_and_compact_export(tmp_path):
     assert inspected_plan["plan_hash"] == plan["plan_hash"]
     assert inspected_plan["outputs"][0]["id"]
     assert inspected_plan["selected_candidates"]
-    submitted = _call(server, "weather_submit", plan_hash=plan["plan_hash"])
+    submitted = session_call(server, "weather_submit", {"plan_hash": plan["plan_hash"]},
+                             approve=True).structuredContent
     for _ in range(100):
         job = _call(server, "job_inspect", job_id=submitted["id"])
         if job["state"] not in ("queued", "running"):
@@ -83,3 +87,4 @@ def test_weather_plan_submit_inspect_and_compact_export(tmp_path):
     exported = _call(server, "weather_export_compact", job_id=job["id"])
     assert _call(server, "artifact_inspect", artifact_id=exported["artifact_id"])[
         "sha256"] == exported["sha256"]
+    runner.close()

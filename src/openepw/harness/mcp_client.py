@@ -14,6 +14,8 @@ from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 from pydantic import AnyUrl
 
+from ..mcp.approval import approval_callback
+
 
 class MCPToolFailure(Exception):
     def __init__(self, code: str, message: str):
@@ -30,6 +32,11 @@ class StdioMCPPort:
         self.server_args = server_args
         self.stack: AsyncExitStack | None = None
         self.session: ClientSession | None = None
+        self.approved: set[str] = set()
+
+    def approve(self, plan_hash: str) -> None:
+        """Record the person's (or auto-submit setting's) approval of one plan hash."""
+        self.approved.add(plan_hash)
 
     async def __aenter__(self):
         self.stack = AsyncExitStack()
@@ -46,7 +53,8 @@ class StdioMCPPort:
                                       "LANGSMITH_API_KEY", "LANGCHAIN_TRACING_V2")}
         params = StdioServerParameters(command=sys.executable, args=args, env=environment)
         reader, writer = await self.stack.enter_async_context(stdio_client(params))
-        self.session = await self.stack.enter_async_context(ClientSession(reader, writer))
+        self.session = await self.stack.enter_async_context(ClientSession(
+            reader, writer, elicitation_callback=approval_callback(self.approved.__contains__)))
         assert self.session is not None
         await self.session.initialize()
         return self

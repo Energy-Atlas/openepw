@@ -43,10 +43,10 @@ class JobRunner:
         self.active = set()
         self._root_lock: Path | None = None
 
-    def submit(self, plan, idempotency_key=None, retry_of=None):
+    def submit(self, plan, idempotency_key=None, retry_of=None, approved_via=None):
         if isinstance(plan, str):
             plan = self.service.plan_store.get(plan)
-        job = self.store.submit(plan, idempotency_key, retry_of=retry_of)
+        job = self.store.submit(plan, idempotency_key, retry_of=retry_of, approved_via=approved_via)
         self.enqueue(job.id)
         return job
 
@@ -97,7 +97,8 @@ class JobRunner:
         missing = [o for o in plan.outputs if (o.id or o.name) not in produced]
         if not missing:
             raise OpenEPWError("NOTHING_TO_RETRY", "Every planned output was produced")
-        return self.submit(subplan(plan, missing), idempotency_key, retry_of=job_id)
+        return self.submit(subplan(plan, missing), idempotency_key, retry_of=job_id,
+                           approved_via=job.approved_via)
 
     def enqueue(self, job_id):
         with self.lock:

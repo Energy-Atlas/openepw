@@ -11,7 +11,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, Callable
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp import Context, FastMCP
 from mcp.server.fastmcp.exceptions import ToolError
 from mcp.types import CallToolResult, TextContent
 from pydantic import TypeAdapter, ValidationError
@@ -24,6 +24,7 @@ from ..places.models import MAX_PLACES, PlacePreview, PlaceSetQuery
 from ..qc import validate
 from ..service import WeatherService
 from ..visualization import VisualizationRequest
+from .approval import confirm_submission
 from .descriptions import DESCRIPTIONS, INSTRUCTIONS
 from .schemas import (
     AvailabilityQueryArg,
@@ -140,6 +141,13 @@ def call(name: str, function: Callable[..., Any], *args: Any) -> CallToolResult:
         raise tool_error(exc) from None
 
 
+async def acall(name: str, function: Callable[..., Any], *args: Any) -> CallToolResult:
+    try:
+        return respond(name, await function(*args))
+    except Exception as exc:
+        raise tool_error(exc) from None
+
+
 def create_server(service=None, *, allowed_roots: list[str | Path] | None = None,
                   runner: JobRunner | None = None):
     """Build the MCP server; a supplied runner is shared and left to its owner to close."""
@@ -172,13 +180,13 @@ def create_server(service=None, *, allowed_roots: list[str | Path] | None = None
             raise OpenEPWError("RESOURCE_LIMIT", f"MCP request exceeds {MAX_PLACES} locations")
         return request
 
-    def submit(plan_hash, kind, idempotency_key):
-        plan = service.plan_store.get(plan_hash)
+    async def submit(plan, idempotency_key, ctx):
         if plan.kind == "future":
             raise OpenEPWError("FEATURE_SUSPENDED", "Future-weather MCP access is suspended")
-        if plan.kind != kind:
-            raise OpenEPWError("INVALID_REQUEST", "Plan kind does not match submit tool")
-        return _job_summary(runner.submit(plan, idempotency_key))
+        if plan.kind != "weather":
+            raise OpenEPWError("INVALID_REQUEST", "Expected a weather plan")
+        approved_via = await confirm_submission(ctx, plan.plan_hash)
+        return _job_summary(runner.submit(plan, idempotency_key, approved_via=approved_via))
 
     @tool
     def weather_geocode(query: str, mode: str = "point") -> CallToolResult:
@@ -304,8 +312,11 @@ def create_server(service=None, *, allowed_roots: list[str | Path] | None = None
         return call("epw_register_path", action)
 
     @tool
-    def weather_submit(plan_hash: str, idempotency_key: str | None = None) -> CallToolResult:
-        return call("weather_submit", submit, plan_hash, "weather", idempotency_key)
+    async def weather_submit(plan_hash: str, ctx: Context,
+                             idempotency_key: str | None = None) -> CallToolResult:
+        async def action():
+            return await submit(service.plan_store.get(plan_hash), idempotency_key, ctx)
+        return await acall("weather_submit", action)
 
     @tool
     def job_inspect(job_id: str) -> CallToolResult:
@@ -417,15 +428,14 @@ def create_server(service=None, *, allowed_roots: list[str | Path] | None = None
 
     # v0.1 aliases remain available during migration.
     @tool
-    def weather_fetch(plan: dict, idempotency_key: str | None = None) -> CallToolResult:
-        def action():
+    async def weather_fetch(plan: dict, ctx: Context,
+                            idempotency_key: str | None = None) -> CallToolResult:
+        async def action():
             selected = WeatherPlan.model_validate(plan)
-            if selected.kind == "future":
-                raise OpenEPWError("FEATURE_SUSPENDED", "Future-weather MCP access is suspended")
-            if selected.kind != "weather":
-                raise OpenEPWError("INVALID_REQUEST", "Expected a weather plan")
-            return _job_summary(runner.submit(selected, idempotency_key))
-        return call("weather_fetch", action)
+            if selected.kind == "weather":
+                service.plan_store.put(selected)
+            return await submit(selected, idempotency_key, ctx)
+        return await acall("weather_fetch", action)
 
     @tool
     def weather_inspect(job_id: str | None = None, artifact_id: str | None = None) -> CallToolResult:

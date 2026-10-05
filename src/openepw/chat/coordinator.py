@@ -1068,7 +1068,8 @@ class ChatCoordinator:
             require_reviewed_standard_time(state["facts"])
             hashes = state.get("plan_hashes") or [plan_hash]
             jobs = [runner.submit(self.service.plan_store.get(item),
-                                  f"chat:{session_id}:{key}" + (f":{index}" if index else ""))
+                                  f"chat:{session_id}:{key}" + (f":{index}" if index else ""),
+                                  approved_via="chat")
                     for index, item in enumerate(hashes)]
             # One retry chain per job; a mixed request has one job per kind.
             state["job_groups"] = [[job.id] for job in jobs]

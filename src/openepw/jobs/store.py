@@ -35,7 +35,7 @@ class JobStore:
         finally:
             db.close()
 
-    def submit(self, plan, idempotency_key=None, retry_of=None):
+    def submit(self, plan, idempotency_key=None, retry_of=None, approved_via=None):
         if plan.kind == "weather" and not plan.outputs:
             raise OpenEPWError("NO_EXECUTABLE_OUTPUTS", "Weather plan has no executable outputs")
         job = WeatherJob(
@@ -45,6 +45,7 @@ class JobStore:
             retry_of=retry_of,
             total=max(1, len({o.id or o.name for o in plan.outputs})),
             idempotency_key=idempotency_key,
+            approved_via=approved_via,
         )
         with self.connect() as db:
             db.execute("BEGIN IMMEDIATE")

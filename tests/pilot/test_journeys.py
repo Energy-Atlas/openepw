@@ -143,6 +143,7 @@ def test_b_published_batch_exact_product_occurrences_and_export(tmp_path):
             assert detail["batch_row_count"] == 4
             assert {c["product_id"] for c in detail["selected_candidates"]} == {
                 "USA/NY/Ithaca.zip"}
+            client.approve(plan["plan_hash"])
             job = await client.call("weather_submit", plan_hash=plan["plan_hash"])
             complete = await finished(client, job["id"])
             assert complete["state"] == "partially_completed"
@@ -220,6 +221,7 @@ def test_c_uploaded_and_fetched_baselines_and_unsupported_future(tmp_path):
             weather = await client.call("weather_plan", request={
                 "locations": ITHACA, "product": "historical", "years": [2024],
                 "providers": ["station"]})
+            client.approve(weather["plan_hash"])
             wjob = await client.call("weather_submit", plan_hash=weather["plan_hash"])
             wdone = await finished(client, wjob["id"])
             fetched = wdone["artifacts"]["weather"][0]
@@ -247,6 +249,7 @@ def test_g_noaa_gap_warn_and_error(tmp_path):
     async def journey():
         async with port(tmp_path, "noaa") as client:
             hashes = json.loads((tmp_path / "noaa-hashes.json").read_text())
+            client.approve(hashes["warn"])
             warn = await client.call("weather_submit", plan_hash=hashes["warn"])
             warning = await finished(client, warn["id"])
             assert warning["artifacts"]["weather"]
@@ -256,6 +259,7 @@ def test_g_noaa_gap_warn_and_error(tmp_path):
                 "artifact_inspect", artifact_id=warning["artifacts"]["weather"][0])
             assert inspect["simulation_ready"] is False
             assert "MISSING_CRITICAL_VARIABLE" in inspect["qc_issue_codes"]
+            client.approve(hashes["error"])
             error = await client.call("weather_submit", plan_hash=hashes["error"])
             failed = await finished(client, error["id"])
             assert not failed["artifacts"]["weather"]
@@ -263,6 +267,7 @@ def test_g_noaa_gap_warn_and_error(tmp_path):
             retry = await client.call("job_retry_failed", job_id=error["id"])
             retried = await finished(client, retry["id"])
             assert not retried["artifacts"]["weather"]
+            client.approve(hashes["batch_error"])
             batch = await client.call("weather_submit", plan_hash=hashes["batch_error"])
             mixed = await finished(client, batch["id"])
             assert mixed["state"] == "partially_completed", mixed
@@ -376,6 +381,7 @@ def test_recovery_active_cancel_then_retry_through_client(tmp_path):
                 "locations": [ITHACA, {"id": "nearby", "lat": 42.5, "lon": -76.45}],
                 "product": "historical", "years": [2024],
                 "providers": ["station"]})
+            client.approve(plan["plan_hash"])
             job = await client.call("weather_submit", plan_hash=plan["plan_hash"])
             requested = await client.call("job_cancel", job_id=job["id"])
             assert requested["cancellation_requested"]

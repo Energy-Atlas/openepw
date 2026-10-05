@@ -244,3 +244,27 @@ def test_future_license_context_does_not_bypass_suspension():
         "CMIP6 SSP245 future", auto_submit=False))
     assert result.status == "blocked"
     assert "FEATURE_SUSPENDED" in result.message
+
+
+def test_submit_records_approval_before_calling_weather_submit():
+    import asyncio
+
+    from openepw.harness.agent import ReferenceAgent
+
+    class ApprovingPort:
+        def __init__(self):
+            self.calls = []
+
+        def approve(self, plan_hash):
+            self.calls.append(("approve", plan_hash))
+
+        async def call(self, name, **arguments):
+            self.calls.append((name, arguments.get("plan_hash")))
+            return {"id": "job1", "state": "completed", "plan_hash": "a" * 64, "completed": 1,
+                    "failed": 0, "total": 1, "artifacts": {"weather": []}}
+
+    port = ApprovingPort()
+    agent = ReferenceAgent(port, model=None)
+    agent.plan_hash = "a" * 64
+    asyncio.run(agent.submit_plan("weather", preface="Weather."))
+    assert port.calls.index(("approve", "a" * 64)) < port.calls.index(("weather_submit", "a" * 64))

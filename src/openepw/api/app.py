@@ -351,7 +351,7 @@ def create_app(service=None, *, remote=False, chat_parser=None):
             raise OpenEPWError("INVALID_REQUEST", "Plan kind does not match endpoint")
         if kind == "future":
             safe_future(selected_plan.request)
-        return runner.submit(selected_plan, payload.idempotency_key)
+        return runner.submit(selected_plan, payload.idempotency_key, approved_via="api")
 
     @app.post("/v1/weather/jobs", status_code=202)
     def weather_job(payload: JobSubmission):

@@ -282,6 +282,9 @@ class ReferenceAgent:
                                "workflows are temporarily unavailable.")
         if not self.plan_hash:
             return AgentResult("needs_clarification", "No stored plan to submit.")
+        approve = getattr(self.mcp, "approve", None)
+        if callable(approve):
+            approve(self.plan_hash)
         job = await self._call(f"{kind}_submit", plan_hash=self.plan_hash)
         self.job_id = job["id"]
         self._persist()

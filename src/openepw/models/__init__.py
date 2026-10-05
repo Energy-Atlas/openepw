@@ -496,3 +496,4 @@ class WeatherJob(Model):
     errors: list[Issue] = Field(default_factory=list)
     bundle: ArtifactBundle | None = None
     idempotency_key: str | None = None
+    approved_via: Literal["elicitation", "api", "chat"] | None = None

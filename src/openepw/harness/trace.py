@@ -131,6 +131,11 @@ class TracingMCPPort:
         self.port = port
         self.tracer = tracer
 
+    def approve(self, plan_hash: str) -> None:
+        approve = getattr(self.port, "approve", None)
+        if callable(approve):
+            approve(plan_hash)
+
     async def call(self, name: str, **arguments: Any) -> dict[str, Any]:
         run = self.tracer.start_step("mcp." + name, "tool", _identifiers(arguments))
         try:
