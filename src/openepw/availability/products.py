@@ -172,7 +172,10 @@ def product_offers(service, locations: Any, *, kind: str | None = None, provider
         options.append({"id": product.id, "label": product.label,
                         "detail": f"{product.detail} · {where}" if where else product.detail,
                         "group": "actual" if product.actual else "typical",
-                        "available": supported, "unverified": unverified, "sites": count})
+                        "available": supported, "unverified": unverified, "sites": count,
+                        # The WeatherRequest fields that choose exactly this product.
+                        "request": {"product": product.product,
+                                    "dataset_selections": [product.selection()]}})
     options.sort(key=lambda option: (option["group"] != "actual", _ORDER.get(option["id"], len(_ORDER)),
                                      option["id"]))
     tags = []

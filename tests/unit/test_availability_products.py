@@ -4,7 +4,7 @@ from datetime import date
 from types import SimpleNamespace
 
 from openepw.availability.products import point_availability, product_for, product_offers
-from openepw.models import Location
+from openepw.models import Location, WeatherRequest
 
 ONEBUILDING = "https://climate.onebuilding.org/WMO_Region_4/USA_NY_Ithaca.Tompkins.Rgnl.AP.725155_{}.zip"
 
@@ -130,3 +130,17 @@ def test_chat_module_still_reexports_the_moved_functions():
 
     assert legacy.product_offers is moved.product_offers
     assert legacy.product_for is moved.product_for
+
+
+def test_each_option_carries_the_request_fields_that_select_it():
+    offers = product_offers(Catalog(), ITHACA, today=date(2026, 9, 27))
+    for option in offers["options"]:
+        years = [2020] if option["group"] == "actual" else []    # typical products take no years
+        request = WeatherRequest.model_validate(
+            {"locations": {"lat": 1, "lon": 2}, "years": years, **option["request"]})
+        assert request.product == product_for(option["id"]).product
+        [selection] = request.dataset_selections
+        assert selection.model_dump(mode="json") == product_for(option["id"]).selection()
+    options = {option["id"]: option for option in offers["options"]}
+    [onebuilding] = options["onebuilding:TMYx.2009-2023"]["request"]["dataset_selections"]
+    assert onebuilding["variant"] == "TMYx.2009-2023"
