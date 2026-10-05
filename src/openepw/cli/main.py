@@ -1,4 +1,5 @@
 import argparse
+import asyncio
 import hashlib
 import json
 import re
@@ -45,6 +46,8 @@ def main(argv=None):
     mcp.add_argument("--transport", choices=["stdio", "streamable-http"], default="stdio")
     mcp.add_argument("--allow-root", action="append", default=[],
                      help="Allow MCP baseline path registration beneath this local directory")
+    chat = sub.add_parser("chat", help="Guided weather chat over the local MCP server")
+    chat.add_argument("--session", help="Resume a saved chat session by ID")
     catalog = sub.add_parser("catalog")
     catalog_sub = catalog.add_subparsers(dest="catalog_command", required=True)
     catalog_sub.add_parser("status")
@@ -83,6 +86,10 @@ def main(argv=None):
             finally:
                 server.openepw_runner.close()  # type: ignore[attr-defined]
             return 0
+        if args.command == "chat":
+            from ..agent.cli import main_chat
+
+            return asyncio.run(main_chat(service, session_id=args.session))
         if args.command == "geocode":
             result = service.geocode(args.input)
         elif args.command == "visualization-capabilities":
