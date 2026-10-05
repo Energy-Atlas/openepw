@@ -140,19 +140,27 @@ def call(name: str, function: Callable[..., Any], *args: Any) -> CallToolResult:
         raise tool_error(exc) from None
 
 
-def create_server(service=None, *, allowed_roots: list[str | Path] | None = None):
+def create_server(service=None, *, allowed_roots: list[str | Path] | None = None,
+                  runner: JobRunner | None = None):
+    """Build the MCP server; a supplied runner is shared and left to its owner to close."""
     service = service or WeatherService()
     roots = [Path(root).resolve() for root in (allowed_roots or [])]
-    runner = JobRunner(service)
+    owns_runner = runner is None
+    runner = runner or JobRunner(service)
 
     @asynccontextmanager
     async def lifespan(server):
-        runner.recover()
-        yield {"runner": runner}
-        runner.close()
+        if owns_runner:
+            runner.recover()
+        try:
+            yield {"runner": runner}
+        finally:
+            if owns_runner:
+                runner.close()
 
     server = FastMCP("openepw", host="127.0.0.1", port=8001, lifespan=lifespan,
                      instructions=INSTRUCTIONS)
+    server.openepw_runner = runner  # type: ignore[attr-defined]
 
     def tool(function):
         return server.tool(description=DESCRIPTIONS[function.__name__])(function)

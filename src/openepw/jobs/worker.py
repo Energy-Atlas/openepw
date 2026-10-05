@@ -41,6 +41,7 @@ class JobRunner:
         )
         self.lock = threading.Lock()
         self.active = set()
+        self._root_lock: Path | None = None
 
     def submit(self, plan, idempotency_key=None, retry_of=None):
         if isinstance(plan, str):
@@ -113,11 +114,21 @@ class JobRunner:
                 self.active.discard(job_id)
 
     def recover(self):
+        """Take the data root for this process, then resume unfinished jobs."""
+        from .lock import acquire_runner_lock
+
+        if getattr(self, "_root_lock", None) is None:
+            self._root_lock = acquire_runner_lock(self.service.config.data_root)
         for job_id in self.store.unfinished():
             self.enqueue(job_id)
 
     def close(self):
+        from .lock import release_runner_lock
+
         self.pool.shutdown(wait=True)
+        held, self._root_lock = getattr(self, "_root_lock", None), None
+        if held is not None:
+            release_runner_lock(held)
 
     def export_compact(self, job_id):
         from ..artifacts.export import export_compact

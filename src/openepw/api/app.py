@@ -128,6 +128,13 @@ def create_app(service=None, *, remote=False, chat_parser=None):
     if service.config.site_password:
         SiteGate(service.config.site_password.get_secret_value()).install(app)
     app.state.runner = runner
+    try:
+        from ..mcp.server import create_server
+    except ImportError:  # the mcp extra is optional for the REST server
+        app.state.mcp_server = None
+    else:
+        # Agent sessions connect in-process (P4); it never runs a second job runner.
+        app.state.mcp_server = create_server(service, runner=runner)
     app.state.chat = chat
 
     @app.middleware("http")
