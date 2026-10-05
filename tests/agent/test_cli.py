@@ -1,4 +1,5 @@
 import asyncio
+import json
 
 from fakes import scenario_service
 
@@ -167,3 +168,18 @@ def test_the_chat_model_follows_the_key_and_the_mode(tmp_path, monkeypatch):
     model, notice = agent_cli.chat_model(None, data_root=tmp_path, max_cost=1.5)
     assert isinstance(model, OpenAIModel) and notice is None and model.max_cost_usd == 1.5
     assert model.ledger_path == tmp_path / "agent" / "model-usage.json"
+
+
+def test_an_unreadable_or_spent_ledger_means_guided_mode_with_a_reason(tmp_path, monkeypatch):
+    from openepw.agent import cli as agent_cli
+
+    monkeypatch.setattr(agent_cli, "load_openai_key", lambda env_file: "sk-test-not-real")
+    ledger = tmp_path / "agent" / "model-usage.json"
+    ledger.parent.mkdir(parents=True)
+    for content in ("{corrupt", "[1, 2]"):
+        ledger.write_text(content, encoding="utf-8")
+        model, notice = agent_cli.chat_model(None, data_root=tmp_path)
+        assert model is None and "unreadable" in notice
+    ledger.write_text(json.dumps({"calls": 9, "estimated_usd": 6.0}), encoding="utf-8")
+    model, notice = agent_cli.chat_model(None, data_root=tmp_path, max_cost=5.0)
+    assert model is None and "--max-cost" in notice and "sk-test" not in notice

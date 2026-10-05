@@ -29,6 +29,8 @@ GEOCODER: dict[str, list[tuple[str, float, float]]] = {
     "Denver": [("Denver, Colorado, United States", 39.74, -104.98)],
     "Phoenix": [("Phoenix, Arizona, United States", 33.45, -112.07)],
 }
+STATE_CODES = {"New York": "NY", "Illinois": "IL", "Massachusetts": "MA", "Missouri": "MO",
+               "Texas": "TX", "Colorado": "CO", "Arizona": "AZ"}
 VALUES = {"dry_bulb": 10.0, "dew_point": 5.0, "relative_humidity": 70.0, "pressure": 101325.0,
           "wind_speed": 3.0, "wind_direction": 180.0, "ghi": 0.0, "dni": 0.0, "dhi": 0.0}
 
@@ -36,12 +38,19 @@ VALUES = {"dry_bulb": 10.0, "dew_point": 5.0, "relative_humidity": 70.0, "pressu
 def geocode_results(name: str) -> dict[str, Any]:
     """An Open-Meteo-shaped geocoder answer from the table.
 
-    Like the real search, the place name before any comma is matched case-insensitively, so
-    "Ithaca" and "Ithaca, NY" find Ithaca but "Ithaca NY" (no comma) finds nothing.
+    Like the real search, the place name before any comma is matched case-insensitively and the
+    rest narrows the matches (a region name or its initials), so "Ithaca" and "Ithaca, NY" find
+    Ithaca, "Springfield, Massachusetts" finds one Springfield, and "Ithaca NY" finds nothing.
     """
-    wanted = name.split(",")[0].strip().casefold()
-    rows = [row for key, entries in GEOCODER.items() if key.split(",")[0].strip().casefold() == wanted
+    place, _, region = (part.strip() for part in name.partition(","))
+    rows = [row for key, entries in GEOCODER.items() if key.split(",")[0].strip().casefold() == place.casefold()
             for row in entries]
+    if region:
+        def matches(label: str) -> bool:
+            parts = [part.strip() for part in label.split(",")[1:]]
+            codes = {STATE_CODES.get(part, "") for part in parts}
+            return region.casefold() in label.casefold() or region.upper() in codes
+        rows = [row for row in rows if matches(row[0])]
     return {"results": [{"id": index + 1, "name": label, "latitude": lat, "longitude": lon}
                         for index, (label, lat, lon) in enumerate(rows)]}
 

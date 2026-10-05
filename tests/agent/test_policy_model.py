@@ -437,3 +437,14 @@ def test_reviews_and_offers_are_reached_only_through_their_ask_tools(tmp_path):
             assert results(model, "weather_locations_review")[0]["code"] == "USE_ASK_TOOL"
             assert "weather_locations_review" not in h.tools()
     run(main)
+
+
+def test_a_model_lost_before_any_step_hands_the_message_to_guided_rules(tmp_path):
+    h, model = agent(tmp_path, [ModelUnavailable("The model request could not complete")])
+
+    async def main():
+        async with h:
+            await h.say("AMY 2018 for Ithaca NY")
+            assert h.session.state.mode == "guided" and h.form.gate == "review_location"
+            assert h.session.facts.years == [2018]
+    run(main)

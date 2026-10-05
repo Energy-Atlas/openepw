@@ -57,6 +57,8 @@ def main(argv=None):
     evals.add_argument("--mode", choices=["guided", "agent"], default="guided")
     evals.add_argument("--scripted", action="store_true",
                        help="Agent mode with each scenario's scripted model (offline, no key)")
+    evals.add_argument("--live", action="store_true",
+                       help="Agent mode with the real OpenAI model (costs money; capped by --max-cost)")
     evals.add_argument("--scenario", action="append", help="Scenario id, e.g. S1 (repeatable)")
     evals.add_argument("--repeats", type=int, default=1)
     evals.add_argument("--model", default=None, help="OpenAI model id for live agent runs")
@@ -110,7 +112,8 @@ def main(argv=None):
 
             prepare_console()
             return asyncio.run(main_eval(
-                mode=args.mode, scripted=args.scripted, scenario_ids=args.scenario, repeats=args.repeats,
+                mode=args.mode, scripted=args.scripted, live=args.live, scenario_ids=args.scenario,
+                repeats=args.repeats,
                 model=args.model, max_cost=args.max_cost, live_providers=args.live_providers,
                 scenarios_file=args.scenarios_file, output=args.output, env_file=args.env_file or ".env"))
         if args.command == "chat":

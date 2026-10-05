@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import sqlite3
 import uuid
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -70,11 +71,18 @@ class CatalogStore:
         if snapshot.schema_version != "1" or snapshot.importer_version != "1":
             raise CatalogImportError("Unsupported catalog importer/schema version; reimport required")
 
+    @contextmanager
     def _connect(self):
+        # Commit or roll back like sqlite3's own context manager, then close: an unclosed
+        # connection keeps the file locked on Windows (temporary data roots could not be removed).
         db = sqlite3.connect(self.database, timeout=10)
-        db.execute("PRAGMA foreign_keys = ON")
-        db.execute("PRAGMA busy_timeout = 10000")
-        return db
+        try:
+            db.execute("PRAGMA foreign_keys = ON")
+            db.execute("PRAGMA busy_timeout = 10000")
+            with db:
+                yield db
+        finally:
+            db.close()
 
     @staticmethod
     def _validate(bundle: CatalogBundle):

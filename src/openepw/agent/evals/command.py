@@ -10,7 +10,8 @@ from ..model_port import DEFAULT_MODEL, ModelPort, OpenAIModel, load_openai_key
 from .runner import RunResult, load_scenarios, report_json, run_evals, scripted_model
 
 
-async def main_eval(*, mode: str = "guided", scripted: bool = False, scenario_ids: list[str] | None = None,
+async def main_eval(*, mode: str = "guided", scripted: bool = False, live: bool = False,
+                    scenario_ids: list[str] | None = None,
                     repeats: int = 1, model: str | None = None, max_cost: float = 1.0,
                     live_providers: bool = False, scenarios_file: Path | None = None,
                     output: Path | None = None, env_file: str | Path | None = ".env",
@@ -28,6 +29,10 @@ async def main_eval(*, mode: str = "guided", scripted: bool = False, scenario_id
     if mode == "agent" and scripted:
         def factory(scenario: dict[str, Any]) -> ModelPort | None:
             return scripted_model(scenario) if "script" in scenario else None
+    elif mode == "agent" and not live:
+        write("Agent-mode evals call the OpenAI API: add --live (spend capped by --max-cost) "
+              "or use --scripted to run offline.")
+        return 2
     elif mode == "agent":
         key = load_openai_key(env_file)
         if not key:

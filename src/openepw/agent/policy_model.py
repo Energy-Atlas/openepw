@@ -84,14 +84,21 @@ class ModelPolicy:
         else:
             s.emit("notice", "Agent mode: describe what you need in your own words.", mode="agent")
 
-    async def _to_guided(self, s: AgentSession, reason: str) -> None:
-        """The model is unavailable: keep the facts and continue with guided forms."""
+    async def _to_guided(self, s: AgentSession, reason: str, text: str | None = None) -> None:
+        """The model is unavailable: keep the facts and continue with guided forms.
+
+        ``text`` is the person's message when the model failed before doing anything with it;
+        guided rules then read it instead of asking again.
+        """
         s.state.mode = "guided"
         s.state.pending_call, s.state.turn = None, []
         s.emit("notice", f"Switched to guided mode ({reason}). Your choices so far are kept.",
                mode="guided", code="MODEL_UNAVAILABLE")
-        if s.form is None or "call_id" in s.form.data:
+        if s.form is not None and "call_id" in s.form.data:
             s.close_form()
+        if text is not None:
+            await self.guided.on_text(s, text)
+        elif s.form is None:
             await self.guided.advance(s)
 
     # Policy interface -----------------------------------------------------------------------
@@ -122,7 +129,7 @@ class ModelPolicy:
             return
         s.state.turn = [{"type": "user", "text": text}]
         s.state.turn_seq = s.events()[-1].seq - 1 if s.events() else 0
-        await self._loop(s)
+        await self._loop(s, text=text)
 
     async def on_answer(self, s: AgentSession, form: Interaction, answer: Answer) -> None:
         pending = s.state.pending_call
@@ -165,11 +172,17 @@ class ModelPolicy:
         if resume:
             await self._loop(s)
 
-    async def _loop(self, s: AgentSession) -> None:
+    async def _loop(self, s: AgentSession, *, text: str | None = None) -> None:
+        """Model steps until a text reply, a question to the person or a limit.
+
+        ``text`` is the message that started a new turn; if the model fails before any step,
+        guided rules read it.
+        """
         loop = asyncio.get_running_loop()
         deadline = loop.time() + self.turn_seconds
         steps, repairs, failures = 0, 0, Counter[str]()
         tools = await self._tool_list(s)
+        first = True
         while True:
             if loop.time() > deadline:
                 s.emit("assistant", "This turn took too long and stopped; the open form is kept. "
@@ -179,8 +192,9 @@ class ModelPolicy:
             try:
                 reply = await self.model.respond(SYSTEM, self._items(s), tools)
             except ModelUnavailable as error:
-                await self._to_guided(s, str(error))
+                await self._to_guided(s, str(error), text=text if first else None)
                 return
+            first = False
             s.state.turn.append(reply.item())
             if reply.text:
                 s.emit("assistant", reply.text)

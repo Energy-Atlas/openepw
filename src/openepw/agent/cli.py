@@ -13,7 +13,7 @@ from ..models import OpenEPWError
 from .guided import GuidedPolicy
 from .interactions import Answer, Event, Interaction
 from .mcp_port import ApprovalBook, InProcessMCP
-from .model_port import DEFAULT_MODEL, ModelPort, OpenAIModel, load_openai_key
+from .model_port import DEFAULT_MODEL, ModelPort, ModelUnavailable, OpenAIModel, load_openai_key
 from .policy_model import ModelPolicy
 from .session import MAX_UPLOAD, AgentSession, Policy
 from .store import SessionStore
@@ -51,8 +51,17 @@ def chat_model(mode: str | None, *, model: str | None = None, max_cost: float = 
     if not key:
         return None, ("No OPENAI_API_KEY found; using guided mode (rule-based forms)."
                       if mode == "agent" or mode is None else None)
-    return OpenAIModel(key, model=model or DEFAULT_MODEL, max_cost_usd=max_cost,
-                       ledger_path=Path(data_root) / "agent" / "model-usage.json"), None
+    ledger = Path(data_root) / "agent" / "model-usage.json"
+    try:
+        chosen = OpenAIModel(key, model=model or DEFAULT_MODEL, max_cost_usd=max_cost, ledger_path=ledger)
+    except (ModelUnavailable, TypeError, ValueError):
+        return None, (f"The model usage ledger ({ledger}) is unreadable; using guided mode. "
+                      "Fix or move it to use agent mode.")
+    spent = float(chosen.usage.get("estimated_usd") or 0.0)
+    if spent >= max_cost:
+        return None, (f"The model budget is used up (${spent:.2f} of --max-cost ${max_cost:.2f}, "
+                      f"ledger {ledger}); using guided mode. Raise --max-cost to use agent mode.")
+    return chosen, None
 
 
 def _read_upload(argument: str, write: Callable[[str], Any]) -> tuple[bytes, str] | None:

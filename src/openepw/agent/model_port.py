@@ -132,7 +132,7 @@ class OpenAIModel:
         if self.ledger_path and self.ledger_path.is_file():
             try:
                 self.usage.update(json.loads(self.ledger_path.read_text(encoding="utf-8")))
-            except ValueError:                     # an unreadable ledger means an unknown spend
+            except (ValueError, TypeError):        # an unreadable ledger means an unknown spend
                 raise ModelUnavailable("The model usage ledger is unreadable") from None
 
     def _save(self) -> None:
