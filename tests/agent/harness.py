@@ -12,10 +12,11 @@ from openepw.mcp.server import create_server
 
 
 class Harness:
-    def __init__(self, tmp_path, session_id=None):
+    def __init__(self, tmp_path, session_id=None, policy=None, fail_near=()):
         self.tmp_path = tmp_path
         self.session_id = session_id
-        self.service = scenario_service(tmp_path)
+        self.policy = policy or GuidedPolicy()
+        self.service = scenario_service(tmp_path, fail_near=fail_near)
         self.runner = JobRunner(self.service)
         self.server = create_server(self.service, runner=self.runner)
         self.approvals = ApprovalBook()
@@ -24,10 +25,10 @@ class Harness:
     async def __aenter__(self):
         self.port = await InProcessMCP(self.server, self.approvals).__aenter__()
         if self.session_id:
-            self.session = AgentSession.resume(self.store, self.port, self.approvals, GuidedPolicy(),
+            self.session = AgentSession.resume(self.store, self.port, self.approvals, self.policy,
                                                self.session_id, poll_seconds=0.05)
         else:
-            self.session = AgentSession.start(self.store, self.port, self.approvals, GuidedPolicy(),
+            self.session = AgentSession.start(self.store, self.port, self.approvals, self.policy,
                                               poll_seconds=0.05)
         await self.session.begin()
         return self
@@ -50,6 +51,10 @@ class Harness:
     async def approve(self):
         form = self.form
         await self.session.answer(Answer(interaction_id=form.id, revision=form.revision, approve=True))
+
+    async def reply(self, text):
+        form = self.form
+        await self.session.answer(Answer(interaction_id=form.id, revision=form.revision, text=text))
 
     def tools(self):
         return [event.data["tool"] for event in self.session.events()

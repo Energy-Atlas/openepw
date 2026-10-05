@@ -11,7 +11,7 @@ from test_places_geonames import FakeHttp  # noqa: E402
 
 from openepw.config import RuntimeConfig  # noqa: E402
 from openepw.dataset import WeatherDataset  # noqa: E402
-from openepw.models import Candidate, SourceRef, VariableLineage  # noqa: E402
+from openepw.models import Candidate, OpenEPWError, SourceRef, VariableLineage  # noqa: E402
 from openepw.providers.base import ProviderResult  # noqa: E402
 from openepw.providers.openmeteo import interval_bounds  # noqa: E402
 from openepw.service import WeatherService  # noqa: E402
@@ -48,8 +48,9 @@ class FakeERA5:
 
     name = "openmeteo"
 
-    def __init__(self):
+    def __init__(self, fail_near=()):
         self.calls = 0
+        self.fail_near = list(fail_near)      # (lat, lon) points whose fetch fails
 
     def discover(self, request, location, http):
         source = SourceRef(provider=self.name, dataset="era5",
@@ -60,6 +61,9 @@ class FakeERA5:
 
     def fetch(self, task, http):
         self.calls += 1
+        location = task.source.location
+        if any(abs(location.lat - lat) < 0.5 and abs(location.lon - lon) < 0.5 for lat, lon in self.fail_near):
+            raise OpenEPWError("PROVIDER_ERROR", "Fake provider outage for this point", retryable=True)
         start, end = interval_bounds(task.parameters)
         index = pd.date_range(start + pd.Timedelta(hours=1), end, freq="h")
         frame = pd.DataFrame({name: [value] * len(index) for name, value in VALUES.items()}, index=index)
@@ -70,6 +74,6 @@ class FakeERA5:
                               task.source, b"fake-era5")
 
 
-def scenario_service(tmp_path):
+def scenario_service(tmp_path, fail_near=()):
     config = RuntimeConfig(data_root=tmp_path)
-    return WeatherService(config, http=ScenarioHttp(config), providers=[FakeERA5()])
+    return WeatherService(config, http=ScenarioHttp(config), providers=[FakeERA5(fail_near)])

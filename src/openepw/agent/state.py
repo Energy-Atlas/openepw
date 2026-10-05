@@ -64,3 +64,8 @@ class SessionState(Model):
     mode: Literal["guided", "agent"] = "guided"
     facts: Facts = Field(default_factory=Facts)
     form: Interaction | None = None
+    # Agent mode: the current model turn's items, the ask-tool call waiting for the person, and
+    # the event number where the turn began (earlier events form the history the model sees).
+    turn: list[dict[str, Any]] = Field(default_factory=list)
+    pending_call: dict[str, str] | None = None
+    turn_seq: int = 0

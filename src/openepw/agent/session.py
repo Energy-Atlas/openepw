@@ -54,7 +54,11 @@ class AgentSession:
     @classmethod
     def start(cls, store: SessionStore, port: MCPPort, approvals: ApprovalBook, policy: Policy,
               **options: Any) -> AgentSession:
-        return cls(store, port, approvals, store.create(), policy, **options)
+        state = store.create()
+        # A new conversation starts in the policy's own mode (agent for a model policy).
+        state.mode = getattr(policy, "initial_mode", "guided")
+        store.save(state)
+        return cls(store, port, approvals, state, policy, **options)
 
     @classmethod
     def resume(cls, store: SessionStore, port: MCPPort, approvals: ApprovalBook, policy: Policy,

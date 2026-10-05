@@ -88,6 +88,14 @@ class InProcessMCP:
         if context is not None:
             await context.__aexit__(*exc_info)
 
+    async def list_tools(self) -> list[dict[str, Any]]:
+        """The server's tools as ``{name, description, parameters}`` (JSON schema)."""
+        if self._session is None:
+            raise ToolFailure("CLIENT_CLOSED", "The MCP session is closed")
+        listed = await self._session.list_tools()
+        return [{"name": tool.name, "description": tool.description or "",
+                 "parameters": tool.inputSchema} for tool in listed.tools]
+
     async def call(self, name: str, **arguments: Any) -> ToolResult:
         if self._session is None:
             raise ToolFailure("CLIENT_CLOSED", "The MCP session is closed")
