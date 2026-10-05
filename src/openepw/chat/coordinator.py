@@ -14,6 +14,7 @@ from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any
 
+from ..agent.text import explicit_weather_years
 from ..availability import WeatherAvailabilityQuery
 from ..availability.products import product_for, product_offers
 from ..harness.agent import safe_prompt
@@ -185,26 +186,6 @@ def plan_summary_markdown(request: dict, rows: list[dict]) -> str:
         codes = f" ({', '.join(row['issue_codes'])})" if row.get("issue_codes") else ""
         lines.append(f"- **{label}** · {period} · {source} · {status}{codes}")
     return "\n".join(lines)
-
-
-def explicit_weather_years(text: str) -> set[int]:
-    """A building count must not turn into a weather year, even if a model proposes it."""
-    years = set()
-    for match in re.finditer(r"\b(?:18|19|20|21)\d{2}\b", text):
-        if not re.match(r"\s+buildings?\b", text[match.end():], re.I):
-            years.add(int(match.group()))
-    for match in re.finditer(r"\b((?:18|19|20|21)\d{2})\s*(?:-|–|—|to|through)\s*"
-                             r"((?:18|19|20|21)\d{2}|\d{2})\b", text, re.I):
-        start, tail = int(match.group(1)), match.group(2)
-        end = int(tail)
-        if len(tail) == 2:                 # "2012-18" and "1998-02" abbreviate the end year
-            end += start // 100 * 100
-            end += 100 if end < start else 0
-        if 0 <= end - start <= 30:
-            years.update(range(start, end + 1))
-    for match in re.finditer(r"\b((?:18|19|20|21)\d)0s\b", text):     # "the 2010s"
-        years.update(range(int(match.group(1)) * 10, int(match.group(1)) * 10 + 10))
-    return years
 
 
 # Relative phrases the model may turn into years ("the last five years", "since 2015").
