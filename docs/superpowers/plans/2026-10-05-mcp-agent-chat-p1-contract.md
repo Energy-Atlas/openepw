@@ -2562,3 +2562,31 @@ and are superseded where they differ.
   legacy console approves the original plan for `/retry`.
 - Data-root lock: it is per process, so owners within one process share it; a second process
   on the same data root fails at startup with `DATA_ROOT_BUSY`.
+- Final-review fixes:
+  - Owned-runner lifecycle: the SDK enters the server lifespan once per client session, so a
+    runner owned by `create_server` now recovers (taking the data-root lock) on the first
+    session only and is never closed per session; `openepw mcp` closes it when the server
+    stops. A supplied runner is still left to its owner.
+  - Argument-error mapping: an `OpenEPWMCP` FastMCP subclass unwraps the SDK's
+    "Error executing tool" wrapper, so argument-validation errors become bare-JSON
+    `INVALID_REQUEST` with `details` (no input values) and every tool error is bare JSON.
+    Generic `ValueError`/`TypeError` mappings are logged by exception type.
+  - Offer request mapping: each `product_offers` option carries
+    `request: {product, dataset_selections}`, the `WeatherRequest` fields that choose it.
+  - Retry prompt: `job_retry_failed` asks "Approve retrying the failed or missing outputs of
+    job <id> from reviewed weather plan <hash>?", which keeps the `plan <hash>` token.
+- Deferred to later phases:
+  - Offers do not yet carry the availability evidence dates promised in spec section 5; this
+    moves to the P2 product-gate work.
+  - P2 must decide whether the host substitutes the approved geography and selections into
+    `weather_plan` (or passes references), and expose one service helper that computes the
+    review key from a request.
+  - Cap points before validating in `review_locations`, and add a location cap to
+    `weather_product_offers`.
+  - Lock hardening, with P4 HTTP hosting: the lock leaks if `recover` raises, release is not
+    exception-safe, `OSError` classification, and the broad `except ImportError` in `app.py`.
+  - A per-root runner registry so two runners in one process cannot both recover jobs.
+  - One-shot approvals bound to the plan-review revision in P2 (the legacy
+    `StdioMCPPort.approved` set is sticky).
+  - A sanitized traceback at DEBUG level for correlation ids.
+  - Per-tool expected identifiers in the summary test.

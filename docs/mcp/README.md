@@ -59,30 +59,35 @@ or authorization token. Large EPWs and ZIPs are never inline tool results.
 ## Approval
 
 `weather_submit`, the legacy `weather_fetch` and `job_retry_failed` ask the client to confirm
-with the person through MCP elicitation before any provider retrieval. A retry names the
-original job's plan hash in the prompt. Validation that cannot start anything runs before the
-prompt, so a weather plan with no outputs is refused with `NO_EXECUTABLE_OUTPUTS` before any
-confirmation is requested. A client without elicitation support receives `APPROVAL_REQUIRED`;
-a declined confirmation returns `APPROVAL_DECLINED`. Jobs record `approved_via`
-(`elicitation`, `api` or `chat`). The legacy console answers the confirmation for plans it was
-told to submit and approves the original plan for `/retry` (`StdioMCPPort.approve`). REST
-`/v1/jobs/{id}/retry` and the web chat retry keep the original job's `approved_via`.
+with the person through MCP elicitation before any provider retrieval. A retry prompt names
+the failed job and the original job's plan hash. Validation that cannot start anything runs
+before the prompt, so a weather plan with no outputs is refused with `NO_EXECUTABLE_OUTPUTS`
+before any confirmation is requested. A client without elicitation support receives
+`APPROVAL_REQUIRED`; a declined confirmation returns `APPROVAL_DECLINED`. Jobs record
+`approved_via` (`elicitation`, `api` or `chat`): how the original plan's submission was
+approved. A retry through REST `/v1/jobs/{id}/retry` or the web chat inherits the original
+job's value; a retry through MCP `job_retry_failed` is confirmed again and records
+`elicitation`. The legacy console answers the confirmation for plans it was told to submit and
+approves the original plan for `/retry` (`StdioMCPPort.approve`).
 
 ## Errors and limits
 
-Tool failures set `isError=true` with JSON `{code, message, retryable}`. Invalid tool names or
-arguments are protocol errors. Validation errors add `details: [{loc, msg}]` without input
-values; unexpected failures add a `correlation_id` that is logged on the server. Ordinary
-output does not include credentials, local paths or full-year hourly arrays. Results are capped
-at 160 KB; plans and job summaries page or truncate at 50 rows; an oversized query returns
-`RESOURCE_LIMIT`, so narrow it.
+Tool failures, including invalid arguments, set `isError=true` and the text content is a bare
+JSON object `{code, message, retryable}` with no prefix. Validation errors (`INVALID_REQUEST`)
+add `details: [{loc, msg}]` naming the argument or field, without input values; unexpected
+failures (`INTERNAL_ERROR`) add a `correlation_id` that is logged on the server. With MCP SDK
+1.30 an unknown tool name also returns `isError=true`, but with the SDK's plain text
+`Unknown tool: <name>` rather than JSON. Ordinary output does not include credentials, local
+paths or full-year hourly arrays. Results are capped at 160 KB; plans and job summaries page or
+truncate at 50 rows; an oversized query returns `RESOURCE_LIMIT`, so narrow it.
 
 The data-root lock is per process: owners within one process (for example the API and its
 in-process MCP server) share one job runner. A stdio `openepw mcp` started on a data root that
 a running `openepw serve`, or any other process, already holds fails at startup with
-`DATA_ROOT_BUSY`; use separate data roots. Future-weather endpoints remain suspended
-(`FEATURE_SUSPENDED`). A catalog `supported` answer means eligible to try retrieval; only
-output QC describes retrieved-weather gaps. Every manifest currently records
+`DATA_ROOT_BUSY`; use separate data roots. `openepw mcp` takes the lock on its first client
+session and holds it across sessions until the process exits. Future-weather endpoints remain
+suspended (`FEATURE_SUSPENDED`). A catalog `supported` answer means eligible to try retrieval;
+only output QC describes retrieved-weather gaps. Every manifest currently records
 `simulation_ready=false`; do not claim simulator certification.
 
 ## Example flow

@@ -30,10 +30,10 @@ CLI is not exercised by the web, and web forms have no CLI counterpart.
   Submit, cancel, retry, export and upload are not model tools.
 - `weather_submit`, the legacy `weather_fetch` alias and `job_retry_failed`
   each require an MCP elicitation confirmation (for a retry, the confirmation
-  names the original plan hash). The openepw host answers it only for a
-  recorded user approval; other clients show their own confirmation; clients
-  without elicitation receive `APPROVAL_REQUIRED`. No model-callable approval
-  token exists.
+  names the failed job and its original plan hash). The openepw host answers it
+  only for a recorded user approval; other clients show their own confirmation;
+  clients without elicitation receive `APPROVAL_REQUIRED`. No model-callable
+  approval token exists.
 
 ## Consequences
 
@@ -43,6 +43,14 @@ CLI is not exercised by the web, and web forms have no CLI counterpart.
   model summary and structured data.
 - `ChatCoordinator`, `ReferenceAgent`, `ChatSession`, `GraphChatSession` and
   `/v1/chat/*` are retired after both renderers pass the shared scenario evals.
-- External MCP clients see one behaviour change: submission (`weather_submit`
-  and the `weather_fetch` alias) and retrying failed work (`job_retry_failed`,
-  confirmed against the original plan hash) need a confirmation.
+- External MCP clients see these behaviour changes:
+  - Submission (`weather_submit` and the `weather_fetch` alias) and retrying
+    failed work (`job_retry_failed`, confirmed against the original job and
+    plan hash) need a confirmation.
+  - Text content is now a short summary; the full data is in
+    `structuredContent`. v0.1 clients that parsed JSON from the text must read
+    `structuredContent` instead.
+  - Tools no longer publish an `outputSchema`.
+  - Error text is a bare JSON object `{code, message, retryable}` (plus
+    `details` or `correlation_id`), including for invalid arguments, with no
+    "Error executing tool" prefix.
