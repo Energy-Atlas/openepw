@@ -32,7 +32,8 @@ weather_places_preview (several names) and weather_place_set (descriptive sets).
 several candidates, ask with ask_choice. Then call review_location with the points (lat, lon, \
 name); the person approves them, including their fixed standard-time offsets.
 2. Products: after approval call choose_products; the person chooses. Never choose for them.
-3. Years: actual-year (historical) weather needs years the person wrote. Never invent or infer \
+3. Years: AMY (actual meteorological year), "historical" and offers labelled "actual year" are \
+the same thing: actual-year weather (product "historical"). It needs years the person wrote. Never invent or infer \
 years; if none were given, ask with ask_text (purpose "years"). Typical-year products (TMY, \
 TMYx, published) take no years.
 4. Plan: call weather_plan with request {product, years, dataset_selections} for the chosen \
@@ -475,9 +476,16 @@ class ModelPolicy:
         if name == "choose_products":
             facts.chosen = [offer for offer in facts.offers if offer["id"] in answer.choice_ids]
             facts.plans = []
-            return {"chosen": answer.choice_ids, "needs_years": needs_years(facts),
-                    "years_the_person_wrote": facts.years,
-                    "requests": [offer["request"] for offer in facts.chosen]}
+            kinds = {"historical": "actual year (AMY)", "tmy": "typical year (TMY)",
+                     "tmyx": "typical year (TMYx)", "published": "published typical-year EPW"}
+            return {"chosen": [{"id": offer["id"], "label": offer["label"],
+                                "kind": kinds.get(offer["request"]["product"], offer["request"]["product"]),
+                                "request": offer["request"]} for offer in facts.chosen],
+                    "needs_years": needs_years(facts), "years_the_person_wrote": facts.years,
+                    "next": ("weather_plan with these requests"
+                             + (" and the person's years" if needs_years(facts) and facts.years else "")
+                             + ("; ask for years first with ask_text" if needs_years(facts) and not facts.years
+                                else ""))}
         labels = {option.id: option.label for option in form.options}
         return {"choice_ids": answer.choice_ids, "labels": [labels[item] for item in answer.choice_ids]}
 

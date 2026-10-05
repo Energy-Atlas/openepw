@@ -507,3 +507,18 @@ def test_review_plan_after_every_plan_ran_is_refused(tmp_path):
             assert results(model, "review_plan")[-1]["code"] == "NOTHING_TO_RUN"
             assert h.session.state.pending_call is None
     run(main)
+
+
+def test_the_product_answer_names_the_kind_and_the_next_step(tmp_path):
+    h, model = agent(tmp_path, [call("review_location", {"locations": ITHACA}), call("choose_products", {}),
+                                say("Planning next.")])
+
+    async def main():
+        async with h:
+            await h.say("AMY 2018 for Ithaca NY")
+            await h.approve()
+            await h.choose("era5-openmeteo")
+            answer = results(model, "choose_products")[0]
+            assert answer["chosen"][0]["kind"] == "actual year (AMY)" and answer["needs_years"] is True
+            assert answer["next"].startswith("weather_plan") and answer["years_the_person_wrote"] == [2018]
+    run(main)
