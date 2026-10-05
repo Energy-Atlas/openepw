@@ -29,6 +29,7 @@ def plan_entry(request: dict[str, Any], data: dict[str, Any], summary: str) -> d
     """What a plan review shows and run submits for one weather_plan result."""
     return {"plan_hash": data["plan_hash"], "product": request["product"],
             "dataset_selections": request.get("dataset_selections", []),
+            "years": list(request.get("years") or []),
             "output_count": data.get("output_count", 0), "summary": summary,
             "warnings": data.get("warnings", [])}
 

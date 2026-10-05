@@ -53,6 +53,19 @@ def main(argv=None):
     chat.add_argument("--model", default=None, help="OpenAI model id for agent mode")
     chat.add_argument("--max-cost", type=float, default=5.0,
                       help="Budget stop in USD for the local model usage ledger (default 5)")
+    evals = sub.add_parser("eval", help="Run the agent chat scenarios and report pass rates")
+    evals.add_argument("--mode", choices=["guided", "agent"], default="guided")
+    evals.add_argument("--scripted", action="store_true",
+                       help="Agent mode with each scenario's scripted model (offline, no key)")
+    evals.add_argument("--scenario", action="append", help="Scenario id, e.g. S1 (repeatable)")
+    evals.add_argument("--repeats", type=int, default=1)
+    evals.add_argument("--model", default=None, help="OpenAI model id for live agent runs")
+    evals.add_argument("--max-cost", type=float, default=1.0,
+                       help="Budget stop in USD for this eval run (default 1)")
+    evals.add_argument("--live-providers", action="store_true",
+                       help="Use the real geocoder and providers instead of offline stubs")
+    evals.add_argument("--scenarios-file", type=Path)
+    evals.add_argument("--output", type=Path, help="Write the JSON report here")
     catalog = sub.add_parser("catalog")
     catalog_sub = catalog.add_subparsers(dest="catalog_command", required=True)
     catalog_sub.add_parser("status")
@@ -91,6 +104,15 @@ def main(argv=None):
             finally:
                 server.openepw_runner.close()  # type: ignore[attr-defined]
             return 0
+        if args.command == "eval":
+            from ..agent.cli import prepare_console
+            from ..agent.evals.command import main_eval
+
+            prepare_console()
+            return asyncio.run(main_eval(
+                mode=args.mode, scripted=args.scripted, scenario_ids=args.scenario, repeats=args.repeats,
+                model=args.model, max_cost=args.max_cost, live_providers=args.live_providers,
+                scenarios_file=args.scenarios_file, output=args.output, env_file=args.env_file or ".env"))
         if args.command == "chat":
             from ..agent.cli import chat_model, main_chat, prepare_console
 
