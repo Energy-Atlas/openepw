@@ -293,7 +293,8 @@ def test_text_at_an_open_ask_form_reaches_the_model_as_the_answer(tmp_path):
             await h.say("AMY 2018 for Ithaca NY")
             await h.say("no, Denver instead")
             reply = results(model, "review_location")[0]
-            assert reply == {"status": "person_replied", "text": "no, Denver instead"}
+            assert (reply["status"], reply["text"]) == ("person_replied", "no, Denver instead")
+            assert reply["years_the_person_wrote"] == [2018]
             assert h.form.gate == "review_location" and "Denver" in h.form.data["points"][0]["name"]
     run(main)
 
