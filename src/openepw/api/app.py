@@ -190,8 +190,6 @@ def create_app(service=None, *, remote=False, chat_parser=None):
     def catalog_point(lat: float = Query(ge=-90, le=90), lon: float = Query(ge=-180, le=180),
                       years: str = Query(default="", max_length=400)):
         """Named-product availability at one point, for the map's hover card (offline catalog)."""
-        from ..chat import products
-
         wanted = sorted({int(item) for item in years.split(",") if item.strip().isdigit()})[:30]
         # Recent places are answered from memory; a newly activated catalog starts afresh.
         view = service.catalog_store.active()
@@ -204,7 +202,7 @@ def create_app(service=None, *, remote=False, chat_parser=None):
             if len(point_cache) > 4096:
                 point_cache.clear()
                 point_cache["generation"] = generation
-            point_cache[key] = products.point_availability(service, key[0], key[1], wanted)
+            point_cache[key] = service.point_availability(key[0], key[1], wanted)
         return point_cache[key]
 
     @app.post("/v1/chat/sessions", status_code=201)

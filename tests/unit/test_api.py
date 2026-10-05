@@ -287,16 +287,14 @@ def test_catalog_point_lists_named_products_for_the_hover_card(tmp_path):
 
 
 def test_catalog_point_answers_repeat_places_from_a_cache(tmp_path, monkeypatch):
-    import openepw.chat.products as products
-
     calls = []
-    real = products.point_availability
+    real = WeatherService.point_availability
 
-    def counted(*args, **kwargs):
-        calls.append(args[1:3])
-        return real(*args, **kwargs)
+    def counted(self, *args, **kwargs):
+        calls.append(args[0:2])
+        return real(self, *args, **kwargs)
 
-    monkeypatch.setattr(products, "point_availability", counted)
+    monkeypatch.setattr(WeatherService, "point_availability", counted)
     service = WeatherService(RuntimeConfig(data_root=tmp_path), providers=[StationProvider()])
     with TestClient(create_app(service)) as client:
         first = client.get("/v1/catalog/point", params={"lat": 42.44, "lon": -76.5}).json()

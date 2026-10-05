@@ -319,6 +319,19 @@ class WeatherService:
 
         return sample(request.locations, request.sampling)
 
+    def product_offers(self, locations: Any, *, product: str | None = None,
+                       provider: str | None = None, years: list[int] | None = None) -> dict:
+        """Named downloadable products with catalog availability per location."""
+        from .availability.products import product_offers
+
+        return product_offers(self, locations, kind=product, provider=provider, years=years)
+
+    def point_availability(self, lat: float, lon: float, years: list[int] | None = None) -> dict:
+        """Every named product's catalog status at one point."""
+        from .availability.products import point_availability
+
+        return point_availability(self, lat, lon, years)
+
     def discover(self, request: WeatherRequest):
         if self.catalog_store.active() is None:
             return self._discover_live(request)

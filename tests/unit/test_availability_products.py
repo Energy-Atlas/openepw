@@ -3,7 +3,7 @@
 from datetime import date
 from types import SimpleNamespace
 
-from openepw.chat.products import product_for, product_offers
+from openepw.availability.products import point_availability, product_for, product_offers
 from openepw.models import Location
 
 ONEBUILDING = "https://climate.onebuilding.org/WMO_Region_4/USA_NY_Ithaca.Tompkins.Rgnl.AP.725155_{}.zip"
@@ -50,7 +50,7 @@ ITHACA = {"lat": 42.444, "lon": -76.5019, "name": "Ithaca, New York"}
 
 def test_each_option_names_one_product_with_its_availability_here():
     catalog = Catalog()
-    offers = product_offers(catalog, ITHACA, {}, today=date(2026, 9, 27))
+    offers = product_offers(catalog, ITHACA, today=date(2026, 9, 27))
     assert catalog.queries == [("historical", [2025]), ("tmy", [])]    # no years yet: last full year
     options = {option["id"]: option for option in offers["options"]}
     assert list(options) == ["era5-openmeteo", "nsrdb-actual", "noaa-isd", "nsrdb-tmy",
@@ -67,7 +67,7 @@ def test_each_option_names_one_product_with_its_availability_here():
 
 
 def test_map_availability_lists_one_tag_per_product_with_the_nearest_station():
-    offers = product_offers(Catalog(), ITHACA, {"years": [2018]})
+    offers = product_offers(Catalog(), ITHACA, years=[2018])
     availability = offers["availability"]
     assert availability["years"] == [2018] and availability["years_assumed"] is False
     [place] = availability["locations"]
@@ -81,11 +81,11 @@ def test_map_availability_lists_one_tag_per_product_with_the_nearest_station():
 
 
 def test_a_typed_type_or_provider_narrows_the_choices_and_lists_count_places():
-    tmyx = product_offers(Catalog(), ITHACA, {"product": "tmyx"})
+    tmyx = product_offers(Catalog(), ITHACA, kind="tmyx")
     assert [option["id"] for option in tmyx["options"]] == ["onebuilding:TMYx", "onebuilding:TMYx.2009-2023"]
-    nsrdb = product_offers(Catalog(), ITHACA, {"product": "historical", "provider": "NSRDB"})
+    nsrdb = product_offers(Catalog(), ITHACA, kind="historical", provider="NSRDB")
     assert [option["id"] for option in nsrdb["options"]] == ["nsrdb-actual"]
-    two = product_offers(Catalog(), [ITHACA, {"lat": 40.0, "lon": -75.0}], {"product": "historical"})
+    two = product_offers(Catalog(), [ITHACA, {"lat": 40.0, "lon": -75.0}], kind="historical")
     era5 = next(option for option in two["options"] if option["id"] == "era5-openmeteo")
     assert (era5["available"], era5["unverified"], era5["sites"]) == (2, 0, 2)   # the xx / xx column
     assert "listed at" not in era5["detail"]
@@ -94,14 +94,13 @@ def test_a_typed_type_or_provider_narrows_the_choices_and_lists_count_places():
 
 
 def test_without_a_catalog_every_named_product_is_offered_for_checking_when_planning():
-    offers = product_offers(object(), ITHACA, {})
+    offers = product_offers(object(), ITHACA)
     assert len(offers["options"]) == 8
     assert all(option["detail"].endswith("availability is checked when planning") for option in offers["options"])
     assert offers["availability"]["locations"] == []
 
 
 def test_point_availability_lists_every_product_with_its_status_here():
-    from openepw.chat.products import point_availability
     point = point_availability(Catalog(), 42.444, -76.5019, [], today=date(2026, 9, 27))
     assert point["years"] == [2025] and point["years_assumed"] is True
     rows = {row["id"]: row for row in point["products"]}
@@ -113,3 +112,21 @@ def test_point_availability_lists_every_product_with_its_status_here():
     assert [row["group"] for row in point["products"]] == sorted(
         (row["group"] for row in point["products"]), key=lambda group: group != "actual")
 
+
+def test_service_offers_delegate_with_named_filters(tmp_path):
+    from openepw.config import RuntimeConfig
+    from openepw.service import WeatherService
+
+    service = WeatherService(RuntimeConfig(data_root=tmp_path))
+    offers = service.product_offers(ITHACA, product="historical", provider="NSRDB", years=[2018])
+    assert [option["id"] for option in offers["options"]] == ["nsrdb-actual"]
+    point = service.point_availability(42.444, -76.5019, [2018])
+    assert point["years"] == [2018] and {row["id"] for row in point["products"]} >= {"nsrdb-actual"}
+
+
+def test_chat_module_still_reexports_the_moved_functions():
+    from openepw.availability import products as moved
+    from openepw.chat import products as legacy
+
+    assert legacy.product_offers is moved.product_offers
+    assert legacy.product_for is moved.product_for

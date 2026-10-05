@@ -15,13 +15,13 @@ from pathlib import Path
 from typing import Any
 
 from ..availability import WeatherAvailabilityQuery
+from ..availability.products import product_for, product_offers
 from ..harness.agent import safe_prompt
 from ..harness.model import ModelUnavailable
 from ..models import Location, OpenEPWError, WeatherRequest, nominal_offset_minutes
 from ..places.models import PlacePreview, PlaceSetQuery
 from ..places.parse import apply_edit, classify_places, describe_place_set
 from ..visualization.models import VisualizationRequest
-from .products import product_for, product_offers
 
 
 class StaleSession(Exception):
@@ -564,7 +564,8 @@ class ChatCoordinator:
             # Each option names one downloadable product; the map shows where each is available.
             self._event(state, "tool", "Checking where each product is available",
                         {"tool": "availability", "phase": "call"})
-            offers = product_offers(self.service, request_location(facts), facts)
+            offers = product_offers(self.service, request_location(facts), kind=facts.get("product"),
+                                    provider=facts.get("provider"), years=facts.get("years"))
             card = {"kind": "choice", "prompt": "Which weather product?", "options": offers["options"],
                     "data": {"field": "product", "availability": offers["availability"]}}
         elif facts["product"] == "historical" and not facts.get("years"):
