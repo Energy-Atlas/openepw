@@ -23,6 +23,16 @@ in `<data root>/agent/model-usage.json`. Costs are estimates from token counts a
 constants in `openepw.agent.model_port`. The key is read at start-up, sent only to the OpenAI
 API, and never written to the session, events, ledger or reports.
 
+Product offers come from the local availability catalog. In a data root without one
+(`openepw catalog status` shows `"loaded": false`) only a few products are known from bundled
+contracts. The rest, such as NSRDB actual year, NOAA ISD and PVGIS, are offered as "not
+verified; checked when planning", and the product form says the catalog is not loaded. Import
+the catalog to see per-location availability (see [usage](../usage.md)):
+
+```powershell
+.venv/Scripts/openepw.exe --data-root C:\path\to\data catalog import --from-package <open-data>\datasets\weather-availability-catalog\datapackage.json
+```
+
 One process runs jobs for a data root: stop `openepw serve` or use another data root
 (`DATA_ROOT_BUSY` otherwise). Commands: `/back`, `/new`, `/upload <path>`, `/status`,
 `/mode [agent|guided]`, `/help`, `/quit`. Sessions are saved in
@@ -77,6 +87,11 @@ The host gatekeeper applies to every call:
 - `weather_plan` is rewritten to the approved locations, chosen datasets and years the person
   wrote, or answered `GATE_REQUIRED` with the ask-tool to call (`need`).
 
+The assistant only helps with weather files for building simulation. An unrelated message (for
+example a maths or general-knowledge question) gets one sentence and no tool calls; in a mixed
+message only the weather part is handled. Guided mode does not send sentences that cannot be a
+place to the geocoder. Eval scenarios S23 and S24 check this.
+
 Text typed while an ask-tool form is open becomes that tool's answer, so corrections reach the
 model. A turn stops after 8 tool steps, 2 retries of one failing tool or 60 seconds; malformed
 calls get one repair attempt and then the guided form for that step. If the model is unavailable
@@ -93,7 +108,7 @@ its facts. After a run finishes, the model summarises the host's job message (QC
 ```
 
 Scenarios live in `openepw/agent/evals/scenarios.json` (spec §6: S1–S4, S6, S8, S10–S12, S19,
-S20). Each is one message plus how the simulated person answers each form, or a reply they
+S20; plus S23 and S24 for unrelated requests). Each is one message plus how the simulated person answers each form, or a reply they
 type (`"say:..."`). Checks:
 
 - form and tool order;
