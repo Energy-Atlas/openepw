@@ -17,6 +17,7 @@ from .model_port import DEFAULT_MODEL, ModelPort, ModelUnavailable, OpenAIModel,
 from .policy_model import ModelPolicy
 from .session import MAX_UPLOAD, AgentSession, Policy
 from .store import SessionStore
+from .tracing import NullTracer, make_tracer, tracing_settings
 
 HELP = ("Type a weather request, or answer the current form.\n"
         "/back  /new  /upload <path to .epw>  /status  /mode [agent|guided]  /help  /quit\n"
@@ -62,6 +63,19 @@ def chat_model(mode: str | None, *, model: str | None = None, max_cost: float = 
         return None, (f"The model budget is used up (${spent:.2f} of --max-cost ${max_cost:.2f}, "
                       f"ledger {ledger}); using guided mode. Raise --max-cost to use agent mode.")
     return chosen, None
+
+
+def chat_tracer(env_file: str | Path | None = ".env") -> tuple[NullTracer, str | None]:
+    """The tracer `openepw chat` uses, decided by LANGSMITH_TRACING in the env file, and a line
+    to show: when tracing is on, or when it was asked for but cannot start."""
+    settings = tracing_settings(env_file, default_project="openepw-agent")
+    if settings.enabled:
+        try:
+            return make_tracer(settings), f"LangSmith tracing {settings.reason}."
+        except Exception as error:                     # a client that cannot start never blocks chat
+            return NullTracer(), f"LangSmith tracing is off ({type(error).__name__} starting the client)."
+    asked = settings.reason != "LANGSMITH_TRACING is not true"
+    return NullTracer(), (f"LangSmith tracing is off: {settings.reason}." if asked else None)
 
 
 def _read_upload(argument: str, write: Callable[[str], Any]) -> tuple[bytes, str] | None:
@@ -129,8 +143,12 @@ def parse_reply(form: Interaction, line: str) -> Answer | None:
 async def main_chat(service: Any, *, session_id: str | None = None,
                     read: Callable[[str], str] = input, write: Callable[[str], Any] = print,
                     poll_seconds: float = 0.5, follow_seconds: float = 120.0,
-                    model: ModelPort | None = None) -> int:
-    """The chat loop; agent mode when a model is given, otherwise guided mode."""
+                    model: ModelPort | None = None, tracer: NullTracer | None = None) -> int:
+    """The chat loop; agent mode when a model is given, otherwise guided mode.
+
+    ``tracer`` records LangSmith runs when the env file turns tracing on (see chat_tracer).
+    """
+    tracer = tracer or NullTracer()
     from ..mcp.server import create_server
 
     runner = JobRunner(service)
@@ -153,9 +171,11 @@ async def main_chat(service: Any, *, session_id: str | None = None,
     try:
         async with InProcessMCP(create_server(service, runner=runner), approvals) as port:
             policy: Policy = ModelPolicy(model) if model is not None else GuidedPolicy()
-            session = (AgentSession.resume(store, port, approvals, policy, session_id, poll_seconds=poll_seconds)
+            session = (AgentSession.resume(store, port, approvals, policy, session_id,
+                                           poll_seconds=poll_seconds, tracer=tracer)
                        if session_id else
-                       AgentSession.start(store, port, approvals, policy, poll_seconds=poll_seconds))
+                       AgentSession.start(store, port, approvals, policy, poll_seconds=poll_seconds,
+                                          tracer=tracer))
             if model is None and session.state.mode == "agent":
                 session.state.mode = "guided"          # a saved agent session without a model
                 session.state.pending_call, session.state.turn = None, []
@@ -178,8 +198,12 @@ async def main_chat(service: Any, *, session_id: str | None = None,
             if session.form:
                 write(render_form(session.form))
             waited = False
+            warned = False
             try:
                 while True:
+                    if tracer.failed and not warned:
+                        warned = True
+                        write("! LangSmith tracing failed; the chat continues without traces.")
                     pending = [job for job in session.facts.job_ids
                                if job not in session.facts.finished_job_ids]
                     # Follow running jobs only while no form is open (a partly failed run keeps its
@@ -248,4 +272,5 @@ async def main_chat(service: Any, *, session_id: str | None = None,
                 write(f"Session {session.id} saved. Resume with: openepw chat --session {session.id}")
     finally:
         runner.close()
+        tracer.close()                                 # send any traces still queued
     return 0

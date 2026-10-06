@@ -24,6 +24,7 @@ from .model_port import ModelPort, ModelReply, ModelUnavailable, ToolCall
 from .session import AgentSession
 from .text import FUTURE, written_years
 from .tools import ASK_TOOLS, NEED_TOOL, WRAPPED, model_tools, shape
+from .tracing import summarize_arguments
 
 SYSTEM = """You are the openepw weather assistant. You help a person get EPW weather files by \
 calling tools.
@@ -64,6 +65,16 @@ SUMMARY = ("The host finished the weather jobs: {jobs} Summarise this for the pe
            "not certified simulation-ready (simulation_ready=false). Do not call tools.")
 GREETING = ("Ask for weather in your own words: a place, a product (actual year, TMY or TMYx) and, "
             "for actual-year weather, the years.")
+
+
+
+def _trace_arguments(call: ToolCall) -> Any:
+    """A model tool call's arguments for a trace (redacted and bounded)."""
+    try:
+        arguments = json.loads(call.arguments or "{}")
+    except ValueError:
+        return {"unparsed": call.arguments[:200]}
+    return summarize_arguments(arguments) if isinstance(arguments, dict) else {"value": str(arguments)[:200]}
 
 
 class ModelPolicy:
@@ -213,7 +224,7 @@ class ModelPolicy:
                 return
             self._pair_calls(s)
             try:
-                reply = await self.model.respond(SYSTEM, self._items(s), tools)
+                reply = await self._respond(s, tools)
             except ModelUnavailable as error:
                 await self._to_guided(s, str(error), text=text if first else None)
                 return
@@ -235,7 +246,10 @@ class ModelPolicy:
                             "form is kept. Tell me how to continue.")
                     continue
                 steps += 1
+                run = s.trace.start(f"model.{call.name}", "tool", {"arguments": _trace_arguments(call)})
                 kind, output = await self._execute(s, call)
+                s.trace.end(run, outputs={"outcome": kind, "result": output if isinstance(output, str)
+                                          else json.dumps(output)[:1000]})
                 if kind == "suspend":
                     continue
                 self._result(s, call, output)
@@ -255,6 +269,23 @@ class ModelPolicy:
                 return
             if s.state.pending_call:
                 return                                          # waiting for the person
+
+    async def _respond(self, s: AgentSession, tools: list[dict[str, Any]]) -> ModelReply:
+        """One model call, traced as an llm run (without the provider's encrypted reasoning)."""
+        items = self._items(s)
+        run = s.trace.start("model", "llm", {"model": self.model.name, "system": SYSTEM,
+                                              "messages": [{key: value for key, value in item.items() if key != "raw"}
+                                                           for item in items],
+                                              "tools": [tool["name"] for tool in tools]})
+        try:
+            reply = await self.model.respond(SYSTEM, items, tools)
+        except Exception as error:
+            s.trace.end(run, error=f"{type(error).__name__}: {error}" if isinstance(error, ModelUnavailable)
+                        else type(error).__name__)
+            raise
+        s.trace.end(run, outputs={"text": reply.text, "cost_usd": reply.cost_usd, "tool_calls": [
+            {"name": call.name, "arguments": _trace_arguments(call)} for call in reply.tool_calls]})
+        return reply
 
     @staticmethod
     def _pair_calls(s: AgentSession) -> None:
@@ -532,7 +563,7 @@ class ModelPolicy:
         self._pair_calls(s)
         s.state.turn.append({"type": "note", "text": SUMMARY.format(jobs=jobs)})
         try:
-            reply: ModelReply = await self.model.respond(SYSTEM, self._items(s), [])
+            reply: ModelReply = await self._respond(s, [])
         except ModelUnavailable as error:
             await self._to_guided(s, str(error))
             return

@@ -12,7 +12,8 @@ from openepw.mcp.server import create_server
 
 
 class Harness:
-    def __init__(self, tmp_path, session_id=None, policy=None, fail_near=()):
+    def __init__(self, tmp_path, session_id=None, policy=None, fail_near=(), tracer=None):
+        self.tracer = tracer
         self.tmp_path = tmp_path
         self.session_id = session_id
         self.policy = policy or GuidedPolicy()
@@ -26,10 +27,10 @@ class Harness:
         self.port = await InProcessMCP(self.server, self.approvals).__aenter__()
         if self.session_id:
             self.session = AgentSession.resume(self.store, self.port, self.approvals, self.policy,
-                                               self.session_id, poll_seconds=0.05)
+                                               self.session_id, poll_seconds=0.05, tracer=self.tracer)
         else:
             self.session = AgentSession.start(self.store, self.port, self.approvals, self.policy,
-                                              poll_seconds=0.05)
+                                              poll_seconds=0.05, tracer=self.tracer)
         await self.session.begin()
         return self
 

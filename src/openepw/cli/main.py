@@ -92,7 +92,8 @@ def main(argv=None):
             from ..api.app import create_app
 
             uvicorn.run(
-                create_app(service, remote=args.host not in ("127.0.0.1", "localhost", "::1")),
+                create_app(service, remote=args.host not in ("127.0.0.1", "localhost", "::1"),
+                           env_file=args.env_file or ".env"),
                 host=args.host,
                 port=args.port,
             )
@@ -117,15 +118,18 @@ def main(argv=None):
                 model=args.model, max_cost=args.max_cost, live_providers=args.live_providers,
                 scenarios_file=args.scenarios_file, output=args.output, env_file=args.env_file or ".env"))
         if args.command == "chat":
-            from ..agent.cli import chat_model, main_chat, prepare_console
+            from ..agent.cli import chat_model, chat_tracer, main_chat, prepare_console
 
             prepare_console()
             model, notice = chat_model(args.mode, model=args.model, max_cost=args.max_cost,
                                        data_root=config.data_root, env_file=args.env_file or ".env")
             if notice:
                 print(notice)
+            tracer, tracing_notice = chat_tracer(args.env_file or ".env")
+            if tracing_notice:
+                print(tracing_notice)
             try:
-                return asyncio.run(main_chat(service, session_id=args.session, model=model))
+                return asyncio.run(main_chat(service, session_id=args.session, model=model, tracer=tracer))
             except KeyboardInterrupt:
                 print("\nChat interrupted; the session and completed artifacts stay in the data root.")
                 return 130

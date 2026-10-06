@@ -15,6 +15,7 @@ from .mcp_port import ApprovalBook, MCPPort, ToolFailure, ToolResult
 from .state import Facts, SessionState
 from .store import SessionStore
 from .text import safe_prompt
+from .tracing import NullTracer, summarize_arguments
 
 TERMINAL = frozenset({"completed", "partially_completed", "failed", "cancelled"})
 MAX_UPLOAD = 5_000_000
@@ -43,8 +44,10 @@ def answer_text(form: Interaction, answer: Answer) -> str:
 
 class AgentSession:
     def __init__(self, store: SessionStore, port: MCPPort, approvals: ApprovalBook,
-                 state: SessionState, policy: Policy, *, poll_seconds: float = 0.5):
+                 state: SessionState, policy: Policy, *, poll_seconds: float = 0.5,
+                 tracer: NullTracer | None = None):
         self.store = store
+        self.trace = tracer or NullTracer()        # LangSmith runs when the env file turns them on
         self.port = port
         self.approvals = approvals
         self.state = state
@@ -99,22 +102,40 @@ class AgentSession:
     async def tool(self, name: str, /, *, by: str = "host", **arguments: Any) -> ToolResult:
         """Call an MCP tool; ``by`` records whether the host or the model asked for it."""
         self.emit("tool", name, tool=name, phase="call", by=by)
-        result = await self.port.call(name, **arguments)
+        run = self.trace.start(name, "tool", {"by": by, "arguments": summarize_arguments(arguments)})
+        try:
+            result = await self.port.call(name, **arguments)
+        except ToolFailure as failure:
+            self.trace.end(run, error=failure.code)
+            raise
+        except Exception as error:
+            self.trace.end(run, error=type(error).__name__)
+            raise
+        self.trace.end(run, outputs={"summary": result.text[:1000]})
         self.emit("tool", result.text, tool=name, phase="result", by=by)
         return result
 
-    async def _guard(self, work: Any) -> None:
+    async def _guard(self, work: Any, kind: str = "advance", inputs: dict[str, Any] | None = None) -> None:
+        """Run one input's work; failures become error events, never a crash. One trace per input."""
+        events = self.events()
+        before = events[-1].seq if events else 0
+        self.trace.start_turn(kind, inputs or {}, session_id=self.id, mode=self.state.mode)
+        error_code: str | None = None
         try:
             await work
         except ToolFailure as failure:
+            error_code = failure.code
             self.emit("error", f"{failure.code}: {failure.message}", code=failure.code,
                       retryable=failure.retryable)
         except GateRequired as gate:
+            error_code = "GATE_REQUIRED"
             self.emit("error", str(gate), code="GATE_REQUIRED", need=gate.need)
         except OpenEPWError as error:
+            error_code = error.issue.code
             self.emit("error", f"{error.issue.code}: {error.issue.message}", code=error.issue.code,
                       retryable=error.issue.retryable)
         except Exception:
+            error_code = "INTERNAL_ERROR"
             # The exception text may carry payloads, so only a correlation id reaches the person.
             correlation_id = uuid.uuid4().hex[:12]
             logger.exception("agent turn failed (correlation id %s)", correlation_id)
@@ -123,10 +144,14 @@ class AgentSession:
                       code="INTERNAL_ERROR", correlation_id=correlation_id)
         finally:
             self.store.save(self.state)
+            replies = [event.text[:500] for event in self.events(before) if event.type == "assistant"]
+            form = self.form
+            self.trace.end_turn({"replies": replies[-5:], "mode": self.state.mode,
+                                 "form": f"{form.kind} ({form.gate})" if form else None}, error_code)
 
     async def begin(self) -> None:
         if self.form is None:
-            await self._guard(self.policy.advance(self))
+            await self._guard(self.policy.advance(self), "begin")
 
     async def send_text(self, text: str) -> None:
         text = text.strip()
@@ -138,7 +163,7 @@ class AgentSession:
         # Credentials and local paths never reach the event log or a model.
         text = safe_prompt(text, limit=4000)
         self.emit("user", text)
-        await self._guard(self.policy.on_text(self, text))
+        await self._guard(self.policy.on_text(self, text), "message", {"text": text})
 
     async def answer(self, answer: Answer) -> None:
         form = self.form
@@ -147,8 +172,10 @@ class AgentSession:
             return
         if answer.text:
             answer = answer.model_copy(update={"text": safe_prompt(answer.text, limit=4000)})
-        self.emit("user", answer_text(form, answer), answer=answer.model_dump(mode="json"))
-        await self._guard(self.policy.on_answer(self, form, answer))
+        said = answer_text(form, answer)
+        self.emit("user", said, answer=answer.model_dump(mode="json"))
+        await self._guard(self.policy.on_answer(self, form, answer), "answer",
+                          {"form": form.kind, "gate": form.gate, "answer": said})
 
     async def back(self) -> None:
         current, *earlier = self.store.snapshots(self.id, 2)
@@ -182,7 +209,7 @@ class AgentSession:
                 self.emit("error", "Agent mode needs a configured model (OPENAI_API_KEY).",
                           code="MODEL_UNAVAILABLE")
             return
-        await self._guard(switch(self, mode))
+        await self._guard(switch(self, mode), "mode", {"mode": mode})
 
     async def new_request(self) -> None:
         self.facts.new_request()
@@ -191,10 +218,11 @@ class AgentSession:
         self.state.pending_call, self.state.turn = None, []
         events = self.events()
         self.state.turn_seq = events[-1].seq if events else 0
-        await self._guard(self.policy.advance(self))
+        await self._guard(self.policy.advance(self), "new_request")
 
     async def upload_epw(self, content: bytes, filename: str | None = None) -> None:
-        await self._guard(self._upload(content, filename))
+        await self._guard(self._upload(content, filename), "upload",
+                          {"filename": safe_prompt(filename or "", limit=200), "bytes": len(content)})
 
     async def _upload(self, content: bytes, filename: str | None) -> None:
         if not content or len(content) > MAX_UPLOAD:
@@ -216,7 +244,7 @@ class AgentSession:
     async def follow_jobs(self, *, timeout: float = 600.0,
                           on_update: Callable[[], None] | None = None) -> None:
         """Follow submitted jobs until they finish (the host polls; a model never does)."""
-        await self._guard(self._follow(timeout, on_update))
+        await self._guard(self._follow(timeout, on_update), "follow_jobs")
 
     async def _follow(self, timeout: float, on_update: Callable[[], None] | None) -> None:
         loop = asyncio.get_running_loop()

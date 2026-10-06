@@ -44,6 +44,25 @@ prompt back (press Enter to keep following; `/status` lists the jobs). Jobs run 
 `/quit` or Ctrl-C waits for a running job to finish, and its outputs stay in the data root.
 `/upload` refuses files over 5 MB before reading them.
 
+## LangSmith tracing
+
+`openepw chat` (both modes) and the web chat (`openepw serve`) decide tracing from the env
+file: `LANGSMITH_TRACING=true` and `LANGSMITH_API_KEY` turn it on. An exported environment
+variable overrides the file, and anything else leaves tracing off, even if LangChain's own
+environment variables say otherwise. `LANGSMITH_PROJECT` overrides the default projects
+(`openepw-agent`, `openepw-web-chat`), and `LANGSMITH_ENDPOINT` selects another LangSmith
+endpoint. Tracing needs the `harness` extra; `openepw chat` says when it is on, or why a
+requested trace cannot start, and the web server logs the same at start-up.
+
+- **Agent chat:** one run per input (message, form answer, upload, mode switch, job
+  following), with a child run per model call and per tool call.
+- **Web chat:** each model call is traced.
+- **What is sent:** redacted text, form kinds, tool names, argument summaries and result
+  summaries. Never keys, local paths, EPW bytes, full tool data or the model's encrypted
+  reasoning.
+- **Failures:** traces are sent in the background. A failure is reported once and the chat
+  continues without traces.
+
 ## Forms and gates
 
 Every step is a typed form (`text`, `choice`, `location_review`, `product_choice`, `map_input`,

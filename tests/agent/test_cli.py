@@ -112,6 +112,7 @@ def test_the_command_returns_130_when_interrupted(tmp_path, monkeypatch):
     monkeypatch.setattr(agent_cli, "main_chat", interrupted)
     monkeypatch.setattr(agent_cli, "prepare_console", lambda: None)
     monkeypatch.setattr(agent_cli, "chat_model", lambda mode, **options: (None, None))
+    monkeypatch.setattr(agent_cli, "chat_tracer", lambda env_file: (agent_cli.NullTracer(), None))
     assert main(["--data-root", str(tmp_path), "chat"]) == 130
 
 
