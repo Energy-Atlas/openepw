@@ -276,3 +276,14 @@ def test_s20_credentials_and_paths_are_redacted_from_the_log(tmp_path):
             assert "sk-abcdefghijklmnop" not in logged and "secret.txt" not in logged
             assert "[redacted]" in logged and "[local path]" in logged
     asyncio.run(main())
+
+
+def test_the_product_form_says_when_the_catalog_is_not_loaded(tmp_path):
+    async def main():
+        async with Harness(tmp_path) as h:
+            await h.say("AMY 2018 for Ithaca NY")
+            await h.approve()
+            assert h.form.gate == "choose_products"
+            assert h.form.data["availability"]["catalog_loaded"] is False
+            assert "catalog is not loaded" in h.form.summary
+    asyncio.run(main())

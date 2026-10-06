@@ -91,6 +91,13 @@ def _product_of(option) -> Product | None:
                  == (record.provider, record.dataset)), None)
 
 
+def _unloaded_products(option, request_kind: str) -> list[Product]:
+    """The fixed products of a provider whose catalog is not loaded (status stays "unknown")."""
+    actual = request_kind == "historical"
+    return [product for product in FIXED_PRODUCTS
+            if product.provider == option.product.provider and product.actual == actual]
+
+
 def _station(option) -> dict | None:
     site = option.site
     if site is None or site.lat is None or site.lon is None:
@@ -123,26 +130,35 @@ def product_offers(service, locations: Any, *, kind: str | None = None, provider
     found: dict[str, Product] = {}
     assess = getattr(service, "assess_availability", None)
     points: list[dict] = []
+    catalog_loaded = True
     if assess is not None:
         for request_kind, kind_years in (("historical", years), ("tmy", [])):
             request = WeatherRequest.model_validate({"locations": locations, "product": request_kind,
                                                      "years": kind_years})
             result = assess(WeatherAvailabilityQuery(request=request))
+            catalog_loaded &= not any(issue.code == "CATALOG_UNAVAILABLE"
+                                      for issue in getattr(result, "issues", ()))
             if not points:
                 points = [assessment.requested_location.model_dump(mode="json")
                           for assessment in result.locations]
             for option in sorted(result.options, key=lambda item: item.rank or 10**6):
                 status = option.eligibility.status
-                product = _product_of(option)
-                if status == "excluded" or product is None or product.actual != (request_kind == "historical"):
+                if status == "excluded":
                     continue
-                found[product.id] = product
-                best = assessed.setdefault(product.id, {}).get(option.occurrence_index)
-                if best is None or (best["status"] == "unknown" and status == "supported"):
-                    entry = {"status": status}
-                    if product.layer in STATION_LAYERS and (station := _station(option)):
-                        entry["station"] = station
-                    assessed[product.id][option.occurrence_index] = entry
+                # Without a loaded catalog a provider with no bundled contract is a placeholder;
+                # its products are offered as unverified instead of being dropped.
+                products = (_unloaded_products(option, request_kind) if option.product.dataset == "unloaded"
+                            else [product] if (product := _product_of(option)) else [])
+                for product in products:
+                    if product.actual != (request_kind == "historical"):
+                        continue
+                    found[product.id] = product
+                    best = assessed.setdefault(product.id, {}).get(option.occurrence_index)
+                    if best is None or (best["status"] == "unknown" and status == "supported"):
+                        entry = {"status": status}
+                        if product.layer in STATION_LAYERS and (station := _station(option)):
+                            entry["station"] = station
+                        assessed[product.id][option.occurrence_index] = entry
     catalogued = bool(assessed)
     products = [product for product in (*FIXED_PRODUCTS, *sorted(
         (item for item in found.values() if item.provider == "onebuilding"), key=lambda item: item.id))
@@ -191,7 +207,7 @@ def product_offers(service, locations: Any, *, kind: str | None = None, provider
                      "products": entries})
     return {"options": options, "availability": {
         "years": years, "years_assumed": years_assumed, "locations": tags,
-        "omitted_locations": max(0, count - MAX_CALLOUT_LOCATIONS)}}
+        "omitted_locations": max(0, count - MAX_CALLOUT_LOCATIONS), "catalog_loaded": catalog_loaded}}
 
 
 def point_availability(service, lat: float, lon: float, years: list[int] | None = None, *,

@@ -70,9 +70,13 @@ def review_form(facts: Facts) -> Interaction:
 
 
 def product_form(facts: Facts) -> Interaction:
+    summary = "Listed means eligible to try retrieval, not quality assured."
+    if (facts.offer_availability or {}).get("catalog_loaded") is False:
+        summary += (" The local availability catalog is not loaded (openepw catalog import), so most "
+                    "products are not verified here; planning checks each one.")
     return Interaction(
         kind="product_choice", gate="choose_products", multi=True, prompt="Which weather products?",
-        summary="Listed means eligible to try retrieval, not quality assured.",
+        summary=summary,
         options=[Option(id=offer["id"], label=offer["label"], detail=offer.get("detail"))
                  for offer in facts.offers],
         data={"availability": facts.offer_availability})

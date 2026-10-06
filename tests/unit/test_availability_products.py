@@ -144,3 +144,17 @@ def test_each_option_carries_the_request_fields_that_select_it():
     options = {option["id"]: option for option in offers["options"]}
     [onebuilding] = options["onebuilding:TMYx.2009-2023"]["request"]["dataset_selections"]
     assert onebuilding["variant"] == "TMYx.2009-2023"
+
+
+def test_without_a_loaded_catalog_every_provider_is_offered_as_unverified(tmp_path):
+    """No local catalog: bundled contracts cover only some providers, and the others must be
+    offered as "not verified" rather than disappear (NSRDB actual year was missing)."""
+    from openepw.config import RuntimeConfig
+    from openepw.service import WeatherService
+
+    service = WeatherService(RuntimeConfig(data_root=tmp_path))
+    offers = product_offers(service, ITHACA, years=[2018], today=date(2026, 9, 27))
+    by_id = {option["id"]: option for option in offers["options"]}
+    assert {"nsrdb-actual", "noaa-isd", "era5-openmeteo"} <= set(by_id)
+    assert "not verified" in by_id["nsrdb-actual"]["detail"] and by_id["nsrdb-actual"]["available"] == 0
+    assert offers["availability"]["catalog_loaded"] is False
