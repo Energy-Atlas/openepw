@@ -287,3 +287,20 @@ def test_the_product_form_says_when_the_catalog_is_not_loaded(tmp_path):
             assert h.form.data["availability"]["catalog_loaded"] is False
             assert "catalog is not loaded" in h.form.summary
     asyncio.run(main())
+
+
+def test_unrelated_text_is_not_geocoded_in_guided_mode(tmp_path):
+    from openepw.agent.guided import not_a_place
+
+    assert not_a_place("how do I solve the differential equation dy/dx = 3y")
+    assert not_a_place("explain photosynthesis")
+    for place in ("Ithaca NY", "San Luis Obispo County California", "Boston, Austin, Denver",
+                  "42.44, -76.5", "remove 2", "Fort Wayne, IN"):
+        assert not not_a_place(place), place
+
+    async def main():
+        async with Harness(tmp_path) as h:
+            await h.say("how do I solve the differential equation dy/dx = 3y?")
+            assert h.tools() == [] and h.form.gate == "where"
+            assert "cannot answer other questions" in h.texts("assistant")[-1]
+    asyncio.run(main())

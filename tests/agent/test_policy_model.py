@@ -523,3 +523,14 @@ def test_the_product_answer_names_the_kind_and_the_next_step(tmp_path):
             assert answer["chosen"][0]["kind"] == "actual year (AMY)" and answer["needs_years"] is True
             assert answer["next"].startswith("weather_plan") and answer["years_the_person_wrote"] == [2018]
     run(main)
+
+
+def test_an_empty_geocode_result_tells_the_model_how_to_retry(tmp_path):
+    h, model = agent(tmp_path, [call("weather_geocode", {"query": "Ithaca NY"}), say("Retrying.")])
+
+    async def main():
+        async with h:
+            await h.say("AMY 2018 for Ithaca NY")
+            hint = results(model, "weather_geocode")[0]["hint"]
+            assert "'Name, Region'" in hint and "request_map_input" in hint
+    run(main)

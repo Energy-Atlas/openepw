@@ -425,6 +425,69 @@
           "say": "Where exactly? Please give the place."
         }
       ]
+    },
+    {
+      "id": "S23",
+      "title": "An unrelated question is declined without tools or an answer",
+      "say": "how do I solve the differential equation dy/dx = 3y?",
+      "answers": {},
+      "checks": {
+        "no_tools": true,
+        "submitted": false,
+        "assistant_max_chars": 400,
+        "assistant_excludes": [
+          "e^{3x}",
+          "e^(3x)",
+          "e^3x",
+          "ln|y|",
+          "separate the variables"
+        ]
+      },
+      "script": [
+        {
+          "say": "I can only help with weather files for building simulation; try asking for AMY 2018 for a city."
+        }
+      ]
+    },
+    {
+      "id": "S24",
+      "title": "A weather request mixed with an unrelated question: only the weather part",
+      "say": "AMY 2018 for Ithaca NY, and also explain how photosynthesis works",
+      "answers": {
+        "location_review": null,
+        "choice": "first",
+        "map_input": "Ithaca, NY",
+        "text": "2018"
+      },
+      "checks": {
+        "forms": [
+          "location_review"
+        ],
+        "submitted": false,
+        "assistant_excludes": [
+          "chlorophyll",
+          "carbon dioxide",
+          "glucose"
+        ]
+      },
+      "script": [
+        {
+          "call": "weather_geocode",
+          "args": {
+            "query": "Ithaca, NY"
+          }
+        },
+        {
+          "call": "review_location",
+          "args": {
+            "locations": {
+              "lat": 42.44,
+              "lon": -76.5,
+              "name": "Ithaca, New York, United States"
+            }
+          }
+        }
+      ]
     }
   ]
 }

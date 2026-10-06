@@ -26,7 +26,7 @@ from ..guided import GuidedPolicy
 from ..interactions import Answer, Interaction
 from ..mcp_port import ApprovalBook, InProcessMCP
 from ..model_port import ModelPort, ModelReply, ScriptedModel, ToolCall
-from ..policy_model import ModelPolicy
+from ..policy_model import GREETING, ModelPolicy
 from ..session import AgentSession, Policy
 from ..store import SessionStore
 from ..text import safe_prompt, written_years
@@ -193,6 +193,11 @@ def _check(scenario: dict[str, Any], session: AgentSession, model: ModelPort | N
         if not any(needle.lower() in text.lower() for text in assistant):
             failures.append("MISSING_MESSAGE")
             break
+    replies = [event.text for event in events if event.type == "assistant" and event.text != GREETING]
+    if any(needle.lower() in text.lower() for text in replies for needle in checks.get("assistant_excludes", [])):
+        failures.append("OFF_TOPIC_ANSWER")
+    if "assistant_max_chars" in checks and sum(len(text) for text in replies) > checks["assistant_max_chars"]:
+        failures.append("REPLY_TOO_LONG")
     if any(claims_ready(text) for text in assistant):
         failures.append("FALSE_READINESS")
     logged = json.dumps([event.model_dump(mode="json") for event in events])

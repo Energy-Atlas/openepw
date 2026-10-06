@@ -15,7 +15,17 @@ from .text import FUTURE, place_part, read_product, written_years
 
 SUSPENDED = ("Future-weather planning is temporarily unavailable; ask for actual-year (historical) "
              "or typical-year weather instead.")
-UNREAD = "Guided mode reads places, coordinates, years and product names. Use the form."
+UNREAD = ("Guided mode reads places, coordinates, years and product names for weather files and "
+          "cannot answer other questions. Use the form.")
+# Text that cannot be a place name: formula characters, or a question or instruction verb first.
+_NOT_A_PLACE = re.compile(r"[=^*{}<>|\\]|^(?:how|why|who|when|explain|solve|write|tell|define|calculate|"
+                          r"compute|translate|summari[sz]e|can you|could you|please)\b", re.I)
+
+
+def not_a_place(place: str) -> bool:
+    """Place text guided mode should not send to the geocoder (a sentence, not a place list)."""
+    one_line = "\n" not in place and "," not in place and ";" not in place
+    return bool(place) and one_line and (len(place.split()) > 6 or bool(_NOT_A_PLACE.search(place)))
 APPROVE = re.compile(r"a|approve|approved|yes|y|ok|okay|correct|looks good", re.I)
 RUN = re.compile(r"run|r|yes|go|start|approve", re.I)
 PLACE_GATES = {None, "where", "choose_location", "review_location", "place_set", "review_plan",
@@ -37,6 +47,10 @@ class GuidedPolicy:
             return
         if gate == "review_plan" and RUN.fullmatch(text):
             await self._run(s)
+            return
+        if (not_a_place(place_part(text)) and not written_years(text) and not read_product(text)
+                and not describe_place_set(text)):
+            s.emit("assistant", UNREAD)                # unrelated text: no geocoding, form kept
             return
         if gate == "next_steps":
             s.facts.new_request()

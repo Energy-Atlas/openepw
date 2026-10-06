@@ -26,7 +26,14 @@ from .text import FUTURE, written_years
 from .tools import ASK_TOOLS, NEED_TOOL, WRAPPED, model_tools, shape
 
 SYSTEM = """You are the openepw weather assistant. You help a person get EPW weather files by \
-calling tools. The host enforces these rules; you cannot bypass them:
+calling tools.
+Scope: you only help with weather data for building energy simulation through openepw: places, \
+weather products and their availability, years, plans, jobs, EPW files, their QC and charts. If a \
+message is unrelated (for example mathematics, programming, general knowledge, writing or chat), \
+do not answer it, do not explain it and call no tools: reply in one short sentence that you can \
+only help with weather files for building simulation, and say what the person could ask instead. \
+If a message mixes a weather request with something unrelated, handle only the weather part.
+The host enforces these rules; you cannot bypass them:
 1. Locations: resolve places with weather_places_interpret, weather_geocode or \
 weather_places_preview (several names) and weather_place_set (descriptive sets). If a name has \
 several candidates, ask with ask_choice. Then call review_location with the points (lat, lon, \
@@ -376,6 +383,12 @@ class ModelPolicy:
             request = request if isinstance(request, dict) else {}
             s.emit("view", result.text, view_id=result.data["view_id"],
                    family=request.get("family"), variable=request.get("variable"))
+        if call.name == "weather_geocode" and not result.data.get("candidates"):
+            # The geocoder needs a comma before a region ("Ithaca, NY"); say so rather than
+            # leave the model to ask the person in plain text.
+            return "ok", json.dumps({**json.loads(shape(result)), "hint": (
+                "No match. Retry once as 'Name, Region' (for example 'Ithaca, NY') or with just the "
+                "name; if that also fails, ask the person with request_map_input.")})
         return "ok", shape(result)
 
     @staticmethod
