@@ -1,8 +1,8 @@
-# Agent chat guardrails against irrelevant and malicious prompts — Plan (draft for review)
+# Agent chat guardrails against irrelevant and malicious prompts — Plan
 
-**Status:** draft for owner review, not approved. Nothing here is built. It records the design agreed
-in conversation on 2026-10-09 and the owner's answers to its open questions (section 8). Do not start implementation until the
-owner approves this plan (record the approval here).
+**Status:** **approved by the owner on 2026-10-09** ("Approved.", in conversation), after their
+review and the answers in section 8. Implemented on `feature/agent-guardrails`; see the execution
+notes at the end.
 
 **Context:** P2 and P3 of the [MCP agent chat](2026-10-05-mcp-agent-chat-p3-agent-mode.md) are on
 `feature/mcp-agent-mode`. The host already enforces every action-level guard-rail, so a jailbroken
@@ -294,4 +294,4 @@ match.
 | Q8 | A model's refused host-only tool call as a strike | It counts **only when the turn began with the person's own message** (likely provoked). An attempt after a form answer is refused and logged but not counted. Host-only tools (submit, cancel, retry, export, upload, path registration, data paging) are never in the model's tool list. |
 | Q9 | Guards on the legacy chats (`/v1/chat/*`, `openepw-chat`) | **None.** Wait for P4 and P5. |
 
-The plan is still a draft until the owner approves it here.
+The owner approved the plan on 2026-10-09.
