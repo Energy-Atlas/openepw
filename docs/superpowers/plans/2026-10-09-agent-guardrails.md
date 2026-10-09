@@ -1,7 +1,7 @@
 # Agent chat guardrails against irrelevant and malicious prompts — Plan (draft for review)
 
 **Status:** draft for owner review, not approved. Nothing here is built. It records the design agreed
-in conversation on 2026-10-09 and the questions still open. Do not start implementation until the
+in conversation on 2026-10-09 and the owner's answers to its open questions (section 8). Do not start implementation until the
 owner approves this plan (record the approval here).
 
 **Context:** P2 and P3 of the [MCP agent chat](2026-10-05-mcp-agent-chat-p3-agent-mode.md) are on
@@ -88,8 +88,10 @@ plan replaces that prompt-only guard with deterministic, configurable guards.
   - the file is validated against a schema;
   - an unknown key, a bad value or a missing file falls back to the **stricter** value, with a
     warning;
-  - a remote `serve` refuses to start with a profile that turns moderation off, unless
-    `--allow-insecure-profile` is given. **(Open question Q6.)**
+  - a remote `serve` with a profile that weakens the guards (for example moderation off or
+    `strikes.action: warn`) starts with a prominent warning at start-up and in the log (Q6);
+  - a hosted profile with moderation on, `on_error: block` and no OpenAI key **fails at start-up**
+    with a clear message (Q4).
 
 ### Draft `hosted.yaml`
 
@@ -110,6 +112,8 @@ strikes:
   warn_at: 2
   counting: session                # session | consecutive
   action: end_session              # end_session | guided | warn
+  reopen: deny                     # allow | deny: may an ended session be reopened (Q5a)
+  show_count: true                 # show "strike N of LIMIT" after every strike (Q5b)
   sources: [out_of_scope, offtopic_clamp, moderation, host_tool_attempt]
 
 moderation:
@@ -124,12 +128,16 @@ external_text:
 links:
   policy: allowlist                # allowlist | strip_all | keep
   allowlist: [nrel.gov, open-meteo.com, cds.climate.copernicus.eu, ncei.noaa.gov,
-              joint-research-centre.ec.europa.eu, climate.onebuilding.org]   # Q1
+              joint-research-centre.ec.europa.eu, climate.onebuilding.org]   # Q1; add the docs site later
 
 limits: {}                         # P4: per-session spend, rate, jobs, places, CDS access
 ```
 
-`local.yaml` is identical except `moderation.on_error: allow` (shown with a notice). **(Q2.)**
+`local.yaml` differs from `hosted.yaml` only in:
+
+- `strikes.action: warn` (Q2);
+- `strikes.reopen: allow` (Q5a);
+- `moderation.on_error: allow`, shown with a notice.
 
 ## 5. Guards
 
@@ -141,7 +149,8 @@ limits: {}                         # P4: per-session spend, rate, jobs, places, 
   - the model must call it to decline; categories `unrelated`, `jailbreak` and `harmful`;
   - the host shows a fixed decline sentence (no model wording);
   - the call records a strike.
-- Knowledge answers: the host trims them to `knowledge_answer_words` and adds the label.
+- Knowledge answers: the host trims them to `knowledge_answer_words` and adds the label. They
+  count against the model budget, and guided mode does not give them (Q3).
 - This is the slot a knowledge-base tool fills later (it becomes a model tool in the same class).
 
 ### G2 Strikes and ending a session
@@ -150,13 +159,18 @@ limits: {}                         # P4: per-session spend, rate, jobs, places, 
   - `out_of_scope` calls;
   - off-topic clamp hits (G6);
   - moderation flags (G3);
-  - `host_tool_attempt`: the model calls a host-only tool in the turn after the person's text.
+  - `host_tool_attempt` (Q8): the model tries a host-only tool and is refused, in a turn that
+    began with the person's own message. An attempt after a form answer is refused and logged
+    but not counted.
+- **Count shown** after every strike (Q5b), for example "This request is out of scope (strike 1
+  of 3)".
 - **Warning** at `warn_at`: "One more unrelated request ends this session."
 - **`end_session`:**
   - the session state records `ended` and the reason;
   - every later input returns `SESSION_ENDED`, and the CLI says so and exits;
   - running jobs finish and stay in the data root, and the transcript stays readable;
-  - `openepw chat --session ID` refuses an ended session.
+  - `openepw chat --session ID` refuses an ended session, unless `strikes.reopen: allow` and
+    `--reopen` are given (Q5a).
 - **`guided`:** switch to guided mode for the rest of the session. **`warn`:** count only.
 - **Limit of the control:** until P4's per-user and per-IP limits exist, a person can open a new
   session after one ends.
@@ -243,7 +257,10 @@ modes.
 
 **Estimate:** about a day and a half, all offline-testable except one live eval pass.
 
-**Branch:** `feature/mcp-agent-mode`, or a new `feature/agent-guardrails` from it. **(Q7.)**
+**Branch:** a new `feature/agent-guardrails` from `feature/mcp-agent-mode` (Q7).
+
+**Legacy chats:** no changes to `/v1/chat/*` or the `openepw-chat` console; they wait for P4 and
+P5 (Q9).
 
 ## 7. Deferred
 
@@ -259,38 +276,22 @@ modes.
 
 **Future:** a knowledge-base tool for weather-science and modelling questions.
 
-## 8. Open questions
+## 8. Answers to the open questions (owner, 2026-10-09)
 
-- **Q1 Link allowlist:** which domains? The draft lists NREL, Open-Meteo, Copernicus CDS, NOAA
-  NCEI, the EU JRC (PVGIS) and climate.onebuilding.org. Should the openepw docs site be added
-  once it has a public URL?
-  [CL: do create an allowlsit of these domains]
-- **Q2 `local.yaml` defaults:** should the local profile match hosted except
-  `moderation.on_error: allow`? Or should strikes in local default to `warn`, so development is
-  not interrupted?
-  [CL: default to warn]
-- **Q3 Knowledge answers:**
-  - Should they be allowed in guided mode? Guided mode has no model, so the proposal is no:
-    guided mode keeps its "reads places, years and products" message. [CL: no]
-  - Should a knowledge answer count against the model budget like any other turn? (Proposed:
-    yes.) [CL: yes]
-- **Q4 Moderation in guided mode without a key:** guided mode works without any OpenAI key
-  today. With moderation everywhere and `on_error: block` (hosted), guided mode on a host
-  without a key would refuse everything. Should hosted require a key at start-up instead?
-  (Proposed: yes; fail at start-up with a clear message.)
-- **Q5 Ended sessions:**
-  - Should an ended session be reopenable by an operator, for example `openepw chat --session ID
-    --reopen` locally? (Proposed: locally yes, hosted no.)
-  - Should the person see how many strikes remain before the warning? (Proposed: only the
-    warning at `warn_at`.)
-- **Q6 Insecure hosted profiles:** should a remote `serve` refuse a profile that turns
-  moderation off or uses `strikes.action: warn`, unless an explicit `--allow-insecure-profile`
-  flag is given? (Proposed: yes.)
-- **Q7 Branch:** build on `feature/mcp-agent-mode`, or on a new `feature/agent-guardrails`?
-  (Proposed: a new branch from `feature/mcp-agent-mode`, so P3 can merge first.)
-- **Q8 Strike sources:** should a model `host_tool_attempt` count against the person? The
-  model, not the person, makes the call, though usually because of the person's text.
-  (Proposed: yes, but only when the turn began with the person's text, not a form answer.)
-- **Q9 Legacy chats:** should the old web chat (`/v1/chat/*`) and the legacy `openepw-chat`
-  console get any of these guards before P5 retires them? (Proposed: only moderation on the web
-  chat's input, because it is the path hosted today; the console stays as is.)
+The owner answered Q1–Q3 in the plan file and Q4–Q9 in conversation. Sections 4–7 are updated to
+match.
+
+| # | Question | Answer |
+| --- | --- | --- |
+| Q1 | Link allowlist domains | Create the allowlist from the listed domains: NREL, Open-Meteo, Copernicus CDS, NOAA NCEI, EU JRC (PVGIS), climate.onebuilding.org. The openepw docs site is added once it has a public URL. |
+| Q2 | `local.yaml` defaults | Strikes in the local profile default to `warn`. `moderation.on_error` is `allow` (with a notice) locally. |
+| Q3 | Knowledge answers | Not in guided mode (it keeps its "reads places, years and products" message). They count against the model budget like any other turn. |
+| Q4 | Hosted, moderation on with `on_error: block`, and no OpenAI key | **Fail at start-up** with a clear message. |
+| Q5a | Reopening an ended session | A YAML setting, `strikes.reopen: allow \| deny`. Default `allow` in `local.yaml` (`openepw chat --session ID --reopen`), `deny` in `hosted.yaml`. |
+| Q5b | Showing the strike count | **After every strike**, for example "This request is out of scope (strike 1 of 3)." |
+| Q6 | A remote `serve` with a weakened profile | **Warn only**: start anyway, with a prominent warning at start-up and in the log. No `--allow-insecure-profile` flag. |
+| Q7 | Branch | A new `feature/agent-guardrails`, from `feature/mcp-agent-mode`. |
+| Q8 | A model's refused host-only tool call as a strike | It counts **only when the turn began with the person's own message** (likely provoked). An attempt after a form answer is refused and logged but not counted. Host-only tools (submit, cancel, retry, export, upload, path registration, data paging) are never in the model's tool list. |
+| Q9 | Guards on the legacy chats (`/v1/chat/*`, `openepw-chat`) | **None.** Wait for P4 and P5. |
+
+The plan is still a draft until the owner approves it here.
