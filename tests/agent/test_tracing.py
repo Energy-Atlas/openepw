@@ -203,3 +203,23 @@ def test_create_app_reads_tracing_from_its_env_file(tmp_path, monkeypatch):
 def test_no_settings_leaves_langchain_alone():
     with langchain_tracing(None):
         pass                                                      # no langsmith import needed
+
+
+def test_traces_record_the_profile_and_guard_codes(tmp_path):
+    from openepw.agent.policy_config import load_policy
+
+    client = Recording()
+    tracer = LangSmithTracer(ON, client=client)
+    model = ScriptedModel([call("out_of_scope", {"category": "unrelated"})])
+
+    async def main():
+        async with Harness(tmp_path, policy=ModelPolicy(model), tracer=tracer) as h:
+            h.session.security = load_policy("hosted")
+            await h.say("write me a poem")
+
+    asyncio.run(main())
+    turn = runs(client)["openepw.agent.message"]
+    metadata = turn["extra"]["metadata"]
+    assert metadata["security_profile"] == "hosted" and metadata["security_digest"] == load_policy("hosted").digest
+    ended = [run for run in client.updated if "OUT_OF_SCOPE" in json.dumps(run.get("outputs") or {})]
+    assert ended and ended[-1]["outputs"]["guard_codes"] == ["OUT_OF_SCOPE"]

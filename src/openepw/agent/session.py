@@ -20,6 +20,12 @@ from .store import SessionStore
 from .text import safe_prompt
 from .tracing import NullTracer, summarize_arguments
 
+# Codes the guards record, also listed on each traced turn (plan G7).
+GUARD_CODES = frozenset({
+    "OUT_OF_SCOPE", "OFF_TOPIC_CLAMP", "MODERATION_FLAG", "MODERATION_UNAVAILABLE", "LINK_REMOVED",
+    "READINESS_CORRECTED", "STRIKE_WARNING", "STRIKE_LIMIT", "SESSION_ENDED", "SESSION_REOPENED",
+    "TOOL_NOT_ALLOWED", "KNOWLEDGE_ANSWER",
+})
 WITHHELD = "[message withheld by moderation]"
 TERMINAL = frozenset({"completed", "partially_completed", "failed", "cancelled"})
 MAX_UPLOAD = 5_000_000
@@ -129,7 +135,8 @@ class AgentSession:
         self.state.struck_this_turn = False
         if kind not in ("message", "answer"):
             self.state.turn_origin = "system"     # uploads, /new, /mode, job following: not the person's text
-        self.trace.start_turn(kind, inputs or {}, session_id=self.id, mode=self.state.mode)
+        self.trace.start_turn(kind, inputs or {}, session_id=self.id, mode=self.state.mode,
+                              security_profile=self.security.profile, security_digest=self.security.digest)
         error_code: str | None = None
         try:
             await work
@@ -157,9 +164,13 @@ class AgentSession:
                     and not self.state.struck_this_turn):
                 self.state.strikes = 0              # a normal input resets consecutive strikes
             self.store.save(self.state)
-            replies = [event.text[:500] for event in self.events(before) if event.type == "assistant"]
+            new = self.events(before)
+            replies = [event.text[:500] for event in new if event.type == "assistant"]
+            codes = [code for event in new for code in [event.data.get("code"), *event.data.get("guards", [])]
+                     if code in GUARD_CODES]
             form = self.form
-            self.trace.end_turn({"replies": replies[-5:], "mode": self.state.mode,
+            self.trace.end_turn({"replies": replies[-5:], "mode": self.state.mode, "strikes": self.state.strikes,
+                                 "guard_codes": list(dict.fromkeys(codes)),
                                  "form": f"{form.kind} ({form.gate})" if form else None}, error_code)
 
     async def begin(self) -> None:
