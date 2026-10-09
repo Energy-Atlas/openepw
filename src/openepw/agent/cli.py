@@ -14,6 +14,7 @@ from .guided import GuidedPolicy
 from .interactions import Answer, Event, Interaction
 from .mcp_port import ApprovalBook, InProcessMCP
 from .model_port import DEFAULT_MODEL, ModelPort, ModelUnavailable, OpenAIModel, load_openai_key
+from .policy_config import SecurityPolicy
 from .policy_model import ModelPolicy
 from .session import MAX_UPLOAD, AgentSession, Policy
 from .store import SessionStore
@@ -143,7 +144,8 @@ def parse_reply(form: Interaction, line: str) -> Answer | None:
 async def main_chat(service: Any, *, session_id: str | None = None,
                     read: Callable[[str], str] = input, write: Callable[[str], Any] = print,
                     poll_seconds: float = 0.5, follow_seconds: float = 120.0,
-                    model: ModelPort | None = None, tracer: NullTracer | None = None) -> int:
+                    model: ModelPort | None = None, tracer: NullTracer | None = None,
+                    security: SecurityPolicy | None = None, reopen: bool = False) -> int:
     """The chat loop; agent mode when a model is given, otherwise guided mode.
 
     ``tracer`` records LangSmith runs when the env file turns tracing on (see chat_tracer).

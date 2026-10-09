@@ -1,0 +1,40 @@
+# openepw security profile: local (development and single-person use).
+# Committed and reviewed like code; no secrets here (keys stay in .env).
+# The default for `openepw chat`, `openepw eval` and `openepw serve` on localhost.
+# It differs from hosted.yaml only in strikes.action, strikes.reopen and
+# moderation.on_error. Select hosted behaviour locally with --security-profile hosted.
+version: 1
+profile: local
+
+scope:
+  knowledge_answers: true
+  knowledge_answer_words: 120
+  offtopic_clamp:
+    enabled: true
+    min_chars: 280
+  extra_domain_terms: []
+
+strikes:
+  limit: 3
+  warn_at: 2
+  counting: session
+  action: warn                     # count and warn only, so development is not interrupted
+  reopen: allow                    # openepw chat --session ID --reopen
+  show_count: true
+  sources: [out_of_scope, offtopic_clamp, moderation, host_tool_attempt]
+
+moderation:
+  enabled: true
+  model: omni-moderation-latest
+  check: [input, form_text, upload_text]
+  on_error: allow                  # continue with a notice when moderation cannot run
+
+external_text:
+  max_chars: 120
+
+links:
+  policy: allowlist
+  allowlist: [nrel.gov, open-meteo.com, cds.climate.copernicus.eu, ncei.noaa.gov,
+              joint-research-centre.ec.europa.eu, climate.onebuilding.org]
+
+limits: {}

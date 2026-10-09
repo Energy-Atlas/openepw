@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from ..model_port import DEFAULT_MODEL, ModelPort, OpenAIModel, load_openai_key
+from ..policy_config import SecurityPolicy
 from .runner import RunResult, load_scenarios, report_json, run_evals, scripted_model
 
 
@@ -15,7 +16,7 @@ async def main_eval(*, mode: str = "guided", scripted: bool = False, live: bool 
                     repeats: int = 1, model: str | None = None, max_cost: float = 1.0,
                     live_providers: bool = False, scenarios_file: Path | None = None,
                     output: Path | None = None, env_file: str | Path | None = ".env",
-                    write: Callable[[str], Any] = print) -> int:
+                    write: Callable[[str], Any] = print, security: SecurityPolicy | None = None) -> int:
     """Returns 0 when every run passed, 1 when any failed, 2 when the eval could not start."""
     scenarios = load_scenarios(scenarios_file)
     if scenario_ids:

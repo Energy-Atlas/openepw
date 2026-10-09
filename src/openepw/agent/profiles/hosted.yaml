@@ -1,0 +1,42 @@
+# openepw security profile: hosted (the strictest shipped profile).
+# Committed and reviewed like code; no secrets here (keys stay in .env).
+# Used by `openepw serve` on a non-local host and selectable anywhere with
+# --security-profile hosted. Rules that are fixed in code (no model submit or
+# approval, plans only from approved facts, redaction, input clean-up, data
+# markers, the 4 KB tool-result cap, the simulation-ready correction) are not
+# settings. See docs/superpowers/plans/2026-10-09-agent-guardrails.md.
+version: 1
+profile: hosted
+
+scope:
+  knowledge_answers: true          # weather science and energy modelling: brief, no tools, labelled
+  knowledge_answer_words: 120
+  offtopic_clamp:
+    enabled: true
+    min_chars: 280                 # longer replies from a tool-less turn need domain words
+  extra_domain_terms: []           # added to the built-in vocabulary
+
+strikes:
+  limit: 3
+  warn_at: 2
+  counting: session                # session | consecutive
+  action: end_session              # end_session | guided | warn
+  reopen: deny                     # allow | deny: may an ended session be reopened
+  show_count: true                 # show "strike N of LIMIT" after every strike
+  sources: [out_of_scope, offtopic_clamp, moderation, host_tool_attempt]
+
+moderation:
+  enabled: true
+  model: omni-moderation-latest
+  check: [input, form_text, upload_text]   # add model_output to moderate replies
+  on_error: block                  # block | allow
+
+external_text:
+  max_chars: 120                   # place/station names, EPW header fields, filenames, provider messages
+
+links:
+  policy: allowlist                # allowlist | strip_all | keep
+  allowlist: [nrel.gov, open-meteo.com, cds.climate.copernicus.eu, ncei.noaa.gov,
+              joint-research-centre.ec.europa.eu, climate.onebuilding.org]
+
+limits: {}                         # P4: per-session spend, rate, jobs, places, CDS access

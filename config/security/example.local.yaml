@@ -1,0 +1,16 @@
+# Example per-machine override of an openepw security profile.
+#
+# Copy to config/security/<name>.local.yaml (ignored by git) and run, for example:
+#   openepw chat --security-file config/security/mine.local.yaml
+#
+# An override names the committed profile it changes and sets only the keys it lists;
+# everything else comes from that profile. Unknown keys and bad values fall back to the
+# hosted (strictest) value with a warning. Never put keys or other secrets here: they
+# stay in .env. See src/openepw/agent/profiles/*.yaml for every setting.
+extends: hosted
+
+strikes:
+  limit: 10            # try hosted behaviour with more room before the session ends
+
+moderation:
+  on_error: allow      # keep working offline while testing the hosted profile

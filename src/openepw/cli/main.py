@@ -2,6 +2,7 @@ import argparse
 import asyncio
 import hashlib
 import json
+import logging
 import re
 from pathlib import Path
 
@@ -17,6 +18,28 @@ from ..models import FutureRequest, OpenEPWError, WeatherPlan, WeatherRequest
 from ..qc import validate
 from ..service import WeatherService
 from ..visualization import VisualizationRequest
+
+
+def _security_arguments(parser, default: str) -> None:
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("--security-profile", choices=["local", "hosted"],
+                       help=f"Committed security profile (default: {default})")
+    group.add_argument("--security-file", type=Path,
+                       help="A security YAML file; it may extend a profile (see config/security)")
+
+
+def _security_policy(args, default: str, *, remote: bool = False):
+    """Load the chosen security profile and say which one runs (and whether it is weakened)."""
+    from ..agent.policy_config import describe, load_policy, weakened
+
+    policy = load_policy(args.security_profile, file=args.security_file, default=default)
+    print(describe(policy))
+    notes = weakened(policy)
+    if remote and notes:
+        print("WARNING: serving remotely with a weakened security profile: " + "; ".join(notes) + ".")
+        logging.getLogger("openepw.security").warning("Remote serve with a weakened profile: %s",
+                                                      "; ".join(notes))
+    return policy
 
 
 def main(argv=None):
@@ -42,6 +65,7 @@ def main(argv=None):
     serve = sub.add_parser("serve")
     serve.add_argument("--host", default="127.0.0.1")
     serve.add_argument("--port", type=int, default=8000)
+    _security_arguments(serve, "local on localhost, hosted otherwise")
     mcp = sub.add_parser("mcp")
     mcp.add_argument("--transport", choices=["stdio", "streamable-http"], default="stdio")
     mcp.add_argument("--allow-root", action="append", default=[],
@@ -53,6 +77,9 @@ def main(argv=None):
     chat.add_argument("--model", default=None, help="OpenAI model id for agent mode")
     chat.add_argument("--max-cost", type=float, default=5.0,
                       help="Budget stop in USD for the local model usage ledger (default 5)")
+    chat.add_argument("--reopen", action="store_true",
+                      help="Reopen an ended session (only when the profile allows it)")
+    _security_arguments(chat, "local")
     evals = sub.add_parser("eval", help="Run the agent chat scenarios and report pass rates")
     evals.add_argument("--mode", choices=["guided", "agent"], default="guided")
     evals.add_argument("--scripted", action="store_true",
@@ -68,6 +95,7 @@ def main(argv=None):
                        help="Use the real geocoder and providers instead of offline stubs")
     evals.add_argument("--scenarios-file", type=Path)
     evals.add_argument("--output", type=Path, help="Write the JSON report here")
+    _security_arguments(evals, "local")
     catalog = sub.add_parser("catalog")
     catalog_sub = catalog.add_subparsers(dest="catalog_command", required=True)
     catalog_sub.add_parser("status")
@@ -89,11 +117,14 @@ def main(argv=None):
         if args.command == "serve":
             import uvicorn
 
+            from ..agent.policy_config import profile_for_serve
             from ..api.app import create_app
 
+            remote = args.host not in ("127.0.0.1", "localhost", "::1")
+            security = _security_policy(args, profile_for_serve(args.host), remote=remote)
             uvicorn.run(
-                create_app(service, remote=args.host not in ("127.0.0.1", "localhost", "::1"),
-                           env_file=args.env_file or ".env"),
+                create_app(service, remote=remote, env_file=args.env_file or ".env",
+                           security_policy=security),
                 host=args.host,
                 port=args.port,
             )
@@ -116,11 +147,13 @@ def main(argv=None):
                 mode=args.mode, scripted=args.scripted, live=args.live, scenario_ids=args.scenario,
                 repeats=args.repeats,
                 model=args.model, max_cost=args.max_cost, live_providers=args.live_providers,
-                scenarios_file=args.scenarios_file, output=args.output, env_file=args.env_file or ".env"))
+                scenarios_file=args.scenarios_file, output=args.output, env_file=args.env_file or ".env",
+                security=_security_policy(args, "local")))
         if args.command == "chat":
             from ..agent.cli import chat_model, chat_tracer, main_chat, prepare_console
 
             prepare_console()
+            security = _security_policy(args, "local")
             model, notice = chat_model(args.mode, model=args.model, max_cost=args.max_cost,
                                        data_root=config.data_root, env_file=args.env_file or ".env")
             if notice:
@@ -129,7 +162,8 @@ def main(argv=None):
             if tracing_notice:
                 print(tracing_notice)
             try:
-                return asyncio.run(main_chat(service, session_id=args.session, model=model, tracer=tracer))
+                return asyncio.run(main_chat(service, session_id=args.session, model=model, tracer=tracer,
+                                             security=security, reopen=args.reopen))
             except KeyboardInterrupt:
                 print("\nChat interrupted; the session and completed artifacts stay in the data root.")
                 return 130

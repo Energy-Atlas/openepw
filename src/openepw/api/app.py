@@ -87,7 +87,7 @@ class ChatView(ChatAction):
     prompt: str | None = None
 
 
-def create_app(service=None, *, remote=False, chat_parser=None, env_file=".env"):
+def create_app(service=None, *, remote=False, chat_parser=None, env_file=".env", security_policy=None):
     service = service or WeatherService()
     if remote and not (service.config.bearer_token or service.config.site_password):
         raise ValueError("Remote mode requires OPENEPW_BEARER_TOKEN or OPENEPW_SITE_PASSWORD")
@@ -136,6 +136,9 @@ def create_app(service=None, *, remote=False, chat_parser=None, env_file=".env")
         title="OpenEPW", version="0.1.0", lifespan=lifespan, dependencies=[Depends(authenticate)]
     )
     app.state.service = service
+    # The security profile for the agent chat once P4 hosts it here; the legacy /v1 chat does
+    # not apply it (owner decision Q9).
+    app.state.security_policy = security_policy
     if service.config.site_password:
         SiteGate(service.config.site_password.get_secret_value()).install(app)
     app.state.runner = runner
