@@ -74,6 +74,8 @@ class SessionState(Model):
     # notices already shown. Back never restores these.
     strikes: int = 0
     ended: str | None = None
+    ended_reopen: Literal["allow", "deny"] | None = None   # the ending profile's reopen rule
+    downgraded: bool = False                                # guided for good after the strike limit
     struck_this_turn: bool = False
     turn_origin: Literal["", "text", "answer", "system"] = ""
     shown_notices: list[str] = Field(default_factory=list)

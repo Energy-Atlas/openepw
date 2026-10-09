@@ -12,12 +12,15 @@ import unicodedata
 from typing import Any
 
 # Control, format (zero-width, bidirectional overrides), private-use and surrogate characters.
+# Zero-width joiners and non-joiners stay: emoji sequences and several scripts need them.
 _HIDDEN = {"Cc", "Cf", "Co", "Cs"}
-_KEEP = {"\n", "\t"}
+_KEEP = {"\n", "\t", "\u200c", "\u200d"}
+# Links with a scheme or www (any case), and bare lowercase domains such as evil.com or bit.ly/x.
+# Station and file names such as Denver.CO or Ithaca.Tompkins.Co.725155 are not lowercase domains.
 _LINK = re.compile(
-    r"\b(?:https?|ftp)://\S+|\bwww\.\S+"
-    r"|\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:com|net|org|io|xyz|ru|cn|info|biz|co|app|dev|me|ly|link|"
-    r"click|top|site|online|example)\b(?:/\S*)?", re.I)
+    r"(?i:\b(?:https?|ftp)://\S+|\bwww\.\S+)"
+    r"|(?<![\w.])[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:com|net|org|io|xyz|ru|cn|info|biz|co|app|dev|me|ly|"
+    r"link|click|top|site|online|example)\b(?:/\S*)?")
 _EMAIL = re.compile(r"\b[\w.+-]+@[\w-]+(?:\.[\w-]+)+\b")
 _IDENTIFIER = re.compile(r"(?:^|_)(?:id|ids|hash|key|sha256|digest|uri)$")
 REMOVED = "[removed]"

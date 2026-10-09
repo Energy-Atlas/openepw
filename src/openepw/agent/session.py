@@ -127,6 +127,8 @@ class AgentSession:
         events = self.events()
         before = events[-1].seq if events else 0
         self.state.struck_this_turn = False
+        if kind not in ("message", "answer"):
+            self.state.turn_origin = "system"     # uploads, /new, /mode, job following: not the person's text
         self.trace.start_turn(kind, inputs or {}, session_id=self.id, mode=self.state.mode)
         error_code: str | None = None
         try:
@@ -233,38 +235,42 @@ class AgentSession:
                        "warn": "reaches this session's strike limit"}[rules.action]
         if count == rules.warn_at and count < rules.limit:
             self.emit("notice", f"One more unrelated or unsafe request {consequence}.", code="STRIKE_WARNING")
-        if count == rules.limit:
-            await self._strike_limit(rules.action, source)
+        if count >= rules.limit:                    # also strikes counted earlier under another profile
+            await self._strike_limit(rules.action, source, first=count == rules.limit)
         self.store.save(self.state)                 # a strike is never lost to a crash
         return True
 
-    async def _strike_limit(self, action: str, source: str) -> None:
+    async def _strike_limit(self, action: str, source: str, *, first: bool) -> None:
         if action == "end_session":
             self.state.ended = source
+            self.state.ended_reopen = self.security.strikes.reopen
             self.state.pending_call, self.state.turn = None, []
             self.close_form()
             self.emit("notice", f"This session has ended after {self.state.strikes} strikes. Running jobs "
                                 "continue and their files stay in the data root; start a new session to "
                                 "continue.", code="SESSION_ENDED")
         elif action == "guided":
+            if self.state.downgraded:
+                return
             switch = getattr(self.policy, "set_mode", None)
             if switch is not None and self.state.mode != "guided":
                 await switch(self, "guided")
-            self.state.mode = "guided"
+            self.state.mode, self.state.downgraded = "guided", True
             self.emit("notice", "Strike limit reached: this session continues in guided mode.",
                       code="STRIKE_LIMIT")
-        else:
+        elif first:
             self.emit("notice", "Strike limit reached; this profile only warns.", code="STRIKE_LIMIT")
 
     async def reopen(self) -> bool:
         """Reopen an ended session when the profile allows it; strikes start again from zero."""
         if self.state.ended is None:
             return True
-        if self.security.strikes.reopen != "allow":
+        # Both the profile that ended the session and the current one must allow reopening.
+        if self.security.strikes.reopen != "allow" or self.state.ended_reopen == "deny":
             self.emit("error", f"This session has ended and the {self.security.profile} profile does not "
                                "allow reopening it.", code="SESSION_ENDED")
             return False
-        self.state.ended, self.state.strikes = None, 0
+        self.state.ended, self.state.ended_reopen, self.state.strikes = None, None, 0
         self.store.save(self.state)
         self.emit("notice", "Session reopened; strikes start again from zero.", code="SESSION_REOPENED")
         return True
@@ -334,7 +340,10 @@ class AgentSession:
         restored.facts.finished_job_ids = list(self.facts.finished_job_ids)
         # Back undoes choices, never strikes.
         restored.strikes, restored.ended = self.state.strikes, self.state.ended
+        restored.ended_reopen, restored.downgraded = self.state.ended_reopen, self.state.downgraded
         restored.shown_notices = list(self.state.shown_notices)
+        if self.state.downgraded:
+            restored.mode = "guided"              # Back never undoes a strike-limit downgrade
         restored.revision = self.state.revision + 1
         if restored.form is not None:
             restored.form = restored.form.model_copy(update={"revision": restored.revision})
@@ -346,6 +355,10 @@ class AgentSession:
     async def set_mode(self, mode: str) -> None:
         """Switch between agent and guided mode; agent mode needs a policy with a model."""
         if self._refuse_if_ended():
+            return
+        if mode == "agent" and self.state.downgraded:
+            self.emit("notice", "This session stays in guided mode after reaching its strike limit.",
+                      code="STRIKE_LIMIT")
             return
         switch = getattr(self.policy, "set_mode", None)
         if switch is None:

@@ -11,20 +11,21 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 from collections import Counter
 from typing import Any
 
 from ..mcp.access import HOST_TOOLS, LEGACY_TOOLS, MODEL_TOOLS
 from . import host
 from .gates import GateRequired, check_plan_request, needs_years
-from .guard import clean_external
+from .guard import clean_external, clean_tool_data
 from .guided import SUSPENDED, GuidedPolicy
 from .interactions import Answer, Interaction, Option
 from .mcp_port import ToolFailure
 from .model_port import ModelPort, ModelReply, ModelUnavailable, ToolCall
 from .session import AgentSession
 from .text import FUTURE, written_years
-from .tools import ASK_TOOLS, NEED_TOOL, WRAPPED, model_tools, shape
+from .tools import ASK_TOOLS, DATA_NOTE, NEED_TOOL, SCOPE_TOOLS, WRAPPED, model_tools, shape
 from .tracing import summarize_arguments
 
 SYSTEM = """You are the openepw weather assistant. You help a person get EPW weather files by \
@@ -246,7 +247,7 @@ class ModelPolicy:
             first = False
             s.state.turn.append(reply.item())
             # A decline replaces whatever the model wrote alongside it.
-            if reply.text and not any(call.name == "out_of_scope" for call in reply.tool_calls):
+            if reply.text and not any(call.name in SCOPE_TOOLS for call in reply.tool_calls):
                 await s.model_says(reply.text)
             if not reply.tool_calls:
                 return
@@ -281,7 +282,7 @@ class ModelPolicy:
                 elif kind == "error":
                     failures[call.name] += 1
                     if failures[call.name] > self.max_retries:
-                        message = output.get("message", "") if isinstance(output, dict) else ""
+                        message = (output.get("tool_data") or {}).get("message", "") if isinstance(output, dict) else ""
                         stop = (f"I could not complete {call.name}: {message} "
                                 "The open form is kept; try again or rephrase.")
             if stop:
@@ -441,8 +442,7 @@ class ModelPolicy:
         try:
             result = await s.tool(call.name, by="model", **arguments)
         except ToolFailure as failure:
-            return "error", {"code": failure.code, "message": failure.message,
-                             "retryable": failure.retryable, "details": failure.details}
+            return "error", self._failure(s, failure)
         limit = s.security.external_text.max_chars
         if call.name == "weather_plan":
             entry = host.plan_entry(arguments["request"], result.data, result.text)
@@ -464,11 +464,20 @@ class ModelPolicy:
 
     async def _knowledge_answer(self, s: AgentSession, text: str) -> dict[str, Any]:
         """A brief, labelled general answer; the host trims it to the profile's word limit."""
-        words = text.split()
         limit = s.security.scope.knowledge_answer_words
-        body = " ".join(words[:limit]) + ("…" if len(words) > limit else "")
+        words = list(re.finditer(r"\S+", text.strip()))
+        # Keep the answer's own line breaks; cut after the last allowed word.
+        body = text.strip()[:words[limit - 1].end()] + "…" if len(words) > limit else text.strip()
         await s.model_says(f"{body}\n\n{KNOWLEDGE_LABEL}", code="KNOWLEDGE_ANSWER")
         return {"shown": True, "words": min(len(words), limit)}
+
+    @staticmethod
+    def _failure(s: AgentSession, failure: ToolFailure) -> dict[str, Any]:
+        """A tool failure for the model: the provider's text is cleaned and marked as data."""
+        limit = s.security.external_text.max_chars
+        return {"code": failure.code, "retryable": failure.retryable, "note": DATA_NOTE,
+                "tool_data": {"message": clean_external(failure.message, 300),
+                              "details": clean_tool_data(failure.details, limit)}}
 
     @staticmethod
     def _gate(s: AgentSession, tool: str, need: str, message: str) -> dict[str, Any]:
@@ -502,7 +511,7 @@ class ModelPolicy:
             try:
                 review = (await s.tool("weather_locations_review", by="model", locations=geography)).data
             except ToolFailure as failure:
-                return "error", {"code": failure.code, "message": failure.message, "details": failure.details}
+                return "error", self._failure(s, failure)
             if facts.approved_key and review.get("key") == facts.approved_key:
                 return "ok", {"approved": True, "location_key": review["key"], "note": "already approved"}
             facts.reset_place()
@@ -517,7 +526,7 @@ class ModelPolicy:
                                      product=arguments.get("product"), provider=arguments.get("provider"),
                                      years=facts.years or None)).data
             except ToolFailure as failure:
-                return "error", {"code": failure.code, "message": failure.message, "details": failure.details}
+                return "error", self._failure(s, failure)
             facts.offers, facts.offer_availability = data.get("options", []), data.get("availability")
             if not facts.offers:
                 return "ok", {"offers": [], "message": "No downloadable product matches these filters."}

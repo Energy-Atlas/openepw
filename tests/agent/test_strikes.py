@@ -102,26 +102,24 @@ def test_the_count_can_be_hidden(tmp_path):
 
 
 def test_an_ended_session_reopens_only_when_the_profile_allows(tmp_path):
-    async def end(h):
-        for _ in range(3):
-            await h.session.strike("out_of_scope", "Out of scope.")
-        return h.session.id
-
-    async def first():
+    async def end(security):
         async with Harness(tmp_path) as h:
-            h.session.security = load_policy("hosted")
-            return await end(h)
+            h.session.security = security
+            for _ in range(3):
+                await h.session.strike("out_of_scope", "Out of scope.")
+            return h.session.id
 
-    session_id = asyncio.run(first())
-
-    async def resume(security):
+    async def resume(session_id, security):
         async with Harness(tmp_path, session_id=session_id) as h:
             h.session.security = security
             reopened = await h.session.reopen()
             return reopened, h.session.state.ended, h.session.state.strikes
 
-    assert asyncio.run(resume(load_policy("hosted")))[0] is False
-    assert asyncio.run(resume(load_policy("local"))) == (True, None, 0)
+    hosted = asyncio.run(end(load_policy("hosted")))
+    assert asyncio.run(resume(hosted, load_policy("hosted")))[0] is False
+    ends_and_reopens = policy(tmp_path, "extends: local\nstrikes:\n  action: end_session\n")
+    reopenable = asyncio.run(end(ends_and_reopens))
+    assert asyncio.run(resume(reopenable, load_policy("local"))) == (True, None, 0)
 
 
 def test_the_cli_closes_an_ended_session_and_refuses_to_resume_it(tmp_path):
@@ -143,7 +141,48 @@ def test_the_cli_closes_an_ended_session_and_refuses_to_resume_it(tmp_path):
     code = asyncio.run(main_chat(scenario_service(tmp_path), session_id=session_id, read=lambda prompt: "/quit",
                                  write=output.append, security=load_policy("hosted"), reopen=True))
     assert code == 2 and "does not allow reopening" in output[-1]
-    output = []
+    output = []                                  # switching to a lenient profile does not help
     code = asyncio.run(main_chat(scenario_service(tmp_path), session_id=session_id, read=lambda prompt: "/quit",
                                  write=output.append, security=load_policy("local"), reopen=True))
-    assert code == 0 and any("reopened" in line for line in output)
+    assert code == 2 and "SESSION_ENDED" in output[-1]
+
+
+def test_a_guided_downgrade_cannot_be_escaped(tmp_path):
+    async def scenario(h):
+        for _ in range(3):
+            await h.session.strike("out_of_scope", "Out of scope.")
+        assert h.session.state.mode == "guided" and h.session.state.downgraded
+        await h.session.set_mode("agent")
+        assert h.session.state.mode == "guided" and h.session.events()[-1].data["code"] == "STRIKE_LIMIT"
+        await h.session.back()
+        assert h.session.state.mode == "guided"
+
+    run_with(tmp_path, policy(tmp_path, "extends: hosted\nstrikes:\n  action: guided\n"), scenario)
+
+
+def test_strikes_past_the_limit_still_end_the_session(tmp_path):
+    async def scenario(h):
+        h.session.state.strikes = 4                        # e.g. counted under a warn-only profile
+        await h.session.strike("out_of_scope", "Out of scope.")
+        assert h.session.state.ended
+
+    run_with(tmp_path, load_policy("hosted"), scenario)
+
+
+def test_reopening_needs_both_the_current_and_the_ending_profile_to_allow_it(tmp_path):
+    async def first():
+        async with Harness(tmp_path) as h:
+            h.session.security = load_policy("hosted")
+            for _ in range(3):
+                await h.session.strike("out_of_scope", "Out of scope.")
+            return h.session.id
+
+    session_id = asyncio.run(first())
+
+    async def resume():
+        async with Harness(tmp_path, session_id=session_id) as h:
+            h.session.security = load_policy("local")          # reopen allowed here, not where it ended
+            return await h.session.reopen(), h.session.state.ended
+
+    reopened, ended = asyncio.run(resume())
+    assert reopened is False and ended

@@ -187,7 +187,8 @@ def load_policy(profile: str | None = None, *, file: str | Path | None = None,
         base_name = STRICTEST
     base, _ = _packaged(str(base_name))
     merged = _merge(base, override)
-    merged["profile"] = merged.get("profile") if merged.get("profile") in PROFILE_NAMES else base_name
+    # An override is always labelled as one: it cannot present itself as a committed profile.
+    merged["profile"] = f"{base_name}+override"
     return _validate(merged, str(path))
 
 
@@ -197,22 +198,47 @@ def profile_for_serve(host: str) -> str:
 
 
 def weakened(policy: SecurityPolicy) -> list[str]:
-    """How a policy is weaker than the hosted profile, for a start-up warning (empty if not)."""
+    """Every way a policy is weaker than the hosted profile, for a start-up warning (empty if none)."""
+    strict = load_policy(STRICTEST)
     notes = []
-    if not policy.moderation.enabled:
+    moderation, strict_moderation = policy.moderation, strict.moderation
+    if not moderation.enabled:
         notes.append("moderation is off")
-    elif policy.moderation.on_error == "allow":
-        notes.append("moderation.on_error is allow")
-    if policy.moderation.enabled and "input" not in policy.moderation.check:
-        notes.append("messages are not moderated")
-    if policy.strikes.action != "end_session":
-        notes.append(f"strikes.action is {policy.strikes.action}")
-    if policy.strikes.reopen == "allow":
+    else:
+        if moderation.on_error != strict_moderation.on_error:
+            notes.append(f"moderation.on_error is {moderation.on_error}")
+        missing = [item for item in strict_moderation.check if item not in moderation.check]
+        if missing:
+            notes.append("moderation does not check " + ", ".join(missing))
+    strikes, strict_strikes = policy.strikes, strict.strikes
+    if strikes.action != strict_strikes.action:
+        notes.append(f"strikes.action is {strikes.action}")
+    if strikes.reopen != strict_strikes.reopen:
         notes.append("ended sessions can be reopened")
-    if not policy.scope.offtopic_clamp.enabled:
+    missing_sources = [item for item in strict_strikes.sources if item not in strikes.sources]
+    if missing_sources:
+        notes.append("strike sources not counted: " + ", ".join(missing_sources))
+    if strikes.limit > strict_strikes.limit:
+        notes.append(f"strikes.limit is {strikes.limit}")
+    if strikes.counting != strict_strikes.counting:
+        notes.append(f"strikes count only when {strikes.counting}")
+    if strikes.warn_at >= strikes.limit:
+        notes.append("no warning before the strike limit")
+    clamp = policy.scope.offtopic_clamp
+    if not clamp.enabled:
         notes.append("the off-topic clamp is off")
+    elif clamp.min_chars > strict.scope.offtopic_clamp.min_chars:
+        notes.append(f"offtopic_clamp.min_chars is {clamp.min_chars}")
+    if policy.scope.knowledge_answer_words > strict.scope.knowledge_answer_words:
+        notes.append(f"knowledge_answer_words is {policy.scope.knowledge_answer_words}")
+    if policy.external_text.max_chars > strict.external_text.max_chars:
+        notes.append(f"external_text.max_chars is {policy.external_text.max_chars}")
     if policy.links.policy == "keep":
         notes.append("links are kept")
+    elif policy.links.policy == "allowlist":
+        extra = [domain for domain in policy.links.allowlist if domain not in strict.links.allowlist]
+        if extra:
+            notes.append("links allowed to " + ", ".join(extra))
     return notes
 
 

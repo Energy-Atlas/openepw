@@ -61,3 +61,18 @@ def test_guided_forms_show_cleaned_place_names(tmp_path):
                           "points": [{"name": "Ithaca https://evil.example", "lat": 42.44, "lon": -76.5,
                                       "standard_offset_minutes": -300}]})
     assert "evil" not in review_form(facts).summary
+
+
+def test_station_and_file_names_survive_link_cleaning():
+    for name in ("USA_NY_Ithaca.Tompkins.Co.725155_TMY3.epw", "Johnson.Co.Exec.AP", "Denver.CO", "Bangor.ME",
+                 "Station.Info", "St. Louis", "Washington D.C.", "Mt. Hood", "TMYx.2009-2023",
+                 "US.Normals.1991-2020", "ERA5-Land"):
+        assert clean_external(name, 120) == name, name
+    for link in ("evil.com", "bit.ly/x", "https://Evil.Example/A", "www.phish.example", "fix.evil.co/patch"):
+        assert "[removed]" in clean_external(f"see {link} now", 120), link
+
+
+def test_joiners_used_in_emoji_and_scripts_are_kept():
+    for text in ("👨‍👩‍👧", "فارسی‌زبان"):
+        assert normalize_input(text) == text
+    assert normalize_input("a​b﻿c‮d⁦e") == "abcde"

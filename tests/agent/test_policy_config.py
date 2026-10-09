@@ -43,7 +43,7 @@ def test_an_override_extends_a_profile_and_changes_only_its_keys(tmp_path):
     path = write(tmp_path, "extends: hosted\nstrikes:\n  limit: 10\n")
     policy = load_policy(file=path)
     assert policy.strikes.limit == 10 and policy.strikes.action == "end_session"
-    assert policy.profile == "hosted" and policy.source == str(path)
+    assert policy.profile == "hosted+override" and policy.source == str(path)
 
 
 def test_bad_values_and_unknown_keys_fall_back_to_the_stricter_value(tmp_path, caplog):
@@ -136,7 +136,7 @@ def test_a_weakened_profile_warns_when_serving_remotely(monkeypatch, tmp_path, c
 def test_a_security_file_is_used_by_path(monkeypatch, tmp_path):
     path = write(tmp_path, "extends: hosted\nstrikes:\n  limit: 7\n")
     policy = run_cli(monkeypatch, tmp_path, ["chat", "--security-file", str(path)])["chat"]["security"]
-    assert policy.strikes.limit == 7 and policy.profile == "hosted"
+    assert policy.strikes.limit == 7 and policy.profile == "hosted+override"
 
 
 def test_the_example_override_loads_cleanly(caplog):
@@ -146,3 +146,32 @@ def test_the_example_override_loads_cleanly(caplog):
     with caplog.at_level(logging.WARNING, logger="openepw.security"):
         policy = load_policy(file=example)
     assert policy.strikes.limit == 10 and caplog.text == ""
+
+
+def test_an_override_is_labelled_as_one_whatever_name_it_claims(tmp_path):
+    spoof = load_policy(file=write(tmp_path, "extends: local\nprofile: hosted\n"))
+    assert spoof.profile == "local+override" and spoof.strikes.action == "warn"
+    lenient = load_policy(file=write(tmp_path, "profile: lenient\nstrikes:\n  limit: 9\n"))
+    assert lenient.profile == "hosted+override"
+
+
+def test_weakened_names_every_relaxation_of_the_hosted_profile(tmp_path):
+    relaxed = load_policy(file=write(tmp_path, """extends: hosted
+strikes:
+  sources: [moderation]
+  limit: 9
+  counting: consecutive
+moderation:
+  check: [input]
+scope:
+  offtopic_clamp:
+    min_chars: 2000
+links:
+  allowlist: [nrel.gov, evil.example]
+external_text:
+  max_chars: 900
+"""))
+    notes = " | ".join(weakened(relaxed))
+    for expected in ("strike sources", "strikes.limit", "consecutive", "form_text", "upload_text",
+                     "min_chars", "evil.example", "external_text.max_chars"):
+        assert expected in notes, expected
