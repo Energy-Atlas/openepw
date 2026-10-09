@@ -146,7 +146,7 @@ def test_mode_switches_in_the_cli(tmp_path):
     asyncio.run(main_chat(scenario_service(tmp_path), read=lambda prompt: next(lines),
                           write=output.append, model=ScriptedModel([])))
     assert "Mode: guided." in output and "Where do you need weather?" in "\n".join(output)
-    assert any(line.startswith("Mode: guided. Jobs:") for line in output) and "Mode: agent." in output
+    assert any(line.startswith("Mode: guided. Profile: local") and "Strikes: 0 of 3" in line for line in output) and "Mode: agent." in output
     assert "Use /mode, /mode agent or /mode guided." in output
 
 
