@@ -173,11 +173,9 @@ async def main_chat(service: Any, *, session_id: str | None = None,
     try:
         async with InProcessMCP(create_server(service, runner=runner), approvals) as port:
             policy: Policy = ModelPolicy(model) if model is not None else GuidedPolicy()
-            session = (AgentSession.resume(store, port, approvals, policy, session_id,
-                                           poll_seconds=poll_seconds, tracer=tracer)
-                       if session_id else
-                       AgentSession.start(store, port, approvals, policy, poll_seconds=poll_seconds,
-                                          tracer=tracer))
+            options = {"poll_seconds": poll_seconds, "tracer": tracer, "security": security}
+            session = (AgentSession.resume(store, port, approvals, policy, session_id, **options)
+                       if session_id else AgentSession.start(store, port, approvals, policy, **options))
             if model is None and session.state.mode == "agent":
                 session.state.mode = "guided"          # a saved agent session without a model
                 session.state.pending_call, session.state.turn = None, []

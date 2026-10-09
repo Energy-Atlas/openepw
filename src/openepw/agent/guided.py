@@ -9,6 +9,7 @@ from ..models import OpenEPWError
 from ..places.parse import apply_edit, describe_place_set
 from . import host
 from .gates import build_requests, needs_years, next_need
+from .guard import clean_external
 from .interactions import Answer, Interaction, Option
 from .session import AgentSession
 from .text import FUTURE, place_part, read_product, written_years
@@ -154,7 +155,8 @@ class GuidedPolicy:
                 lines.append(f"{row['index']}. '{row['input']}' not found; replace or remove it")
             else:
                 note = f"; top of {row['candidate_count']} matches, check it" if row.get("ambiguous") else ""
-                lines.append(f"{row['index']}. {row.get('name')} ({row['lat']:.4f}, {row['lon']:.4f}){note}")
+                name = clean_external(str(row.get("name")), s.security.external_text.max_chars)
+                lines.append(f"{row['index']}. {name} ({row['lat']:.4f}, {row['lon']:.4f}){note}")
         if len(rows) > 25:
             lines.append(f"... and {len(rows) - 25} more")
         s.emit("assistant", "\n".join(lines + list(data.get("attribution") or [])))
@@ -263,7 +265,9 @@ class GuidedPolicy:
         elif need == "choose_location":
             s.open_form(Interaction(
                 kind="choice", gate="choose_location", prompt="Which location do you mean?",
-                options=[Option(id=str(item.get("id", index)), label=item.get("name") or "unnamed",
+                options=[Option(id=str(item.get("id", index)),
+                                label=clean_external(str(item.get("name") or "unnamed"),
+                                                     s.security.external_text.max_chars),
                                 detail=f"{item['lat']:.4f}, {item['lon']:.4f}")
                          for index, item in enumerate(facts.candidates)]))
         elif need == "where":
@@ -274,7 +278,7 @@ class GuidedPolicy:
         elif need == "review_location":
             if facts.review is None:
                 facts.review = (await s.tool("weather_locations_review", locations=facts.geography)).data
-            s.open_form(host.review_form(facts))
+            s.open_form(host.review_form(facts, s.security.external_text.max_chars))
         elif need == "choose_products":
             assert facts.review is not None               # next_need guarantees an approved review
             if not facts.offers:

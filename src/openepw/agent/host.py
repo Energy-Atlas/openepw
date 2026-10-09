@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Awaitable, Callable
 
+from .guard import clean_external
 from .interactions import Interaction, Option
 from .mcp_port import ToolFailure
 from .session import AgentSession
@@ -53,11 +54,12 @@ def place_set_form(place_set: dict[str, Any]) -> Interaction:
                        data={"answers": answers, "field": question["field"]})
 
 
-def review_form(facts: Facts) -> Interaction:
+def review_form(facts: Facts, max_chars: int = 120) -> Interaction:
     review = facts.review
     assert review is not None
     count = review["point_count"]
-    lines = [f"{index}. {item.get('name') or 'point'} ({item['lat']:.4f}, {item['lon']:.4f}) "
+    lines = [f"{index}. {clean_external(str(item.get('name') or 'point'), max_chars)} "
+             f"({item['lat']:.4f}, {item['lon']:.4f}) "
              f"{offset(item['standard_offset_minutes'])}"
              for index, item in enumerate(review["points"][:25], start=1)]
     if count > 25:

@@ -12,6 +12,7 @@ import copy
 import hashlib
 import json
 import logging
+from functools import lru_cache
 from importlib import resources
 from pathlib import Path
 from typing import Any, Literal
@@ -150,6 +151,12 @@ def _validate(data: dict[str, Any], source: str) -> SecurityPolicy:
     policy.source = source
     policy.digest = hashlib.sha256(canonical.encode()).hexdigest()[:12]
     return policy
+
+
+@lru_cache(maxsize=None)
+def default_policy() -> SecurityPolicy:
+    """The local profile, used when a session is created without one (library and tests)."""
+    return load_policy("local")
 
 
 def load_policy(profile: str | None = None, *, file: str | Path | None = None,

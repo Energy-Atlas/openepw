@@ -10,8 +10,10 @@ from typing import Any, Callable, Protocol
 
 from ..models import OpenEPWError
 from .gates import GateRequired
+from .guard import normalize_input
 from .interactions import Answer, Event, Interaction
 from .mcp_port import ApprovalBook, MCPPort, ToolFailure, ToolResult
+from .policy_config import SecurityPolicy, default_policy
 from .state import Facts, SessionState
 from .store import SessionStore
 from .text import safe_prompt
@@ -45,8 +47,9 @@ def answer_text(form: Interaction, answer: Answer) -> str:
 class AgentSession:
     def __init__(self, store: SessionStore, port: MCPPort, approvals: ApprovalBook,
                  state: SessionState, policy: Policy, *, poll_seconds: float = 0.5,
-                 tracer: NullTracer | None = None):
+                 tracer: NullTracer | None = None, security: SecurityPolicy | None = None):
         self.store = store
+        self.security = security or default_policy()   # the YAML security profile in force
         self.trace = tracer or NullTracer()        # LangSmith runs when the env file turns them on
         self.port = port
         self.approvals = approvals
@@ -160,8 +163,8 @@ class AgentSession:
         if len(text) > 4000:
             self.emit("error", "Messages are limited to 4,000 characters.", code="MESSAGE_TOO_LONG")
             return
-        # Credentials and local paths never reach the event log or a model.
-        text = safe_prompt(text, limit=4000)
+        # Hidden characters, credentials and local paths never reach the event log or a model.
+        text = safe_prompt(normalize_input(text), limit=4000)
         self.emit("user", text)
         await self._guard(self.policy.on_text(self, text), "message", {"text": text})
 
@@ -171,7 +174,7 @@ class AgentSession:
             self.emit("error", "That form is no longer current; answer the latest one.", code="STALE_FORM")
             return
         if answer.text:
-            answer = answer.model_copy(update={"text": safe_prompt(answer.text, limit=4000)})
+            answer = answer.model_copy(update={"text": safe_prompt(normalize_input(answer.text), limit=4000)})
         said = answer_text(form, answer)
         self.emit("user", said, answer=answer.model_dump(mode="json"))
         await self._guard(self.policy.on_answer(self, form, answer), "answer",
