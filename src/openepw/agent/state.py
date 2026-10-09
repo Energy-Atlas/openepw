@@ -69,3 +69,11 @@ class SessionState(Model):
     turn: list[dict[str, Any]] = Field(default_factory=list)
     pending_call: dict[str, str] | None = None
     turn_seq: int = 0
+    # Guardrails: strikes so far, why the session ended (None while open), whether a strike was
+    # recorded in the current input, whether that input was the person's own text, and one-time
+    # notices already shown. Back never restores these.
+    strikes: int = 0
+    ended: str | None = None
+    struck_this_turn: bool = False
+    turn_origin: Literal["", "text", "answer", "system"] = ""
+    shown_notices: list[str] = Field(default_factory=list)

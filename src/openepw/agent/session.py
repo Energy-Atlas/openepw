@@ -122,6 +122,7 @@ class AgentSession:
         """Run one input's work; failures become error events, never a crash. One trace per input."""
         events = self.events()
         before = events[-1].seq if events else 0
+        self.state.struck_this_turn = False
         self.trace.start_turn(kind, inputs or {}, session_id=self.id, mode=self.state.mode)
         error_code: str | None = None
         try:
@@ -146,6 +147,9 @@ class AgentSession:
                                f"(correlation id {correlation_id}).",
                       code="INTERNAL_ERROR", correlation_id=correlation_id)
         finally:
+            if (self.security.strikes.counting == "consecutive" and kind in ("message", "answer")
+                    and not self.state.struck_this_turn):
+                self.state.strikes = 0              # a normal input resets consecutive strikes
             self.store.save(self.state)
             replies = [event.text[:500] for event in self.events(before) if event.type == "assistant"]
             form = self.form
@@ -156,19 +160,84 @@ class AgentSession:
         if self.form is None:
             await self._guard(self.policy.advance(self), "begin")
 
+    def _refuse_if_ended(self) -> bool:
+        if self.state.ended is None:
+            return False
+        self.emit("error", "This session has ended; start a new session to continue.", code="SESSION_ENDED")
+        return True
+
+    async def strike(self, source: str, message: str, *, code: str = "OUT_OF_SCOPE") -> bool:
+        """Show a guard's message and, if the profile counts this source, record a strike.
+
+        The profile decides what happens at the limit: end the session, switch to guided mode,
+        or only warn. Returns whether a strike was counted.
+        """
+        rules = self.security.strikes
+        counted = source in rules.sources
+        if counted:
+            self.state.strikes += 1
+            self.state.struck_this_turn = True
+        count = self.state.strikes
+        shown = f"{message} (strike {count} of {rules.limit})" if counted and rules.show_count else message
+        self.emit("assistant", shown, code=code, source=source, strike=count if counted else None)
+        if not counted:
+            return False
+        consequence = {"end_session": "ends this session", "guided": "switches this session to guided mode",
+                       "warn": "reaches this session's strike limit"}[rules.action]
+        if count == rules.warn_at and count < rules.limit:
+            self.emit("notice", f"One more unrelated or unsafe request {consequence}.", code="STRIKE_WARNING")
+        if count == rules.limit:
+            await self._strike_limit(rules.action, source)
+        self.store.save(self.state)                 # a strike is never lost to a crash
+        return True
+
+    async def _strike_limit(self, action: str, source: str) -> None:
+        if action == "end_session":
+            self.state.ended = source
+            self.state.pending_call, self.state.turn = None, []
+            self.close_form()
+            self.emit("notice", f"This session has ended after {self.state.strikes} strikes. Running jobs "
+                                "continue and their files stay in the data root; start a new session to "
+                                "continue.", code="SESSION_ENDED")
+        elif action == "guided":
+            switch = getattr(self.policy, "set_mode", None)
+            if switch is not None and self.state.mode != "guided":
+                await switch(self, "guided")
+            self.state.mode = "guided"
+            self.emit("notice", "Strike limit reached: this session continues in guided mode.",
+                      code="STRIKE_LIMIT")
+        else:
+            self.emit("notice", "Strike limit reached; this profile only warns.", code="STRIKE_LIMIT")
+
+    async def reopen(self) -> bool:
+        """Reopen an ended session when the profile allows it; strikes start again from zero."""
+        if self.state.ended is None:
+            return True
+        if self.security.strikes.reopen != "allow":
+            self.emit("error", f"This session has ended and the {self.security.profile} profile does not "
+                               "allow reopening it.", code="SESSION_ENDED")
+            return False
+        self.state.ended, self.state.strikes = None, 0
+        self.store.save(self.state)
+        self.emit("notice", "Session reopened; strikes start again from zero.", code="SESSION_REOPENED")
+        return True
+
     async def send_text(self, text: str) -> None:
         text = text.strip()
-        if not text:
+        if not text or self._refuse_if_ended():
             return
         if len(text) > 4000:
             self.emit("error", "Messages are limited to 4,000 characters.", code="MESSAGE_TOO_LONG")
             return
         # Hidden characters, credentials and local paths never reach the event log or a model.
         text = safe_prompt(normalize_input(text), limit=4000)
+        self.state.turn_origin = "text"
         self.emit("user", text)
         await self._guard(self.policy.on_text(self, text), "message", {"text": text})
 
     async def answer(self, answer: Answer) -> None:
+        if self._refuse_if_ended():
+            return
         form = self.form
         if form is None or answer.interaction_id != form.id or answer.revision != form.revision:
             self.emit("error", "That form is no longer current; answer the latest one.", code="STALE_FORM")
@@ -176,11 +245,14 @@ class AgentSession:
         if answer.text:
             answer = answer.model_copy(update={"text": safe_prompt(normalize_input(answer.text), limit=4000)})
         said = answer_text(form, answer)
+        self.state.turn_origin = "text" if answer.text else "answer"
         self.emit("user", said, answer=answer.model_dump(mode="json"))
         await self._guard(self.policy.on_answer(self, form, answer), "answer",
                           {"form": form.kind, "gate": form.gate, "answer": said})
 
     async def back(self) -> None:
+        if self._refuse_if_ended():
+            return
         current, *earlier = self.store.snapshots(self.id, 2)
         if not earlier:
             self.emit("error", "There is no earlier step to go back to.", code="NOTHING_TO_UNDO")
@@ -196,6 +268,9 @@ class AgentSession:
         # Back undoes choices, not results: uploaded and retrieved EPWs stay available.
         restored.facts.artifact_ids = list(self.facts.artifact_ids)
         restored.facts.finished_job_ids = list(self.facts.finished_job_ids)
+        # Back undoes choices, never strikes.
+        restored.strikes, restored.ended = self.state.strikes, self.state.ended
+        restored.shown_notices = list(self.state.shown_notices)
         restored.revision = self.state.revision + 1
         if restored.form is not None:
             restored.form = restored.form.model_copy(update={"revision": restored.revision})
@@ -206,6 +281,8 @@ class AgentSession:
 
     async def set_mode(self, mode: str) -> None:
         """Switch between agent and guided mode; agent mode needs a policy with a model."""
+        if self._refuse_if_ended():
+            return
         switch = getattr(self.policy, "set_mode", None)
         if switch is None:
             if mode != self.state.mode:
@@ -215,6 +292,8 @@ class AgentSession:
         await self._guard(switch(self, mode), "mode", {"mode": mode})
 
     async def new_request(self) -> None:
+        if self._refuse_if_ended():
+            return
         self.facts.new_request()
         self.close_form()
         # A model question left open belongs to the old request.
@@ -224,6 +303,8 @@ class AgentSession:
         await self._guard(self.policy.advance(self), "new_request")
 
     async def upload_epw(self, content: bytes, filename: str | None = None) -> None:
+        if self._refuse_if_ended():
+            return
         await self._guard(self._upload(content, filename), "upload",
                           {"filename": safe_prompt(filename or "", limit=200), "bytes": len(content)})
 

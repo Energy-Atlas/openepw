@@ -182,6 +182,14 @@ async def main_chat(service: Any, *, session_id: str | None = None,
                 if session.form is not None and "call_id" in session.form.data:
                     session.close_form()               # the model's question; guided rules ask anew
                 session.emit("notice", "No model is configured; continuing in guided mode.", mode="guided")
+            if session.state.ended is not None:       # a session three strikes ended
+                if not (reopen and await session.reopen()):
+                    allowed = session.security.strikes.reopen == "allow"
+                    write(f"✗ SESSION_ENDED: session {session.id} has ended"
+                          + ("; add --reopen to reopen it." if allowed and not reopen else
+                             f"; the {session.security.profile} profile does not allow reopening it."
+                             if not allowed else ".") + " Start a new chat with: openepw chat")
+                    return 2
             write(f"OpenEPW chat ({session.state.mode} mode) · session {session.id}. "
                   "Type /help for commands.")
             await session.begin()
@@ -244,7 +252,10 @@ async def main_chat(service: Any, *, session_id: str | None = None,
                         continue
                     if command == "/status":
                         finished = set(session.facts.finished_job_ids)
-                        write(f"Mode: {session.state.mode}. Jobs: " + (", ".join(f"{job} ({'finished' if job in finished else 'running'})"
+                        rules = session.security.strikes
+                        write(f"Mode: {session.state.mode}. Profile: {session.security.profile} "
+                              f"({session.security.digest}). Strikes: {session.state.strikes} of {rules.limit}. "
+                              "Jobs: " + (", ".join(f"{job} ({'finished' if job in finished else 'running'})"
                                                     for job in session.facts.job_ids) or "none"))
                         continue
                     if command == "/back":
@@ -263,13 +274,18 @@ async def main_chat(service: Any, *, session_id: str | None = None,
                         else:
                             await session.send_text(line)
                     flush()
+                    if session.state.ended is not None:
+                        break                           # three strikes: the chat closes
                     if session.form and session.form != before:
                         write(render_form(session.form))
             finally:
                 # Inside the client block so `session` is always bound when this runs.
                 if any(job not in session.facts.finished_job_ids for job in session.facts.job_ids):
                     write("Running jobs finish before the chat exits; they stay in the data root.")
-                write(f"Session {session.id} saved. Resume with: openepw chat --session {session.id}")
+                if session.state.ended is not None:
+                    write(f"Session {session.id} has ended. Start a new chat with: openepw chat")
+                else:
+                    write(f"Session {session.id} saved. Resume with: openepw chat --session {session.id}")
     finally:
         runner.close()
         tracer.close()                                 # send any traces still queued
