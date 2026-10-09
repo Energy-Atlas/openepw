@@ -264,14 +264,16 @@ modes.
 - **Q1 Link allowlist:** which domains? The draft lists NREL, Open-Meteo, Copernicus CDS, NOAA
   NCEI, the EU JRC (PVGIS) and climate.onebuilding.org. Should the openepw docs site be added
   once it has a public URL?
+  [CL: do create an allowlsit of these domains]
 - **Q2 `local.yaml` defaults:** should the local profile match hosted except
   `moderation.on_error: allow`? Or should strikes in local default to `warn`, so development is
   not interrupted?
+  [CL: default to warn]
 - **Q3 Knowledge answers:**
   - Should they be allowed in guided mode? Guided mode has no model, so the proposal is no:
-    guided mode keeps its "reads places, years and products" message.
+    guided mode keeps its "reads places, years and products" message. [CL: no]
   - Should a knowledge answer count against the model budget like any other turn? (Proposed:
-    yes.)
+    yes.) [CL: yes]
 - **Q4 Moderation in guided mode without a key:** guided mode works without any OpenAI key
   today. With moderation everywhere and `on_error: block` (hosted), guided mode on a host
   without a key would refuse everything. Should hosted require a key at start-up instead?
