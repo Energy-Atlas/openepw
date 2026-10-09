@@ -150,10 +150,20 @@ def main(argv=None):
                 scenarios_file=args.scenarios_file, output=args.output, env_file=args.env_file or ".env",
                 security=_security_policy(args, "local")))
         if args.command == "chat":
-            from ..agent.cli import chat_model, chat_tracer, main_chat, prepare_console
+            from ..agent.cli import (
+                chat_model,
+                chat_moderation,
+                chat_tracer,
+                main_chat,
+                prepare_console,
+            )
 
             prepare_console()
             security = _security_policy(args, "local")
+            moderation, problem = chat_moderation(security, args.env_file or ".env")
+            if problem:
+                print(problem)
+                return 2
             model, notice = chat_model(args.mode, model=args.model, max_cost=args.max_cost,
                                        data_root=config.data_root, env_file=args.env_file or ".env")
             if notice:
@@ -163,7 +173,7 @@ def main(argv=None):
                 print(tracing_notice)
             try:
                 return asyncio.run(main_chat(service, session_id=args.session, model=model, tracer=tracer,
-                                             security=security, reopen=args.reopen))
+                                             security=security, reopen=args.reopen, moderation=moderation))
             except KeyboardInterrupt:
                 print("\nChat interrupted; the session and completed artifacts stay in the data root.")
                 return 130

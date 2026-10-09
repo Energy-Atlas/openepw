@@ -247,7 +247,7 @@ class ModelPolicy:
             s.state.turn.append(reply.item())
             # A decline replaces whatever the model wrote alongside it.
             if reply.text and not any(call.name == "out_of_scope" for call in reply.tool_calls):
-                s.emit("assistant", reply.text)
+                await s.model_says(reply.text)
             if not reply.tool_calls:
                 return
             stop: str | None = None
@@ -467,7 +467,7 @@ class ModelPolicy:
         words = text.split()
         limit = s.security.scope.knowledge_answer_words
         body = " ".join(words[:limit]) + ("…" if len(words) > limit else "")
-        s.emit("assistant", f"{body}\n\n{KNOWLEDGE_LABEL}", code="KNOWLEDGE_ANSWER")
+        await s.model_says(f"{body}\n\n{KNOWLEDGE_LABEL}", code="KNOWLEDGE_ANSWER")
         return {"shown": True, "words": min(len(words), limit)}
 
     @staticmethod
@@ -617,5 +617,5 @@ class ModelPolicy:
             return
         s.state.turn.append(reply.item())
         if reply.text:
-            s.emit("assistant", reply.text)
+            await s.model_says(reply.text)
         s.state.turn_seq = s.events()[-1].seq

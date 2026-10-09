@@ -14,7 +14,8 @@ from .guided import GuidedPolicy
 from .interactions import Answer, Event, Interaction
 from .mcp_port import ApprovalBook, InProcessMCP
 from .model_port import DEFAULT_MODEL, ModelPort, ModelUnavailable, OpenAIModel, load_openai_key
-from .policy_config import SecurityPolicy
+from .moderation import ModerationPort, OpenAIModeration
+from .policy_config import SecurityPolicy, requires_moderation_key
 from .policy_model import ModelPolicy
 from .session import MAX_UPLOAD, AgentSession, Policy
 from .store import SessionStore
@@ -77,6 +78,25 @@ def chat_tracer(env_file: str | Path | None = ".env") -> tuple[NullTracer, str |
             return NullTracer(), f"LangSmith tracing is off ({type(error).__name__} starting the client)."
     asked = settings.reason != "LANGSMITH_TRACING is not true"
     return NullTracer(), (f"LangSmith tracing is off: {settings.reason}." if asked else None)
+
+
+def chat_moderation(security: SecurityPolicy, env_file: str | Path | None = ".env"
+                    ) -> tuple[ModerationPort | None, str | None]:
+    """The moderation port for `openepw chat`, or a reason the chat must not start.
+
+    A profile that refuses input when moderation cannot run (on_error: block) needs an OpenAI key
+    at start-up; without one every message would be refused.
+    """
+    if not security.moderation.enabled:
+        return None, None
+    key = load_openai_key(env_file)
+    if key:
+        return OpenAIModeration(key, model=security.moderation.model), None
+    if requires_moderation_key(security):
+        return None, (f"The {security.profile} profile moderates every message and refuses input when "
+                      "moderation cannot run (moderation.on_error: block), but OPENAI_API_KEY is not set. "
+                      "Set the key, or use a profile with on_error: allow.")
+    return None, None
 
 
 def _read_upload(argument: str, write: Callable[[str], Any]) -> tuple[bytes, str] | None:
@@ -145,7 +165,8 @@ async def main_chat(service: Any, *, session_id: str | None = None,
                     read: Callable[[str], str] = input, write: Callable[[str], Any] = print,
                     poll_seconds: float = 0.5, follow_seconds: float = 120.0,
                     model: ModelPort | None = None, tracer: NullTracer | None = None,
-                    security: SecurityPolicy | None = None, reopen: bool = False) -> int:
+                    security: SecurityPolicy | None = None, reopen: bool = False,
+                    moderation: ModerationPort | None = None) -> int:
     """The chat loop; agent mode when a model is given, otherwise guided mode.
 
     ``tracer`` records LangSmith runs when the env file turns tracing on (see chat_tracer).
@@ -173,7 +194,8 @@ async def main_chat(service: Any, *, session_id: str | None = None,
     try:
         async with InProcessMCP(create_server(service, runner=runner), approvals) as port:
             policy: Policy = ModelPolicy(model) if model is not None else GuidedPolicy()
-            options = {"poll_seconds": poll_seconds, "tracer": tracer, "security": security}
+            options = {"poll_seconds": poll_seconds, "tracer": tracer, "security": security,
+                       "moderation": moderation}
             session = (AgentSession.resume(store, port, approvals, policy, session_id, **options)
                        if session_id else AgentSession.start(store, port, approvals, policy, **options))
             if model is None and session.state.mode == "agent":

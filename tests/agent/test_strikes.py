@@ -129,12 +129,13 @@ def test_the_cli_closes_an_ended_session_and_refuses_to_resume_it(tmp_path):
 
     from openepw.agent.cli import main_chat
     from openepw.agent.model_port import ScriptedModel, call
+    from openepw.agent.moderation import StubModeration
 
     model = ScriptedModel([call("out_of_scope", {"category": "unrelated"}) for _ in range(3)])
     lines = iter(["solve dy/dx = 3y", "write a poem", "tell me a joke", "AMY 2018 for Ithaca", "/quit"])
     output = []
     asyncio.run(main_chat(scenario_service(tmp_path), read=lambda prompt: next(lines), write=output.append,
-                          model=model, security=load_policy("hosted")))
+                          model=model, security=load_policy("hosted"), moderation=StubModeration()))
     text = "\n".join(output)
     assert "strike 3 of 3" in text and "has ended" in text and output[-1].endswith("openepw chat")
     session_id = output[-1].split()[1]

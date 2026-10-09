@@ -155,8 +155,13 @@ def _validate(data: dict[str, Any], source: str) -> SecurityPolicy:
 
 @lru_cache(maxsize=None)
 def default_policy() -> SecurityPolicy:
-    """The local profile, used when a session is created without one (library and tests)."""
-    return load_policy("local")
+    """For a session created without a profile (library use and tests): the local profile with
+    moderation off, so nothing is sent anywhere. `openepw chat`, `eval` and `serve` always pass
+    the profile they loaded."""
+    local = load_policy("local")
+    policy = local.model_copy(update={"moderation": local.moderation.model_copy(update={"enabled": False})})
+    policy.source, policy.digest = "library default (local profile, moderation off)", local.digest + "-lib"
+    return policy
 
 
 def load_policy(profile: str | None = None, *, file: str | Path | None = None,

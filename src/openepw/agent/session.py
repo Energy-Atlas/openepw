@@ -13,12 +13,14 @@ from .gates import GateRequired
 from .guard import normalize_input
 from .interactions import Answer, Event, Interaction
 from .mcp_port import ApprovalBook, MCPPort, ToolFailure, ToolResult
+from .moderation import ModerationPort, ModerationUnavailable, epw_text_fields
 from .policy_config import SecurityPolicy, default_policy
 from .state import Facts, SessionState
 from .store import SessionStore
 from .text import safe_prompt
 from .tracing import NullTracer, summarize_arguments
 
+WITHHELD = "[message withheld by moderation]"
 TERMINAL = frozenset({"completed", "partially_completed", "failed", "cancelled"})
 MAX_UPLOAD = 5_000_000
 logger = logging.getLogger("openepw.agent")
@@ -47,8 +49,10 @@ def answer_text(form: Interaction, answer: Answer) -> str:
 class AgentSession:
     def __init__(self, store: SessionStore, port: MCPPort, approvals: ApprovalBook,
                  state: SessionState, policy: Policy, *, poll_seconds: float = 0.5,
-                 tracer: NullTracer | None = None, security: SecurityPolicy | None = None):
+                 tracer: NullTracer | None = None, security: SecurityPolicy | None = None,
+                 moderation: ModerationPort | None = None):
         self.store = store
+        self.moderation = moderation                    # None: moderation cannot run (on_error decides)
         self.security = security or default_policy()   # the YAML security profile in force
         self.trace = tracer or NullTracer()        # LangSmith runs when the env file turns them on
         self.port = port
@@ -166,7 +170,50 @@ class AgentSession:
         self.emit("error", "This session has ended; start a new session to continue.", code="SESSION_ENDED")
         return True
 
-    async def strike(self, source: str, message: str, *, code: str = "OUT_OF_SCOPE") -> bool:
+    async def _moderation(self, kind: str, texts: list[str]) -> tuple[str, tuple[str, ...]]:
+        """'ok', 'flagged', 'blocked' (cannot run and the profile refuses) or 'unchecked'
+        (cannot run and the profile allows it), with flagged category names."""
+        rules = self.security.moderation
+        texts = [text for text in texts if text and text.strip()]
+        if not rules.enabled or kind not in rules.check or not texts:
+            return "ok", ()
+        try:
+            if self.moderation is None:
+                raise ModerationUnavailable("No moderation is configured")
+            result = await self.moderation.check(texts)
+        except ModerationUnavailable:
+            return ("blocked" if rules.on_error == "block" else "unchecked"), ()
+        if result.flagged:
+            logger.info("Moderation flagged %s input: %s", kind, ", ".join(result.categories))
+            return "flagged", result.categories
+        return "ok", ()
+
+    def _moderation_notice(self, status: str) -> bool:
+        """Report a moderation outage; True when the input must not be processed."""
+        if status == "blocked":
+            self.emit("error", "This could not be checked by moderation, so it was not processed. "
+                               "Try again later.", code="MODERATION_UNAVAILABLE")
+            return True
+        if status == "unchecked" and "moderation_unavailable" not in self.state.shown_notices:
+            self.state.shown_notices.append("moderation_unavailable")
+            self.emit("notice", "Moderation is unavailable; continuing without it under the "
+                                f"{self.security.profile} profile.", code="MODERATION_UNAVAILABLE")
+        return False
+
+    async def model_says(self, text: str, **data: Any) -> None:
+        """Show the model's text after the host's output checks (moderation if configured)."""
+        status, categories = await self._moderation("model_output", [text])
+        if status == "flagged":
+            self.emit("assistant", "I can't show that reply.", code="MODERATION_FLAG",
+                      categories=list(categories))
+            return
+        if status == "blocked":
+            self.emit("assistant", "That reply could not be checked by moderation, so it is not shown.",
+                      code="MODERATION_UNAVAILABLE")
+            return
+        self.emit("assistant", text, **data)
+
+    async def strike(self, source: str, message: str, *, code: str = "OUT_OF_SCOPE", **data: Any) -> bool:
         """Show a guard's message and, if the profile counts this source, record a strike.
 
         The profile decides what happens at the limit: end the session, switch to guided mode,
@@ -179,7 +226,7 @@ class AgentSession:
             self.state.struck_this_turn = True
         count = self.state.strikes
         shown = f"{message} (strike {count} of {rules.limit})" if counted and rules.show_count else message
-        self.emit("assistant", shown, code=code, source=source, strike=count if counted else None)
+        self.emit("assistant", shown, code=code, source=source, strike=count if counted else None, **data)
         if not counted:
             return False
         consequence = {"end_session": "ends this session", "guided": "switches this session to guided mode",
@@ -232,7 +279,16 @@ class AgentSession:
         # Hidden characters, credentials and local paths never reach the event log or a model.
         text = safe_prompt(normalize_input(text), limit=4000)
         self.state.turn_origin = "text"
+        status, categories = await self._moderation("input", [text])
+        if status == "flagged":
+            self.emit("user", WITHHELD)
+            await self.strike("moderation", "That message can't be processed.", code="MODERATION_FLAG",
+                              categories=list(categories))
+            return
         self.emit("user", text)
+        if self._moderation_notice(status):
+            self.store.save(self.state)
+            return
         await self._guard(self.policy.on_text(self, text), "message", {"text": text})
 
     async def answer(self, answer: Answer) -> None:
@@ -244,6 +300,14 @@ class AgentSession:
             return
         if answer.text:
             answer = answer.model_copy(update={"text": safe_prompt(normalize_input(answer.text), limit=4000)})
+            status, categories = await self._moderation("form_text", [answer.text or ""])
+            if status == "flagged":
+                self.emit("user", WITHHELD)
+                await self.strike("moderation", "That answer can't be processed.", code="MODERATION_FLAG",
+                                  categories=list(categories))
+                return
+            if self._moderation_notice(status):
+                return
         said = answer_text(form, answer)
         self.state.turn_origin = "text" if answer.text else "answer"
         self.emit("user", said, answer=answer.model_dump(mode="json"))
@@ -311,6 +375,13 @@ class AgentSession:
     async def _upload(self, content: bytes, filename: str | None) -> None:
         if not content or len(content) > MAX_UPLOAD:
             self.emit("error", "EPW uploads must be 1 byte to 5 MB.", code="RESOURCE_LIMIT")
+            return
+        status, categories = await self._moderation("upload_text", [*epw_text_fields(content), filename or ""])
+        if status == "flagged":
+            await self.strike("moderation", "That file's text can't be processed, so it was not uploaded.",
+                              code="MODERATION_FLAG", categories=list(categories))
+            return
+        if self._moderation_notice(status):
             return
         result = await self.tool("epw_upload", content_base64=base64.b64encode(content).decode("ascii"),
                                  filename=filename)

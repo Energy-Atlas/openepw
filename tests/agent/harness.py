@@ -5,6 +5,7 @@ from fakes import scenario_service
 from openepw.agent.guided import GuidedPolicy
 from openepw.agent.interactions import Answer
 from openepw.agent.mcp_port import ApprovalBook, InProcessMCP
+from openepw.agent.moderation import StubModeration
 from openepw.agent.session import AgentSession
 from openepw.agent.store import SessionStore
 from openepw.jobs.worker import JobRunner
@@ -12,8 +13,9 @@ from openepw.mcp.server import create_server
 
 
 class Harness:
-    def __init__(self, tmp_path, session_id=None, policy=None, fail_near=(), tracer=None):
+    def __init__(self, tmp_path, session_id=None, policy=None, fail_near=(), tracer=None, moderation=None):
         self.tracer = tracer
+        self.moderation = moderation or StubModeration()      # offline: flags only FLAG_MARKER
         self.tmp_path = tmp_path
         self.session_id = session_id
         self.policy = policy or GuidedPolicy()
@@ -27,10 +29,11 @@ class Harness:
         self.port = await InProcessMCP(self.server, self.approvals).__aenter__()
         if self.session_id:
             self.session = AgentSession.resume(self.store, self.port, self.approvals, self.policy,
-                                               self.session_id, poll_seconds=0.05, tracer=self.tracer)
+                                               self.session_id, poll_seconds=0.05, tracer=self.tracer,
+                                               moderation=self.moderation)
         else:
             self.session = AgentSession.start(self.store, self.port, self.approvals, self.policy,
-                                              poll_seconds=0.05, tracer=self.tracer)
+                                              poll_seconds=0.05, tracer=self.tracer, moderation=self.moderation)
         await self.session.begin()
         return self
 
