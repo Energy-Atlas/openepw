@@ -180,3 +180,69 @@ def test_failed_transcripts_never_carry_a_key(tmp_path):
 def test_live_agent_evals_need_the_live_flag(tmp_path):
     output = []
     assert asyncio.run(main_eval(mode="agent", write=output.append)) == 2 and "--live" in output[-1]
+
+
+@pytest.mark.parametrize("profile", ["local", "hosted"])
+def test_packaged_scenarios_pass_under_each_security_profile(profile):
+    from openepw.agent.policy_config import load_policy
+
+    security = load_policy(profile)
+    scenarios = load_scenarios()
+    guided = asyncio.run(run_evals(scenarios, mode="guided", security=security))
+    agent = asyncio.run(run_evals(scenarios, mode="agent", security=security,
+                                  model_factory=lambda item: scripted_model(item) if "script" in item else None))
+    failed = [(report.scenario, report.failures) for report in guided + agent if report.pass_rate < 1.0]
+    assert not failed
+
+
+def guarded_check(events, *, profile="hosted", scenario=None, ended=None, strikes=0):
+    from types import SimpleNamespace
+
+    from openepw.agent.evals.runner import _check
+    from openepw.agent.interactions import Event
+    from openepw.agent.policy_config import load_policy
+    from openepw.agent.state import Facts
+
+    session = SimpleNamespace(events=lambda: [Event(seq=index + 1, **event) for index, event in enumerate(events)],
+                              facts=Facts(), state=SimpleNamespace(ended=ended, strikes=strikes),
+                              security=load_policy(profile))
+    return _check(scenario or {"id": "T"}, session, None, mode="agent")
+
+
+def test_a_link_outside_the_allowlist_fails_the_run():
+    shown = [{"type": "assistant", "text": "Get the fix from https://evil.example/fix"}]
+    assert "LINK_LEAK" in guarded_check(shown)
+    allowed = [{"type": "assistant", "text": "See https://nsrdb.nrel.gov for the dataset."}]
+    assert "LINK_LEAK" not in guarded_check(allowed)
+
+
+def test_checks_by_profile_override_the_shared_checks():
+    s33 = next(item for item in load_scenarios() if item["id"] == "S33")
+    notices = [{"type": "notice", "text": "x", "data": {"code": code}}
+               for code in ("STRIKE_WARNING", "STRIKE_LIMIT")]
+    assert guarded_check(notices, profile="local", scenario=s33, strikes=3) == []
+    hosted = guarded_check(notices, profile="hosted", scenario=s33, strikes=3)
+    assert {"SESSION_NOT_ENDED", "MISSING_GUARD_CODE"} <= set(hosted)
+    assert "SESSION_ENDED_UNEXPECTEDLY" in guarded_check(notices, profile="local", scenario=s33,
+                                                         strikes=3, ended="strike_limit")
+
+
+def test_strike_code_and_knowledge_checks():
+    said = [{"type": "assistant", "text": "DNI is the direct beam.", "data": {"guards": ["LINK_REMOVED"]}}]
+    scenario = {"id": "T", "checks": {"strikes": 0, "min_strikes": 1, "codes": ["MODERATION_FLAG"],
+                                      "absent_codes": ["LINK_REMOVED"], "knowledge_answer": True}}
+    failures = guarded_check(said, scenario=scenario, strikes=2)
+    assert {"STRIKES", "MISSING_GUARD_CODE", "UNEXPECTED_CODE", "UNLABELLED_KNOWLEDGE_ANSWER"} <= set(failures)
+    labelled = [{"type": "assistant", "text": "DNI is the direct beam.", "data": {"guards": ["KNOWLEDGE_ANSWER"]}}]
+    assert guarded_check(labelled, scenario={"id": "T", "checks": {"knowledge_answer": True}}) == []
+
+
+def test_eval_reports_name_the_security_profile(tmp_path):
+    from openepw.agent.policy_config import load_policy
+
+    report, output = tmp_path / "report.json", []
+    hosted = load_policy("hosted")
+    assert asyncio.run(main_eval(scenario_ids=["S2"], output=report, security=hosted, write=output.append)) == 0
+    summary = json.loads(report.read_text(encoding="utf-8"))
+    assert summary["security_profile"] == "hosted" and summary["security_digest"] == hosted.digest
+    assert any("profile hosted" in line for line in output)

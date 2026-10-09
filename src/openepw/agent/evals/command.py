@@ -7,7 +7,8 @@ from pathlib import Path
 from typing import Any, Callable
 
 from ..model_port import DEFAULT_MODEL, ModelPort, OpenAIModel, load_openai_key
-from ..policy_config import SecurityPolicy
+from ..moderation import OpenAIModeration
+from ..policy_config import SecurityPolicy, load_policy
 from .runner import RunResult, load_scenarios, report_json, run_evals, scripted_model
 
 
@@ -52,12 +53,18 @@ async def main_eval(*, mode: str = "guided", scripted: bool = False, live: bool 
               f"{result.seconds:6.1f}s ${result.cost_usd:.4f}")
 
     label = "scripted" if scripted else (live_model.name if live_model else "none")
+    security = security or load_policy("local")
+    moderation = None                                   # offline: each run uses the stub
+    if live_model is not None and security.moderation.enabled:
+        moderation = OpenAIModeration(load_openai_key(env_file) or "", model=security.moderation.model)
     write(f"openepw eval · mode {mode} · model {label} · repeats {repeats} · "
-          f"providers {'live' if live_providers else 'stubbed'}")
+          f"providers {'live' if live_providers else 'stubbed'} · profile {security.profile} ({security.digest})")
     reports = await run_evals(scenarios, mode=mode, model_factory=factory, repeats=repeats,
-                              live_providers=live_providers, on_result=show)
+                              live_providers=live_providers, on_result=show, security=security,
+                              moderation=moderation)
     summary = report_json(reports, mode=mode, model=label, repeats=repeats,
-                          providers="live" if live_providers else "stubbed")
+                          providers="live" if live_providers else "stubbed",
+                          security_profile=security.profile, security_digest=security.digest)
     write(f"{summary['passed']}/{summary['runs']} runs passed; estimated model cost ${summary['cost_usd']:.4f}")
     if output is not None:
         output.parent.mkdir(parents=True, exist_ok=True)

@@ -197,7 +197,7 @@ class AgentSession:
         except ModerationUnavailable:
             return ("blocked" if rules.on_error == "block" else "unchecked"), ()
         if result.flagged:
-            logger.info("Moderation flagged %s input: %s", kind, ", ".join(result.categories))
+            logger.info("Moderation flagged %s text: %s", kind, ", ".join(result.categories))
             return "flagged", result.categories
         return "ok", ()
 

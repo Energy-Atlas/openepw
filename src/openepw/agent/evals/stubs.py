@@ -105,6 +105,16 @@ class StubERA5:
                               task.source, b"stub-era5")
 
 
+def synthetic_epw(city: str = "Ithaca", year: int = 2023) -> bytes:
+    """A constant-weather annual EPW whose header names ``city`` (evals plant text there)."""
+    from ...epw.writer import epw_bytes
+    from ...models import Location
+
+    index = pd.date_range(f"{year}-01-01 01:00", periods=8760, freq="h", tz="UTC")
+    frame = pd.DataFrame({name: [value] * len(index) for name, value in VALUES.items()}, index=index)
+    return epw_bytes(WeatherDataset(data=frame, location=Location(lat=42.44, lon=-76.5, name=city)))
+
+
 def stub_service(data_root: str | Path, fail_near: Iterable[tuple[float, float]] = ()) -> WeatherService:
     config = RuntimeConfig(data_root=Path(data_root))
     return WeatherService(config, http=StubHttp(config), providers=[StubERA5(fail_near)])
