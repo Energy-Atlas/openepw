@@ -59,3 +59,13 @@ CLI is not exercised by the web, and web forms have no CLI counterpart.
   - Error text is a bare JSON object `{code, message, retryable}` (plus
     `details` or `correlation_id`), including for invalid arguments, with no
     "Error executing tool" prefix.
+
+## Note (2026-10-09): guardrails
+
+The agent chat's defences against irrelevant and malicious prompts are a run setting, not part
+of this decision's gates: a security profile (YAML) chooses moderation, strike limits and what
+happens at the limit, the link allowlist and the knowledge-answer length. The gates above are
+unchanged and apply under every profile; a profile cannot weaken plan approval or one-shot
+submission confirmation. See the
+[guardrail plan](../superpowers/plans/2026-10-09-agent-guardrails.md) and the
+[agent README](../agent/README.md#security-profiles-and-guards).

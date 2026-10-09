@@ -279,6 +279,18 @@ scripted models or with a live model, against offline stubs by default. Optional
 tracing for the agent chat and the web chat is decided by `LANGSMITH_TRACING` in the env file
 (`openepw.agent.tracing`); traces hold only redacted text and summaries.
 
+Guardrails (2026-10-09, [plan](docs/superpowers/plans/2026-10-09-agent-guardrails.md)) are
+configured by a security profile, a YAML run setting validated by `openepw.agent.policy_config`:
+`local` and `hosted` ship in the package, `serve` picks `hosted` on a non-local host, and ignored
+`config/security/*.local.yaml` overrides extend a base profile. `openepw.agent.guard` holds the
+pure text checks (input normalisation, outside-text cleaning into `tool_data`, the off-topic
+clamp, the link allowlist and the readiness check); `openepw.agent.moderation` is a port to the
+OpenAI moderation endpoint with an offline stub. The session applies them and counts strikes for
+the whole session (`end_session`, `guided` or `warn` at the limit); the model declines or answers
+briefly only through the host tools `out_of_scope` and `knowledge_answer`. Guard codes, the
+profile and its digest go into session events and trace metadata. The legacy `/v1/chat/*` and
+`openepw-chat` paths do not use the profiles.
+
 The optional [reference harness](docs/harness/README.md) consumes only these
 MCP tools through a real stdio client. Its small model adapter extracts typed
 intent; the service retains scientific authority. Safe local run state stores

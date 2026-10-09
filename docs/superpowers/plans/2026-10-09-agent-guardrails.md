@@ -295,3 +295,45 @@ match.
 | Q9 | Guards on the legacy chats (`/v1/chat/*`, `openepw-chat`) | **None.** Wait for P4 and P5. |
 
 The owner approved the plan on 2026-10-09.
+
+## 9. Execution notes (2026-10-09)
+
+Implemented on `feature/agent-guardrails` (tasks 1–9). Deviations and routine choices made
+during execution; sections 4–6 above are left as approved and are superseded where they differ.
+
+- **Profile files:** the two profiles live only in the package (`src/openepw/agent/profiles/`),
+  so there is one copy. `config/security/` holds the commented example and the ignored
+  `*.local.yaml` overrides.
+- **Override labels:** an override is reported as `<base>+override` (for example
+  `hosted+override`), so it cannot pass as the committed profile; the remote-serve warning
+  compares every profile with `hosted`. A bad value falls back to the `hosted` value.
+- **Q4 scope:** the start-up failure (moderation on, `on_error: block`, no key) applies to
+  `openepw chat`. `openepw serve` loads and reports the profile (and warns when remote and
+  weaker, Q6), but nothing it serves uses the profile until P4 renders the agent chat on the
+  web; the legacy `/v1/chat/*` path is unchanged (Q9), so a keyless deployment still starts.
+- **Library default:** an `AgentSession` created without a profile uses `local` values with
+  moderation off, so library use and older tests send nothing to OpenAI. The CLI and the eval
+  command always pass a profile (`local` by default).
+- **Guided mode:** it has no model, so its only strike source is moderation flags.
+- **Reopen:** stricter than written. `--reopen` needs the current profile to allow it and the
+  profile that ended the session not to have said `deny`, so a hosted-ended session cannot be
+  reopened by switching to `local`. Back, `/mode` and `/new` keep the strikes, the ended state
+  and a `guided` downgrade.
+- **Extra codes:** besides the G7 list, `STRIKE_LIMIT` (`warn` at the limit), `SESSION_REOPENED`,
+  `TOOL_NOT_ALLOWED` (refused host-only tool) and `KNOWLEDGE_ANSWER` are recorded.
+- **Outside text:** tool errors shown to the model are cleaned like other outside text; record
+  identifiers (ids, hashes, keys, URIs) are kept as they are.
+- **Evals:** besides `LINK_LEAK`, `SESSION_NOT_ENDED` and `UNLABELLED_KNOWLEDGE_ANSWER`, the runner
+  checks `SESSION_ENDED_UNEXPECTEDLY`, `STRIKES`, `MISSING_GUARD_CODE` and `UNEXPECTED_CODE`.
+  Scenarios may add `then` (more messages), `upload` (a synthetic EPW with planted header text)
+  and `moderation: stub|unavailable`. "Moderation unavailable under both `on_error` values" is
+  S35 run under both profiles. Each guard scenario was checked to fail when its guard is
+  weakened (strike action, moderation, allowlist, knowledge answers).
+
+**Results:**
+
+- Offline evals, both profiles: guided 18/18, agent scripted 20/20.
+- One live pass, `openepw eval --mode agent --live --security-profile hosted --max-cost 0.50`
+  (model `gpt-6-luna`, live moderation endpoint, stubbed weather providers): 24/24 passed,
+  estimated model cost $0.042.
+- Agent tests: 218 passed, 1 skipped (live, opt-in).

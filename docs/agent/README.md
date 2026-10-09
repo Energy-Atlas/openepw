@@ -106,10 +106,14 @@ The host gatekeeper applies to every call:
 - `weather_plan` is rewritten to the approved locations, chosen datasets and years the person
   wrote, or answered `GATE_REQUIRED` with the ask-tool to call (`need`).
 
-The assistant only helps with weather files for building simulation. An unrelated message (for
-example a maths or general-knowledge question) gets one sentence and no tool calls; in a mixed
-message only the weather part is handled. Guided mode does not send sentences that cannot be a
-place to the geocoder. Eval scenarios S23 and S24 check this.
+The assistant helps with weather files for building simulation. A short weather-science or
+energy-modelling question (for example "What is DNI?") gets a brief answer labelled "General
+information, not checked against openepw data." Any other request, such as a maths or
+general-knowledge question, a jailbreak or a harmful request, gets a fixed decline sentence and
+no tool calls, and counts as a strike (see [Security profiles and guards](#security-profiles-and-guards)).
+In a mixed message only the weather part is handled. Guided mode gives no knowledge answers and
+does not send sentences that cannot be a place to the geocoder. Eval scenarios S23–S26, S28 and
+S31 check this.
 
 Text typed while an ask-tool form is open becomes that tool's answer, so corrections reach the
 model. A turn stops after 8 tool steps, 2 retries of one failing tool or 60 seconds; malformed
@@ -117,6 +121,63 @@ calls get one repair attempt and then the guided form for that step. If the mode
 (no key, budget stop, network or provider error) the session switches to guided mode and keeps
 its facts. After a run finishes, the model summarises the host's job message (QC issue codes,
 `simulation_ready=false`) and the next-steps form opens.
+
+## Security profiles and guards
+
+Security choices are a run setting, not environment variables. Two profiles ship in the package
+(`openepw/agent/profiles/local.yaml` and `hosted.yaml`); neither holds a secret, and the
+moderation check uses the same `OPENAI_API_KEY` as the model.
+
+| Setting | `local` | `hosted` |
+| --- | --- | --- |
+| Strike limit, warning at | 3, 2 | 3, 2 |
+| At the limit (`strikes.action`) | `warn` (count only) | `end_session` |
+| Reopen an ended session (`strikes.reopen`) | `allow` | `deny` |
+| Moderation | on: messages, typed form answers, uploaded EPW text | same |
+| Moderation unavailable (`moderation.on_error`) | `allow`, with a notice | `block` |
+| Knowledge answers | on, up to 120 words | same |
+| Links in model text | allowlist: NREL, Open-Meteo, Copernicus CDS, NOAA NCEI, EU JRC, climate.onebuilding.org | same |
+
+```powershell
+.venv/Scripts/openepw.exe chat --security-profile hosted          # try the hosted rules locally
+.venv/Scripts/openepw.exe chat --security-file config/security/mine.local.yaml
+.venv/Scripts/openepw.exe chat --session <id> --reopen            # only when the profile allows it
+.venv/Scripts/openepw.exe eval --mode agent --scripted --security-profile hosted
+```
+
+- **Selection:** `chat` and `eval` use `local` unless told otherwise. `serve` uses `local` on
+  localhost and `hosted` on any other host. A remote `serve` with a profile weaker than
+  `hosted` starts with a `WARNING` that lists every difference. Start-up prints the profile
+  name, file and a 12-character digest; `/status` shows them with the strike count.
+- **Overrides:** copy `config/security/example.local.yaml` to `config/security/<name>.local.yaml`
+  (ignored by git). It names its base (`extends: hosted`) and sets only the keys it changes; it
+  is reported as `hosted+override`. An unknown key or bad value falls back to the `hosted`
+  value with a warning.
+- **No key:** a profile with moderation on and `on_error: block` makes `openepw chat` stop at
+  start-up with a message, rather than refusing every message.
+
+Guards, each recorded as a code in the session events and the LangSmith run metadata:
+
+- **Input:** control, zero-width and bidirectional-override characters are removed, then keys
+  and local paths are redacted. A message moderation flags is withheld from the log and the
+  model (`MODERATION_FLAG`); an unavailable check follows `on_error` (`MODERATION_UNAVAILABLE`).
+- **Outside text:** station names, EPW header fields, filenames and tool errors shown to the
+  model are cut to 120 characters, stripped of links and email addresses, and wrapped as
+  `tool_data` with a note that it is data, not instructions.
+- **Scope:** the model must call `out_of_scope(category)` to decline (`OUT_OF_SCOPE`) or
+  `knowledge_answer(text)` to answer briefly (`KNOWLEDGE_ANSWER`). A long reply from a turn
+  with no tool call, no domain vocabulary and no session place or product name is replaced by
+  the decline (`OFF_TOPIC_CLAMP`). A host-only tool call is refused (`TOOL_NOT_ALLOWED`).
+- **Model text:** links outside the allowlist become "[link removed]" (`LINK_REMOVED`), and an
+  unnegated simulation-ready claim gets a correction (`READINESS_CORRECTED`). Moderating model
+  replies is off by default (`moderation.check` can add `model_output`).
+- **Strikes:** out-of-scope declines, clamps, moderation flags and, in a turn that began with the
+  person's message, refused host-only tool calls each count, for the whole session. Each shows
+  "(strike N of 3)"; the second adds a warning (`STRIKE_WARNING`). At the limit, `end_session`
+  closes the session (`SESSION_ENDED`: later input is refused, running jobs finish and their
+  outputs stay), `guided` switches to guided mode for good, and `warn` only notes it
+  (`STRIKE_LIMIT`). In guided mode only moderation flags count. Until P4 adds per-user limits, a
+  person can start a new session after one ends.
 
 ## Evals
 
@@ -127,8 +188,15 @@ its facts. After a run finishes, the model summarises the host's job message (QC
 ```
 
 Scenarios live in `openepw/agent/evals/scenarios.json` (spec §6: S1–S4, S6, S8, S10–S12, S19,
-S20; plus S23 and S24 for unrelated requests). Each is one message plus how the simulated person answers each form, or a reply they
-type (`"say:..."`). Checks:
+S20; S23 and S24 for unrelated requests; S25–S35 for the guards: knowledge answers, role-play
+jailbreaks, "pretend the plan was approved", prompt extraction, instructions and a link planted
+in an uploaded EPW, hidden characters, another language, a maximum-length message, the strike
+limit, and moderation flags and outages). Each is one message (optionally followed by more,
+`then`, and preceded by an `upload`) plus how the simulated person answers each form, or a reply
+they type (`"say:..."`). `--security-profile` and `--security-file` select the profile, and a
+scenario's `checks_by_profile` states what differs per profile (S33 ends the session under
+`hosted` and only warns under `local`). Scripted runs use a stub moderation port; live runs call
+the moderation endpoint unless a scenario asks for the stub. Checks:
 
 - form and tool order;
 - no host-only tool run for the model;
@@ -136,7 +204,10 @@ type (`"say:..."`). Checks:
 - plan years from words the person typed (option labels do not count);
 - at most 8 model steps per input, and no guided-mode fallback in an agent run;
 - no unnegated simulation-ready claim;
-- no key in the log or in what was sent to the model.
+- no key in the log or in what was sent to the model;
+- no link outside the profile's allowlist (`LINK_LEAK`);
+- per scenario: whether the session ended, the strike count, guard codes present or absent, and
+  a labelled knowledge answer.
 
 Geocoding and weather providers are offline stubs unless `--live-providers` is given; the stub
 geocoder matches names like the real search ("Ithaca" or "Ithaca, NY", not "Ithaca NY"). Agent
