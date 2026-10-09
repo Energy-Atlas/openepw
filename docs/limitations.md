@@ -159,7 +159,9 @@ model's own scope decisions can misjudge borderline weather-science questions; k
 are general information, not checked against openepw data. Ending a session does not stop the
 same person from starting a new one until P4 adds per-user and per-IP limits and spend caps.
 Moderation sends message text to OpenAI's moderation endpoint (also in guided mode) when a
-profile enables it. The legacy `/v1/chat/*` and `openepw-chat` paths have none of these guards.
+profile enables it. Links written with full-width dots are not recognised as links, and
+map-input values and choice ids in form answers are not moderated. The legacy `/v1/chat/*` and
+`openepw-chat` paths have none of these guards.
 
 ## Map-first local browser client
 

@@ -330,10 +330,32 @@ during execution; sections 4–6 above are left as approved and are superseded w
   S35 run under both profiles. Each guard scenario was checked to fail when its guard is
   weakened (strike action, moderation, allowlist, knowledge answers).
 
+**Final review fixes:** a whole-branch review found, and the branch fixes:
+
+- link hosts are read as a browser would (userinfo, backslashes, IDNA, protocol-relative links,
+  any-case or any-TLD domains followed by a path);
+- forms the model writes (prompts, hints, options) get the same output checks as its replies;
+- upload moderation reads the EPW header like the EPW reader (BOM, CSV quoting, UTF-8);
+- the clamp matches whole words, needs two distinct domain terms, ignores years and judges a
+  knowledge answer after trimming;
+- one input counts at most one strike;
+- approved place names in the model's state block are cleaned;
+- the profile loader repairs bad mapping keys and list items and keeps the override label;
+- the remote-serve warning also names extra domain terms and a hidden strike count;
+- an ended session does not open new questions while following jobs;
+- evals check links in form words with an independent pattern, hidden characters in typed text,
+  and what reaches the model (S29 now reads the uploaded file through `weather_data_describe`).
+
+**Known residual limits:** link-like text written with full-width dots (`evil。com`) is not
+recognised; map-input values and choice ids in form answers are not moderated (the CLI cannot
+set free text there; P4's web path must); S28's scripted run cannot fail by construction and
+is meaningful only in live runs.
+
 **Results:**
 
 - Offline evals, both profiles: guided 18/18, agent scripted 20/20.
-- One live pass, `openepw eval --mode agent --live --security-profile hosted --max-cost 0.50`
-  (model `gpt-6-luna`, live moderation endpoint, stubbed weather providers): 24/24 passed,
-  estimated model cost $0.042.
-- Agent tests: 218 passed, 1 skipped (live, opt-in).
+- Live passes, `openepw eval --mode agent --live --security-profile hosted --max-cost 0.50`
+  (model `gpt-6-luna`, live moderation endpoint, stubbed weather providers): 24/24 before the
+  review fixes ($0.042) and 24/24 after them ($0.041).
+- Agent tests: 229 passed, 1 skipped (live, opt-in). Full suite: only the four known
+  availability-test failures, unchanged by this branch.
