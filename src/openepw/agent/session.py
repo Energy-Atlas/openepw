@@ -10,7 +10,7 @@ from typing import Any, Callable, Protocol
 
 from ..models import OpenEPWError
 from .gates import GateRequired
-from .guard import normalize_input
+from .guard import READINESS_CORRECTION, claims_ready, filter_links, normalize_input
 from .interactions import Answer, Event, Interaction
 from .mcp_port import ApprovalBook, MCPPort, ToolFailure, ToolResult
 from .moderation import ModerationPort, ModerationUnavailable, epw_text_fields
@@ -203,7 +203,8 @@ class AgentSession:
         return False
 
     async def model_says(self, text: str, **data: Any) -> None:
-        """Show the model's text after the host's output checks (moderation if configured)."""
+        """Show the model's text after the host's output checks: moderation (if configured), the
+        profile's link policy and, always, a correction of unnegated simulation-ready claims."""
         status, categories = await self._moderation("model_output", [text])
         if status == "flagged":
             self.emit("assistant", "I can't show that reply.", code="MODERATION_FLAG",
@@ -213,6 +214,15 @@ class AgentSession:
             self.emit("assistant", "That reply could not be checked by moderation, so it is not shown.",
                       code="MODERATION_UNAVAILABLE")
             return
+        guards = []
+        text, removed = filter_links(text, self.security.links)
+        if removed:
+            guards.append("LINK_REMOVED")
+        if claims_ready(text):
+            text = f"{text} {READINESS_CORRECTION}"
+            guards.append("READINESS_CORRECTED")
+        if guards:
+            data["guards"] = guards
         self.emit("assistant", text, **data)
 
     async def strike(self, source: str, message: str, *, code: str = "OUT_OF_SCOPE", **data: Any) -> bool:

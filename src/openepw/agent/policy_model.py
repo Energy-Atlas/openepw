@@ -18,7 +18,7 @@ from typing import Any
 from ..mcp.access import HOST_TOOLS, LEGACY_TOOLS, MODEL_TOOLS
 from . import host
 from .gates import GateRequired, check_plan_request, needs_years
-from .guard import clean_external, clean_tool_data
+from .guard import clean_external, clean_tool_data, off_topic
 from .guided import SUSPENDED, GuidedPolicy
 from .interactions import Answer, Interaction, Option
 from .mcp_port import ToolFailure
@@ -248,6 +248,12 @@ class ModelPolicy:
             s.state.turn.append(reply.item())
             # A decline replaces whatever the model wrote alongside it.
             if reply.text and not any(call.name in SCOPE_TOOLS for call in reply.tool_calls):
+                tool_less = not reply.tool_calls and not any(item["type"] == "tool_result"
+                                                             for item in s.state.turn)
+                if tool_less and self._off_topic(s, reply.text):
+                    # The host replaces a long unrelated answer the model wrote despite the rules.
+                    await s.strike("offtopic_clamp", DECLINES["unrelated"], code="OFF_TOPIC_CLAMP")
+                    return
                 await s.model_says(reply.text)
             if not reply.tool_calls:
                 return
@@ -462,8 +468,21 @@ class ModelPolicy:
                 "name; if that also fails, ask the person with request_map_input.")})
         return "ok", shape(result, max_chars=limit)
 
+    @staticmethod
+    def _off_topic(s: AgentSession, text: str) -> bool:
+        """The off-topic clamp: long, with no domain vocabulary and none of this session's names."""
+        clamp = s.security.scope.offtopic_clamp
+        facts = s.facts
+        names = [str(point.get("name") or "").split(",")[0] for point in (facts.review or {}).get("points", [])]
+        names += [str(offer.get("label") or "") for offer in facts.chosen] + [str(year) for year in facts.years]
+        return off_topic(text, enabled=clamp.enabled, min_chars=clamp.min_chars,
+                         extra_terms=s.security.scope.extra_domain_terms, names=names)
+
     async def _knowledge_answer(self, s: AgentSession, text: str) -> dict[str, Any]:
         """A brief, labelled general answer; the host trims it to the profile's word limit."""
+        if self._off_topic(s, text):
+            await s.strike("offtopic_clamp", DECLINES["unrelated"], code="OFF_TOPIC_CLAMP")
+            return {"declined": True, "reason": "off topic"}
         limit = s.security.scope.knowledge_answer_words
         words = list(re.finditer(r"\S+", text.strip()))
         # Keep the answer's own line breaks; cut after the last allowed word.

@@ -22,6 +22,7 @@ from typing import Any, Callable
 
 from ...jobs.worker import JobRunner
 from ...mcp.access import HOST_TOOLS, LEGACY_TOOLS
+from ..guard import claims_ready
 from ..guided import GuidedPolicy
 from ..interactions import Answer, Interaction
 from ..mcp_port import ApprovalBook, InProcessMCP
@@ -37,12 +38,6 @@ logger = logging.getLogger("openepw.agent.evals")
 _SECRET = re.compile(r"\bsk[-_][A-Za-z0-9_-]{8,}\b|\bBearer\s+(?!\[redacted\])\S{8,}"
                      r"|(?i:api[ _-]?key)\s*[=:]\s*(?!\[redacted\])\S+")
 # Readiness claims, and negations that must sit right before them or follow as "=false".
-_READY = re.compile(r"simulation[-_ ]ready|ready for (?:energy ?plus|energy simulation|simulation)", re.I)
-_NEGATED_BEFORE = re.compile(r"\b(?:not|never|isn't|aren't|cannot|can't|no longer)\b(?:\s+[\w-]+){0,2}"
-                             r"\s*[(`'\"]*$", re.I)
-_NEGATED_AFTER = re.compile(r"[`'\"]?\s*(?:=|:|is)\s*`?false", re.I)
-
-
 @dataclass
 class RunResult:
     scenario: str
@@ -205,16 +200,6 @@ def _check(scenario: dict[str, Any], session: AgentSession, model: ModelPort | N
     if _SECRET.search(logged) or _SECRET.search(sent):
         failures.append("SECRET_LEAK")
     return list(dict.fromkeys(failures))
-
-
-def claims_ready(text: str) -> bool:
-    """True when the text says an EPW is simulation-ready without negating it next to the claim."""
-    for match in _READY.finditer(text):
-        before = text[max(0, match.start() - 40):match.start()]
-        after = text[match.end():match.end() + 12]
-        if not (_NEGATED_BEFORE.search(before) or _NEGATED_AFTER.match(after)):
-            return True
-    return False
 
 
 def _subsequence(sequence: list[str], wanted: list[str]) -> bool:

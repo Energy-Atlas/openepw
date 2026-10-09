@@ -192,3 +192,95 @@ def test_tool_errors_reach_the_model_cleaned_and_marked_as_data(tmp_path):
         assert "evil.example" not in sent and "phish" not in sent and "tool_data" in sent
 
     run(h, security, scenario)
+
+
+ESSAY = ("Here is a full solution: separate the variables, integrate both sides and exponentiate, so "
+         "the general solution is y equals C times e to the three x, for any constant C, which you can "
+         "check by differentiating it again and substituting back into the original equation above. "
+         "Let me know if you would like more worked examples of separable equations.")
+
+
+def test_a_long_tool_less_off_topic_reply_is_clamped_and_struck(tmp_path):
+    h, model, security = agent(tmp_path, [say(ESSAY)])
+
+    async def scenario(h):
+        await h.say("solve dy/dx = 3y")
+        shown = assistant(h)[-1]
+        assert shown.data["code"] == "OFF_TOPIC_CLAMP" and "weather files" in shown.text
+        assert "exponentiate" not in " ".join(event.text for event in assistant(h))
+        assert h.session.state.strikes == 1
+
+    run(h, security, scenario)
+
+
+def test_the_clamp_spares_domain_short_and_tool_using_replies(tmp_path):
+    domain = ("Typical meteorological years combine representative months from many years of hourly "
+              "observations, so they suit annual energy simulation but hide extremes; for peak loads "
+              "use actual-year weather or design days instead, and check the station's QC first.")
+    h, model, security = agent(tmp_path, [say(domain), say("Sure, happy to help!"),
+                                          call("weather_geocode", {"query": "Ithaca, NY"}), say(ESSAY)])
+
+    async def scenario(h):
+        await h.say("tell me about TMY")
+        await h.say("thanks")
+        await h.say("Ithaca")
+        assert "OFF_TOPIC_CLAMP" not in [event.data.get("code") for event in h.session.events()]
+
+    run(h, security, scenario)
+
+
+def test_the_clamp_can_be_off_and_extra_terms_count(tmp_path):
+    path = tmp_path / "clamp.local.yaml"
+    path.write_text("extends: hosted\nscope:\n  extra_domain_terms: [variables]\n", encoding="utf-8")
+    h, model, _ = agent(tmp_path, [say(ESSAY)])
+
+    async def scenario(h):
+        await h.say("solve dy/dx = 3y")
+        assert assistant(h)[-1].text == ESSAY
+
+    run(h, load_policy(file=path), scenario)
+
+
+def test_an_off_topic_knowledge_answer_is_clamped(tmp_path):
+    h, model, security = agent(tmp_path, [call("knowledge_answer", {"text": ESSAY})])
+
+    async def scenario(h):
+        await h.say("solve dy/dx = 3y")
+        assert assistant(h)[-1].data["code"] == "OFF_TOPIC_CLAMP" and h.session.state.strikes == 1
+
+    run(h, security, scenario)
+
+
+def test_links_follow_the_profile(tmp_path):
+    text = "See https://nsrdb.nrel.gov/data and https://evil.example/fix for details on solar data."
+    h, model, security = agent(tmp_path, [say(text)])
+
+    async def scenario(h):
+        await h.say("where does NSRDB data come from?")
+        shown = assistant(h)[-1]
+        assert "https://nsrdb.nrel.gov/data" in shown.text and "evil" not in shown.text
+        assert "[link removed]" in shown.text and "LINK_REMOVED" in shown.data["guards"]
+
+    run(h, security, scenario)
+
+
+def test_strip_all_and_keep_link_policies(tmp_path):
+    from openepw.agent.guard import filter_links
+
+    hosted = load_policy("hosted")
+    strip = hosted.links.model_copy(update={"policy": "strip_all"})
+    keep = hosted.links.model_copy(update={"policy": "keep"})
+    text = "Docs: https://nsrdb.nrel.gov/x and www.evil.example"
+    assert filter_links(text, strip)[0] == "Docs: [link removed] and [link removed]"
+    assert filter_links(text, keep) == (text, False)
+
+
+def test_a_readiness_claim_gets_a_host_correction(tmp_path):
+    h, model, security = agent(tmp_path, [say("Done. The EPW is simulation-ready for EnergyPlus.")])
+
+    async def scenario(h):
+        await h.say("is it ready?")
+        shown = assistant(h)[-1]
+        assert "not certified simulation-ready" in shown.text and "READINESS_CORRECTED" in shown.data["guards"]
+
+    run(h, security, scenario)
