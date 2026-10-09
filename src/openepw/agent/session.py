@@ -27,6 +27,13 @@ GUARD_CODES = frozenset({
     "TOOL_NOT_ALLOWED", "KNOWLEDGE_ANSWER",
 })
 WITHHELD = "[message withheld by moderation]"
+
+
+def event_codes(event: Any) -> list[str]:
+    """An event's code and guard codes, including those on a form the model wrote."""
+    form_data = (event.data.get("form") or {}).get("data") or {}
+    return [code for code in [event.data.get("code"), *event.data.get("guards", []),
+                              *form_data.get("guards", [])] if code]
 TERMINAL = frozenset({"completed", "partially_completed", "failed", "cancelled"})
 MAX_UPLOAD = 5_000_000
 logger = logging.getLogger("openepw.agent")
@@ -166,15 +173,14 @@ class AgentSession:
             self.store.save(self.state)
             new = self.events(before)
             replies = [event.text[:500] for event in new if event.type == "assistant"]
-            codes = [code for event in new for code in [event.data.get("code"), *event.data.get("guards", [])]
-                     if code in GUARD_CODES]
+            codes = [code for event in new for code in event_codes(event) if code in GUARD_CODES]
             form = self.form
             self.trace.end_turn({"replies": replies[-5:], "mode": self.state.mode, "strikes": self.state.strikes,
                                  "guard_codes": list(dict.fromkeys(codes)),
                                  "form": f"{form.kind} ({form.gate})" if form else None}, error_code)
 
     async def begin(self) -> None:
-        if self.form is None:
+        if self.form is None and self.state.ended is None:
             await self._guard(self.policy.advance(self), "begin")
 
     def _refuse_if_ended(self) -> bool:
@@ -214,36 +220,49 @@ class AgentSession:
         return False
 
     async def model_says(self, text: str, **data: Any) -> None:
-        """Show the model's text after the host's output checks: moderation (if configured), the
-        profile's link policy and, always, a correction of unnegated simulation-ready claims."""
-        status, categories = await self._moderation("model_output", [text])
+        """Show the model's text after the host's output checks (see check_model_text)."""
+        checked, guards = await self.check_model_text([text])
+        if checked is None:
+            return
+        if guards:
+            data["guards"] = guards
+        self.emit("assistant", checked[0], **data)
+
+    async def check_model_text(self, texts: list[str]) -> tuple[list[str] | None, list[str]]:
+        """The host's output checks for anything the model wrote that the person will see (replies,
+        form prompts, option labels): moderation (if configured), the profile's link policy and,
+        always, a correction of unnegated simulation-ready claims. Returns the checked texts and
+        guard codes, or None (with a message shown) when moderation withholds them."""
+        status, categories = await self._moderation("model_output", texts)
         if status == "flagged":
             self.emit("assistant", "I can't show that reply.", code="MODERATION_FLAG",
                       categories=list(categories))
-            return
+            return None, ["MODERATION_FLAG"]
         if status == "blocked":
             self.emit("assistant", "That reply could not be checked by moderation, so it is not shown.",
                       code="MODERATION_UNAVAILABLE")
-            return
-        guards = []
-        text, removed = filter_links(text, self.security.links)
-        if removed:
-            guards.append("LINK_REMOVED")
-        if claims_ready(text):
-            text = f"{text} {READINESS_CORRECTION}"
-            guards.append("READINESS_CORRECTED")
-        if guards:
-            data["guards"] = guards
-        self.emit("assistant", text, **data)
+            return None, ["MODERATION_UNAVAILABLE"]
+        guards: list[str] = []
+        checked = []
+        for text in texts:
+            text, removed = filter_links(text, self.security.links)
+            if removed and "LINK_REMOVED" not in guards:
+                guards.append("LINK_REMOVED")
+            if claims_ready(text):
+                text = f"{text} {READINESS_CORRECTION}"
+                if "READINESS_CORRECTED" not in guards:
+                    guards.append("READINESS_CORRECTED")
+            checked.append(text)
+        return checked, guards
 
     async def strike(self, source: str, message: str, *, code: str = "OUT_OF_SCOPE", **data: Any) -> bool:
         """Show a guard's message and, if the profile counts this source, record a strike.
 
         The profile decides what happens at the limit: end the session, switch to guided mode,
-        or only warn. Returns whether a strike was counted.
+        or only warn. Returns whether a strike was counted. One input counts at most one strike.
         """
         rules = self.security.strikes
-        counted = source in rules.sources
+        counted = source in rules.sources and not self.state.struck_this_turn
         if counted:
             self.state.strikes += 1
             self.state.struck_this_turn = True
@@ -463,6 +482,8 @@ class AgentSession:
                     return
                 await asyncio.sleep(self.poll_seconds)
         self.facts.stage = "results"
+        if self.state.ended is not None:            # jobs finish, but an ended session asks nothing
+            return
         self.close_form()
         await self.policy.advance(self)
 

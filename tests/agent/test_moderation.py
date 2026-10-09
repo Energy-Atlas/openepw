@@ -154,3 +154,16 @@ def test_chat_will_not_start_hosted_without_a_moderation_key(tmp_path, monkeypat
     code = asyncio.run(main_chat(scenario_service(tmp_path), read=lambda prompt: "/quit", write=output.append,
                                  security=load_policy("local"), moderation=port))
     assert code == 0
+
+
+def test_upload_moderation_reads_the_header_as_the_epw_reader_does():
+    from openepw.agent.moderation import FLAG_MARKER, epw_text_fields
+
+    rest = ",NY,USA,src,725155,42.4,-76.5,-5,300\n"
+    bom = ("﻿LOCATION,Ithaca " + FLAG_MARKER + rest).encode("utf-8")
+    assert any(FLAG_MARKER in field for field in epw_text_fields(bom))
+    quoted = ('LOCATION,"a,b,c,d,' + FLAG_MARKER + '"' + rest).encode("utf-8")
+    assert "a,b,c,d," + FLAG_MARKER in epw_text_fields(quoted)
+    accented = ("LOCATION,Zürich" + rest + "COMMENTS 1,Données horaires\n").encode("utf-8")
+    fields = epw_text_fields(accented)
+    assert "Zürich" in fields and "Données horaires" in fields and "42.4" not in fields

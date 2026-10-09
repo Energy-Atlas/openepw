@@ -5,6 +5,10 @@ Only flagged category names are ever logged or recorded, never the text checked.
 
 from __future__ import annotations
 
+import csv
+import io
+import itertools
+import re
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -72,17 +76,21 @@ class StubModeration:
         return ModerationResult(flagged, ("test",) if flagged else ())
 
 
+_NUMBER = re.compile(r"[-+]?\d+(?:\.\d*)?(?:[eE][-+]?\d+)?")
+
+
 def epw_text_fields(content: bytes) -> list[str]:
     """The free-text fields of an EPW header (location names, comments) for moderation."""
-    lines = content[:20_000].decode("latin-1", errors="replace").splitlines()[:8]
+    # Read the header as openepw.epw.reader does (UTF-8 with an optional BOM, CSV quoting), so the
+    # text checked is the text the session shows.
+    text = content[:20_000].decode("utf-8-sig", errors="replace")
     fields: list[str] = []
-    for line in lines:
-        name, _, rest = line.partition(",")
-        if name.upper() == "LOCATION":
-            fields.extend(part for part in rest.split(",")[:4] if part.strip())
-        elif name.upper().startswith("COMMENTS"):
-            fields.append(rest)
-    return [field for field in fields if field.strip()]
+    for row in itertools.islice(csv.reader(io.StringIO(text)), 8):
+        for field in row[1:]:
+            value = field.strip()
+            if value and not _NUMBER.fullmatch(value):
+                fields.append(value)
+    return fields
 
 
 def describe(result: Any) -> dict[str, Any]:

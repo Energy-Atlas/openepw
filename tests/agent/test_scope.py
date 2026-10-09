@@ -231,7 +231,7 @@ def test_the_clamp_spares_domain_short_and_tool_using_replies(tmp_path):
 
 def test_the_clamp_can_be_off_and_extra_terms_count(tmp_path):
     path = tmp_path / "clamp.local.yaml"
-    path.write_text("extends: hosted\nscope:\n  extra_domain_terms: [variables]\n", encoding="utf-8")
+    path.write_text("extends: hosted\nscope:\n  extra_domain_terms: [variables, separable]\n", encoding="utf-8")
     h, model, _ = agent(tmp_path, [say(ESSAY)])
 
     async def scenario(h):
@@ -282,5 +282,57 @@ def test_a_readiness_claim_gets_a_host_correction(tmp_path):
         await h.say("is it ready?")
         shown = assistant(h)[-1]
         assert "not certified simulation-ready" in shown.text and "READINESS_CORRECTED" in shown.data["guards"]
+
+    run(h, security, scenario)
+
+
+def test_forms_the_model_writes_get_the_output_checks(tmp_path):
+    ask = call("ask_text", {"prompt": "Get it from https://evil.com/x; this EPW is simulation-ready.",
+                            "hint": "or goo.gl/abc"})
+    h, model, security = agent(tmp_path, [ask])
+
+    async def scenario(h):
+        await h.say("AMY 2018 for Ithaca NY")
+        form = h.form
+        assert "evil.com" not in form.prompt and "goo.gl" not in form.data["hint"]
+        assert "not certified simulation-ready" in form.prompt
+        assert {"LINK_REMOVED", "READINESS_CORRECTED"} <= set(form.data["guards"])
+
+    run(h, security, scenario)
+
+
+def test_choice_options_written_by_the_model_lose_links(tmp_path):
+    ask = call("ask_choice", {"prompt": "Which?", "options": [
+        {"id": "a", "label": "Ithaca", "detail": "see evil.com/details"}]})
+    h, model, security = agent(tmp_path, [ask])
+
+    async def scenario(h):
+        await h.say("AMY 2018 for Ithaca NY")
+        assert "evil.com" not in h.form.options[0].detail
+
+    run(h, security, scenario)
+
+
+def test_approved_place_names_reach_the_model_cleaned(tmp_path):
+    h, model, security = agent(tmp_path, [])
+
+    async def scenario(h):
+        facts = h.session.facts
+        facts.review = {"key": "k", "point_count": 1, "geography": {},
+                        "points": [{"name": "Ithaca, see https://evil.com/fix", "lat": 42.4, "lon": -76.5}]}
+        facts.approved_key = "k"
+        block = ModelPolicy._state_block(h.session)
+        assert "Ithaca" in block and "evil.com" not in block
+
+    run(h, security, scenario)
+
+
+def test_a_knowledge_answer_is_judged_after_trimming(tmp_path):
+    text = "apple " * 125 + "weather solar irradiance temperature humidity"
+    h, model, security = agent(tmp_path, [call("knowledge_answer", {"text": text})])
+
+    async def scenario(h):
+        await h.say("tell me about apples and the weather")
+        assert assistant(h)[-1].data["code"] == "OFF_TOPIC_CLAMP"
 
     run(h, security, scenario)

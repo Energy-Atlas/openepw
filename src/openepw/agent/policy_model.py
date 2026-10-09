@@ -363,8 +363,9 @@ class ModelPolicy:
         facts = s.facts
         review = facts.review
         if review and facts.approved_key == review.get("key"):
-            names = ", ".join(str(item.get("name") or f"{item['lat']:.3f},{item['lon']:.3f}")
-                              for item in review["points"][:10])
+            limit = s.security.external_text.max_chars
+            names = ", ".join(clean_external(str(item.get("name") or f"{item['lat']:.3f},{item['lon']:.3f}"),
+                                             limit) for item in review["points"][:10])
             location = f"approved (key {review['key']}, {review['point_count']} point(s): {names})"
         elif review:
             location = "reviewed, waiting for the person's approval"
@@ -480,13 +481,13 @@ class ModelPolicy:
 
     async def _knowledge_answer(self, s: AgentSession, text: str) -> dict[str, Any]:
         """A brief, labelled general answer; the host trims it to the profile's word limit."""
-        if self._off_topic(s, text):
-            await s.strike("offtopic_clamp", DECLINES["unrelated"], code="OFF_TOPIC_CLAMP")
-            return {"declined": True, "reason": "off topic"}
         limit = s.security.scope.knowledge_answer_words
         words = list(re.finditer(r"\S+", text.strip()))
         # Keep the answer's own line breaks; cut after the last allowed word.
         body = text.strip()[:words[limit - 1].end()] + "…" if len(words) > limit else text.strip()
+        if self._off_topic(s, body):                # judged on what would be shown
+            await s.strike("offtopic_clamp", DECLINES["unrelated"], code="OFF_TOPIC_CLAMP")
+            return {"declined": True, "reason": "off topic"}
         await s.model_says(f"{body}\n\n{KNOWLEDGE_LABEL}", code="KNOWLEDGE_ANSWER")
         return {"shown": True, "words": min(len(words), limit)}
 
@@ -561,9 +562,9 @@ class ModelPolicy:
         if name == "ask_text":
             if arguments.get("purpose") == "years":
                 return self._asked(s, call, host.years_form().model_copy(update={"gate": "ask_text"}))
-            return self._asked(s, call, Interaction(kind="text", gate="ask_text",
-                                                    prompt=str(arguments.get("prompt") or "?"),
-                                                    data={"hint": arguments.get("hint") or ""}))
+            return await self._model_form(s, call, Interaction(kind="text", gate="ask_text",
+                                                               prompt=str(arguments.get("prompt") or "?"),
+                                                               data={"hint": str(arguments.get("hint") or "")}))
         if name == "ask_choice":
             try:
                 options = [Option(id=str(item["id"]), label=str(item["label"]),
@@ -573,14 +574,31 @@ class ModelPolicy:
                 options = []
             if not options:
                 return "invalid", {"code": "INVALID_ARGUMENTS", "message": "options need id and label."}
-            return self._asked(s, call, Interaction(kind="choice", gate="ask_choice", options=options[:20],
-                                                    prompt=str(arguments.get("prompt") or "Choose one"),
-                                                    multi=bool(arguments.get("multi"))))
+            return await self._model_form(s, call, Interaction(
+                kind="choice", gate="ask_choice", options=options[:20],
+                prompt=str(arguments.get("prompt") or "Choose one"), multi=bool(arguments.get("multi"))))
         if name == "request_map_input":
-            return self._asked(s, call, Interaction(kind="map_input", gate="ask_map",
-                                                    prompt=str(arguments.get("prompt") or "Where?")))
-        return self._asked(s, call, Interaction(kind="upload", gate="ask_upload",
-                                                prompt=str(arguments.get("prompt") or "Attach an EPW file.")))
+            return await self._model_form(s, call, Interaction(kind="map_input", gate="ask_map",
+                                                               prompt=str(arguments.get("prompt") or "Where?")))
+        return await self._model_form(s, call, Interaction(
+            kind="upload", gate="ask_upload", prompt=str(arguments.get("prompt") or "Attach an EPW file.")))
+
+    async def _model_form(self, s: AgentSession, call: ToolCall,
+                          form: Interaction) -> tuple[str, dict[str, Any] | str]:
+        """Open a form whose words the model wrote, after the same output checks as its replies."""
+        texts = [form.prompt, str(form.data.get("hint") or "")]
+        for option in form.options:
+            texts += [option.label, option.detail or ""]
+        checked, guards = await s.check_model_text(texts)
+        if checked is None:
+            return "refused", {"code": "FORM_WITHHELD", "message": (
+                "Moderation withheld that question; ask it again in plain words.")}
+        prompt, hint, rest = checked[0], checked[1], iter(checked[2:])
+        options = [option.model_copy(update={"label": next(rest), "detail": next(rest) or None})
+                   for option in form.options]
+        data = {**form.data, **({"hint": hint} if "hint" in form.data else {}),
+                **({"guards": guards} if guards else {})}
+        return self._asked(s, call, form.model_copy(update={"prompt": prompt, "options": options, "data": data}))
 
     # Answers to ask-tool forms -------------------------------------------------------------------
     async def _answer_result(self, s: AgentSession, form: Interaction, answer: Answer,

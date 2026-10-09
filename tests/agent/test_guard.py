@@ -76,3 +76,34 @@ def test_joiners_used_in_emoji_and_scripts_are_kept():
     for text in ("👨‍👩‍👧", "فارسی‌زبان"):
         assert normalize_input(text) == text
     assert normalize_input("a​b﻿c‮d⁦e") == "abcde"
+
+
+def test_links_are_judged_by_the_host_a_browser_would_open():
+    from types import SimpleNamespace
+
+    from openepw.agent.guard import filter_links
+
+    links = SimpleNamespace(policy="allowlist", allowlist=["nrel.gov", "open-meteo.com"])
+    for text in ("https://nrel.gov:x@evil.com/fix", "https://evil.com\\.nrel.gov/x", "EVIL.COM/fix",
+                 "evil.ai/x", "goo.gl/abc", "//evil.com/x", "[docs](https://evil.com)",
+                 "https://xn--nrl-hla.gov/"):
+        assert filter_links(text, links)[1], text
+    for text in ("See https://nsrdb.nrel.gov/data.", "https://open-meteo.com/en/docs", "Denver.CO station",
+                 "Ithaca.Tompkins.Co.725155", "3.5 m/s and ASHRAE 90.1/2019"):
+        assert filter_links(text, links) == (text, False), text
+
+
+def test_the_clamp_needs_whole_domain_words_not_fragments():
+    from openepw.agent.guard import off_topic
+
+    fragments = ("To reverse a list in Python use slicing with a step of minus one, or call reverse on the "
+                 "list. Slicing returns a new list while reverse changes it in place. To download the "
+                 "result, write it to a file; this avoids cheating on train data in a risky window, as Amy "
+                 "and Gandhi would agree after a long brainstorm about Ukraine and skyscrapers.")
+    assert off_topic(fragments, enabled=True, min_chars=280, extra_terms=[], names=["2018", "Ithaca"])
+    weather = ("The 2018 actual-year file for Ithaca uses ERA5 reanalysis; dry-bulb temperature and "
+               "humidity come from the hourly series and the solar components are split into DNI and DHI. "
+               "Review the QC report before you use it in EnergyPlus for any study you may run later on.")
+    assert not off_topic(weather, enabled=True, min_chars=280, extra_terms=[], names=[])
+    one_name = fragments + " Ithaca."
+    assert off_topic(one_name, enabled=True, min_chars=280, extra_terms=[], names=["Ithaca"])

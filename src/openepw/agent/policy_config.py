@@ -119,18 +119,35 @@ def _get(data: dict[str, Any], path: tuple[Any, ...]) -> Any:
     return data
 
 
+def _reach(data: Any, path: list[Any]) -> Any:
+    try:
+        return _get(data, tuple(path))
+    except (KeyError, IndexError, TypeError):
+        return None
+
+
 def _repair(data: dict[str, Any], strict: dict[str, Any], error: dict[str, Any]) -> str:
-    """Replace one invalid value with the strict value (or drop an unknown key); describe it."""
-    path = tuple(part for part in error["loc"] if not isinstance(part, int))
+    """Fix one validation error and describe it: a bad mapping key or unknown setting is dropped;
+    any other bad value (or a bad list item: the whole list) takes the strict value."""
+    path = list(error["loc"])
+    bad_key = bool(path) and path[-1] == "[key]"
+    if bad_key:
+        path = path[:-1]
+    for index, part in enumerate(path):
+        if isinstance(part, int) and isinstance(_reach(data, path[:index]), list):
+            path = path[:index]
+            break
     dotted = ".".join(map(str, path))
-    parent = _get(data, path[:-1]) if len(path) > 1 else data
-    if error["type"] == "extra_forbidden":
-        parent.pop(path[-1], None)
+    parent = _reach(data, path[:-1])
+    if not path or not isinstance(parent, dict) or path[-1] not in parent:
+        return f"invalid {dotted or 'profile'}"
+    if bad_key or error["type"] == "extra_forbidden":
+        parent.pop(path[-1])
         return f"unknown setting {dotted} ignored"
     try:
-        parent[path[-1]] = copy.deepcopy(_get(strict, path))
-    except (KeyError, TypeError):
-        parent.pop(path[-1], None)
+        parent[path[-1]] = copy.deepcopy(_get(strict, tuple(path)))
+    except (KeyError, IndexError, TypeError):
+        parent.pop(path[-1])
     return f"invalid {dotted}; using the {STRICTEST} value"
 
 
@@ -138,15 +155,19 @@ def _validate(data: dict[str, Any], source: str) -> SecurityPolicy:
     strict, _ = _packaged(STRICTEST)
     data = copy.deepcopy(data)
     data.pop("extends", None)
-    for _ in range(50):
+    label = data.get("profile") if isinstance(data.get("profile"), str) else STRICTEST
+    while True:
         try:
             policy = SecurityPolicy.model_validate(data)
             break
         except ValidationError as error:
+            before = repr(data)
             for item in error.errors():
                 logger.warning("Security profile %s: %s", source, _repair(data, strict, item))
-    else:                                                     # pragma: no cover - defensive
-        policy = SecurityPolicy.model_validate(strict)
+            if repr(data) == before:                          # nothing left to repair: strict values
+                logger.warning("Security profile %s: using the %s values", source, STRICTEST)
+                policy = SecurityPolicy.model_validate({**strict, "profile": label})
+                break
     canonical = json.dumps(policy.settings(), sort_keys=True)
     policy.source = source
     policy.digest = hashlib.sha256(canonical.encode()).hexdigest()[:12]
@@ -224,6 +245,11 @@ def weakened(policy: SecurityPolicy) -> list[str]:
         notes.append(f"strikes count only when {strikes.counting}")
     if strikes.warn_at >= strikes.limit:
         notes.append("no warning before the strike limit")
+    if not strikes.show_count and strict_strikes.show_count:
+        notes.append("the strike count is not shown")
+    extra_terms = [term for term in policy.scope.extra_domain_terms if term not in strict.scope.extra_domain_terms]
+    if extra_terms:
+        notes.append("extra domain terms widen the off-topic clamp: " + ", ".join(extra_terms[:5]))
     clamp = policy.scope.offtopic_clamp
     if not clamp.enabled:
         notes.append("the off-topic clamp is off")

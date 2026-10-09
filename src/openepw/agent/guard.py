@@ -10,17 +10,21 @@ from __future__ import annotations
 import re
 import unicodedata
 from typing import Any
+from urllib.parse import urlsplit
 
 # Control, format (zero-width, bidirectional overrides), private-use and surrogate characters.
 # Zero-width joiners and non-joiners stay: emoji sequences and several scripts need them.
 _HIDDEN = {"Cc", "Cf", "Co", "Cs"}
 _KEEP = {"\n", "\t", "\u200c", "\u200d"}
-# Links with a scheme or www (any case), and bare lowercase domains such as evil.com or bit.ly/x.
-# Station and file names such as Denver.CO or Ithaca.Tompkins.Co.725155 are not lowercase domains.
+# Links with a scheme, a protocol-relative // or www (any case); any domain followed by a path
+# (any case, any top-level domain, e.g. EVIL.COM/fix or goo.gl/x); and bare lowercase domains on
+# common top-level domains (evil.com). Station and file names such as Denver.CO or
+# Ithaca.Tompkins.Co.725155 have no path and are not lowercase domains, so they stay.
 _LINK = re.compile(
-    r"(?i:\b(?:https?|ftp)://\S+|\bwww\.\S+)"
-    r"|(?<![\w.])[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:com|net|org|io|xyz|ru|cn|info|biz|co|app|dev|me|ly|"
-    r"link|click|top|site|online|example)\b(?:/\S*)?")
+    r"(?i:\b(?:https?|ftp)://\S+|(?<![\w:/])//[\w-]+\.\S+|\bwww\.\S+)"
+    r"|(?i:(?<![\w.@/])[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z][a-z0-9-]{1,23}[/\\]\S*)"
+    r"|(?<![\w.@])[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:com|net|org|io|xyz|ru|cn|info|biz|co|app|dev|me|ly|"
+    r"ai|gl|gd|link|click|top|site|online|example)\b(?:/\S*)?")
 _EMAIL = re.compile(r"\b[\w.+-]+@[\w-]+(?:\.[\w-]+)+\b")
 _IDENTIFIER = re.compile(r"(?:^|_)(?:id|ids|hash|key|sha256|digest|uri)$")
 REMOVED = "[removed]"
@@ -53,33 +57,73 @@ def clean_tool_data(value: Any, max_chars: int, key: str = "") -> Any:
 
 
 # Vocabulary that marks a reply as about weather, climate data or building energy modelling.
+# Whole words (plurals allowed); a trailing * marks a stem. Acronyms match in capitals only, so
+# "Amy" or "Gandhi" do not count. Generic words (load, quality, location, cloud) are left out.
 DOMAIN_TERMS = (
-    "weather", "climat", "meteorolog", "epw", "tmy", "amy", "actual year", "actual-year", "typical year",
-    "historical", "solar", "irradiance", "radiation", "insolation", "dni", "ghi", "dhi", "temperature",
-    "dry-bulb", "dry bulb", "dew point", "humidity", "psychrometric", "enthalpy", "wind", "pressure",
-    "precipitation", "rain", "snow", "cloud", "sky", "albedo", "degree day", "degree-day", "hdd", "cdd",
-    "design day", "design condition", "energyplus", "openstudio", "doe-2", "trnsys", "esp-r",
-    "building energy", "energy model", "energy simulation", "simulation", "hvac", "heating", "cooling",
-    "load", "ashrae", "iwec", "cwec", "era5", "nsrdb", "noaa", "pvgis", "onebuilding", "open-meteo",
-    "copernicus", "reanalysis", "station", "location", "latitude", "longitude", "coordinates",
-    "time zone", "timezone", "standard time", "offset", "hourly", "qc", "quality", "missing hours",
+    "weather", "climat*", "meteorolog*", "actual year", "actual-year", "typical year", "solar",
+    "irradian*", "radiation", "insolation", "temperature", "dry-bulb", "dry bulb", "wet-bulb", "wet bulb",
+    "dew point", "humidity", "psychrometric", "enthalpy", "wind speed", "wind direction", "air pressure",
+    "atmospheric pressure", "barometric", "precipitation", "rainfall", "snowfall", "cloud cover",
+    "sky cover", "clear sky", "albedo", "degree day", "degree-day", "design day", "design condition",
+    "energyplus", "openstudio", "doe-2", "trnsys", "esp-r", "building energy", "energy model*",
+    "energy simulation", "building simulation", "hvac", "heating", "cooling", "ashrae", "iwec", "cwec",
+    "reanalysis", "weather station", "latitude", "longitude", "time zone", "timezone", "standard time",
+    "utc offset", "hourly", "missing hours", "photovoltaic",
 )
-_DOMAIN = re.compile("|".join(re.escape(term) for term in DOMAIN_TERMS), re.I)
+ACRONYMS = ("EPW", "TMY", "TMY3", "AMY", "XMY", "DNI", "GHI", "DHI", "HDD", "CDD", "ERA5", "NSRDB", "NOAA",
+            "PVGIS", "QC", "UTC", "PV")
+NAMED_SOURCES = ("onebuilding", "open-meteo", "copernicus", "nrel", "pvgis", "nsrdb", "noaa")
+_DOMAIN = re.compile(
+    r"(?i:\b(?:" + "|".join(re.escape(term[:-1]) + r"\w*" if term.endswith("*") else re.escape(term) + "(?:e?s)?"
+                           for term in [*DOMAIN_TERMS, *NAMED_SOURCES]) + r")\b)"
+    r"|\b(?:" + "|".join(ACRONYMS) + r")s?\b")
+DOMAIN_HITS = 2                         # distinct domain words a long reply needs to stay
+
+
+def _terms(text: str, terms: list[str]) -> set[str]:
+    found = {match.group(0).lower() for match in _DOMAIN.finditer(text)}
+    for term in terms:
+        if len(term) >= 3 and not term.isdigit() and re.search(
+                r"(?<!\w)" + re.escape(term) + r"(?!\w)", text, re.I):
+            found.add(term.lower())
+    return found
 
 
 def off_topic(text: str, *, enabled: bool, min_chars: int, extra_terms: list[str],
               names: list[str]) -> bool:
-    """True for a long reply with no weather or modelling vocabulary and none of the session's names."""
-    if not enabled or len(text) <= min_chars or _DOMAIN.search(text):
+    """True for a long reply with fewer than DOMAIN_HITS distinct weather or modelling words.
+
+    Profile terms and the session's place and product names count too (whole words; numbers such
+    as years do not).
+    """
+    if not enabled or len(text) <= min_chars:
         return False
-    lowered = text.lower()
-    return not any(term.lower() in lowered for term in [*extra_terms, *names] if len(term) >= 3)
+    return len(_terms(text, [*extra_terms, *names])) < DOMAIN_HITS
 
 
-def _host(link: str) -> str:
-    match = re.match(r"(?:[a-z][a-z0-9+.-]*://)?([^/\s:?#]+)", link, re.I)
-    host = (match.group(1) if match else link).lower()
+def link_host(link: str) -> str:
+    """The host a browser would open for a link, or "" when it cannot be trusted (userinfo,
+    unparsable or non-IDNA hosts). Backslashes count as slashes, as browsers treat them."""
+    link = link.replace("\\", "/")
+    if not re.match(r"[a-z][a-z0-9+.-]*://", link, re.I):
+        link = "//" + link.lstrip("/")
+    try:
+        parts = urlsplit(link)
+        host = parts.hostname or ""
+    except ValueError:
+        return ""
+    if "@" in parts.netloc or not host:
+        return ""
+    try:
+        host = host.rstrip(".").encode("idna").decode("ascii").lower()
+    except UnicodeError:
+        return ""
     return host[4:] if host.startswith("www.") else host
+
+
+def link_allowed(link: str, allowlist: list[str]) -> bool:
+    host = link_host(link)
+    return bool(host) and any(host == domain or host.endswith("." + domain) for domain in allowlist)
 
 
 def filter_links(text: str, links: Any) -> tuple[str, bool]:
@@ -93,9 +137,7 @@ def filter_links(text: str, links: Any) -> tuple[str, bool]:
         link = match.group(0)
         trail = re.search(r"[.,;:!?)\]]+$", link)
         core, tail = (link[:trail.start()], trail.group(0)) if trail else (link, "")
-        host = _host(core)
-        if links.policy == "allowlist" and any(host == domain or host.endswith("." + domain)
-                                               for domain in links.allowlist):
+        if links.policy == "allowlist" and link_allowed(core, links.allowlist):
             return link
         removed = True
         return "[link removed]" + tail

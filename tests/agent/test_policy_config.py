@@ -175,3 +175,20 @@ external_text:
     for expected in ("strike sources", "strikes.limit", "consecutive", "form_text", "upload_text",
                      "min_chars", "evil.example", "external_text.max_chars"):
         assert expected in notes, expected
+
+
+def test_bad_keys_and_list_items_are_repaired_and_the_label_kept(tmp_path, caplog):
+    path = write(tmp_path, "extends: local\nlimits: {1: 2}\nlinks:\n  allowlist: [nrel.gov, 5]\n"
+                           "moderation:\n  check: [input, 7]\n")
+    policy = load_policy(file=path)
+    hosted = load_policy("hosted")
+    assert policy.profile == "local+override" and policy.limits == {}
+    assert policy.links.allowlist == hosted.links.allowlist
+    assert policy.moderation.check == hosted.moderation.check
+    assert len(caplog.records) < 10
+
+
+def test_weakened_names_extra_domain_terms_and_a_hidden_count(tmp_path):
+    path = write(tmp_path, "extends: hosted\nscope:\n  extra_domain_terms: [the]\nstrikes:\n  show_count: false\n")
+    notes = " ".join(weakened(load_policy(file=path)))
+    assert "extra domain terms" in notes and "strike count is not shown" in notes
