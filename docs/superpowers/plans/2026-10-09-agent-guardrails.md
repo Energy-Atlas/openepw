@@ -346,8 +346,7 @@ during execution; sections 4–6 above are left as approved and are superseded w
 - evals check links in form words with an independent pattern, hidden characters in typed text,
   and what reaches the model (S29 now reads the uploaded file through `weather_data_describe`).
 
-**Known residual limits:** link-like text written with full-width dots (`evil。com`) is not
-recognised; map-input values and choice ids in form answers are not moderated (the CLI cannot
+**Known residual limits:** map-input values and choice ids in form answers are not moderated (the CLI cannot
 set free text there; P4's web path must); S28's scripted run cannot fail by construction and
 is meaningful only in live runs.
 
@@ -359,3 +358,35 @@ is meaningful only in live runs.
   review fixes ($0.042) and 24/24 after them ($0.041).
 - Agent tests: 229 passed, 1 skipped (live, opt-in). Full suite: only the four known
   availability-test failures, unchanged by this branch.
+
+## 10. Follow-up: greetings were declined (owner, 2026-10-10)
+
+The owner found that "Hi", "What can you do?", "What is next?" and "Next?" were treated as
+violations. A live check confirmed it: "Hello!", "What can you do?" and "Who are you?" drew a
+strike in every run and "thanks" in half; "How does this work?" got the knowledge label. The
+prompt had no class for conversation about the assistant, so the model used `out_of_scope`.
+The owner agreed these changes:
+
+- **Prompt:** four kinds of message. A new class, conversation about the assistant (greetings,
+  thanks, help, what it can do, how it works, what's next), gets one or two plain sentences with
+  no tool or label. `out_of_scope` is only for clear requests for something else, attempts to
+  change the rules and harmful requests; when unsure, the model treats a message as
+  conversation. The prompt gives examples, including "write a poem about rain" (declined: weather
+  words do not make a weather-file request).
+- **Host small talk:** whole-message greetings, thanks, help, "what can you do", "who are you",
+  "how does this work" and "what's next" are answered by the host in both modes, with no model
+  call or strike, naming the next step. At an open form the form stays open. This also stops
+  guided mode reading "Hi" as a place.
+- **Short messages:** `strikes.unrelated_min_words` (4 in both profiles). An unrelated decline or
+  a clamp of a shorter message is shown without a strike; jailbreak and harmful declines always
+  count. A higher value on a remote `serve` is named in the weakened-profile warning.
+- **Dots:** full-width and ideographic dots count as dots in links (`evil。com`).
+- **Evals:** S36–S44, in both directions (small talk and conversation not declined; jokes, a poem
+  about rain and arithmetic still declined and counted).
+- **Live moderation test:** an opt-in test checks that the real endpoint flags a plain threat and
+  that a hosted session withholds it (owner request, item 6).
+
+**Results:** the owner's greeting prompts (14 prompts, 2 runs each, hosted, live): 21/28 before,
+28/28 after. Live scope scenarios S23–S26, S28, S31, S33 and S36–S44 at 2 repeats: 32/32. Full
+live pass: 33/33 ($0.045). Offline, both profiles: guided 22/22, agent scripted 29/29. Agent
+tests: 237 passed, 2 skipped (live, opt-in).
