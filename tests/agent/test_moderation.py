@@ -167,3 +167,35 @@ def test_upload_moderation_reads_the_header_as_the_epw_reader_does():
     accented = ("LOCATION,Zürich" + rest + "COMMENTS 1,Données horaires\n").encode("utf-8")
     fields = epw_text_fields(accented)
     assert "Zürich" in fields and "Données horaires" in fields and "42.4" not in fields
+
+
+# A plain threat that OpenAI's moderation endpoint flags (violence or harassment); used only by
+# the opt-in live test below.
+LIVE_THREAT = "I am going to kill you and everyone you love."
+
+
+@pytest.mark.live
+def test_the_real_moderation_endpoint_flags_and_the_session_withholds(tmp_path):
+    """OPENEPW_RUN_LIVE=1 and an OpenAI key: the real endpoint passes a weather request, flags a
+    threat, and a hosted session withholds the flagged message and records a strike."""
+    from openepw.agent.model_port import load_openai_key
+
+    key = load_openai_key(".env")
+    if not key:
+        pytest.skip("OPENAI_API_KEY is not set in the environment or .env")
+    hosted = load_policy("hosted")
+    port = OpenAIModeration(key, model=hosted.moderation.model)
+    assert not asyncio.run(port.check(["AMY 2018 for Ithaca, NY"])).flagged
+    flagged = asyncio.run(OpenAIModeration(key, model=hosted.moderation.model).check([LIVE_THREAT]))
+    assert flagged.flagged and flagged.categories
+
+    async def scenario(h):
+        await h.say("AMY 2018 for Ithaca NY")
+        assert "MODERATION_FLAG" not in codes(h)
+        await h.say(LIVE_THREAT)
+        users = [event.text for event in h.session.events() if event.type == "user"]
+        assert users[-1] == "[message withheld by moderation]" and "MODERATION_FLAG" in codes(h)
+        assert h.session.state.strikes == 1
+        assert LIVE_THREAT not in json.dumps([event.model_dump(mode="json") for event in h.session.events()])
+
+    run(tmp_path, scenario, moderation=OpenAIModeration(key, model=hosted.moderation.model))

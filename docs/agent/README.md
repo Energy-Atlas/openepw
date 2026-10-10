@@ -230,4 +230,7 @@ pass rate, model steps, time and estimated cost per scenario, with short redacte
 failed runs, and a run that crashes is reported as `RUN_ERROR` without ending the eval. Live runs
 are never part of CI. The pytest test
 `tests/agent/test_evals.py::test_live_agent_evals_with_a_budget_cap` runs only with
-`OPENEPW_RUN_LIVE=1`.
+`OPENEPW_RUN_LIVE=1`. So does
+`tests/agent/test_moderation.py::test_the_real_moderation_endpoint_flags_and_the_session_withholds`,
+which checks that the real moderation endpoint passes a weather request, flags a plain threat, and
+that a hosted session withholds the flagged message and records a strike (free; needs the key).
