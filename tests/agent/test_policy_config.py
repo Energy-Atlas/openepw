@@ -192,3 +192,9 @@ def test_weakened_names_extra_domain_terms_and_a_hidden_count(tmp_path):
     path = write(tmp_path, "extends: hosted\nscope:\n  extra_domain_terms: [the]\nstrikes:\n  show_count: false\n")
     notes = " ".join(weakened(load_policy(file=path)))
     assert "extra domain terms" in notes and "strike count is not shown" in notes
+
+
+def test_profiles_set_the_short_message_threshold_and_weakening_is_named(tmp_path):
+    assert load_policy("hosted").strikes.unrelated_min_words == 4 == load_policy("local").strikes.unrelated_min_words
+    path = write(tmp_path, "extends: hosted\nstrikes:\n  unrelated_min_words: 12\n")
+    assert any("under 12 words" in note for note in weakened(load_policy(file=path)))

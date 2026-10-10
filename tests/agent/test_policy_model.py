@@ -405,7 +405,7 @@ def test_the_history_keeps_the_persons_request(tmp_path):
     async def main():
         async with h:
             await h.say("AMY 2018 for Ithaca NY")
-            await h.say("thanks")
+            await h.say("is that the right Ithaca?")
             history = model.requests[-1]["items"][0]["text"]
             assert "person: AMY 2018 for Ithaca NY" in history
     run(main)

@@ -10,7 +10,7 @@ from typing import Any, Callable, Protocol
 
 from ..models import OpenEPWError
 from .gates import GateRequired
-from .guard import READINESS_CORRECTION, claims_ready, filter_links, normalize_input
+from .guard import READINESS_CORRECTION, claims_ready, filter_links, normalize_input, small_talk
 from .interactions import Answer, Event, Interaction
 from .mcp_port import ApprovalBook, MCPPort, ToolFailure, ToolResult
 from .moderation import ModerationPort, ModerationUnavailable, epw_text_fields
@@ -27,6 +27,13 @@ GUARD_CODES = frozenset({
     "TOOL_NOT_ALLOWED", "KNOWLEDGE_ANSWER",
 })
 WITHHELD = "[message withheld by moderation]"
+HELP_AGENT = ("I'm the openepw assistant. I find and build EPW weather files for building simulation: "
+              "actual-year (AMY), typical-year (TMY, TMYx) and published files for places you approve, "
+              "then QC summaries and charts. I can also answer brief weather-science and energy-modelling "
+              "questions.")
+HELP_GUIDED = ("This is guided mode: it reads places, coordinates, years and product names (actual year, "
+               "TMY, TMYx) and asks for the rest with forms; it can't answer questions.")
+SMALL_TALK_OPENING = {"greet": "Hello! ", "thanks": "You're welcome. ", "next": "", "help": ""}
 
 
 def event_codes(event: Any) -> list[str]:
@@ -335,7 +342,24 @@ class AgentSession:
         if self._moderation_notice(status):
             self.store.save(self.state)
             return
+        kind = small_talk(text)
+        if kind is not None:                        # answered by the host: no model call, no strike
+            await self._guard(self._small_talk(kind), "message", {"text": text, "small_talk": kind})
+            return
         await self._guard(self.policy.on_text(self, text), "message", {"text": text})
+
+    async def _small_talk(self, kind: str) -> None:
+        """A fixed reply to a greeting, thanks, "help" or "what's next"; any open form stays open."""
+        intro = (HELP_GUIDED if self.state.mode == "guided" else HELP_AGENT) + " " if kind == "help" else ""
+        self.emit("assistant", SMALL_TALK_OPENING[kind] + intro + self._next_step(), code="SMALL_TALK")
+
+    def _next_step(self) -> str:
+        form = self.form
+        if form is not None:
+            return f"Next: the open form asks: {form.prompt}"
+        if [job for job in self.facts.job_ids if job not in self.facts.finished_job_ids]:
+            return "Your job is still running; I'll report when it finishes."
+        return 'Next: ask for weather in your own words, for example "AMY 2018 for Ithaca, NY".'
 
     async def answer(self, answer: Answer) -> None:
         if self._refuse_if_ended():
@@ -353,6 +377,13 @@ class AgentSession:
                                   categories=list(categories))
                 return
             if self._moderation_notice(status):
+                return
+            kind = small_talk(answer.text or "")
+            if kind is not None and not (answer.choice_ids or answer.approve or answer.value is not None):
+                # "Next?" or "thanks" typed at a form is small talk, not the form's answer.
+                self.state.turn_origin = "text"
+                self.emit("user", answer.text or "")
+                await self._guard(self._small_talk(kind), "message", {"text": answer.text, "small_talk": kind})
                 return
         said = answer_text(form, answer)
         self.state.turn_origin = "text" if answer.text else "answer"

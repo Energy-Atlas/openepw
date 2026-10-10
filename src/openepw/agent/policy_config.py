@@ -51,6 +51,8 @@ class StrikeSettings(_Section):
     action: Literal["end_session", "guided", "warn"] = "end_session"
     reopen: Literal["allow", "deny"] = "deny"
     show_count: bool = True
+    # Unrelated declines and off-topic clamps count only for messages of at least this many words.
+    unrelated_min_words: int = Field(4, ge=1, le=50)
     sources: list[StrikeSource] = ["out_of_scope", "offtopic_clamp", "moderation", "host_tool_attempt"]
 
 
@@ -245,6 +247,8 @@ def weakened(policy: SecurityPolicy) -> list[str]:
         notes.append(f"strikes count only when {strikes.counting}")
     if strikes.warn_at >= strikes.limit:
         notes.append("no warning before the strike limit")
+    if strikes.unrelated_min_words > strict_strikes.unrelated_min_words:
+        notes.append(f"unrelated requests under {strikes.unrelated_min_words} words are not counted")
     if not strikes.show_count and strict_strikes.show_count:
         notes.append("the strike count is not shown")
     extra_terms = [term for term in policy.scope.extra_domain_terms if term not in strict.scope.extra_domain_terms]

@@ -863,6 +863,226 @@
           }
         }
       ]
+    },
+    {
+      "id": "S36",
+      "title": "A greeting gets a host reply, no model call and no strike",
+      "say": "Hello!",
+      "answers": {},
+      "checks": {
+        "strikes": 0,
+        "absent_codes": [
+          "OUT_OF_SCOPE",
+          "OFF_TOPIC_CLAMP"
+        ],
+        "submitted": false,
+        "no_tools": true,
+        "codes": [
+          "SMALL_TALK"
+        ]
+      },
+      "script": []
+    },
+    {
+      "id": "S37",
+      "title": "\"What can you do?\" is answered by the host",
+      "say": "What can you do?",
+      "answers": {},
+      "checks": {
+        "strikes": 0,
+        "absent_codes": [
+          "OUT_OF_SCOPE",
+          "OFF_TOPIC_CLAMP"
+        ],
+        "submitted": false,
+        "no_tools": true,
+        "codes": [
+          "SMALL_TALK"
+        ],
+        "assistant_contains": [
+          "TMY"
+        ]
+      },
+      "script": []
+    },
+    {
+      "id": "S38",
+      "title": "Thanks get a short reply, no strike",
+      "say": "thanks",
+      "answers": {},
+      "checks": {
+        "strikes": 0,
+        "absent_codes": [
+          "OUT_OF_SCOPE",
+          "OFF_TOPIC_CLAMP"
+        ],
+        "submitted": false,
+        "no_tools": true,
+        "codes": [
+          "SMALL_TALK"
+        ]
+      },
+      "script": []
+    },
+    {
+      "id": "S39",
+      "title": "\"Next?\" at the location review points to the open form",
+      "say": "AMY 2018 for Ithaca, NY",
+      "answers": {
+        "location_review": "say:Next?"
+      },
+      "max_interactions": 1,
+      "checks": {
+        "strikes": 0,
+        "absent_codes": [
+          "OUT_OF_SCOPE",
+          "OFF_TOPIC_CLAMP"
+        ],
+        "submitted": false,
+        "forms": [
+          "location_review"
+        ],
+        "codes": [
+          "SMALL_TALK"
+        ],
+        "assistant_contains": [
+          "the open form asks"
+        ]
+      },
+      "script": [
+        {
+          "call": "weather_geocode",
+          "args": {
+            "query": "Ithaca, NY"
+          }
+        },
+        {
+          "call": "review_location",
+          "args": {
+            "locations": {
+              "lat": 42.44,
+              "lon": -76.5,
+              "name": "Ithaca, New York, United States"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "S40",
+      "title": "A question about the assistant is answered, not declined",
+      "modes": [
+        "agent"
+      ],
+      "say": "Who are you, and which data sources do you use?",
+      "answers": {},
+      "checks": {
+        "strikes": 0,
+        "absent_codes": [
+          "OUT_OF_SCOPE",
+          "OFF_TOPIC_CLAMP"
+        ],
+        "submitted": false
+      },
+      "script": [
+        {
+          "say": "I'm the openepw assistant: I build EPW weather files from sources such as ERA5, NSRDB and climate.onebuilding.org for places you approve."
+        }
+      ]
+    },
+    {
+      "id": "S41",
+      "title": "A very short unrelated message is declined without a strike",
+      "modes": [
+        "agent"
+      ],
+      "say": "lol ok cool",
+      "answers": {},
+      "checks": {
+        "strikes": 0,
+        "submitted": false
+      },
+      "script": [
+        {
+          "call": "out_of_scope",
+          "args": {
+            "category": "unrelated"
+          }
+        }
+      ]
+    },
+    {
+      "id": "S42",
+      "title": "A joke request is still declined and counted",
+      "modes": [
+        "agent"
+      ],
+      "say": "Tell me a joke about cats",
+      "answers": {},
+      "checks": {
+        "min_strikes": 1,
+        "codes": [
+          "OUT_OF_SCOPE"
+        ],
+        "submitted": false
+      },
+      "script": [
+        {
+          "call": "out_of_scope",
+          "args": {
+            "category": "unrelated"
+          }
+        }
+      ]
+    },
+    {
+      "id": "S43",
+      "title": "A poem about the rain is still declined despite weather words",
+      "modes": [
+        "agent"
+      ],
+      "say": "Write a poem about the rain in Ithaca",
+      "answers": {},
+      "checks": {
+        "min_strikes": 1,
+        "codes": [
+          "OUT_OF_SCOPE"
+        ],
+        "submitted": false,
+        "no_tools": true
+      },
+      "script": [
+        {
+          "call": "out_of_scope",
+          "args": {
+            "category": "unrelated"
+          }
+        }
+      ]
+    },
+    {
+      "id": "S44",
+      "title": "Arithmetic is still declined and counted",
+      "modes": [
+        "agent"
+      ],
+      "say": "What is 12 times 37?",
+      "answers": {},
+      "checks": {
+        "min_strikes": 1,
+        "codes": [
+          "OUT_OF_SCOPE"
+        ],
+        "submitted": false
+      },
+      "script": [
+        {
+          "call": "out_of_scope",
+          "args": {
+            "category": "unrelated"
+          }
+        }
+      ]
     }
   ]
 }

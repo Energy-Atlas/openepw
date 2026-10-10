@@ -107,3 +107,39 @@ def test_the_clamp_needs_whole_domain_words_not_fragments():
     assert not off_topic(weather, enabled=True, min_chars=280, extra_terms=[], names=[])
     one_name = fragments + " Ithaca."
     assert off_topic(one_name, enabled=True, min_chars=280, extra_terms=[], names=["Ithaca"])
+
+
+def test_small_talk_is_recognised_only_as_a_whole_message():
+    from openepw.agent.guard import small_talk
+
+    assert [small_talk(text) for text in ("Hi", "Hello there!", "thank you so much", "What can you do?",
+                                          "Who are you?", "How does this work?", "What's next?", "Next?",
+                                          "Hello, what can you do?")] == [
+        "greet", "greet", "thanks", "help", "help", "help", "next", "next", "help"]
+    for text in ("ok", "hi Ithaca", "next year 2018", "AMY 2018 for Ithaca, NY", "help me with 2018 data", ""):
+        assert small_talk(text) is None, text
+
+
+def test_full_width_dots_count_as_dots_in_links_only():
+    from types import SimpleNamespace
+
+    from openepw.agent.guard import filter_links
+
+    links = SimpleNamespace(policy="allowlist", allowlist=["nrel.gov"])
+    assert filter_links("see evil。com/x or evil．com", links) == ("see [link removed] or [link removed]", True)
+    japanese = "天気。 nsrdb。nrel。gov/x 湿度。"
+    assert filter_links(japanese, links) == (japanese, False)
+
+
+def test_guided_mode_answers_small_talk_instead_of_reading_a_place(tmp_path):
+    import asyncio
+
+    from harness import Harness
+
+    async def main():
+        async with Harness(tmp_path) as h:
+            await h.say("Hi")
+            assert h.session.events()[-1].data.get("code") == "SMALL_TALK" and h.tools() == []
+            await h.say("What can you do?")
+            assert "guided mode" in h.session.events()[-1].text
+    asyncio.run(main())

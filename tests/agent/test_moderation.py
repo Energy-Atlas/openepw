@@ -131,7 +131,7 @@ def test_model_replies_are_checked_only_when_configured(tmp_path):
     path.write_text("extends: hosted\nmoderation:\n  check: [input, model_output]\n", encoding="utf-8")
 
     async def scenario(h):
-        await h.say("hello there")
+        await h.say("AMY 2018 for Ithaca NY")
         replies = [event for event in h.session.events() if event.type == "assistant"]
         assert replies[-1].text == "I can't show that reply." and h.session.state.strikes == 0
         assert FLAG_MARKER not in json.dumps([event.model_dump(mode="json") for event in h.session.events()])

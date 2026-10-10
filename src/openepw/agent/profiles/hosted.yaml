@@ -23,6 +23,7 @@ strikes:
   action: end_session              # end_session | guided | warn
   reopen: deny                     # allow | deny: may an ended session be reopened
   show_count: true                 # show "strike N of LIMIT" after every strike
+  unrelated_min_words: 4           # shorter unrelated messages: the decline, no strike
   sources: [out_of_scope, offtopic_clamp, moderation, host_tool_attempt]
 
 moderation:

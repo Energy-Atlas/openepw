@@ -20,10 +20,15 @@ _KEEP = {"\n", "\t", "\u200c", "\u200d"}
 # (any case, any top-level domain, e.g. EVIL.COM/fix or goo.gl/x); and bare lowercase domains on
 # common top-level domains (evil.com). Station and file names such as Denver.CO or
 # Ithaca.Tompkins.Co.725155 have no path and are not lowercase domains, so they stay.
+# Full-width and ideographic dots count as dots: browsers read evil。com as evil.com.
+_DOTS = "\u3002\uff0e\uff61"
+_DOT = "[." + _DOTS + "]"
 _LINK = re.compile(
-    r"(?i:\b(?:https?|ftp)://\S+|(?<![\w:/])//[\w-]+\.\S+|\bwww\.\S+)"
-    r"|(?i:(?<![\w.@/])[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z][a-z0-9-]{1,23}[/\\]\S*)"
-    r"|(?<![\w.@])[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:com|net|org|io|xyz|ru|cn|info|biz|co|app|dev|me|ly|"
+    r"(?i:\b(?:https?|ftp)://\S+|(?<![\w:/])//[\w-]+" + _DOT + r"\S+|\bwww" + _DOT + r"\S+)"
+    r"|(?i:(?<![\w.@/" + _DOTS + r"])[a-z0-9-]+(?:" + _DOT + r"[a-z0-9-]+)*" + _DOT
+    + r"[a-z][a-z0-9-]{1,23}[/\\]\S*)"
+    r"|(?<![\w.@" + _DOTS + r"])[a-z0-9-]+(?:" + _DOT + r"[a-z0-9-]+)*" + _DOT
+    + r"(?:com|net|org|io|xyz|ru|cn|info|biz|co|app|dev|me|ly|"
     r"ai|gl|gd|link|click|top|site|online|example)\b(?:/\S*)?")
 _EMAIL = re.compile(r"\b[\w.+-]+@[\w-]+(?:\.[\w-]+)+\b")
 _IDENTIFIER = re.compile(r"(?:^|_)(?:id|ids|hash|key|sha256|digest|uri)$")
@@ -104,7 +109,7 @@ def off_topic(text: str, *, enabled: bool, min_chars: int, extra_terms: list[str
 def link_host(link: str) -> str:
     """The host a browser would open for a link, or "" when it cannot be trusted (userinfo,
     unparsable or non-IDNA hosts). Backslashes count as slashes, as browsers treat them."""
-    link = link.replace("\\", "/")
+    link = link.replace("\\", "/").translate({ord(dot): "." for dot in _DOTS})
     if not re.match(r"[a-z][a-z0-9+.-]*://", link, re.I):
         link = "//" + link.lstrip("/")
     try:
@@ -162,3 +167,24 @@ def claims_ready(text: str) -> bool:
         if not (_NEGATED_BEFORE.search(before) or _NEGATED_AFTER.match(after)):
             return True
     return False
+
+
+# Small talk the host answers itself, in both modes, without a model call or a strike: greetings,
+# thanks, "help" or "what can you do", and "what's next". Whole messages only.
+_GREET = r"(?:hi|hello|hey|hiya|howdy|greetings|good (?:morning|afternoon|evening|day))(?: there)?"
+_THANKS = r"(?:thanks|thank you|thx|ty|cheers|many thanks)(?: (?:a lot|so much|very much))?"
+_HELP = (r"(?:help|help me|what can you do|what do you do|what can i do|who are you|what are you|"
+         r"how does (?:this|it) work|how do i (?:use (?:this|it)|start|begin)|how can you help|what is this)")
+_NEXT = (r"(?:next|what next|whats next|what is next|what now|now what|what should i do next|"
+         r"what do i do next|then what)")
+_SMALL_TALK = re.compile(rf"(?:(?P<greet>{_GREET}) ?)?(?:(?P<help>{_HELP})|(?P<next>{_NEXT})|"
+                         rf"(?P<thanks>{_THANKS}))?(?: ?please)?")
+
+
+def small_talk(text: str) -> str | None:
+    """'greet', 'thanks', 'help' or 'next' when the whole message is small talk, else None."""
+    words = " ".join(re.sub(r"[^a-z\s]", " ", re.sub(r"['\u2019]", "", text.lower())).split())
+    match = _SMALL_TALK.fullmatch(words) if words else None
+    if match is None:
+        return None
+    return next((kind for kind in ("help", "next", "thanks", "greet") if match.group(kind)), None)
