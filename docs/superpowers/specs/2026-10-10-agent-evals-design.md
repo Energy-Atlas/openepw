@@ -1,8 +1,9 @@
 # Agent evals framework — design (draft for owner review)
 
-**Status:** draft, 2026-10-10. Not approved; nothing here is built yet. It describes the eval
-framework as it is now, compares ways of grading, proposes a test-suite design, and proposes
-how to help a person inspect suite design, results and traces. Open questions are in §8.
+**Status:** draft, 2026-10-10, updated the same day with the owner's answers (§8). Not built yet;
+the implementation plan is `docs/superpowers/plans/2026-10-10-agent-evals.md`. It describes the
+eval framework as it is now, compares ways of grading, proposes a test-suite design, and
+proposes how to help a person inspect suite design, results and traces.
 
 **Vocabulary** (used throughout):
 
@@ -11,8 +12,8 @@ how to help a person inspect suite design, results and traces. Open questions ar
 | Task | One test: a starting state, what the simulated person says and answers, and how success is judged. Today a "scenario" (S1–S44). |
 | Trial | One attempt at a task. Live models vary between attempts, so a task runs several trials. |
 | Grader | One piece of logic that scores one aspect of a trial: code (rules), a model (judge) or a person. |
-| Trace | The full record of a trial: messages, model calls, tool calls, forms, guard codes. |
-| Outcome | The final state the trial leaves: session facts, plans, jobs, artifacts, strikes, whether the session ended. |
+| Trace | The full record of a trial: messages, model calls, tool calls, forms, guard codes, and, as its last entry, the outcome. |
+| Outcome | The final state the trial leaves (session facts, plans, jobs, artifacts, strikes, whether the session ended). It is the trace's closing snapshot, not a separate object or stage (owner, 2026-10-10). |
 | Suite | A set of tasks run together for one purpose (for example regression or capability). |
 
 ## 1. The framework now
@@ -60,8 +61,10 @@ scenarios.json ──► openepw eval (command.py) ──► run_evals ──►
    and were only found by deliberately breaking a guard.
 2. **Grading is rules only.** Nothing judges whether a reply was helpful, correct, concise or
    grounded in tool results, apart from fixed substrings and a length cap.
-3. **Pass or fail only.** No severity (a leaked key and a slightly long reply count the same),
-   no partial credit, and no per-grader pass rates across trials.
+3. **Pass or fail only.** No severity, no partial credit, and no per-grader pass rates across
+   trials. For example, a leaked key (an API key or bearer token, such as the one a person pastes
+   in S20, appearing in the event log, in what was sent to the model, or in a report) counts the
+   same as a reply 20 characters over its length cap.
 4. **Failure codes are not self-describing.** `OFF_TOPIC_ANSWER` is raised by any
    `assistant_excludes` hit, and a reader must open `runner.py` to learn what a code checks.
 5. **No link from a task to why it exists:** which requirement, ADR rule or threat it covers.
@@ -72,9 +75,10 @@ scenarios.json ──► openepw eval (command.py) ──► run_evals ──►
 8. **Eval trials are not traced.** `run_scenario` passes no tracer, so live eval trials never
    reach LangSmith. Failed transcripts are cut to 60 lines with no tool data, and passing trials
    keep nothing.
-9. **Reports don't pin what was tested:** the git commit, a hash of the system prompt and tool
-   list, a hash of the scenario file and the model version are missing (the profile digest is
-   recorded).
+9. **Reports don't pin what was tested.** Reports live outside git, so each must record what it
+   tested: the git commit and whether the working tree had uncommitted changes, a hash of the
+   system prompt and tool list, a hash of the task files and the model version. Today only the
+   profile digest is recorded.
 10. **The simulated person is fixed.** One answer per form kind; nothing adapts to what the
     agent says.
 
@@ -154,20 +158,24 @@ script: [...]                  # offline solution: proves the task is solvable
 - **The simulated person (later):** an optional model-played person with a persona and a goal,
   for capability tasks only. Regression tasks keep fixed answers so they stay repeatable.
 
-## 4. Outcomes and traces
+## 4. Trial records (trace with its outcome)
 
-Each trial writes one record (JSON lines, one file per eval run, in an ignored folder):
+Each trial writes one record (JSON lines, one file per eval run, in an ignored folder). The
+outcome is the last entry of the trace, so there is one object per trial and graders read one
+thing:
 
 - **Pins:** eval-run id, task id and a hash of the task, trial number, git commit, model id,
   system-prompt and tool-list hash, profile and digest, providers, moderation mode.
 - **Trace:** the redacted event log (what the person saw), model requests and replies (redacted;
   the state block and tool list), tool calls with argument summaries and result codes, forms,
-  guard codes, timings, tokens and cost.
-- **Outcome:** final facts, plans, job ids and states, artifacts, strikes, whether the session
-  ended.
-- **Grades:** each grader's verdict, score, severity and evidence (an event number).
+  guard codes, timings, tokens and cost, ending with an `outcome` entry: final facts, plans, job
+  ids and states, artifacts, strikes, whether the session ended.
+- **Grades:** each grader's verdict, score, severity and evidence (an entry number in the
+  trace).
 
-**LangSmith mapping** (evals currently send nothing there):
+**LangSmith mapping** (evals currently send nothing there). Live runs are sent to a separate
+project, `openepw-agent-evals`, when tracing is configured; offline and scripted runs are not
+sent, because they are deterministic and would only add noise:
 
 - a suite is a dataset, a task is an example, and an eval run is an experiment;
 - each trial is a trace in that experiment, tagged `eval`, with `task_id`, `trial`, `suite` and
@@ -192,11 +200,13 @@ Each trial writes one record (JSON lines, one file per eval run, in an ignored f
 5. **Solvability.** Every task has a scripted solution that passes offline. A task no live trial
    ever passes is checked for a bad task or grader before it's blamed on the agent.
 6. **Judge calibration.**
-   - People label 50–100 traces against the same rubric (pass, fail or can't tell, plus a failure
-     category).
+   - People label a small, stratified set first: 24 traces per judged dimension (about 8 clear
+     passes, 8 clear failures and 8 borderline), using the same rubric (pass, fail or can't tell,
+     plus a failure category). The set grows from labels people add while inspecting traces.
    - Judge agreement with those labels is measured (agreement rate, Cohen's kappa, and a
      confusion table of where they disagree).
-   - A judge is trusted as a hard grader only above an agreed threshold.
+   - A judge is trusted as a hard grader only above an agreed threshold. With 24 labels the
+     agreement estimate is rough, so judges stay soft until the set is larger.
    - Recalibrate when the judge model or its rubric changes. Run each judge twice on a sample to
      measure its own consistency.
 7. **Saturation and drift.** Tasks that always pass are candidates to retire or harden; flaky
@@ -282,17 +292,23 @@ These labels become the judge calibration set (§5.6) and new tasks for the suit
 E1, E2 and E4 are offline. The existing scenarios migrate to the schema without changing what
 they check.
 
-## 8. Open questions for the owner
+## 8. Owner answers (2026-10-10)
 
-1. **Judge model:** the same provider as the agent (OpenAI) with a stronger model than the agent's
-   `gpt-6-luna`, or another provider to reduce self-preference? Budget per live eval run?
-2. **Task file format:** keep JSON, or move to YAML as the 2026-10-05 spec planned (easier to read
-   and comment on)?
-3. **Where results live:** an ignored local folder only, LangSmith experiments too, or a
-   committed summary per release?
-4. **Trials and gates:** are 3 live trials for regression and 5 for safety tasks (pass^k) right?
-   Should a live run ever gate a merge, or stay advisory, with only offline runs in CI?
-5. **Human labelling:** who labels the calibration set (about 50–100 traces), and how often is it
-   refreshed?
-6. **Order:** start with E1, E2 and E4 (offline), then E3, and E5 only after the calibration set
-   exists?
+| # | Question | Answer |
+| --- | --- | --- |
+| 1 | Judge model and budget | The owner named `gpt-6-terra` and left the budget to the plan. **`gpt-6-terra` is not available to the project key** (`model_not_found`; the key lists `gpt-5.6-terra`, `gpt-6-sol`, `gpt-6-astra`, `gpt-6.1-sol` and others), so the judge model is a setting and its default awaits the owner. Budget: a separate judge cap, default $1 per eval run. |
+| 2 | Task file format | YAML. No backward compatibility: `scenarios.json` is migrated and removed. |
+| 3 | Where results live | An ignored local folder, and LangSmith experiments for live runs. |
+| 4 | Trials and gates | Advisory only. Offline runs only in automated checks; no GitHub CI. Trial counts as proposed (offline 1, live regression 3, live safety 5). |
+| 5 | Human labelling | People label, but 50–100 traces is too many. The plan starts with a smaller set (§5.6). |
+| 6 | Order | E1, E2 and E4 before E5. E3: see below. |
+| — | Trace and outcome | One object: the outcome is the trace's last entry (§4). |
+
+**E3 — should traces in LangSmith be graded?** Not from LangSmith. Graders are a library in
+openepw that grades the local trial record at the end of each trial (the source of truth); the
+verdicts are then attached to the LangSmith trace as feedback, so LangSmith shows them but never
+computes them. The same rule graders can also grade real (non-eval) sessions from the local
+session store, as an offline command, to find invariant breaks in manual or hosted use without
+replaying them; that needs no LangSmith. LangSmith's own online evaluators (model judges running
+on sampled production traces) are not used now: they would be uncalibrated and billed separately.
+They can be reconsidered with P4 hosting, once the judges of E5 are calibrated.
