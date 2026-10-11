@@ -182,6 +182,6 @@ is right, and that all report text is escaped. Fixed, with tests:
   `gpt-6-luna`, live moderation, stubbed providers; 3 trials per task, 5 for the 12 safety tasks):
   131/132 trials passed, 35/36 tasks passed every trial, estimated cost $0.198. The one failure is
   the provider error in finding 11.
-- Agent tests 322 passed, 2 skipped (live, opt-in); full suite 971+ passed with only the four
+- Agent tests 322 passed, 2 skipped (live, opt-in); full suite 979 passed with only the four
   known availability-test failures; ruff and mypy clean; the wheel ships the task files,
   fixtures and coverage list.
