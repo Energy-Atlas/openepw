@@ -1,0 +1,21 @@
+id: S3
+title: Coordinates show an estimated standard-time offset
+purpose: Coordinates get a location review that shows the estimated fixed standard-time offset.
+covers: [gate.offsets, gate.location-review]
+tags: [workflow]
+user:
+  say: 42.44, -76.5 TMYx
+  answers: {location_review: approve, product_choice: null, choice: first, text: TMYx for those coordinates, map_input: '42.44,
+      -76.5'}
+graders:
+- grader: forms_in_order
+  value: [location_review, product_choice]
+- {grader: offset_estimated}
+- {grader: submitted, value: false}
+script:
+- call: review_location
+  args:
+    locations: {lat: 42.44, lon: -76.5, name: '42.44, -76.5'}
+- call: choose_products
+  args: {product: tmyx}
+- {say: Choose a typical-year product above.}

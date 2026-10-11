@@ -1,0 +1,14 @@
+id: S11
+title: Future weather is suspended
+purpose: A future-climate request gets the suspension message without any tool.
+covers: [science.future-suspended]
+tags: [science]
+user:
+  say: SSP585 2050 for Denver
+  answers: {}
+graders:
+- {grader: no_tools}
+- grader: reply_contains
+  value: [temporarily unavailable]
+- {grader: submitted, value: false}
+script: []

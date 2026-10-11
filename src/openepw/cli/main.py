@@ -4,6 +4,7 @@ import hashlib
 import json
 import logging
 import re
+import sys
 from pathlib import Path
 
 from pydantic import TypeAdapter, ValidationError
@@ -40,6 +41,18 @@ def _security_policy(args, default: str, *, remote: bool = False):
         logging.getLogger("openepw.security").warning("Remote serve with a weakened profile: %s",
                                                       "; ".join(notes))
     return policy
+
+
+def _default_eval_run(argv: list[str]) -> list[str]:
+    """`openepw [global options] eval [options]` means `eval run`."""
+    index = 0
+    while index < len(argv) and argv[index].startswith("-"):
+        index += 2 if argv[index] in ("--env-file", "--data-root") else 1
+    if index < len(argv) and argv[index] == "eval":
+        following = argv[index + 1] if index + 1 < len(argv) else None
+        if following not in ("run", "compare", "lint", "catalog", "mutate", "-h", "--help"):
+            argv.insert(index + 1, "run")
+    return argv
 
 
 def main(argv=None):
@@ -80,22 +93,38 @@ def main(argv=None):
     chat.add_argument("--reopen", action="store_true",
                       help="Reopen an ended session (only when the profile allows it)")
     _security_arguments(chat, "local")
-    evals = sub.add_parser("eval", help="Run the agent chat scenarios and report pass rates")
-    evals.add_argument("--mode", choices=["guided", "agent"], default="guided")
-    evals.add_argument("--scripted", action="store_true",
-                       help="Agent mode with each scenario's scripted model (offline, no key)")
-    evals.add_argument("--live", action="store_true",
-                       help="Agent mode with the real OpenAI model (costs money; capped by --max-cost)")
-    evals.add_argument("--scenario", action="append", help="Scenario id, e.g. S1 (repeatable)")
-    evals.add_argument("--repeats", type=int, default=1)
-    evals.add_argument("--model", default=None, help="OpenAI model id for live agent runs")
-    evals.add_argument("--max-cost", type=float, default=1.0,
-                       help="Budget stop in USD for this eval run (default 1)")
-    evals.add_argument("--live-providers", action="store_true",
-                       help="Use the real geocoder and providers instead of offline stubs")
-    evals.add_argument("--scenarios-file", type=Path)
-    evals.add_argument("--output", type=Path, help="Write the JSON report here")
-    _security_arguments(evals, "local")
+    evals = sub.add_parser("eval", help="Run agent chat eval tasks, compare runs, lint and catalogue tasks")
+    eval_sub = evals.add_subparsers(dest="eval_command", required=True)
+    run = eval_sub.add_parser("run", help="Run tasks; write trial records, a summary and an HTML report")
+    run.add_argument("--mode", choices=["guided", "agent"], default="guided")
+    run.add_argument("--scripted", action="store_true",
+                     help="Agent mode with each task's scripted model (offline, no key)")
+    run.add_argument("--live", action="store_true",
+                     help="Agent mode with the real OpenAI model (costs money; capped by --max-cost)")
+    run.add_argument("--task", action="append", help="Task id, e.g. S1 (repeatable)")
+    run.add_argument("--trials", type=int, default=None,
+                     help="Trials per task (default: 1 offline; live 3, or 5 for safety tasks)")
+    run.add_argument("--model", default=None, help="OpenAI model id for live agent runs")
+    run.add_argument("--max-cost", type=float, default=1.0, help="Budget stop in USD for this eval run (default 1)")
+    run.add_argument("--live-providers", action="store_true",
+                     help="Use the real geocoder and providers instead of offline stubs")
+    run.add_argument("--tasks", type=Path, help="A task YAML file or folder (default: the packaged tasks)")
+    run.add_argument("--output-dir", type=Path, help="Results folder (default: <data root>/evals/<run id>)")
+    run.add_argument("--baseline", type=Path,
+                     help="Run folder or summary.json to compare with (default: the latest similar run)")
+    _security_arguments(run, "local")
+    eval_compare = eval_sub.add_parser("compare", help="Compare two runs (folders or summary.json files)")
+    eval_compare.add_argument("baseline", type=Path)
+    eval_compare.add_argument("current", type=Path)
+    eval_lint = eval_sub.add_parser("lint", help="Check tasks for missing purpose, coverage, scripts and dead checks")
+    eval_lint.add_argument("--tasks", type=Path)
+    eval_catalog = eval_sub.add_parser("catalog", help="Write a Markdown and HTML catalogue of the tasks")
+    eval_catalog.add_argument("--tasks", type=Path)
+    eval_catalog.add_argument("--output-dir", type=Path, help="Default: <data root>/evals/catalog")
+    eval_catalog.add_argument("--results", type=Path, help="A run folder whose pass rates to show")
+    eval_mutate = eval_sub.add_parser("mutate", help="Disable each guard in turn and check the tasks catch it")
+    eval_mutate.add_argument("--tasks", type=Path)
+    eval_mutate.add_argument("--mutation", action="append", help="Only this mutation (repeatable)")
     catalog = sub.add_parser("catalog")
     catalog_sub = catalog.add_subparsers(dest="catalog_command", required=True)
     catalog_sub.add_parser("status")
@@ -108,7 +137,7 @@ def main(argv=None):
     catalog_export.add_argument("--name", default="weather-availability-catalog")
     catalog_export.add_argument("--package-version", required=True)
     catalog_export.add_argument("--metadata", type=Path, help="JSON merged into datapackage.json (title, licenses...)")
-    args = parser.parse_args(argv)
+    args = parser.parse_args(_default_eval_run(list(sys.argv[1:] if argv is None else argv)))
     try:
         config = RuntimeConfig.load(
             env_file=args.env_file, **({"data_root": args.data_root} if args.data_root else {})
@@ -140,15 +169,24 @@ def main(argv=None):
             return 0
         if args.command == "eval":
             from ..agent.cli import prepare_console
-            from ..agent.evals.command import main_eval
+            from ..agent.evals import command as evals_command
 
             prepare_console()
-            return asyncio.run(main_eval(
-                mode=args.mode, scripted=args.scripted, live=args.live, scenario_ids=args.scenario,
-                repeats=args.repeats,
+            evals_dir = config.data_root / "evals"
+            if args.eval_command == "compare":
+                return evals_command.main_compare(args.baseline, args.current)
+            if args.eval_command == "lint":
+                return evals_command.main_lint(tasks_path=args.tasks)
+            if args.eval_command == "catalog":
+                return evals_command.main_catalog(tasks_path=args.tasks, output_dir=args.output_dir or
+                                                  evals_dir / "catalog", results=args.results)
+            if args.eval_command == "mutate":
+                return asyncio.run(evals_command.main_mutate(tasks_path=args.tasks, mutation_names=args.mutation))
+            return asyncio.run(evals_command.main_run(
+                mode=args.mode, scripted=args.scripted, live=args.live, task_ids=args.task, trials=args.trials,
                 model=args.model, max_cost=args.max_cost, live_providers=args.live_providers,
-                scenarios_file=args.scenarios_file, output=args.output, env_file=args.env_file or ".env",
-                security=_security_policy(args, "local")))
+                tasks_path=args.tasks, evals_dir=evals_dir, output_dir=args.output_dir, baseline=args.baseline,
+                env_file=args.env_file or ".env", security=_security_policy(args, "local")))
         if args.command == "chat":
             from ..agent.cli import (
                 chat_model,

@@ -1,0 +1,17 @@
+id: S38
+title: Thanks get a short reply, no strike
+purpose: Thanks get a short host reply, with no strike.
+covers: [scope.conversation]
+tags: [scope]
+user:
+  say: thanks
+  answers: {}
+graders:
+- {grader: strikes, value: 0}
+- grader: codes_absent
+  value: [OUT_OF_SCOPE, OFF_TOPIC_CLAMP]
+- {grader: submitted, value: false}
+- {grader: no_tools}
+- grader: codes_present
+  value: [SMALL_TALK]
+script: []

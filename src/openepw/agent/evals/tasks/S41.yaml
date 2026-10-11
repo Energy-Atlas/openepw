@@ -1,0 +1,15 @@
+id: S41
+title: A very short unrelated message is declined without a strike
+purpose: A very short unrelated message gets the decline without a strike.
+covers: [guard.short-messages]
+tags: [scope]
+modes: [agent]
+user:
+  say: lol ok cool
+  answers: {}
+graders:
+- {grader: strikes, value: 0}
+- {grader: submitted, value: false}
+script:
+- call: out_of_scope
+  args: {category: unrelated}

@@ -107,7 +107,7 @@ def run_cli(monkeypatch, tmp_path, argv):
     monkeypatch.setattr(agent_cli, "prepare_console", lambda: None)
     monkeypatch.setattr(agent_cli, "chat_model", lambda mode, **options: (None, None))
     monkeypatch.setattr(agent_cli, "chat_tracer", lambda env_file: (agent_cli.NullTracer(), None))
-    monkeypatch.setattr(eval_command, "main_eval", fake_eval)
+    monkeypatch.setattr(eval_command, "main_run", fake_eval)
     monkeypatch.setattr(app_module, "create_app", lambda service, **options: seen.setdefault("serve", options))
     monkeypatch.setattr(uvicorn, "run", lambda app, **options: None)
     assert main(["--data-root", str(tmp_path), *argv]) == 0

@@ -1,4 +1,5 @@
-"""`openepw eval`: run the packaged scenarios in guided mode, with scripted models, or live."""
+"""`openepw eval`: run tasks and write records, a summary and a report; compare runs; lint and
+catalogue the tasks; check that the graders catch disabled guards (mutate)."""
 
 from __future__ import annotations
 
@@ -9,28 +10,55 @@ from typing import Any, Callable
 from ..model_port import DEFAULT_MODEL, ModelPort, OpenAIModel, load_openai_key
 from ..moderation import OpenAIModeration
 from ..policy_config import SecurityPolicy, load_policy
-from .runner import RunResult, load_scenarios, report_json, run_evals, scripted_model
+from .metrics import compare, compare_text, load_summary, summarize
+from .records import new_run_id, run_pins, scrub, write_record
+from .report import write_report
+from .runner import run_suite, scripted_model
+from .schema import Task, TaskError, load_tasks, tasks_hash
+
+Write = Callable[[str], Any]
 
 
-async def main_eval(*, mode: str = "guided", scripted: bool = False, live: bool = False,
-                    scenario_ids: list[str] | None = None,
-                    repeats: int = 1, model: str | None = None, max_cost: float = 1.0,
-                    live_providers: bool = False, scenarios_file: Path | None = None,
-                    output: Path | None = None, env_file: str | Path | None = ".env",
-                    write: Callable[[str], Any] = print, security: SecurityPolicy | None = None) -> int:
-    """Returns 0 when every run passed, 1 when any failed, 2 when the eval could not start."""
-    scenarios = load_scenarios(scenarios_file)
-    if scenario_ids:
-        wanted = {item.upper() for item in scenario_ids}
-        scenarios = [scenario for scenario in scenarios if scenario["id"].upper() in wanted]
-    if not scenarios:
-        write("No scenarios matched.")
+def select(tasks: list[Task], ids: list[str] | None) -> list[Task]:
+    if not ids:
+        return tasks
+    wanted = {item.upper() for item in ids}
+    return [task for task in tasks if task.id.upper() in wanted]
+
+
+def latest_run(evals_dir: Path, *, mode: str, model: str, profile: str, exclude: str = "") -> Path | None:
+    """The newest earlier run of the same mode, model and profile (the default baseline)."""
+    candidates = []
+    for summary in evals_dir.glob("*/summary.json"):
+        try:
+            pins = json.loads(summary.read_text(encoding="utf-8")).get("pins", {})
+        except (OSError, ValueError):
+            continue
+        if (pins.get("mode"), pins.get("model"), pins.get("profile")) == (mode, model, profile) \
+                and pins.get("run_id") != exclude:
+            candidates.append((pins.get("started_at") or "", summary.parent))
+    return max(candidates)[1] if candidates else None
+
+
+async def main_run(*, mode: str = "guided", scripted: bool = False, live: bool = False,
+                   task_ids: list[str] | None = None, trials: int | None = None, model: str | None = None,
+                   max_cost: float = 1.0, live_providers: bool = False, tasks_path: Path | None = None,
+                   evals_dir: Path = Path(".local/openepw/evals"), output_dir: Path | None = None,
+                   baseline: Path | None = None, env_file: str | Path | None = ".env", write: Write = print,
+                   security: SecurityPolicy | None = None) -> int:
+    """Returns 0 when every trial passed, 1 when any failed, 2 when the eval could not start."""
+    try:
+        tasks = select(load_tasks(tasks_path), task_ids)
+    except TaskError as error:
+        write(f"Task error: {error}")
         return 2
-    factory: Callable[[dict[str, Any]], ModelPort | None] | None = None
+    if not tasks:
+        write("No tasks matched.")
+        return 2
+    factory: Callable[[Task], ModelPort | None] | None = None
     live_model: OpenAIModel | None = None
     if mode == "agent" and scripted:
-        def factory(scenario: dict[str, Any]) -> ModelPort | None:
-            return scripted_model(scenario) if "script" in scenario else None
+        factory = scripted_model
     elif mode == "agent" and not live:
         write("Agent-mode evals call the OpenAI API: add --live (spend capped by --max-cost) "
               "or use --scripted to run offline.")
@@ -40,33 +68,119 @@ async def main_eval(*, mode: str = "guided", scripted: bool = False, live: bool 
         if not key:
             write("Live agent evals need OPENAI_API_KEY (environment or .env); use --scripted to run offline.")
             return 2
-        # One in-memory ledger for this eval run; it stops at --max-cost.
         live_model = OpenAIModel(key, model=model or DEFAULT_MODEL, max_cost_usd=max_cost)
         shared = live_model
 
-        def factory(scenario: dict[str, Any]) -> ModelPort | None:
+        def factory(task: Task) -> ModelPort | None:
             return shared
-
-    def show(result: RunResult) -> None:
-        status = "pass" if result.passed else "FAIL " + ",".join(result.failures)
-        write(f"{result.scenario:4} {result.mode:6} {status:40} steps={result.model_steps:<2} "
-              f"{result.seconds:6.1f}s ${result.cost_usd:.4f}")
-
     label = "scripted" if scripted else (live_model.name if live_model else "none")
     security = security or load_policy("local")
-    moderation = None                                   # offline: each run uses the stub
+    moderation = None                                   # offline: each trial uses the stub
     if live_model is not None and security.moderation.enabled:
         moderation = OpenAIModeration(load_openai_key(env_file) or "", model=security.moderation.model)
-    write(f"openepw eval · mode {mode} · model {label} · repeats {repeats} · "
-          f"providers {'live' if live_providers else 'stubbed'} · profile {security.profile} ({security.digest})")
-    reports = await run_evals(scenarios, mode=mode, model_factory=factory, repeats=repeats,
-                              live_providers=live_providers, on_result=show, security=security,
-                              moderation=moderation)
-    summary = report_json(reports, mode=mode, model=label, repeats=repeats,
-                          providers="live" if live_providers else "stubbed",
-                          security_profile=security.profile, security_digest=security.digest)
-    write(f"{summary['passed']}/{summary['runs']} runs passed; estimated model cost ${summary['cost_usd']:.4f}")
-    if output is not None:
-        output.parent.mkdir(parents=True, exist_ok=True)
-        output.write_text(json.dumps(summary, indent=2), encoding="utf-8")
-    return 0 if summary["runs"] and summary["passed"] == summary["runs"] else 1
+
+    def count(task: Task) -> int:
+        if trials is not None:
+            return trials
+        return task.live_trials() if live_model is not None else 1
+    trial_policy = (f"{trials} per task" if trials is not None
+                    else "live: 3 per task, 5 for safety tasks" if live_model is not None else "1 per task (offline)")
+    run_id = new_run_id(mode, label)
+    pins = run_pins(run_id=run_id, mode=mode, model=label, providers="live" if live_providers else "stubbed",
+                    security=security, tasks_hash=tasks_hash(tasks), trials=trial_policy)
+    folder = output_dir or evals_dir / run_id
+    folder.mkdir(parents=True, exist_ok=True)
+    git = pins["git"]
+    write(f"openepw eval · {run_id} · model {label} · trials {trial_policy} · providers {pins['providers']} · "
+          f"profile {security.profile} ({security.digest}) · commit {str(git['commit'])[:12]}"
+          + (" (uncommitted changes)" if git.get("dirty") else ""))
+
+    def show(record: dict[str, Any]) -> None:
+        write_record(folder / "trials.jsonl", record)
+        failed = [grade["code"] for grade in record["grades"] if not grade["passed"]]
+        status = "pass" if record["passed"] else "FAIL " + ",".join(failed)
+        soft = [grade["code"] for grade in record["grades"] if not grade["passed"] and grade["severity"] == "soft"]
+        if record["passed"] and soft:
+            status = "pass (soft: " + ",".join(soft) + ")"
+        metric = record["metrics"]
+        write(f"{record['task_id']:4} #{record['trial']} {record['mode']:6} {status:40} steps={metric['model_steps']:<2} "
+              f"{metric['seconds']:6.1f}s ${metric['cost_usd']:.4f}")
+    records = await run_suite(tasks, mode=mode, model_factory=factory, trials=count, live_providers=live_providers,
+                              security=security, moderation=moderation, pins=pins, on_record=show)
+    summary = summarize(records, pins)
+    (folder / "summary.json").write_text(json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8")
+    base = baseline or latest_run(evals_dir, mode=mode, model=label, profile=security.profile, exclude=run_id)
+    diff = None
+    if base is not None:
+        try:
+            diff = compare(load_summary(base), summary)
+        except (OSError, ValueError, KeyError) as error:
+            write(f"Baseline {base} could not be read ({type(error).__name__}); no comparison.")
+    report = write_report(folder / "report.html", summary, [scrub(record) for record in records], diff,
+                          {task.id: task.purpose for task in tasks})
+    totals = summary["totals"]
+    write(f"{totals['passed']}/{totals['trials']} trials passed; {totals['tasks_all_passed']}/{totals['tasks']} tasks "
+          f"passed every trial; estimated model cost ${totals['cost_usd']:.4f}")
+    if diff:
+        for line in compare_text(diff):
+            write(line)
+    write(f"Records, summary and report: {folder} (open {report.name})")
+    return 0 if totals["trials"] and totals["passed"] == totals["trials"] else 1
+
+
+def main_compare(baseline: Path, current: Path, *, write: Write = print) -> int:
+    try:
+        diff = compare(load_summary(baseline), load_summary(current))
+    except (OSError, ValueError, KeyError) as error:
+        write(f"Cannot compare: {type(error).__name__}: {error}")
+        return 2
+    for line in compare_text(diff):
+        write(line)
+    return 1 if diff["newly_failing"] else 0
+
+
+def main_lint(*, tasks_path: Path | None = None, write: Write = print) -> int:
+    from .catalog import lint
+
+    try:
+        tasks = load_tasks(tasks_path)
+    except TaskError as error:
+        write(f"Task error: {error}")
+        return 2
+    issues = lint(tasks)
+    for issue in issues:
+        write(f"{issue.level}: {issue.where}: {issue.message}")
+    errors = sum(1 for issue in issues if issue.level == "error")
+    write(f"{len(tasks)} tasks; {errors} error(s), {len(issues) - errors} warning(s).")
+    return 1 if errors else 0
+
+
+def main_catalog(*, tasks_path: Path | None = None, output_dir: Path, results: Path | None = None,
+                 write: Write = print) -> int:
+    from .catalog import write_catalog
+
+    try:
+        tasks = load_tasks(tasks_path)
+    except TaskError as error:
+        write(f"Task error: {error}")
+        return 2
+    summary = load_summary(results) if results else None
+    paths = write_catalog(tasks, output_dir, summary)
+    write("Catalogue: " + ", ".join(str(path) for path in paths))
+    return 0
+
+
+async def main_mutate(*, tasks_path: Path | None = None, mutation_names: list[str] | None = None,
+                      write: Write = print) -> int:
+    from .mutate import run_mutations
+
+    try:
+        tasks = load_tasks(tasks_path)
+    except TaskError as error:
+        write(f"Task error: {error}")
+        return 2
+    results = await run_mutations(tasks, mutation_names, write=write)
+    uncovered = [result["mutation"] for result in results if not result["caught_by"]]
+    write(f"{len(results)} mutation(s); {len(results) - len(uncovered)} caught"
+          + (f"; NOT caught: {', '.join(uncovered)}" if uncovered else "."))
+    return 1 if uncovered else 0

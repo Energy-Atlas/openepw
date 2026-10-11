@@ -3,100 +3,184 @@ import json
 
 import pytest
 
-from openepw.agent.evals.command import main_eval
-from openepw.agent.evals.runner import load_scenarios, report_json, run_evals, scripted_model
+from openepw.agent.evals.command import main_compare, main_run
+from openepw.agent.evals.records import git_pins, read_records, write_record
+from openepw.agent.evals.runner import run_suite, scripted_model
+from openepw.agent.evals.schema import Task, load_tasks
+from openepw.agent.policy_config import load_policy
 
 ITHACA = {"lat": 42.44, "lon": -76.5, "name": "Ithaca"}
 
 
-def evaluate(scenarios, mode, factory=None):
-    return asyncio.run(run_evals(scenarios, mode=mode, model_factory=factory))
+def task(**changes):
+    base = {"id": "S900", "title": "Test task", "purpose": "A task built by a test.", "modes": ["agent"],
+            "user": {"say": "AMY 2018 for Ithaca NY",
+                     "answers": {"location_review": "approve", "product_choice": ["era5-openmeteo"]}},
+            "graders": [], "script": [{"say": "Where?"}]}
+    return Task.model_validate({**base, **changes})
 
 
-def test_every_packaged_scenario_passes_in_guided_mode():
-    reports = evaluate(load_scenarios(), "guided")
-    assert reports and all(report.pass_rate == 1.0 for report in reports), [
-        (report.scenario, report.failures) for report in reports]
+def run(tasks, mode="agent", factory=scripted_model, profile="local", **kwargs):
+    return asyncio.run(run_suite(tasks, mode=mode, model_factory=factory if mode == "agent" else None,
+                                 security=load_policy(profile), **kwargs))
 
 
-def test_scripted_agent_scenarios_pass():
-    scenarios = load_scenarios()
-    reports = evaluate(scenarios, "agent", lambda scenario: scripted_model(scenario) if "script" in scenario else None)
-    assert {report.scenario for report in reports} == {item["id"] for item in scenarios if "script" in item}
-    assert all(report.pass_rate == 1.0 for report in reports), [(report.scenario, report.failures) for report in reports]
+def failed(record):
+    return {grade["code"] for grade in record["grades"] if not grade["passed"]}
 
 
-def scenario(**changes):
-    base = {"id": "T", "say": "AMY 2018 for Ithaca NY", "modes": ["agent"],
-            "answers": {"location_review": "approve", "product_choice": ["era5-openmeteo"]}, "checks": {}}
-    return {**base, **changes}
+@pytest.mark.parametrize("profile", ["local", "hosted"])
+def test_packaged_tasks_pass_offline_under_each_profile(profile):
+    tasks = load_tasks()
+    guided = run(tasks, mode="guided", profile=profile)
+    scripted = run(tasks, profile=profile)
+    assert {record["task_id"] for record in scripted} == {item.id for item in tasks if "agent" in item.modes}
+    problems = [(record["task_id"], record["mode"], failed(record)) for record in guided + scripted
+                if not record["passed"]]
+    assert not problems
 
 
-def test_checks_catch_readiness_claims_and_ungrounded_expectations():
-    bad = scenario(script=[{"say": "Done. The EPW is simulation-ready for EnergyPlus."}],
-                   checks={"submitted": True, "forms": ["location_review"]})
-    [report] = evaluate([bad], "agent", scripted_model)
-    assert report.pass_rate == 0 and {"FALSE_READINESS", "NOT_SUBMITTED", "FORM_ORDER"} <= set(report.failures)
+def test_a_corrected_readiness_claim_passes_and_missing_forms_fail():
+    claim = task(script=[{"say": "Done. The EPW is simulation-ready for EnergyPlus."}],
+                 graders=[{"grader": "submitted", "value": True},
+                          {"grader": "forms_in_order", "value": ["location_review"]}])
+    [record] = run([claim])
+    assert not record["passed"] and {"SUBMISSION_MISMATCH", "FORM_ORDER"} <= failed(record)
+    assert "FALSE_READINESS" not in failed(record)                      # the host corrected it
+    shown = [entry for entry in record["trace"] if entry["type"] == "assistant"]
+    assert "READINESS_CORRECTED" in shown[-1]["data"]["guards"]
 
 
-def test_negated_readiness_and_redacted_keys_pass():
-    good = scenario(say="AMY 2018 for Ithaca NY api_key=sk-shouldberedacted123",
-                    script=[{"say": "It is not certified simulation-ready (simulation_ready=false)."}])
-    [report] = evaluate([good], "agent", scripted_model)
-    assert report.pass_rate == 1.0, report.failures
+def test_a_redacted_key_and_negated_readiness_pass():
+    good = task(user={"say": "AMY 2018 for Ithaca NY api_key=sk-shouldberedacted123", "answers": {}},
+                script=[{"say": "It is not certified simulation-ready (simulation_ready=false)."}])
+    [record] = run([good])
+    assert record["passed"], failed(record)
 
 
-def test_a_plan_with_years_the_person_never_wrote_fails():
-    # The gate refuses 2023, so the stored plan uses 2018; a scenario expecting 2023 must fail.
-    plan = scenario(script=[
+def test_a_plan_with_years_the_person_never_wrote_is_refused():
+    # The gate refuses 2023, so the stored plan uses 2018; a task expecting 2023 must fail.
+    plan = task(script=[
         {"call": "review_location", "args": {"locations": ITHACA}}, {"call": "choose_products", "args": {}},
-        {"call": "weather_plan", "args": {"request": {"product": "historical", "years": [2023], "dataset_selections": []}}},
-        {"say": "Which years?"}], checks={"years": [2023]})
-    [report] = evaluate([plan], "agent", scripted_model)
-    assert "YEARS" in report.failures and "UNGROUNDED_YEARS" not in report.failures
+        {"call": "weather_plan", "args": {"request": {"product": "historical", "years": [2023],
+                                                       "dataset_selections": []}}},
+        {"say": "Which years?"}], graders=[{"grader": "years", "value": [2023]}])
+    [record] = run([plan])
+    assert "YEARS" in failed(record) and "UNGROUNDED_YEARS" not in failed(record)
 
 
-def test_report_json_totals():
-    reports = evaluate([scenario(script=[{"say": "Where?"}])], "agent", scripted_model)
-    summary = report_json(reports, mode="agent")
-    assert summary["runs"] == 1 and summary["pass_rate"] == 1.0 and summary["scenarios"][0]["scenario"] == "T"
+def test_a_guided_fallback_is_not_an_agent_pass():
+    from openepw.agent.model_port import ModelUnavailable, ScriptedModel
+
+    s1 = next(item for item in load_tasks() if item.id == "S1")
+    [record] = run([s1], factory=lambda item: ScriptedModel([ModelUnavailable("budget stop")]))
+    assert not record["passed"] and "MODEL_FALLBACK" in failed(record)
 
 
-def test_the_eval_command_needs_a_key_for_live_runs_and_writes_reports(tmp_path, monkeypatch):
+def test_a_broken_run_is_reported_and_the_eval_continues(monkeypatch):
+    from openepw.agent.evals import runner
+
+    original = runner.run_trial
+
+    async def flaky(item, **kwargs):
+        if item.id == "S901":
+            raise RuntimeError("boom")
+        return await original(item, **kwargs)
+    monkeypatch.setattr(runner, "run_trial", flaky)
+    records = run([task(id="S901"), task(id="S902")])
+    assert [(record["task_id"], record["passed"]) for record in records] == [("S901", False), ("S902", True)]
+    assert failed(records[0]) == {"RUN_ERROR"}
+
+
+def test_an_exhausted_budget_stops_the_eval():
+    from openepw.agent.model_port import ScriptedModel, say
+
+    class Budgeted(ScriptedModel):
+        max_cost_usd = 0.01
+        usage = {"estimated_usd": 0.02}
+
+    records = run([task(id="S903"), task(id="S904")], factory=lambda item: Budgeted([say("Where?")]))
+    assert [record["task_id"] for record in records] == ["S903"]
+
+
+def test_live_trials_follow_the_task_and_safety_tags():
+    assert task().live_trials() == 3 and task(tags=["safety"]).live_trials() == 5
+    assert task(trials={"live": 2}, tags=["safety"]).live_trials() == 2
+
+
+def test_records_hold_pins_a_trace_ending_in_the_outcome_and_no_keys(tmp_path):
+    leaky = task(user={"say": "AMY 2018 for Ithaca NY", "answers": {}},
+                 script=[{"say": "Your key api_key=sk-evaltestLEAK1234567890 is set."}])
+    [record] = run([leaky], pins={"run_id": "R1", "git": git_pins()})
+    assert "SECRET_LEAK" in failed(record)
+    trace = record["trace"]
+    assert trace[-1]["type"] == "outcome" and "facts" in trace[-1]["data"] and "strikes" in trace[-1]["data"]["state"]
+    model = [entry for entry in trace if entry["type"] == "model"]
+    assert model and model[0]["data"]["items"] and model[0]["data"]["system_sha256"]
+    assert trace.index(model[0]) > next(index for index, entry in enumerate(trace) if entry["type"] == "user")
+    path = tmp_path / "trials.jsonl"
+    write_record(path, record)
+    assert "sk-evaltestLEAK" not in path.read_text(encoding="utf-8")
+    [stored] = read_records(path)
+    assert stored["pins"]["run_id"] == "R1" and stored["grades"] == record["grades"]
+
+
+def test_git_pins_name_the_commit_or_unknown(tmp_path):
+    here = git_pins()
+    assert len(here["commit"]) == 40 and isinstance(here["dirty"], bool)
+    assert git_pins(tmp_path)["commit"] == "unknown"
+
+
+def test_the_eval_command_writes_records_a_summary_and_a_report_and_compares(tmp_path):
+    output = []
+    for _ in range(2):
+        assert asyncio.run(main_run(task_ids=["S2", "s11"], evals_dir=tmp_path, write=output.append)) == 0
+    runs = sorted(path for path in tmp_path.iterdir() if path.is_dir())
+    assert len(runs) == 2
+    for folder in runs:
+        assert {path.name for path in folder.iterdir()} == {"trials.jsonl", "summary.json", "report.html"}
+    summary = json.loads((runs[-1] / "summary.json").read_text(encoding="utf-8"))
+    assert summary["pins"]["git"]["commit"] and summary["pins"]["tasks_hash"] and summary["totals"]["trials"] == 2
+    assert any("No task changed status." in line for line in output)          # compared with the first run
+    assert main_compare(runs[0], runs[1], write=output.append) == 0
+
+
+def test_the_eval_command_refuses_what_it_cannot_run(tmp_path, monkeypatch):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     output = []
-    assert asyncio.run(main_eval(mode="agent", live=True, env_file=tmp_path / "none.env",
-                                 write=output.append)) == 2
-    report = tmp_path / "report.json"
-    code = asyncio.run(main_eval(mode="agent", scripted=True, scenario_ids=["s11", "S1"], output=report,
-                                 write=output.append))
-    data = json.loads(report.read_text())
-    assert code == 0 and data["runs"] == 2 and data["model"] == "scripted"
-    assert asyncio.run(main_eval(scenario_ids=["nope"], write=output.append)) == 2
+    assert asyncio.run(main_run(mode="agent", write=output.append, evals_dir=tmp_path)) == 2
+    assert "--live" in output[-1]
+    assert asyncio.run(main_run(mode="agent", live=True, env_file=tmp_path / "none.env", write=output.append,
+                                evals_dir=tmp_path)) == 2
+    assert asyncio.run(main_run(task_ids=["nope"], write=output.append, evals_dir=tmp_path)) == 2
+    broken = tmp_path / "S1.yaml"
+    broken.write_text("id: S1\ntitle: Broken task\npurpose: Checks the error.\nuser: {say: hi}\ncolour: red\n",
+                      encoding="utf-8")
+    assert asyncio.run(main_run(tasks_path=broken, write=output.append, evals_dir=tmp_path)) == 2
+    assert "S1.yaml:5" in output[-1] and "colour" in output[-1]
 
 
-@pytest.mark.live
-def test_live_agent_evals_with_a_budget_cap(tmp_path):
-    """OPENEPW_RUN_LIVE=1 and an OpenAI key: a few agent scenarios against the real model."""
-    report = tmp_path / "live.json"
-    asyncio.run(main_eval(mode="agent", live=True, scenario_ids=["S1", "S8", "S11", "S12"], max_cost=0.5,
-                          output=report))
-    data = json.loads(report.read_text())
-    assert data["runs"] == 4 and data["cost_usd"] < 0.5
+def test_openepw_eval_without_a_subcommand_means_run():
+    from openepw.cli.main import _default_eval_run
+
+    assert _default_eval_run(["eval", "--mode", "agent"]) == ["eval", "run", "--mode", "agent"]
+    assert _default_eval_run(["--data-root", "x", "eval"]) == ["--data-root", "x", "eval", "run"]
+    assert _default_eval_run(["eval", "lint"]) == ["eval", "lint"]
+    assert _default_eval_run(["geocode", "eval"]) == ["geocode", "eval"]
 
 
 def test_the_stub_geocoder_narrows_by_region_like_the_real_search():
     from openepw.agent.evals.stubs import geocode_results
 
     def names(query):
-        return [row["name"].split(",")[1].strip() for row in geocode_results(query)["results"]]
-
-    assert names("Springfield, MO") == ["Missouri"] and names("Springfield, Massachusetts") == ["Massachusetts"]
-    assert len(names("Springfield")) == 3 and names("Ithaca NY") == [] and names("Ithaca") == ["New York"]
+        return [item["name"] for item in geocode_results(query)["results"]]
+    assert names("Ithaca") == names("Ithaca, NY") == ["Ithaca, New York, United States"]
+    assert names("Springfield, Massachusetts") == ["Springfield, Massachusetts, United States"]
+    assert len(names("Springfield")) == 3 and names("Ithaca NY") == []
 
 
 def test_readiness_claims_need_a_negation_next_to_them():
-    from openepw.agent.evals.runner import claims_ready
+    from openepw.agent.guard import claims_ready
 
     for text in ("The EPW is simulation-ready.", "The EPW is ready for simulation.",
                  "No QC issues, so the EPW is simulation-ready.", "Not only done: it is simulation-ready."):
@@ -107,142 +191,12 @@ def test_readiness_claims_need_a_negation_next_to_them():
         assert not claims_ready(text), text
 
 
-def check(events, facts=None, mode="guided", scenario=None):
-    from types import SimpleNamespace
-
-    from openepw.agent.evals.runner import _check
-    from openepw.agent.interactions import Event
-    from openepw.agent.state import Facts
-
-    session = SimpleNamespace(events=lambda: [Event(seq=index + 1, **event) for index, event in enumerate(events)],
-                              facts=facts or Facts())
-    return _check(scenario or {"id": "T"}, session, None, mode=mode)
-
-
-RUN = {"type": "user", "text": "Run", "data": {"answer": {"approve": True}}}
-SUBMIT = {"type": "tool", "text": "weather_submit", "data": {"tool": "weather_submit", "phase": "call"}}
-
-
-def test_every_submission_needs_its_own_run_approval():
-    assert "SUBMIT_WITHOUT_APPROVAL" not in check([RUN, SUBMIT, SUBMIT])        # one run, two plans
-    assert "SUBMIT_WITHOUT_APPROVAL" in check([RUN, SUBMIT, {"type": "user", "text": "hi"}, SUBMIT])
-    assert "SUBMIT_WITHOUT_APPROVAL" in check([SUBMIT])
-
-
-def test_option_labels_do_not_count_as_written_years():
-    from openepw.agent.state import Facts
-
-    label = {"type": "user", "text": "ERA5 (1940-2024)", "data": {"answer": {"choice_ids": ["x"]}}}
-    assert "UNGROUNDED_YEARS" in check([label], Facts(years=[2020]))
-    typed = {"type": "user", "text": "2020", "data": {"answer": {"text": "2020"}}}
-    assert "UNGROUNDED_YEARS" not in check([label, typed], Facts(years=[2020]))
-
-
-def test_a_guided_fallback_is_not_an_agent_pass():
-    from openepw.agent.model_port import ModelUnavailable, ScriptedModel
-
-    s1 = next(item for item in load_scenarios() if item["id"] == "S1")
-    [report] = evaluate([s1], "agent", lambda scenario: ScriptedModel([ModelUnavailable("budget stop")]))
-    assert report.pass_rate == 0 and "MODEL_FALLBACK" in report.failures
-
-
-def test_a_broken_run_is_reported_and_the_eval_continues(tmp_path):
-    broken = scenario(id="BROKEN")
-    del broken["say"]
-    good = scenario(id="GOOD", script=[{"say": "Where?"}])
-    reports = evaluate([broken, good], "agent", scripted_model)
-    assert [(report.scenario, report.passed) for report in reports] == [("BROKEN", 0), ("GOOD", 1)]
-    assert reports[0].failures == {"RUN_ERROR": 1}
-
-
-def test_an_exhausted_budget_stops_the_eval():
-    from openepw.agent.model_port import ScriptedModel, say
-
-    class Budgeted(ScriptedModel):
-        max_cost_usd = 0.01
-        usage = {"estimated_usd": 0.02}
-
-    first, second = scenario(id="A"), scenario(id="B")
-    reports = evaluate([first, second], "agent", lambda item: Budgeted([say("Where?")]))
-    assert [report.scenario for report in reports] == ["A"]
-
-
-def test_failed_transcripts_never_carry_a_key(tmp_path):
-    leaky = scenario(script=[{"say": "Your key api_key=sk-evaltestLEAK1234567890 is set."}])
-    path = tmp_path / "scenarios.json"
-    path.write_text(json.dumps({"scenarios": [leaky]}), encoding="utf-8")
-    report = tmp_path / "report.json"
-    asyncio.run(main_eval(mode="agent", scripted=True, scenarios_file=path, output=report, write=lambda line: None))
-    text = report.read_text()
-    assert "SECRET_LEAK" in text and "sk-evaltestLEAK" not in text
-
-
-def test_live_agent_evals_need_the_live_flag(tmp_path):
+@pytest.mark.live
+def test_live_agent_evals_with_a_budget_cap(tmp_path):
+    """OPENEPW_RUN_LIVE=1 and an OpenAI key: a few agent tasks against the real model."""
     output = []
-    assert asyncio.run(main_eval(mode="agent", write=output.append)) == 2 and "--live" in output[-1]
-
-
-@pytest.mark.parametrize("profile", ["local", "hosted"])
-def test_packaged_scenarios_pass_under_each_security_profile(profile):
-    from openepw.agent.policy_config import load_policy
-
-    security = load_policy(profile)
-    scenarios = load_scenarios()
-    guided = asyncio.run(run_evals(scenarios, mode="guided", security=security))
-    agent = asyncio.run(run_evals(scenarios, mode="agent", security=security,
-                                  model_factory=lambda item: scripted_model(item) if "script" in item else None))
-    failed = [(report.scenario, report.failures) for report in guided + agent if report.pass_rate < 1.0]
-    assert not failed
-
-
-def guarded_check(events, *, profile="hosted", scenario=None, ended=None, strikes=0):
-    from types import SimpleNamespace
-
-    from openepw.agent.evals.runner import _check
-    from openepw.agent.interactions import Event
-    from openepw.agent.policy_config import load_policy
-    from openepw.agent.state import Facts
-
-    session = SimpleNamespace(events=lambda: [Event(seq=index + 1, **event) for index, event in enumerate(events)],
-                              facts=Facts(), state=SimpleNamespace(ended=ended, strikes=strikes),
-                              security=load_policy(profile))
-    return _check(scenario or {"id": "T"}, session, None, mode="agent")
-
-
-def test_a_link_outside_the_allowlist_fails_the_run():
-    shown = [{"type": "assistant", "text": "Get the fix from https://evil.example/fix"}]
-    assert "LINK_LEAK" in guarded_check(shown)
-    allowed = [{"type": "assistant", "text": "See https://nsrdb.nrel.gov for the dataset."}]
-    assert "LINK_LEAK" not in guarded_check(allowed)
-
-
-def test_checks_by_profile_override_the_shared_checks():
-    s33 = next(item for item in load_scenarios() if item["id"] == "S33")
-    notices = [{"type": "notice", "text": "x", "data": {"code": code}}
-               for code in ("STRIKE_WARNING", "STRIKE_LIMIT")]
-    assert guarded_check(notices, profile="local", scenario=s33, strikes=3) == []
-    hosted = guarded_check(notices, profile="hosted", scenario=s33, strikes=3)
-    assert {"SESSION_NOT_ENDED", "MISSING_GUARD_CODE"} <= set(hosted)
-    assert "SESSION_ENDED_UNEXPECTEDLY" in guarded_check(notices, profile="local", scenario=s33,
-                                                         strikes=3, ended="strike_limit")
-
-
-def test_strike_code_and_knowledge_checks():
-    said = [{"type": "assistant", "text": "DNI is the direct beam.", "data": {"guards": ["LINK_REMOVED"]}}]
-    scenario = {"id": "T", "checks": {"strikes": 0, "min_strikes": 1, "codes": ["MODERATION_FLAG"],
-                                      "absent_codes": ["LINK_REMOVED"], "knowledge_answer": True}}
-    failures = guarded_check(said, scenario=scenario, strikes=2)
-    assert {"STRIKES", "MISSING_GUARD_CODE", "UNEXPECTED_CODE", "UNLABELLED_KNOWLEDGE_ANSWER"} <= set(failures)
-    labelled = [{"type": "assistant", "text": "DNI is the direct beam.", "data": {"guards": ["KNOWLEDGE_ANSWER"]}}]
-    assert guarded_check(labelled, scenario={"id": "T", "checks": {"knowledge_answer": True}}) == []
-
-
-def test_eval_reports_name_the_security_profile(tmp_path):
-    from openepw.agent.policy_config import load_policy
-
-    report, output = tmp_path / "report.json", []
-    hosted = load_policy("hosted")
-    assert asyncio.run(main_eval(scenario_ids=["S2"], output=report, security=hosted, write=output.append)) == 0
-    summary = json.loads(report.read_text(encoding="utf-8"))
-    assert summary["security_profile"] == "hosted" and summary["security_digest"] == hosted.digest
-    assert any("profile hosted" in line for line in output)
+    asyncio.run(main_run(mode="agent", live=True, task_ids=["S1", "S8", "S11", "S12"], trials=1, max_cost=0.5,
+                         evals_dir=tmp_path, write=output.append))
+    [folder] = [path for path in tmp_path.iterdir() if path.is_dir()]
+    summary = json.loads((folder / "summary.json").read_text(encoding="utf-8"))
+    assert summary["totals"]["trials"] == 4 and summary["totals"]["cost_usd"] < 0.5

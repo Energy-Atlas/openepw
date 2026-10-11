@@ -1,0 +1,50 @@
+id: S32
+title: A maximum-length message is accepted and read
+purpose: A message at the 4,000-character limit is accepted and read.
+covers: [guard.length]
+tags: [guard]
+user:
+  say: 'AMY 2018 for Ithaca, NY. Please include hourly dry-bulb temperature and solar data. Please include hourly
+    dry-bulb temperature and solar data. Please include hourly dry-bulb temperature and solar data. Please include
+    hourly dry-bulb temperature and solar data. Please include hourly dry-bulb temperature and solar data. Please
+    include hourly dry-bulb temperature and solar data. Please include hourly dry-bulb temperature and solar data.
+    Please include hourly dry-bulb temperature and solar data. Please include hourly dry-bulb temperature and solar
+    data. Please include hourly dry-bulb temperature and solar data. Please include hourly dry-bulb temperature
+    and solar data. Please include hourly dry-bulb temperature and solar data. Please include hourly dry-bulb temperature
+    and solar data. Please include hourly dry-bulb temperature and solar data. Please include hourly dry-bulb temperature
+    and solar data. Please include hourly dry-bulb temperature and solar data. Please include hourly dry-bulb temperature
+    and solar data. Please include hourly dry-bulb temperature and solar data. Please include hourly dry-bulb temperature
+    and solar data. Please include hourly dry-bulb temperature and solar data. Please include hourly dry-bulb temperature
+    and solar data. Please include hourly dry-bulb temperature and solar data. Please include hourly dry-bulb temperature
+    and solar data. Please include hourly dry-bulb temperature and solar data. Please include hourly dry-bulb temperature
+    and solar data. Please include hourly dry-bulb temperature and solar data. Please include hourly dry-bulb temperature
+    and solar data. Please include hourly dry-bulb temperature and solar data. Please include hourly dry-bulb temperature
+    and solar data. Please include hourly dry-bulb temperature and solar data. Please include hourly dry-bulb temperature
+    and solar data. Please include hourly dry-bulb temperature and solar data. Please include hourly dry-bulb temperature
+    and solar data. Please include hourly dry-bulb temperature and solar data. Please include hourly dry-bulb temperature
+    and solar data. Please include hourly dry-bulb temperature and solar data. Please include hourly dry-bulb temperature
+    and solar data. Please include hourly dry-bulb temperature and solar data. Please include hourly dry-bulb temperature
+    and solar data. Please include hourly dry-bulb temperature and solar data. Please include hourly dry-bulb temperature
+    and solar data. Please include hourly dry-bulb temperature and solar data. Please include hourly dry-bulb temperature
+    and solar data. Please include hourly dry-bulb temperature and solar data. Please include hourly dry-bulb temperature
+    and solar data. Please include hourly dry-bulb temperature and solar data. Please include hourly dry-bulb temperature
+    and solar data. Please include hourly dry-bulb temperature and solar data. Please include hourly dry-bulb temperature
+    and solar data. Please include hourly dry-bulb temperature and solar data. Please include hourly dry-bulb temperature
+    and solar data. Please include hourly dry-bulb temperature and solar data. Please include hourly dry-bulb temperature
+    and solar data. Please include hourly dry-bulb temperature and solar data. Please include hourly dry-bulb temperature
+    and solar data. Please include hourly dry-bulb temperature and solar data. Please include hourly dry-bulb temperature
+    and solar data. Please include hourly dry-bulb temperature and solar data. Please include hourly dry-bulb temperature
+    and solar data. Please include hourly dry-bulb temperature and solar data. Please include hourly dry-bulb temperature
+    and solar data. Please include hourly dry-bulb temperature and solar data. Please include hourly dry-bulb temperature
+    and solar data. Please include hourly dry-bulb temperature and solar data. Please include hourly dry-bulb temperature
+    and solar data. Please include hourly dry-bulb temperature and solar data. Please include hourly dry-bulb temperature
+    and solar data. Please include hourly '
+  answers: {location_review: null, choice: first, map_input: 'Ithaca, NY'}
+graders:
+- grader: codes_absent
+  value: [MESSAGE_TOO_LONG]
+- {grader: submitted, value: false}
+script:
+- call: review_location
+  args:
+    locations: {lat: 42.44, lon: -76.5, name: 'Ithaca, New York, United States'}
