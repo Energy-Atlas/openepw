@@ -1,9 +1,12 @@
 # Agent evals framework — Plan
 
-**Status:** proposed 2026-10-10; **not approved**. Build only after the owner records approval
-here. Design and owner answers: [spec](../specs/2026-10-10-agent-evals-design.md) (§8).
+**Status:** **approved by the owner on 2026-10-10** ("plan approved"). The owner asked for E1, E2
+and E4 (tasks 1–7 and their docs) first, built autonomously without supervision, with findings,
+issues and assumptions logged in the execution notes and presented for review on completion.
+E3 (task 8), E5 (task 9, which waits for human calibration labels) and task 10 wait. Design and
+owner answers: [spec](../specs/2026-10-10-agent-evals-design.md) (§8).
 
-**Branch:** `feature/agent-evals` (name awaiting the owner's approval), created from
+**Branch:** `feature/agent-evals`, created from
 `feature/agent-guardrails` at the commit that adds this plan. `feature/agent-guardrails` was
 fast-forwarded into `feature/mcp-agent-mode` and `feature/chat-ui` on 2026-10-10 (all three at
 `b8bf980`; not pushed).
@@ -34,9 +37,8 @@ command (Task 6).
   model at today's rate. Judges run only on tasks that declare them; at about $2 in and $12 out
   per million tokens (a Terra-class rate, to be checked against OpenAI's pricing page), one
   judged trial costs about 1–2 cents.
-- **Judge model:** a setting. The owner named `gpt-6-terra`, which the project key cannot use
-  (`model_not_found`). The default (for example `gpt-5.6-terra` or a `gpt-6` model) awaits the
-  owner (Q1).
+- **Judge model:** a setting, default `gpt-5.6-terra` (the owner first named `gpt-6-terra`, which
+  the project key cannot use).
 
 ## 2. Tasks
 
@@ -67,11 +69,9 @@ owner's labelling time.
 - LangSmith online evaluators on production traces (reconsidered with P4 hosting).
 - Running evals in GitHub CI.
 
-## 4. Open questions for the owner
+## 4. Owner answers (2026-10-10)
 
-1. **Judge model default:** `gpt-6-terra` is not available to the project key. Use
-   `gpt-5.6-terra`, one of `gpt-6-sol`, `gpt-6-astra` or `gpt-6.1-sol`, or another model?
-2. **Branch name:** `feature/agent-evals` (purpose prefix as AGENTS.md requires; it adds a
-   capability, not a fix), created from `feature/agent-guardrails` after this plan's commit.
-3. **Labelling:** is 24 labels per judged dimension acceptable for a first calibration, with the
-   set growing from labels added while inspecting traces?
+1. **Judge model default:** `gpt-5.6-terra`.
+2. **Branch name:** `feature/agent-evals`, from `feature/agent-guardrails` after this plan's commit.
+3. **Labelling:** 24 labels per judged dimension to start.
+4. **Push:** push `feature/agent-guardrails`, `feature/mcp-agent-mode` and `feature/chat-ui`.
