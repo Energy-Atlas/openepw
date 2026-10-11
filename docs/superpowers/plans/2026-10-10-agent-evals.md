@@ -75,3 +75,74 @@ owner's labelling time.
 2. **Branch name:** `feature/agent-evals`, from `feature/agent-guardrails` after this plan's commit.
 3. **Labelling:** 24 labels per judged dimension to start.
 4. **Push:** push `feature/agent-guardrails`, `feature/mcp-agent-mode` and `feature/chat-ui`.
+
+## 5. Execution notes (2026-10-10 to 2026-10-11): E1, E2 and E4
+
+Built autonomously on `feature/agent-evals` as the owner asked: tasks 1–7 and their docs. E3
+(task 8), E5 (task 9) and task 10 are not started. Sections 1–3 are left as approved and are
+superseded where they differ.
+
+### Deviations and assumptions
+
+- **CLI shape:** `openepw eval` has subcommands (`run`, the default, plus `compare`, `lint`, `catalog`
+  and `mutate`) instead of `--lint` and `--catalog` flags. Run options changed with the format
+  (no backward compatibility): `--scenario` → `--task`, `--repeats` → `--trials`,
+  `--scenarios-file` → `--tasks`, and `--output` → a results folder (`--output-dir`, default
+  `<data root>/evals/<run id>/`).
+- **Per-profile checks:** a grader entry may carry `profile:`; this replaces `checks_by_profile`.
+- **Grader codes:** each grader has one code. New or renamed codes are `SUBMISSION_MISMATCH` (was
+  `SUBMITTED`/`NOT_SUBMITTED`), `SESSION_END_MISMATCH` (was `SESSION_NOT_ENDED`/`…_UNEXPECTEDLY`),
+  `TOO_FEW_STRIKES` (was the second meaning of `STRIKES`) and `FORBIDDEN_REPLY_TEXT` (was
+  `OFF_TOPIC_ANSWER`, which every `assistant_excludes` hit raised); the others are unchanged.
+- **Readiness grader:** `FALSE_READINESS` now fails only a claim shown without the host
+  correction. The old check failed corrected claims too; the invariant is what the person sees.
+- **Model-input graders** read only what a model call was sent, not its reply (a fixture pins this).
+- **Grader fixtures** live in the package (`openepw/agent/evals/grader_fixtures.yaml`), not in
+  `tests/`, so `eval lint` can check them in an installed copy.
+- **Mutations** patch functions in the running process (`unittest.mock`) instead of adding off
+  switches to `guard.py`, `session.py` and `gates.py`; the agent code gains no test-only paths.
+- **Approval-gate mutation:** "text typed at the plan review counts as Run". Removing the MCP
+  elicitation check alone cannot be seen by an eval (the host never submits without Run); that
+  layer stays covered by `tests/unit/test_mcp_approval.py` and `tests/agent/test_mcp_port.py`.
+- **Trace size:** each model entry keeps everything the model was sent (state block, history,
+  turn items), so traces can be inspected in full; the HTML report shows the first 4,000
+  characters per call. Tool-list hashes in the summary leave out calls offered no tools (the
+  summary after a run).
+- **Coverage ids** are a packaged vocabulary (`coverage.yaml`); unknown ids are load errors.
+- **Migration** of S1–S44 used a one-off script (not committed). Each task got a purpose, coverage
+  ids and tags; checks moved one to one.
+- **Git pins** ignore untracked files; outside a git checkout the commit is "unknown".
+
+### Findings while building (and what was done)
+
+1. **Agent tasks without an offline solution:** S2, S3, S4 and S10 had no script, so their
+   agent-mode solvability was never proven offline. Scripts added; lint now treats this as an error.
+2. **Exclusion without proof:** S30 checked that hidden characters never reached the model but
+   nothing showed its text reached the model at all. Lint found it; `model_input_contains` added.
+3. **Uncovered guards (mutation runs):** no task covered the readiness correction or the
+   off-topic clamp, and S6 could not catch a removed years gate (the person later gives 2018
+   and the replanned 2018 plan overwrites the invented one). Added S45, S46 and S47; all 14
+   mutations are now caught.
+4. **Declines not counted in S23/S31:** these check the decline wording but not the strike,
+   because guided mode never counts declines and a grader cannot yet be limited to one mode.
+   S42–S44 cover counting. Possible follow-up: a `mode` filter on grader entries.
+5. **Trivial offline pass in S10:** its scripted run stops at the product form, so "no
+   actual-year plan" holds trivially offline; the check is meaningful in guided and live runs.
+6. **Grader bug caught by the framework:** the first model-input grader also read the model's
+   own reply, failing S29 falsely. Fixed, with a fixture.
+7. **Windows decoding:** `git diff` output was decoded as cp1252 and crashed on UTF-8; fixed.
+8. **Lint scan:** reading emitted codes from source missed codes passed positionally; lint
+   also uses the session's guard-code list.
+9. **Defence in depth confirmed:** with the host-tool gate patched off, the model's submit still
+   failed at the MCP approval check; the eval caught the attempt (`MODEL_HOST_TOOL`).
+10. **Report visual check:** rendered in the browser pane; pins show uncommitted changes and the
+    diff hash.
+
+### Results
+
+- `openepw eval lint`: 36 tasks, no errors or warnings. All 63 grader fixtures hold.
+- Offline, both profiles: guided 23/23, agent scripted 36/36.
+- `openepw eval mutate`: 14 of 14 mutations caught.
+- Agent tests 314 passed, 2 skipped (live, opt-in); full suite 971 passed with only the four
+  known availability-test failures; ruff and mypy clean; the wheel ships the task files,
+  fixtures and coverage list.

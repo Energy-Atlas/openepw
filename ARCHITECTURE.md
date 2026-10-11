@@ -34,6 +34,8 @@ src/openepw/
   chat/coordinator.py     browser-neutral durable conversation facts and events
   chat/products.py        named product choices and per-location catalog availability
   mcp/server.py          MCP adapter
+  agent/                 MCP-client chat core (session, guided and model policies, guards, profiles)
+  agent/evals/           eval tasks (YAML), grader registry, trial records, metrics, reports, mutations
   harness/{agent,chat,chat_cli,graph_chat,graph_model,mcp_client,model,rubric,trace}.py  optional reference MCP agent and console
   cli/main.py            argparse adapter
 ```
@@ -290,6 +292,15 @@ the whole session (`end_session`, `guided` or `warn` at the limit); the model de
 briefly only through the host tools `out_of_scope` and `knowledge_answer`. Guard codes, the
 profile and its digest go into session events and trace metadata. The legacy `/v1/chat/*` and
 `openepw-chat` paths do not use the profiles.
+
+Agent evals (2026-10-10, [spec](docs/superpowers/specs/2026-10-10-agent-evals-design.md)) live in
+`openepw.agent.evals`. Tasks are validated YAML files (`schema.py`, `tasks/`, `coverage.yaml`).
+A trial runs the real session on a fresh data root and becomes one record: pins of what was
+tested, the trace (events and model calls) ending in the outcome, and grades. Graders in
+`graders.py` read only that record, so the same graders judge eval trials and stored fixtures.
+`metrics.py`, `report.py` and `catalog.py` summarise, render and catalogue; `mutate.py` patches
+guards off in-process to show the tasks catch them, so the agent code has no test switches.
+Results are written under the ignored data root; nothing is sent to LangSmith yet (planned).
 
 The optional [reference harness](docs/harness/README.md) consumes only these
 MCP tools through a real stdio client. Its small model adapter extracts typed

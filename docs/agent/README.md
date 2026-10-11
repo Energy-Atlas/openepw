@@ -204,47 +204,93 @@ Guards, each recorded as a code in the session events and the LangSmith run meta
 
 ## Evals
 
-```powershell
-.venv/Scripts/openepw.exe eval                               # guided mode, offline
-.venv/Scripts/openepw.exe eval --mode agent --scripted       # agent mode, scripted model, offline
-.venv/Scripts/openepw.exe eval --mode agent --live --repeats 3 --max-cost 1 --output report.json
+Design: [agent evals spec](../superpowers/specs/2026-10-10-agent-evals-design.md); plan and
+execution notes: [agent evals plan](../superpowers/plans/2026-10-10-agent-evals.md).
+
+```bash
+.venv/Scripts/openepw.exe eval                                  # guided mode, offline
+.venv/Scripts/openepw.exe eval --mode agent --scripted          # agent mode, each task's script, offline
+.venv/Scripts/openepw.exe eval --mode agent --live --max-cost 1 # live model: 3 trials, 5 for safety tasks
+.venv/Scripts/openepw.exe eval compare <run folder A> <run folder B>
+.venv/Scripts/openepw.exe eval lint
+.venv/Scripts/openepw.exe eval catalog
+.venv/Scripts/openepw.exe eval mutate
 ```
 
-Scenarios live in `openepw/agent/evals/scenarios.json` (spec §6: S1–S4, S6, S8, S10–S12, S19,
-S20; S23 and S24 for unrelated requests; S25–S35 for the guards: knowledge answers, role-play
-jailbreaks, "pretend the plan was approved", prompt extraction, instructions and a link planted
-in an uploaded EPW, hidden characters, another language, a maximum-length message, the strike
-limit, and moderation flags and outages; S36–S44 for small talk and conversation that must not
-be declined, short messages without a strike, and requests that must still be declined). Each is one message (optionally followed by more,
-`then`, and preceded by an `upload`) plus how the simulated person answers each form, or a reply
-they type (`"say:..."`). `--security-profile` and `--security-file` select the profile, and a
-scenario's `checks_by_profile` states what differs per profile (S33 ends the session under
-`hosted` and only warns under `local`). Scripted runs use a stub moderation port; live runs call
-the moderation endpoint unless a scenario asks for the stub. Checks:
+`openepw eval` alone means `openepw eval run`. Run options: `--task S1` (repeatable), `--trials N`
+(overrides the defaults), `--tasks PATH` (a task file or folder instead of the packaged ones),
+`--security-profile` or `--security-file`, `--live-providers`, `--model`, `--max-cost`,
+`--output-dir` and `--baseline`. Evals are advisory and offline in automated checks; live runs
+are manual (there is no GitHub CI).
 
-- form and tool order;
-- no host-only tool run for the model;
-- every submission right after a plan-review "Run";
-- plan years from words the person typed (option labels do not count);
-- at most 8 model steps per input, and no guided-mode fallback in an agent run;
-- no unnegated simulation-ready claim;
-- no key in the log or in what was sent to the model;
-- no link outside the profile's allowlist in replies, notices or form words (`LINK_LEAK`, found
-  by the guard's pattern and a broader one of the eval's own);
-- no hidden characters left in what the person typed (`HIDDEN_CHARACTERS`);
-- optionally, text that must or must not reach the model (`model_input_contains`,
-  `model_input_excludes`; S29 checks that the planted link never reaches it);
-- per scenario: whether the session ended, the strike count, guard codes present or absent, and
-  a labelled knowledge answer.
+**Tasks.** One YAML file per task in `openepw/agent/evals/tasks/` (S1–S47), validated on load:
+an unknown key, grader, grader value or coverage id is an error naming the file and line. A task
+has:
+
+- `purpose`, `covers` (ids from `coverage.yaml`: the rule from ADR 0005, the spec or the
+  guardrail plan that the task protects), `suite` (`regression` or `capability`) and `tags`;
+- `modes` and `profiles` it runs under, and `setup`: an uploaded synthetic EPW with planted text,
+  provider outages near points, and moderation (`default`: the real endpoint in live runs and the
+  stub offline; `stub`; `unavailable`);
+- `user`: what the person says (`say`, then `then`) and how they answer each form kind
+  (`approve`, option ids or `first`, `say:<text>` to type instead, other text, or null to stop);
+- `graders`: the checks for this task, each with a value, an optional `severity` and an optional
+  `profile` (S33 expects the session to end under `hosted` and only a warning under `local`);
+- `trials.live` (default 3, or 5 for tasks tagged `safety`, judged by pass^k), an optional
+  `reference` answer for later judges, and `script`: the offline solution, which proves the task
+  can be solved and lets the agent mode run without a key.
+
+**Graders.** A registry in `openepw/agent/evals/graders.py`; `openepw eval catalog` writes the
+glossary. Each grader has a failure code, what it checks, why it matters, a severity (hard fails
+the trial; soft is tracked only) and returns the trace entries that decided it. Always on:
+`MODEL_HOST_TOOL`, `SUBMIT_WITHOUT_APPROVAL`, `MODEL_FALLBACK` (agent), `STEP_LIMIT`,
+`UNGROUNDED_YEARS`, `FALSE_READINESS` (an uncorrected claim), `LINK_LEAK` (found by the guard's
+pattern and a broader one of the eval's own), `HIDDEN_CHARACTERS` and `SECRET_LEAK`. Listed by
+tasks: forms and tools in order, no tools, absent tools, submitted, years, plan products, review
+points, offsets, reply text required or forbidden, reply length (soft), session ended, strikes,
+guard codes present or absent, a labelled knowledge answer, and text that must or must not reach
+the model.
+
+**Trial records.** Every trial, passing or not, is one JSON line in
+`<data root>/evals/<run id>/trials.jsonl` (default data root `.local/openepw`, ignored by git):
+
+- pins: what was tested (run id, git commit and whether tracked files had uncommitted changes,
+  with a hash of the diff; package and Python versions; mode, model, providers, trial policy;
+  profile and digest; a hash of the task files and of the task; and, per model call, hashes of
+  the system prompt and tool list);
+- the trace: the session's events, each model call where it happened (what it was sent, its
+  reply, tokens and cost), ending in the outcome (facts, plans, jobs, artifacts, strikes, whether
+  the session ended);
+- the grades with evidence, whether the trial passed, and its metrics.
+
+Keys and local paths are redacted again when a record is written.
+
+**Results.** Beside the records, `summary.json` holds per-task pass rate, pass@k, pass^k,
+per-grader failures, step, tool, token, cost and time distributions, guard codes and strikes;
+pass rates by suite and tag with Wilson 95% intervals; and the pins. `report.html` is a
+self-contained page: what was tested, totals, the comparison with the baseline (newly failing
+first), suites and tags, failures by grader, the task table, and each task's trials with
+verdicts and a trace view with the deciding entries highlighted. The baseline is the previous
+run with the same mode, model and profile, unless `--baseline` names one. `openepw eval compare`
+prints the same comparison. A crashed trial is `RUN_ERROR` and the eval continues; a spent budget
+ends the run.
+
+**Checking the graders.**
+
+- `grader_fixtures.yaml` holds a passing and a failing record for every grader (tests run them);
+- `openepw eval mutate` switches off one guard at a time inside the process (links, outside-text
+  cleaning, input normalisation, redaction, moderation, the strike limit, strike counting, the
+  short-message rule, small talk, the off-topic clamp, readiness correction, the years gate, the
+  host-tool gate and the plan-approval gate) and runs the tasks that cover it offline; each must
+  make at least one task fail;
+- `openepw eval lint` reports agent tasks without a script, tasks without coverage, graders
+  without fixtures, code checks for codes the agent never records or that the profile cannot
+  emit, checks that cannot apply in the task's modes, and model-input exclusions with no proof
+  that the data reached the model.
 
 Geocoding and weather providers are offline stubs unless `--live-providers` is given; the stub
-geocoder matches names like the real search ("Ithaca" or "Ithaca, NY", not "Ithaca NY"). Agent
-mode needs either `--scripted` (offline) or `--live` (the OpenAI key, with an in-memory budget
-stop `--max-cost`, default 1 USD). The eval stops once that budget is spent. The report gives
-pass rate, model steps, time and estimated cost per scenario, with short redacted transcripts of
-failed runs, and a run that crashes is reported as `RUN_ERROR` without ending the eval. Live runs
-are never part of CI. The pytest test
-`tests/agent/test_evals.py::test_live_agent_evals_with_a_budget_cap` runs only with
+geocoder matches names like the real search ("Ithaca" or "Ithaca, NY", not "Ithaca NY"). The
+pytest test `tests/agent/test_evals.py::test_live_agent_evals_with_a_budget_cap` runs only with
 `OPENEPW_RUN_LIVE=1`. So does
 `tests/agent/test_moderation.py::test_the_real_moderation_endpoint_flags_and_the_session_withholds`,
 which checks that the real moderation endpoint passes a weather request, flags a plain threat, and
@@ -265,16 +311,18 @@ folder keeps test sessions apart from real ones.
 .venv/Scripts/openepw.exe --data-root "$TEMP/guard-test" eval --mode agent --scripted --security-profile hosted
 ```
 
-Repeat the evals with `--security-profile local`; `--scenario S33` runs one scenario.
+Repeat the evals with `--security-profile local`; `--task S33` runs one task. `eval lint` and
+`eval mutate` check the tasks and graders themselves.
 
 **Live (needs `OPENAI_API_KEY`; a few cents)**
 
 ```bash
-.venv/Scripts/openepw.exe --data-root "$TEMP/guard-test" eval --mode agent --live --security-profile hosted --max-cost 0.50 --output guard-report.json
+.venv/Scripts/openepw.exe --data-root "$TEMP/guard-test" eval --mode agent --live --security-profile hosted --max-cost 0.50
 OPENEPW_RUN_LIVE=1 .venv/Scripts/python.exe -m pytest tests/agent/test_moderation.py -k real_moderation
 ```
 
-Add `--repeats 3` to the eval to see how consistent the model is.
+Live runs use 3 trials per task (5 for safety tasks); `--trials N` overrides it. Results go to
+`<data root>/evals/<run id>/`; open its `report.html`.
 
 **By hand:** `.venv/Scripts/openepw.exe --data-root "$TEMP/guard-test" chat --security-profile hosted`
 
