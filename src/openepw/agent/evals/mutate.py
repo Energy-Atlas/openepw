@@ -170,7 +170,16 @@ async def run_mutations(tasks: list[Task], names: list[str] | None = None, *,
     """Each mutation's covering tasks with the guard off: which runs failed (caught it), which passed."""
     chosen = [mutation for mutation in MUTATIONS if not names or mutation.name in names]
     hosted = load_policy("hosted")
-    logging.getLogger("openepw.agent").setLevel(logging.CRITICAL)       # expected errors under mutation
+    agent_log = logging.getLogger("openepw.agent")
+    level = agent_log.level
+    agent_log.setLevel(logging.CRITICAL)                                # expected errors under mutation
+    try:
+        return await _mutations(tasks, chosen, hosted, write)
+    finally:
+        agent_log.setLevel(level)
+
+
+async def _mutations(tasks: list[Task], chosen: list[Mutation], hosted: Any, write: Write) -> list[dict[str, Any]]:
     results = []
     for mutation in chosen:
         covering = [task for task in tasks if set(task.covers) & set(mutation.covers)
@@ -178,20 +187,23 @@ async def run_mutations(tasks: list[Task], names: list[str] | None = None, *,
         baseline = {(record["task_id"], record["mode"]): record["passed"] for record in await _run(covering)}
         with applied(mutation):
             mutated = await _run(covering)
-        caught, missed = [], []
+        caught, missed, crashed = [], [], []
         for record in mutated:
             item = f"{record['task_id']}/{record['mode']}"
             if not baseline.get((record["task_id"], record["mode"]), False):
                 continue                                  # failing without the mutation: no evidence
             if record["passed"]:
                 missed.append(item)
+            elif any(grade["code"] == "RUN_ERROR" for grade in record["grades"]):
+                crashed.append(item)                      # a crash shows a broken patch, not coverage
             else:
                 failed = sorted({grade["code"] for grade in record["grades"] if not grade["passed"]})
                 caught.append(f"{item} ({', '.join(failed)})")
         results.append({"mutation": mutation.name, "description": mutation.description,
                         "covers": list(mutation.covers), "tasks": [task.id for task in covering],
-                        "caught_by": caught, "still_passing": missed})
+                        "caught_by": caught, "still_passing": missed, "crashed": crashed})
         write(f"{mutation.name:24} {'caught' if caught else 'NOT CAUGHT':10} by {len(caught)} run(s)"
               + (f": {'; '.join(caught)}" if caught else "")
-              + (f" | still passing: {', '.join(missed)}" if missed else ""))
+              + (f" | still passing: {', '.join(missed)}" if missed else "")
+              + (f" | CRASHED: {', '.join(crashed)}" if crashed else ""))
     return results

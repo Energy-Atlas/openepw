@@ -167,6 +167,7 @@ def test_openepw_eval_without_a_subcommand_means_run():
     assert _default_eval_run(["--data-root", "x", "eval"]) == ["--data-root", "x", "eval", "run"]
     assert _default_eval_run(["eval", "lint"]) == ["eval", "lint"]
     assert _default_eval_run(["geocode", "eval"]) == ["geocode", "eval"]
+    assert _default_eval_run(["--data", "x", "eval"]) == ["--data", "x", "eval", "run"]
 
 
 def test_the_stub_geocoder_narrows_by_region_like_the_real_search():
@@ -200,3 +201,21 @@ def test_live_agent_evals_with_a_budget_cap(tmp_path):
     [folder] = [path for path in tmp_path.iterdir() if path.is_dir()]
     summary = json.loads((folder / "summary.json").read_text(encoding="utf-8"))
     assert summary["totals"]["trials"] == 4 and summary["totals"]["cost_usd"] < 0.5
+
+
+
+def test_baselines_need_the_same_tasks_and_folders_are_never_reused(tmp_path):
+    output = []
+    assert asyncio.run(main_run(task_ids=["S2", "S11"], evals_dir=tmp_path, write=output.append)) == 0
+    output.clear()
+    assert asyncio.run(main_run(task_ids=["S2"], evals_dir=tmp_path, write=output.append)) == 0
+    assert not any("Removed" in line or "Baseline" in line for line in output)    # a subset is not compared
+    folder = next(path for path in tmp_path.iterdir() if path.is_dir())
+    assert asyncio.run(main_run(task_ids=["S2"], evals_dir=tmp_path, output_dir=folder, write=output.append)) == 2
+    assert "already holds a run" in output[-1]
+
+
+def test_a_run_with_no_applicable_task_is_a_usage_error(tmp_path):
+    output = []
+    assert asyncio.run(main_run(task_ids=["S42"], evals_dir=tmp_path, write=output.append)) == 2   # agent-only task
+    assert "No task applies to guided mode" in output[-1]

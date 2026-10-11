@@ -26,16 +26,19 @@ def select(tasks: list[Task], ids: list[str] | None) -> list[Task]:
     return [task for task in tasks if task.id.upper() in wanted]
 
 
-def latest_run(evals_dir: Path, *, mode: str, model: str, profile: str, exclude: str = "") -> Path | None:
-    """The newest earlier run of the same mode, model and profile (the default baseline)."""
+def latest_run(evals_dir: Path, *, mode: str, model: str, profile: str, tasks_hash: str, providers: str,
+               exclude: str = "") -> Path | None:
+    """The newest earlier run of the same tasks, mode, model, profile and providers (the default
+    baseline), so a subset run never becomes the baseline of a full run or the reverse."""
     candidates = []
     for summary in evals_dir.glob("*/summary.json"):
         try:
             pins = json.loads(summary.read_text(encoding="utf-8")).get("pins", {})
         except (OSError, ValueError):
             continue
-        if (pins.get("mode"), pins.get("model"), pins.get("profile")) == (mode, model, profile) \
-                and pins.get("run_id") != exclude:
+        wanted = (mode, model, profile, tasks_hash, providers)
+        found = (pins.get("mode"), pins.get("model"), pins.get("profile"), pins.get("tasks_hash"), pins.get("providers"))
+        if found == wanted and pins.get("run_id") != exclude:
             candidates.append((pins.get("started_at") or "", summary.parent))
     return max(candidates)[1] if candidates else None
 
@@ -89,6 +92,9 @@ async def main_run(*, mode: str = "guided", scripted: bool = False, live: bool =
     pins = run_pins(run_id=run_id, mode=mode, model=label, providers="live" if live_providers else "stubbed",
                     security=security, tasks_hash=tasks_hash(tasks), trials=trial_policy)
     folder = output_dir or evals_dir / run_id
+    if (folder / "trials.jsonl").exists():
+        write(f"{folder} already holds a run (trials.jsonl); choose another --output-dir.")
+        return 2
     folder.mkdir(parents=True, exist_ok=True)
     git = pins["git"]
     write(f"openepw eval · {run_id} · model {label} · trials {trial_policy} · providers {pins['providers']} · "
@@ -107,9 +113,14 @@ async def main_run(*, mode: str = "guided", scripted: bool = False, live: bool =
               f"{metric['seconds']:6.1f}s ${metric['cost_usd']:.4f}")
     records = await run_suite(tasks, mode=mode, model_factory=factory, trials=count, live_providers=live_providers,
                               security=security, moderation=moderation, pins=pins, on_record=show)
+    if not records:
+        write(f"No task applies to {mode} mode under the {security.profile} profile"
+              + (" (or no task has a script)." if scripted else "."))
+        return 2
     summary = summarize(records, pins)
     (folder / "summary.json").write_text(json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8")
-    base = baseline or latest_run(evals_dir, mode=mode, model=label, profile=security.profile, exclude=run_id)
+    base = baseline or latest_run(evals_dir, mode=mode, model=label, profile=security.profile,
+                                  tasks_hash=pins["tasks_hash"], providers=pins["providers"], exclude=run_id)
     diff = None
     if base is not None:
         try:
@@ -164,7 +175,11 @@ def main_catalog(*, tasks_path: Path | None = None, output_dir: Path, results: P
     except TaskError as error:
         write(f"Task error: {error}")
         return 2
-    summary = load_summary(results) if results else None
+    try:
+        summary = load_summary(results) if results else None
+    except (OSError, ValueError) as error:
+        write(f"Cannot read results {results}: {type(error).__name__}")
+        return 2
     paths = write_catalog(tasks, output_dir, summary)
     write("Catalogue: " + ", ".join(str(path) for path in paths))
     return 0

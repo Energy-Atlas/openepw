@@ -136,12 +136,12 @@ def compare(baseline: dict[str, Any], current: dict[str, Any]) -> dict[str, Any]
             continue
         if old.get("task_hash") != task.get("task_hash"):
             changed_task.append(task["task_id"])
-        if old["pass_all_k"] and not task["pass_all_k"]:
+        if task["status"] == "fail" and old["pass_all_k"]:
             newly_failing.append(task["task_id"])
-        elif not old["pass_all_k"] and task["pass_all_k"]:
-            fixed.append(task["task_id"])
-        elif not task["pass_all_k"]:
+        elif task["status"] == "fail":
             still_failing.append(task["task_id"])
+        elif task["pass_all_k"] and not old["pass_all_k"]:
+            fixed.append(task["task_id"])
     codes_before: dict[str, int] = {}
     codes_after: dict[str, int] = {}
     for tasks, counts in ((baseline.get("tasks", []), codes_before), (current.get("tasks", []), codes_after)):
@@ -163,10 +163,15 @@ def compare(baseline: dict[str, Any], current: dict[str, Any]) -> dict[str, Any]
     return {"baseline": pins_before.get("run_id"), "current": pins_after.get("run_id"),
             "pin_changes": pin_changes, "newly_failing": newly_failing, "fixed": fixed, "flaky": flaky,
             "still_failing": still_failing, "task_changed": changed_task,
-            "added": sorted({item[0] for item in after} - {item[0] for item in before}),
-            "removed": sorted({item[0] for item in before} - {item[0] for item in after}),
+            "added": sorted({item[0] for item in after} - {item[0] for item in before}, key=_number),
+            "removed": sorted({item[0] for item in before} - {item[0] for item in after}, key=_number),
             "grader_changes": grader_changes,
             "pass_rate": [baseline.get("totals", {}).get("pass_rate"), current.get("totals", {}).get("pass_rate")]}
+
+
+def _number(task_id: str) -> tuple[int, str]:
+    digits = "".join(char for char in task_id if char.isdigit())
+    return (int(digits) if digits else 0, task_id)
 
 
 def compare_text(diff: dict[str, Any]) -> list[str]:

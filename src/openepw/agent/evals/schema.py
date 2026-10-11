@@ -53,6 +53,19 @@ class User(_Strict):
     answers: dict[FormKind, str | list[str] | None] = {}
     max_interactions: int = Field(10, ge=1, le=50)
 
+    @model_validator(mode="after")
+    def _answer_shapes(self) -> User:
+        for kind, answer in self.answers.items():
+            if answer is None or (isinstance(answer, str) and answer.startswith("say:")):
+                continue
+            if kind in ("location_review", "plan_review") and answer not in ("approve", "run"):
+                raise ValueError(f"answers.{kind} must be approve, run, say:<text> or null, not {answer!r}")
+            if kind in ("product_choice", "choice") and not (isinstance(answer, list) or answer == "first"):
+                raise ValueError(f"answers.{kind} must be a list of option ids, first, say:<text> or null")
+            if kind in ("text", "map_input", "upload") and not isinstance(answer, str):
+                raise ValueError(f"answers.{kind} must be text, say:<text> or null")
+        return self
+
 
 class ScriptStep(_Strict):
     call: str | None = None
@@ -126,6 +139,8 @@ def packaged_tasks_dir() -> Path:
 def load_tasks(path: str | Path | None = None) -> list[Task]:
     """The packaged tasks, or the tasks in a folder of YAML files or in one YAML file."""
     root = Path(path) if path is not None else packaged_tasks_dir()
+    if not root.exists():
+        raise TaskError(f"{root}: no such task file or folder")
     files = sorted(root.glob("*.yaml")) if root.is_dir() else [root]
     if not files:
         raise TaskError(f"{root}: no task files (*.yaml)")
@@ -146,8 +161,11 @@ def load_task(path: str | Path) -> Task:
     file = Path(path)
     text = file.read_text(encoding="utf-8")
     try:
-        data = yaml.safe_load(text)
         node = yaml.compose(text)
+        duplicate = _duplicate_key(node)
+        if duplicate:
+            raise TaskError(f"{file}:{duplicate[1]}: duplicate key {duplicate[0]!r}")
+        data = yaml.safe_load(text)
     except yaml.YAMLError as error:
         raise TaskError(f"{file}: not valid YAML: {error}") from None
     if not isinstance(data, dict):
@@ -175,6 +193,27 @@ def load_task(path: str | Path) -> Task:
                         "(see coverage.yaml)")
     task._source = str(file)
     return task
+
+
+def _duplicate_key(node: Any) -> tuple[str, int] | None:
+    """The first mapping key that appears twice in its mapping (YAML keeps the last silently)."""
+    import yaml
+
+    if isinstance(node, yaml.MappingNode):
+        seen: set[str] = set()
+        for key, value in node.value:
+            if key.value in seen:
+                return key.value, key.start_mark.line + 1
+            seen.add(key.value)
+            found = _duplicate_key(value)
+            if found:
+                return found
+    elif isinstance(node, yaml.SequenceNode):
+        for item in node.value:
+            found = _duplicate_key(item)
+            if found:
+                return found
+    return None
 
 
 def _short(error: Exception) -> str:

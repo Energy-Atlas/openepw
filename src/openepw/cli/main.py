@@ -47,7 +47,11 @@ def _default_eval_run(argv: list[str]) -> list[str]:
     """`openepw [global options] eval [options]` means `eval run`."""
     index = 0
     while index < len(argv) and argv[index].startswith("-"):
-        index += 2 if argv[index] in ("--env-file", "--data-root") else 1
+        option = argv[index]
+        # argparse also accepts unambiguous prefixes such as --data for --data-root
+        takes_value = "=" not in option and len(option) > 2 and any(
+            name.startswith(option) for name in ("--env-file", "--data-root"))
+        index += 2 if takes_value else 1
     if index < len(argv) and argv[index] == "eval":
         following = argv[index + 1] if index + 1 < len(argv) else None
         if following not in ("run", "compare", "lint", "catalog", "mutate", "-h", "--help"):

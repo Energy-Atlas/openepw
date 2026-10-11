@@ -79,7 +79,8 @@ def _comparison(diff: dict[str, Any] | None) -> str:
                               ("Task definition changed", "task_changed", "muted"), ("Added", "added", "muted"),
                               ("Removed", "removed", "muted")):
         if diff.get(field):
-            links = ", ".join(f'<a href="#{escape(task)}">{escape(task)}</a>' for task in diff[field])
+            links = ", ".join(escape(task) if field == "removed" else f'<a href="#{escape(task)}">{escape(task)}</a>'
+                              for task in diff[field])
             parts.append(f"<p><b class={css}>{label}:</b> {links}</p>")
     if diff.get("pin_changes"):
         rows = "".join(f"<tr><td>{escape(name)}</td><td>{escape(str(old))}</td><td>{escape(str(new))}</td></tr>"

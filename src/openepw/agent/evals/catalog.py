@@ -67,8 +67,22 @@ def fixture_counts() -> dict[str, dict[str, int]]:
     return counts
 
 
+def known_tools() -> frozenset[str]:
+    from ...mcp.access import HOST_TOOLS, LEGACY_TOOLS, MODEL_TOOLS
+    from ..tools import ASK_TOOLS, SCOPE_TOOLS
+
+    return frozenset(MODEL_TOOLS | HOST_TOOLS | LEGACY_TOOLS | set(ASK_TOOLS) | set(SCOPE_TOOLS))
+
+
+FORM_KINDS = frozenset({"text", "choice", "location_review", "product_choice", "map_input", "upload", "plan_review"})
+
+
 def lint(tasks: list[Task]) -> list[Issue]:
     issues: list[Issue] = []
+    for item in fixtures():
+        if item["grader"] in REGISTRY and not run_fixture(item)[0]:
+            issues.append(Issue("error", f"grader_fixtures.yaml: {item['grader']}",
+                                f"a fixture expected to {item['expect']} does not ({item.get('note') or 'no note'})"))
     for name, count in fixture_counts().items():
         if name not in REGISTRY:
             issues.append(Issue("error", f"grader_fixtures.yaml: {name}", "fixture for an unknown grader"))
@@ -82,6 +96,10 @@ def lint(tasks: list[Task]) -> list[Issue]:
             issues.append(Issue("error", where, "agent task without a script: no offline proof it can be solved"))
         if not task.covers:
             issues.append(Issue("warning", where, "covers nothing (add coverage ids)"))
+        if not task.modes or not task.profiles:
+            issues.append(Issue("error", where, "no modes or no profiles: the task never runs"))
+        if not task.graders:
+            issues.append(Issue("warning", where, "no graders of its own (only the always-on ones judge it)"))
         names = {use.grader for use in task.graders}
         if "model_input_excludes" in names and "model_input_contains" not in names:
             issues.append(Issue("warning", where, "model_input_excludes without model_input_contains: nothing proves "
@@ -93,6 +111,14 @@ def lint(tasks: list[Task]) -> list[Issue]:
             if use.profile and use.profile not in task.profiles:
                 issues.append(Issue("warning", where, f"{use.grader} is for profile {use.profile}, which the task "
                                                       "does not run under"))
+            if use.grader in ("tools_in_order", "tools_absent"):
+                unknown = [tool for tool in use.value or [] if tool not in known_tools()]
+                if unknown:
+                    issues.append(Issue("error", where, f"{use.grader}: unknown tool(s) {', '.join(unknown)}"))
+            if use.grader == "forms_in_order":
+                unknown = [kind for kind in use.value or [] if kind not in FORM_KINDS]
+                if unknown:
+                    issues.append(Issue("error", where, f"forms_in_order: unknown form kind(s) {', '.join(unknown)}"))
             if use.grader not in ("codes_present", "codes_absent"):
                 continue
             for code in use.value or []:

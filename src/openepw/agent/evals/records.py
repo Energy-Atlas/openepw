@@ -27,7 +27,11 @@ from typing import Any
 from ..text import safe_prompt
 from .graders import SECRET
 
-_PATH = re.compile(r"[A-Za-z]:\\[^\s\"']+|/(?:home|Users|tmp|var|opt|mnt|srv)/[^\s\"']+|~[/\\][^\s\"']+")
+# Local paths, including drive paths with forward slashes, UNC shares and user folders whose names
+# hold spaces (the user folder is the part that identifies a person).
+_PATH = re.compile(r"(?i:[A-Za-z]:[\\/]Users[\\/][^\\/\"']+(?:[\\/][^\s\"']*)?)"
+                   r"|[A-Za-z]:[\\/][^\s\"']+|\\\\[^\s\"'\\]+\\[^\s\"']+"
+                   r"|/(?:home|Users|tmp|var|opt|mnt|srv)/[^\s\"']+|~[/\\][^\s\"']+")
 
 
 def new_run_id(mode: str, label: str) -> str:
@@ -40,7 +44,12 @@ def git_pins(repo: Path | None = None) -> dict[str, Any]:
 
     Untracked files are ignored. Outside a git checkout the commit is "unknown".
     """
-    repo = repo or Path(__file__).resolve().parents[4]
+    if repo is None:
+        here = Path(__file__).resolve()
+        repo = here.parents[4]
+        if not (repo / "src" / "openepw" / "agent" / "evals" / here.name).exists():
+            return {"commit": "unknown", "branch": None, "dirty": None, "diff_sha256": None}   # installed copy
+
     def git(*args: str) -> str:
         return subprocess.run(["git", "-C", str(repo), *args], capture_output=True, text=True, encoding="utf-8",
                               errors="replace", timeout=20, check=True).stdout
@@ -102,7 +111,8 @@ def metrics(trace: list[dict[str, Any]], seconds: float) -> dict[str, Any]:
     codes: dict[str, int] = {}
     for entry in events:
         data = entry.get("data") or {}
-        for code in [data.get("code"), *data.get("guards", [])]:
+        form_data = (data.get("form") or {}).get("data") or {}
+        for code in [data.get("code"), *data.get("guards", []), *form_data.get("guards", [])]:
             if code:
                 codes[code] = codes.get(code, 0) + 1
     last = trace[-1].get("data") or {} if trace and trace[-1].get("type") == "outcome" else {}
@@ -127,7 +137,8 @@ def scrub(value: Any) -> Any:
     if isinstance(value, list):
         return [scrub(item) for item in value]
     if isinstance(value, str):
-        return _PATH.sub("[local path]", SECRET.sub("[redacted]", safe_prompt(value, limit=len(value) + 1)))
+        # Paths first: the shared redaction stops at the first space of a user folder name.
+        return safe_prompt(SECRET.sub("[redacted]", _PATH.sub("[local path]", value)), limit=len(value) + 1)
     return value
 
 

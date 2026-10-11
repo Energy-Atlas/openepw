@@ -116,10 +116,10 @@ def test_comparison_lists_what_changed():
     after = summary_of(record("S1", False), record("S2", True), record("S2", False, 2), record("S3", True),
                        record("S5", True), run_id="B")
     diff = compare(before, after)
-    assert diff["newly_failing"] == ["S1", "S2"] and diff["fixed"] == ["S3"] and diff["flaky"] == ["S2"]
+    assert diff["newly_failing"] == ["S1"] and diff["fixed"] == ["S3"] and diff["flaky"] == ["S2"]
     assert diff["added"] == ["S5"] and diff["removed"] == ["S4"] and diff["pin_changes"]["commit"] == ["A", "B"]
     text = "\n".join(compare_text(diff))
-    assert "Newly failing: S1, S2" in text and "Fixed: S3" in text
+    assert "Newly failing: S1" in text and "Flaky: S2" in text and "Fixed: S3" in text
 
 
 def test_the_report_escapes_text_and_links_tasks():
@@ -179,3 +179,80 @@ def test_disabled_guards_are_caught_by_their_tasks():
     results = asyncio.run(run_mutations(load_tasks(), names, write=lambda line: None))
     assert sorted(result["mutation"] for result in results) == sorted(names)
     assert all(result["caught_by"] for result in results), [(r["mutation"], r["still_passing"]) for r in results]
+
+
+
+def test_duplicate_keys_and_bad_answers_are_refused(tmp_path):
+    with pytest.raises(TaskError, match=r"S1.yaml:5: duplicate key 'user'"):
+        load_task(write(tmp_path, GOOD + "user: {say: again}\n"))
+    with pytest.raises(TaskError, match="answers.location_review must be approve"):
+        load_task(write(tmp_path, GOOD.replace("user: {say: hi}", "user: {say: hi, answers: {location_review: aprove}}")))
+    with pytest.raises(TaskError, match="no such task file or folder"):
+        load_tasks(tmp_path / "missing")
+
+
+def test_removed_tasks_are_sorted_by_number_and_not_linked():
+    before = summary_of(record("S2", True), record("S10", True), run_id="A")
+    diff = compare(before, summary_of(record("S3", True), run_id="B"))
+    assert diff["removed"] == ["S2", "S10"]
+    page = render(summary_of(record("S3", True)), [record("S3", True)], diff)
+    assert 'href="#S10"' not in page and "S10" in page
+
+
+def test_scrub_redacts_keys_and_local_paths():
+    from openepw.agent.evals.records import scrub
+
+    text = ("C:\\Users\\John Smith\\AppData\\x.epw D:/data/run.epw \\\\server\\share\\f.epw /home/ana/x "
+            "lsv2_pt_abcdef1234567890 ghp_abcdefghijklmnop1234 token: abc123secret password=hunter2 "
+            "sk-abcdefgh12345678")
+    cleaned = scrub({"text": text})["text"]
+    for leaked in ("John", "Smith", "D:/data", "server", "ana", "lsv2_pt", "ghp_", "abc123secret", "hunter2", "sk-abc"):
+        assert leaked not in cleaned, (leaked, cleaned)
+
+
+def test_lint_runs_fixtures_and_checks_names(tmp_path):
+    write(tmp_path, GOOD + "covers: [gate.years]\nmodes: []\n", "S1.yaml")
+    write(tmp_path, GOOD.replace("S1", "S2") + "covers: [gate.years]\nmodes: [guided]\ngraders:\n"
+                    "- {grader: tools_absent, value: [weather_sumbit]}\n- {grader: forms_in_order, value: [revue]}\n",
+          "S2.yaml")
+    write(tmp_path, GOOD.replace("S1", "S3") + "covers: [gate.years]\nmodes: [guided]\n", "S3.yaml")
+    joined = "\n".join(f"{issue.level} {issue.message}" for issue in lint(load_tasks(tmp_path)))
+    assert "error no modes or no profiles" in joined and "unknown tool(s) weather_sumbit" in joined
+    assert "unknown form kind(s) revue" in joined and "warning no graders of its own" in joined
+
+
+def test_a_crash_under_a_mutation_is_not_counted_as_caught(monkeypatch):
+    import logging
+    from unittest import mock
+
+    from openepw.agent.evals import mutate
+
+    async def boom(self):
+        raise RuntimeError("broken patch")
+    broken = mutate.Mutation("broken", "A patch that crashes", ("guard.links",),
+                             lambda: [mock.patch("openepw.agent.session.AgentSession.begin", boom)])
+    monkeypatch.setattr(mutate, "MUTATIONS", [broken])
+    level = logging.getLogger("openepw.agent").level
+    [result] = asyncio.run(run_mutations(load_tasks(), ["broken"], write=lambda line: None))
+    assert result["caught_by"] == [] and result["crashed"]
+    assert logging.getLogger("openepw.agent").level == level
+
+
+def test_metrics_count_guard_codes_on_forms_and_model_entries_drop_raw_items():
+    from openepw.agent.evals.records import metrics
+    from openepw.agent.evals.runner import RecordingModel
+    from openepw.agent.model_port import ModelReply
+
+    trace = [{"type": "form", "data": {"form": {"kind": "text", "data": {"guards": ["LINK_REMOVED"]}}}}]
+    assert metrics(trace, 1.0)["codes"] == {"LINK_REMOVED": 1}
+
+    class Echo:
+        name = "echo"
+
+        async def respond(self, system, items, tools):
+            return ModelReply(text="ok")
+    recorder = RecordingModel(Echo())
+    asyncio.run(recorder.respond("system", [{"type": "assistant", "text": "x", "raw": [{"encrypted": "z"}]}],
+                                 [{"name": "t", "description": "d"}]))
+    [call] = recorder.calls
+    assert "raw" not in call["data"]["items"][0] and call["data"]["tools"] == ["t"]

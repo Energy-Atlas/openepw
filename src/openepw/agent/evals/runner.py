@@ -85,9 +85,11 @@ class RecordingModel:
 
         def delta(key: str) -> float:
             return float(usage.get(key, 0) or 0) - float(before.get(key, 0) or 0)
+        # Provider "raw" items (encrypted reasoning) are left out, as the tracer does.
+        sent = [{key: value for key, value in item.items() if key != "raw"} for item in json.loads(json.dumps(items))]
         self.calls.append({"after": after_seq, "data": {
-            "system_sha256": short_hash(system), "tools_sha256": short_hash([tool.get("name") for tool in tools]),
-            "tools": [tool.get("name") for tool in tools], "items": json.loads(json.dumps(items)),
+            "system_sha256": short_hash(system), "tools_sha256": short_hash(tools),
+            "tools": [tool.get("name") for tool in tools], "items": sent,
             "reply": {"text": reply.text, "tool_calls": [{"name": call.name, "arguments": call.arguments}
                                                          for call in reply.tool_calls]},
             "input_tokens": int(delta("input_tokens")), "output_tokens": int(delta("output_tokens")),

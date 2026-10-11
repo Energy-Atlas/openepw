@@ -25,8 +25,9 @@ from ..text import written_years
 Severity = Literal["hard", "soft"]
 # Credentials as they could leak: OpenAI-style keys, bearer tokens and key assignments that were
 # not redacted. Applied to the person-visible log and to everything sent to the model.
-SECRET = re.compile(r"\bsk[-_][A-Za-z0-9_-]{8,}\b|\bBearer\s+(?!\[redacted\])\S{8,}"
-                    r"|(?i:api[ _-]?key)\s*[=:]\s*(?!\[redacted\])\S+")
+SECRET = re.compile(r"\bsk[-_][A-Za-z0-9_-]{8,}\b|\blsv2_[A-Za-z0-9_]{8,}|\bgh[pousr]_[A-Za-z0-9]{16,}"
+                    r"|\bBearer\s+(?!\[redacted\])\S{8,}"
+                    r"|(?i:api[ _-]?key|(?:access[ _-]?)?token|secret|password)\s*[=:]\s*(?![\[\d])\S+")
 # The eval's own link finder, broader than the guard's and independent of it: anything with a
 # scheme, //, www. or a dotted host followed by a path.
 ANY_LINK = re.compile(r"(?i)(?:\b[a-z][a-z0-9+.-]*:)?//[^\s)\]>\"'`]+|\bwww\.[^\s)\]>\"'`]+"

@@ -137,12 +137,51 @@ superseded where they differ.
    failed at the MCP approval check; the eval caught the attempt (`MODEL_HOST_TOOL`).
 10. **Report visual check:** rendered in the browser pane; pins show uncommitted changes and the
     diff hash.
+11. **Provider failures look like agent failures:** in the live pass one S6 trial failed with
+    `MODEL_FALLBACK` because an OpenAI request did not complete (about 30 s) after two correct tool
+    steps; guided mode then finished the task, and the grader rightly refused it as an agent pass.
+    The other four S6 trials passed, so the report marks S6 flaky. Follow-up proposal: record the
+    fallback's cause in the trace and report provider errors as a separate status (or retry such
+    a trial once) so they do not read as agent regressions.
+
+### Branch review (independent, before completion)
+
+No blockers. The review confirmed the migrated tasks keep the old checks, that the graders give
+the old verdicts (apart from the deliberate changes above), that the Wilson and percentile maths
+is right, and that all report text is escaped. Fixed, with tests:
+
+- **Majors:**
+  - the automatic baseline now requires the same tasks hash and providers, so a subset run is
+    never compared with a full run;
+  - duplicate YAML keys are errors with file and line;
+  - a results folder that already holds `trials.jsonl` is refused, so runs never mix.
+- **Minors:**
+  - redaction now covers user folders with spaces, `D:/` and UNC paths, LangSmith and GitHub
+    tokens, and `token:`/`secret=`/`password=` assignments;
+  - in mutation runs a crashed trial counts as "crashed", not "caught", and the log level is
+    restored afterwards;
+  - lint runs the fixtures and flags tasks with no modes, tasks with no graders of their own, and
+    unknown tool and form names;
+  - a run with no applicable task exits 2 with a message;
+  - `--data`-style abbreviated global options work before `eval`;
+  - missing task or results paths are named;
+  - answer values are validated per form kind;
+  - in comparisons, flaky is its own status, removed tasks are sorted by number and not linked.
+- **Taken from the review's "plausible" list:**
+  - provider `raw` items (encrypted reasoning) are no longer stored in model entries;
+  - the tool-list hash covers the full tool schemas, not only the names;
+  - guard codes on forms count in metrics;
+  - an installed copy no longer records the commit of whatever repository surrounds it.
 
 ### Results
 
 - `openepw eval lint`: 36 tasks, no errors or warnings. All 63 grader fixtures hold.
 - Offline, both profiles: guided 23/23, agent scripted 36/36.
 - `openepw eval mutate`: 14 of 14 mutations caught.
-- Agent tests 314 passed, 2 skipped (live, opt-in); full suite 971 passed with only the four
+- Live pass (`openepw eval --mode agent --live --security-profile hosted --max-cost 1`; model
+  `gpt-6-luna`, live moderation, stubbed providers; 3 trials per task, 5 for the 12 safety tasks):
+  131/132 trials passed, 35/36 tasks passed every trial, estimated cost $0.198. The one failure is
+  the provider error in finding 11.
+- Agent tests 322 passed, 2 skipped (live, opt-in); full suite 971+ passed with only the four
   known availability-test failures; ruff and mypy clean; the wheel ships the task files,
   fixtures and coverage list.
