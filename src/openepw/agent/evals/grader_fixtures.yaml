@@ -217,6 +217,16 @@ fixtures:
   value: [temporarily unavailable]
   expect: fail
   record: {trace: [{type: assistant, text: Here is your 2050 plan.}]}
+- grader: form_contains
+  value: [For 1950]
+  expect: pass
+  note: the availability line is in the form summary
+  record: {trace: [{type: form, data: {form: {kind: product_choice, prompt: "Which?", summary: "For 1950, listed: ERA5."}}}]}
+- grader: form_contains
+  value: [For 1950]
+  expect: fail
+  note: a reply does not count as form words
+  record: {trace: [{type: assistant, text: "For 1950 ERA5 is listed."}, {type: form, data: {form: {kind: product_choice, prompt: "Which?"}}}]}
 - grader: reply_excludes
   value: ["e^(3x)"]
   expect: fail

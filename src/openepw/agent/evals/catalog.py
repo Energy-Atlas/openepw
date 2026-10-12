@@ -108,6 +108,9 @@ def lint(tasks: list[Task]) -> list[Issue]:
             grader = REGISTRY[use.grader]
             if not set(grader.modes) & set(task.modes):
                 issues.append(Issue("warning", where, f"{use.grader} applies only in {', '.join(grader.modes)} mode"))
+            if use.mode and use.mode not in task.modes:
+                issues.append(Issue("warning", where, f"{use.grader} is for {use.mode} mode, which the task "
+                                                      "does not run in"))
             if use.profile and use.profile not in task.profiles:
                 issues.append(Issue("warning", where, f"{use.grader} is for profile {use.profile}, which the task "
                                                       "does not run under"))

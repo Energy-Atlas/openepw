@@ -1,0 +1,24 @@
+id: S50
+title: An availability question is answered on the product form for the years asked
+purpose: The product form states, from the offers, what is listed for the years asked, so a question such as 'can
+  I get 1950?' is answered (found by human labels, G09-G16).
+covers: [offers.available, gate.product-choice]
+tags: [workflow]
+user:
+  say: Can I get actual-year weather for 1950 in Austin?
+  answers: {location_review: approve, product_choice: null, choice: first, map_input: Austin, text: '1950'}
+graders:
+- grader: forms_in_order
+  value: [location_review, product_choice]
+- grader: form_contains
+  value: [For 1950]
+- {grader: submitted, value: false}
+script:
+- call: weather_geocode
+  args: {query: Austin}
+- call: review_location
+  args:
+    locations: {lat: 30.27, lon: -97.74, name: Austin}
+- say: The product form lists what is available for 1950.
+  call: choose_products
+  args: {product: historical}

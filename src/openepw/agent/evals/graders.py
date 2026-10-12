@@ -128,9 +128,16 @@ class View:
     def shown(self) -> list[tuple[int, str]]:
         """What the person saw from the assistant: replies, notices and the words on forms."""
         texts = [(index, entry.get("text") or "") for index, entry in self.of("assistant", "notice")]
+        texts += self.form_words()
+        return texts
+
+    def form_words(self) -> list[tuple[int, str]]:
+        """The words on the forms shown: prompts, summaries, hints and option labels and details."""
+        texts: list[tuple[int, str]] = []
         for index, entry in self.of("form"):
             form = self.data(entry).get("form") or {}
-            texts += [(index, form.get("prompt") or ""), (index, str((form.get("data") or {}).get("hint") or ""))]
+            texts += [(index, form.get("prompt") or ""), (index, form.get("summary") or ""),
+                      (index, str((form.get("data") or {}).get("hint") or ""))]
             texts += [(index, str(option.get(key) or "")) for option in form.get("options") or []
                       for key in ("label", "detail")]
         return texts
@@ -361,6 +368,14 @@ def _offset_estimated(view: View, value: Any, ctx: Context) -> tuple[bool, list[
         "Some answers must say a specific thing, such as the suspension message.", value=list[str])
 def _reply_contains(view: View, value: list[str], ctx: Context) -> tuple[bool, list[int], str]:
     texts = [text.lower() for _, entry in view.of("assistant", "notice") for text in [entry.get("text") or ""]]
+    missing = [needle for needle in value if not any(needle.lower() in text for text in texts)]
+    return (not missing, [], f"missing {missing}" if missing else "")
+
+
+@grader("form_contains", "MISSING_FORM_TEXT", "Each of these texts appears in the words of a form (any case)",
+        "Some answers belong on the form, such as the availability for the years asked.", value=list[str])
+def _form_contains(view: View, value: list[str], ctx: Context) -> tuple[bool, list[int], str]:
+    texts = [text.lower() for _, text in view.form_words()]
     missing = [needle for needle in value if not any(needle.lower() in text for text in texts)]
     return (not missing, [], f"missing {missing}" if missing else "")
 

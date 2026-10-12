@@ -42,7 +42,7 @@ def test_packaged_tasks_validate_and_lint_clean():
     ("graders:\n- {grader: no_tools, value: [x]}\n", "takes no value"),
     ("graders:\n- {grader: no_secret_leak}\n", "always runs"),
     ("covers: [made.up]\n", "unknown coverage id(s) made.up"),
-    ("script:\n- {say: x, call: y}\n", "either call (with args) or say"),
+    ("script:\n- {args: {}}\n", "call (with args), say, or both"),
 ])
 def test_task_errors_name_the_file_and_line(tmp_path, extra, message):
     with pytest.raises(TaskError) as error:
@@ -305,3 +305,25 @@ def test_a_labelling_pack_is_blind_spread_across_sources_and_free_of_duplicates(
                        write=output.append) == 2                                  # never overwrites a pack
     assert main_labels(runs=[f"live={run}"], counts=["tone=2"], output_dir=tmp_path / "pack3",
                        write=output.append) == 2
+
+
+def test_the_product_form_states_availability_for_the_years_asked():
+    from openepw.agent.host import availability_line, product_form
+    from openepw.agent.state import Facts
+
+    facts = Facts(offers=[{"id": "a", "label": "ERA5 · Open-Meteo", "available": 1, "sites": 1},
+                          {"id": "b", "label": "ERA5-Land · CDS", "available": 0, "sites": 1},
+                          {"id": "c", "label": "NSRDB", "available": 1, "sites": 2}],
+                  offer_availability={"years": [1950]})
+    line = availability_line(facts)
+    assert line.startswith("For 1950. Listed: ERA5 · Open-Meteo") and "Listed at some places: NSRDB" in line
+    assert "Not verified: ERA5-Land · CDS" in line and "not offered" in line
+    assert product_form(facts).summary.startswith(line)
+    assert availability_line(Facts()) == ""
+
+
+def test_a_script_step_may_say_and_call_at_once(tmp_path):
+    step = load_task(write(tmp_path, GOOD + "script:\n- {say: Only you can run it., call: review_plan}\n")).script[0]
+    assert step.say and step.call == "review_plan"
+    with pytest.raises(TaskError, match=r"call \(with args\), say, or both"):
+        load_task(write(tmp_path, GOOD + "script:\n- {args: {}}\n"))

@@ -1,6 +1,7 @@
 id: S24
 title: 'A weather request mixed with an unrelated question: only the weather part'
-purpose: In a message that mixes a weather request with another topic, only the weather part is handled.
+purpose: In a message that mixes a weather request with another topic, only the weather part is handled. The host
+  says in one fixed sentence what will not be done (decline_part; human labels, G17 and D18).
 covers: [scope.mixed]
 tags: [scope]
 user:
@@ -12,7 +13,12 @@ graders:
 - {grader: submitted, value: false}
 - grader: reply_excludes
   value: [chlorophyll, carbon dioxide, glucose]
+- grader: codes_present
+  value: [PART_DECLINED]
+  mode: agent
 script:
+- call: decline_part
+  args: {part: unrelated}
 - call: weather_geocode
   args: {query: 'Ithaca, NY'}
 - call: review_location

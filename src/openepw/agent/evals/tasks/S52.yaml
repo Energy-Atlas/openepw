@@ -1,0 +1,22 @@
+id: S52
+title: A question about the data itself is deferred until the file is retrieved
+purpose: '''How hot was July'' needs the retrieved file: the host says so (decline_part) while the request goes
+  on (found by human labels, G13).'
+covers: [scope.mixed]
+tags: [workflow]
+modes: [agent]
+user:
+  say: AMY 2018 for Ithaca, NY, and tell me how hot it got that July.
+  answers: {location_review: null}
+graders:
+- grader: forms_in_order
+  value: [location_review]
+- {grader: submitted, value: false}
+- grader: codes_present
+  value: [PART_DECLINED]
+script:
+- call: decline_part
+  args: {part: needs_data}
+- call: review_location
+  args:
+    locations: {lat: 42.44, lon: -76.5, name: Ithaca}

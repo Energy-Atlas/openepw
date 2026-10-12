@@ -13,6 +13,8 @@ graders:
 - grader: tools_absent
   value: [weather_plan]
 - {grader: submitted, value: false}
+- grader: codes_absent
+  value: [PART_DECLINED]
 script:
 - call: weather_geocode
   args: {query: Phoenix}

@@ -44,14 +44,14 @@ def scripted_model(task: Task) -> ScriptedModel | None:
         return None
     steps: list[Step] = []
     for index, step in enumerate(task.script):
-        if step.say is not None:
+        if step.call is None:
             steps.append(ModelReply(text=step.say))
             continue
         arguments = json.dumps(step.args)
         if "$artifact" in arguments:
             steps.append(_reading_step(f"call_{index}", str(step.call), arguments))
         else:
-            steps.append(ModelReply(tool_calls=[ToolCall(f"call_{index}", str(step.call), arguments)]))
+            steps.append(ModelReply(text=step.say, tool_calls=[ToolCall(f"call_{index}", str(step.call), arguments)]))
     return ScriptedModel(steps)
 
 
@@ -188,7 +188,7 @@ async def run_trial(task: Task, *, mode: str, model: ModelPort | None, data_root
     record = {"run_id": (pins or {}).get("run_id"), "task_id": task.id, "task_hash": task_hash(task),
               "title": task.title, "suite": task.suite, "tags": task.tags, "trial": trial, "mode": mode,
               "profile": security.profile, "pins": pins or {}, "trace": trace}
-    verdicts = grade(record, task.graders_for(security.profile),
+    verdicts = grade(record, task.graders_for(security.profile, mode),
                      Context(mode=mode, links=security.links, max_steps=getattr(policy, "max_steps", 8)))
     record["grades"] = [verdict.as_dict() for verdict in verdicts]
     record["passed"] = all(verdict.passed for verdict in verdicts if verdict.severity == "hard")

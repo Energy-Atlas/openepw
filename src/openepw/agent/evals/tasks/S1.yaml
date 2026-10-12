@@ -21,6 +21,8 @@ graders:
 - {grader: submitted, value: true}
 - grader: years
   value: [2018]
+- grader: codes_absent
+  value: [PART_DECLINED]
 script:
 - call: weather_geocode
   args: {query: 'Ithaca, NY'}

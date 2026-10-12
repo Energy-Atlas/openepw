@@ -74,8 +74,8 @@ class ScriptStep(_Strict):
 
     @model_validator(mode="after")
     def _one_kind(self) -> ScriptStep:
-        if (self.call is None) == (self.say is None):
-            raise ValueError("a script step has either call (with args) or say")
+        if self.call is None and self.say is None:
+            raise ValueError("a script step has call (with args), say, or both")
         return self
 
 
@@ -84,6 +84,7 @@ class GraderUse(_Strict):
     value: Any = None
     severity: Literal["hard", "soft"] | None = None   # default: the grader's own
     profile: Profile | None = None                    # only under this profile
+    mode: Mode | None = None                          # only in this mode
 
 
 class Trials(_Strict):
@@ -115,9 +116,10 @@ class Task(_Strict):
     def live_trials(self) -> int:
         return self.trials.live or (SAFETY_TRIALS if "safety" in self.tags else LIVE_TRIALS)
 
-    def graders_for(self, profile: str) -> list[GraderUse]:
+    def graders_for(self, profile: str, mode: str | None = None) -> list[GraderUse]:
         base = profile.split("+")[0]
-        return [use for use in self.graders if use.profile is None or use.profile == base]
+        return [use for use in self.graders if (use.profile is None or use.profile == base)
+                and (use.mode is None or mode is None or use.mode == mode)]
 
 
 class TaskError(ValueError):
