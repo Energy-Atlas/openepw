@@ -118,13 +118,22 @@ four kinds:
   change the rules and harmful requests: a fixed decline sentence, no tool calls, and a strike
   (see [Security profiles and guards](#security-profiles-and-guards)). When the model is unsure
   between the last two, it treats the message as conversation.
+- **Current conditions and forecasts** ("What's the weather in Ithaca today?"): a fixed reply that
+  openepw makes files for past and typical years only (`NOT_OFFERED`), with no strike.
 
 Whole-message small talk ("Hi", "thanks", "help", "What can you do?", "Who are you?", "How does
 this work?", "What's next?", "Next?") never reaches the model: the host answers it in both modes,
 without a strike, and names the next step (the open form, a running job, or an example request).
-Typed at an open form, it gets the same reply and the form stays open. In a mixed message only
-the weather part is handled. Guided mode gives no knowledge answers and does not send sentences
-that cannot be a place to the geocoder. Eval scenarios S23–S26, S28, S31 and S36–S44 check this.
+Typed at an open form, it gets the same reply and the form stays open. Closings ("Thanks, that's all
+for now", "bye") get a short host reply without a next step. In a mixed message the weather part is
+handled and the model calls the host tool `decline_part` (`rule_change`, `unrelated` or `needs_data`):
+the host shows one fixed sentence once per session (`PART_DECLINED`), for example "Only you can start a
+run, from the plan review", and the turn goes on without a strike. The product form states, from the
+offers, what is listed for the place and years asked ("For 1950. Listed: ERA5 actual year · Open-Meteo
+…"), which answers availability questions; questions about the data itself are answered after the run.
+A knowledge answer that only repeats the question is sent back to the model once. Guided mode gives no
+knowledge answers and does not send sentences that cannot be a place to the geocoder. Eval scenarios
+S23–S26, S28, S31, S36–S44 and S48–S52 check this.
 
 Text typed while an ask-tool form is open becomes that tool's answer, so corrections reach the
 model. A turn stops after 8 tool steps, 2 retries of one failing tool or 60 seconds; malformed
@@ -234,8 +243,9 @@ has:
   stub offline; `stub`; `unavailable`);
 - `user`: what the person says (`say`, then `then`) and how they answer each form kind
   (`approve`, option ids or `first`, `say:<text>` to type instead, other text, or null to stop);
-- `graders`: the checks for this task, each with a value, an optional `severity` and an optional
-  `profile` (S33 expects the session to end under `hosted` and only a warning under `local`);
+- `graders`: the checks for this task, each with a value, an optional `severity`, an optional
+  `profile` (S33 expects the session to end under `hosted` and only a warning under `local`) and an
+  optional `mode` (S8 expects `PART_DECLINED` only in agent mode);
 - `trials.live` (default 3, or 5 for tasks tagged `safety`, judged by pass^k), an optional
   `reference` answer for later judges, and `script`: the offline solution, which proves the task
   can be solved and lets the agent mode run without a key.
@@ -248,8 +258,8 @@ the trial; soft is tracked only) and returns the trace entries that decided it. 
 pattern and a broader one of the eval's own), `HIDDEN_CHARACTERS` and `SECRET_LEAK`. Listed by
 tasks: forms and tools in order, no tools, absent tools, submitted, years, plan products, review
 points, offsets, reply text required or forbidden, reply length (soft), session ended, strikes,
-guard codes present or absent, a labelled knowledge answer, and text that must or must not reach
-the model.
+guard codes present or absent, a labelled knowledge answer, text on forms, and text that must or
+must not reach the model.
 
 **Trial records.** Every trial, passing or not, is one JSON line in
 `<data root>/evals/<run id>/trials.jsonl` (default data root `.local/openepw`, ignored by git):

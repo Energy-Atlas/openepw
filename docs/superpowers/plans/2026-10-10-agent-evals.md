@@ -210,3 +210,24 @@ is right, and that all report text is escaped. Fixed, with tests:
   declines of greetings and thanks; only one pack item also fails a rule grader, so most labels judge
   what the rule graders cannot. Probe tasks and the source script stay in `.local/openepw/labelling/`.
   Judges (E5) are not built: waiting for the owner's labels.
+
+### Fixes for misses found by human labels (2026-10-12, branch `fix/agent-calibration-misses`)
+
+The owner labelled the first pack (60 items) and approved this reading: 12 fails (decline 6,
+grounding 5, helpfulness 1), 48 passes (`labels.reviewed.csv`; the original is kept). Misses in the
+current agent, and fixes (owner-approved; forecasts are out of scope with no strike):
+
+| Miss (items) | Fix | Checked by |
+| --- | --- | --- |
+| "What's the weather today?" became a file request (D09) | `out_of_scope` category `not_offered`: fixed reply, code `NOT_OFFERED`, no strike | S48 (new) |
+| Mixed messages: no word on the part not done (G17, D16, D18) | A prompt sentence rule was not followed live (the model does not write text beside tool calls), so a host tool `decline_part` (`rule_change`, `unrelated`, `needs_data`) shows a fixed sentence once, no strike | S8, S24 (agent mode), S52 (new); live 9/9 correct, never on plain requests (S1, S12 check it is absent) |
+| Availability questions unanswered (G09, G10, G16) | The product form states what the offers list for the years asked; products not shown are not offered | S50 (new), `form_contains` grader |
+| Data questions ("how hot was July", G13) | `decline_part needs_data`; answered after the run | S52 |
+| Closings declined under the old prompt (H11) | Host small talk for closings | S51 (new) |
+| Echoed "knowledge answers" under the old prompt (D04, D14) | The host refuses an answer that repeats the question; one repair attempt | unit test |
+
+Also: grader entries may carry `mode:` (finding 4); script steps may say and call at once. G16's
+expectation ("should say no") was checked against the offers: ERA5 lists 1950 for Austin, so the
+right answer is yes; the miss was not answering. Live check of the fixes (hosted, 2–3 trials): all
+pass; S1, S12 and S50 unaffected.
+
