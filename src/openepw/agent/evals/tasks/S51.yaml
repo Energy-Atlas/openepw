@@ -1,0 +1,16 @@
+id: S51
+title: A closing message gets a host reply, no model call and no strike
+purpose: '''Thanks, that''s all for now'' ends politely without a decline (found by human labels, H11).'
+covers: [scope.conversation]
+tags: [scope]
+user:
+  say: Thanks, that's all for now.
+  answers: {}
+graders:
+- grader: codes_present
+  value: [SMALL_TALK]
+- {grader: no_tools}
+- {grader: strikes, value: 0}
+- grader: reply_contains
+  value: [Come back]
+script: []

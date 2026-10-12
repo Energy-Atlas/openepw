@@ -1,0 +1,19 @@
+id: S48
+title: A question about today's weather is declined as not offered, without a strike
+purpose: openepw makes files for past and typical years; current conditions and forecasts get the not-offered reply
+  and no strike (found by human labels, D09).
+covers: [scope.not-offered]
+tags: [scope]
+modes: [agent]
+user:
+  say: What's the weather in Ithaca today?
+  answers: {}
+graders:
+- grader: codes_present
+  value: [NOT_OFFERED]
+- {grader: strikes, value: 0}
+- {grader: no_tools}
+- {grader: submitted, value: false}
+script:
+- call: out_of_scope
+  args: {category: not_offered}

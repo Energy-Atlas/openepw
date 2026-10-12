@@ -20,7 +20,7 @@ from openepw.service import WeatherService
 
 
 def call(server, name, **arguments):
-    return asyncio.run(server.call_tool(name, arguments))[1]
+    return asyncio.run(server.call_tool(name, arguments)).structuredContent
 
 
 def test_future_tools_are_absent_but_generic_epw_upload_remains(tmp_path):

@@ -34,6 +34,8 @@ src/openepw/
   chat/coordinator.py     browser-neutral durable conversation facts and events
   chat/products.py        named product choices and per-location catalog availability
   mcp/server.py          MCP adapter
+  agent/                 MCP-client chat core (session, guided and model policies, guards, profiles)
+  agent/evals/           eval tasks (YAML), grader registry, trial records, metrics, reports, mutations
   harness/{agent,chat,chat_cli,graph_chat,graph_model,mcp_client,model,rubric,trace}.py  optional reference MCP agent and console
   cli/main.py            argparse adapter
 ```
@@ -252,6 +254,53 @@ directly; `plan_hash` is the execution handoff. The local path import tool
 requires an explicit allowed root. Stdio and loopback Streamable HTTP are
 supported; remote MCP authentication is deferred rather than exposed without
 protection. See [local MCP contract](docs/mcp/README.md).
+
+Since 2026-10 (ADR 0005, P1) the MCP server is shaped for tool-calling agents: product offers
+and location offset review are `WeatherService` operations with MCP tools; dict parameters
+publish inlined schemas; results carry a short model summary plus structured data; submission
+and retry require an MCP elicitation confirmation; and the API process shares its single
+`JobRunner` with an in-process MCP server (`app.state.mcp_server`). A data-root lock keeps job
+execution to one process: owners within a process share it, but a stdio `openepw mcp` started
+on a data root already held by a running `openepw serve` (or another process) fails at startup
+with `DATA_ROOT_BUSY`, so use separate data roots.
+
+P2 adds `openepw.agent`: an `AgentSession` (SQLite events, typed facts, form snapshots for Back)
+that talks to the MCP server through the in-memory transport, host gates that build plan
+requests only from approved facts, a rule-based guided policy, and the `openepw chat` CLI that
+renders every form as text. The MCP-facing parts need the `mcp` extra; the scientific and
+data core never imports the agent package (the legacy chat code shares only its text reading
+and redaction, `openepw.agent.text`).
+
+P3 adds agent mode: a `ModelPort` (OpenAI Responses adapter over `httpx` with a usage ledger and
+budget stop, and a `ScriptedModel` for tests) and a `ModelPolicy` that runs a tool-calling loop
+over the MCP model tools plus host ask-tools. Ask-tools open the same forms as guided mode; a
+gatekeeper refuses host-only tools, rewrites plan requests to approved facts and answers
+`GATE_REQUIRED` with the next step. An unavailable model switches the session to guided mode with
+its facts. `openepw eval` runs packaged scenarios through the same session in guided mode, with
+scripted models or with a live model, against offline stubs by default. Optional LangSmith
+tracing for the agent chat and the web chat is decided by `LANGSMITH_TRACING` in the env file
+(`openepw.agent.tracing`); traces hold only redacted text and summaries.
+
+Guardrails (2026-10-09, [plan](docs/superpowers/plans/2026-10-09-agent-guardrails.md)) are
+configured by a security profile, a YAML run setting validated by `openepw.agent.policy_config`:
+`local` and `hosted` ship in the package, `serve` picks `hosted` on a non-local host, and ignored
+`config/security/*.local.yaml` overrides extend a base profile. `openepw.agent.guard` holds the
+pure text checks (input normalisation, outside-text cleaning into `tool_data`, the off-topic
+clamp, the link allowlist and the readiness check); `openepw.agent.moderation` is a port to the
+OpenAI moderation endpoint with an offline stub. The session applies them and counts strikes for
+the whole session (`end_session`, `guided` or `warn` at the limit); the model declines or answers
+briefly only through the host tools `out_of_scope` and `knowledge_answer`. Guard codes, the
+profile and its digest go into session events and trace metadata. The legacy `/v1/chat/*` and
+`openepw-chat` paths do not use the profiles.
+
+Agent evals (2026-10-10, [spec](docs/superpowers/specs/2026-10-10-agent-evals-design.md)) live in
+`openepw.agent.evals`. Tasks are validated YAML files (`schema.py`, `tasks/`, `coverage.yaml`).
+A trial runs the real session on a fresh data root and becomes one record: pins of what was
+tested, the trace (events and model calls) ending in the outcome, and grades. Graders in
+`graders.py` read only that record, so the same graders judge eval trials and stored fixtures.
+`metrics.py`, `report.py` and `catalog.py` summarise, render and catalogue; `mutate.py` patches
+guards off in-process to show the tasks catch them, so the agent code has no test switches.
+Results are written under the ignored data root; nothing is sent to LangSmith yet (planned).
 
 The optional [reference harness](docs/harness/README.md) consumes only these
 MCP tools through a real stdio client. Its small model adapter extracts typed

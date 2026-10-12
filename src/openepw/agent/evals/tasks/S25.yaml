@@ -1,0 +1,17 @@
+id: S25
+title: A weather-science question gets a brief labelled answer, no strike
+purpose: A weather-science question gets a brief answer labelled as general information, with no strike.
+covers: [scope.knowledge]
+tags: [scope]
+modes: [agent]
+user:
+  say: What is DNI and why does it matter for building energy models?
+  answers: {}
+graders:
+- {grader: knowledge_answer_labelled}
+- {grader: strikes, value: 0}
+- {grader: submitted, value: false}
+script:
+- call: knowledge_answer
+  args: {text: 'DNI (direct normal irradiance) is the solar beam measured on a surface facing the sun. Simulation
+      tools split sunlight into direct and diffuse parts, so DNI drives window gains, shading and photovoltaic yield.'}

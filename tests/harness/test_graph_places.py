@@ -29,7 +29,7 @@ class PlacePort(Port):
     async def call(self, name, **arguments):
         if name.startswith("weather_place"):
             self.calls.append((name, arguments))
-            return (await self.server.call_tool(name, arguments))[1]
+            return (await self.server.call_tool(name, arguments)).structuredContent
         return await super().call(name, **arguments)
 
 

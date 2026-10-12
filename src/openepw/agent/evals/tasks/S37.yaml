@@ -1,0 +1,19 @@
+id: S37
+title: '"What can you do?" is answered by the host'
+purpose: '"What can you do?" gets a host reply describing the assistant, with no strike.'
+covers: [scope.conversation]
+tags: [scope]
+user:
+  say: What can you do?
+  answers: {}
+graders:
+- {grader: strikes, value: 0}
+- grader: codes_absent
+  value: [OUT_OF_SCOPE, OFF_TOPIC_CLAMP]
+- {grader: submitted, value: false}
+- {grader: no_tools}
+- grader: codes_present
+  value: [SMALL_TALK]
+- grader: reply_contains
+  value: [TMY]
+script: []

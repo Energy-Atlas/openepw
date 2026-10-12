@@ -14,14 +14,17 @@ from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any
 
+from ..agent.text import explicit_weather_years
 from ..availability import WeatherAvailabilityQuery
+from ..availability.products import product_for, product_offers
 from ..harness.agent import safe_prompt
 from ..harness.model import ModelUnavailable
-from ..models import Location, OpenEPWError, WeatherRequest, nominal_offset_minutes
+from ..models import OpenEPWError, WeatherRequest
 from ..places.models import PlacePreview, PlaceSetQuery
 from ..places.parse import apply_edit, classify_places, describe_place_set
+from ..planning.offsets import estimate_offsets as chat_geography
+from ..planning.offsets import location_key, request_points, standard_time_note
 from ..visualization.models import VisualizationRequest
-from .products import product_for, product_offers
 
 
 class StaleSession(Exception):
@@ -112,42 +115,9 @@ def preview_listing(preview: PlacePreview) -> str:
     return "\n".join(lines + ([""] + preview.attribution if preview.attribution else []))
 
 
-def location_key(location: dict) -> str:
-    """Identifies the reviewed location, so a changed one needs approval again."""
-    return hashlib.sha256(json.dumps(location, sort_keys=True).encode()).hexdigest()[:16]
-
-
-def chat_geography(value: Any) -> tuple[Any, dict | None, bool]:
-    """Choose a fixed offset for chat points that lack one; preserve supplied offsets."""
-    if isinstance(value, list):
-        points = [chat_geography(point) for point in value]
-        return [point for point, _, _ in points], None, any(estimated for _, _, estimated in points)
-    if isinstance(value, dict) and ("west" in value or value.get("type") == "Polygon"):
-        return value, {"standard_offset": "longitude"}, True
-    point = Location.model_validate(value)
-    if "standard_offset_minutes" not in point.model_fields_set:
-        local = point.model_copy(update={"standard_offset_minutes": nominal_offset_minutes(point.lon)})
-        return local.model_dump(mode="json"), None, True
-    return point.model_dump(mode="json"), None, False
-
-
 def standard_time_summary(request: WeatherRequest, estimated: bool) -> str:
     """Show the clock convention before the user runs an actual-year plan."""
-    from ..planning.spatial import sample
-
-    if isinstance(request.locations, Location):
-        points = [request.locations]
-    elif isinstance(request.locations, list):
-        points = request.locations
-    else:
-        points = sample(request.locations, request.sampling)
-    offsets = sorted({point.standard_offset_minutes for point in points})
-    labels = [f"UTC{'+' if minutes >= 0 else '-'}{abs(minutes) // 60:02d}:{abs(minutes) % 60:02d}"
-              for minutes in offsets]
-    note = "Fixed standard time: " + ", ".join(labels) + "; no daylight-saving shift."
-    if estimated:
-        note += " Some offsets were estimated from longitude and may differ from local civil standard time."
-    return note
+    return standard_time_note(request_points(request), estimated)
 
 
 def require_reviewed_standard_time(facts: dict) -> None:
@@ -216,26 +186,6 @@ def plan_summary_markdown(request: dict, rows: list[dict]) -> str:
         codes = f" ({', '.join(row['issue_codes'])})" if row.get("issue_codes") else ""
         lines.append(f"- **{label}** · {period} · {source} · {status}{codes}")
     return "\n".join(lines)
-
-
-def explicit_weather_years(text: str) -> set[int]:
-    """A building count must not turn into a weather year, even if a model proposes it."""
-    years = set()
-    for match in re.finditer(r"\b(?:18|19|20|21)\d{2}\b", text):
-        if not re.match(r"\s+buildings?\b", text[match.end():], re.I):
-            years.add(int(match.group()))
-    for match in re.finditer(r"\b((?:18|19|20|21)\d{2})\s*(?:-|–|—|to|through)\s*"
-                             r"((?:18|19|20|21)\d{2}|\d{2})\b", text, re.I):
-        start, tail = int(match.group(1)), match.group(2)
-        end = int(tail)
-        if len(tail) == 2:                 # "2012-18" and "1998-02" abbreviate the end year
-            end += start // 100 * 100
-            end += 100 if end < start else 0
-        if 0 <= end - start <= 30:
-            years.update(range(start, end + 1))
-    for match in re.finditer(r"\b((?:18|19|20|21)\d)0s\b", text):     # "the 2010s"
-        years.update(range(int(match.group(1)) * 10, int(match.group(1)) * 10 + 10))
-    return years
 
 
 # Relative phrases the model may turn into years ("the last five years", "since 2015").
@@ -564,7 +514,8 @@ class ChatCoordinator:
             # Each option names one downloadable product; the map shows where each is available.
             self._event(state, "tool", "Checking where each product is available",
                         {"tool": "availability", "phase": "call"})
-            offers = product_offers(self.service, request_location(facts), facts)
+            offers = product_offers(self.service, request_location(facts), kind=facts.get("product"),
+                                    provider=facts.get("provider"), years=facts.get("years"))
             card = {"kind": "choice", "prompt": "Which weather product?", "options": offers["options"],
                     "data": {"field": "product", "availability": offers["availability"]}}
         elif facts["product"] == "historical" and not facts.get("years"):
@@ -1098,7 +1049,8 @@ class ChatCoordinator:
             require_reviewed_standard_time(state["facts"])
             hashes = state.get("plan_hashes") or [plan_hash]
             jobs = [runner.submit(self.service.plan_store.get(item),
-                                  f"chat:{session_id}:{key}" + (f":{index}" if index else ""))
+                                  f"chat:{session_id}:{key}" + (f":{index}" if index else ""),
+                                  approved_via="chat")
                     for index, item in enumerate(hashes)]
             # One retry chain per job; a mixed request has one job per kind.
             state["job_groups"] = [[job.id] for job in jobs]

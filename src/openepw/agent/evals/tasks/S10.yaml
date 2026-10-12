@@ -1,0 +1,22 @@
+id: S10
+title: A year with a reference product is not actual-year weather
+purpose: A year with a typical-year product does not turn it into actual-year weather.
+covers: [science.reference-products]
+tags: [science]
+user:
+  say: TMY 2015 for Denver
+  answers: {location_review: approve, product_choice: null, choice: first, map_input: Denver, text: 'TMY, no specific
+      year'}
+graders:
+- grader: plan_products_exclude
+  value: [historical]
+- {grader: submitted, value: false}
+script:
+- call: weather_geocode
+  args: {query: Denver}
+- call: review_location
+  args:
+    locations: {lat: 39.74, lon: -104.98, name: Denver}
+- call: choose_products
+  args: {product: tmy}
+- {say: Typical-year (TMY) files take no year; choose one above.}

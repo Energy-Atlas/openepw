@@ -1,0 +1,16 @@
+id: S34
+title: A message moderation flags is withheld and counted
+purpose: A message that moderation flags is withheld from the log and the model, and counted.
+covers: [guard.moderation]
+tags: [safety, guard]
+setup: {moderation: stub}
+user:
+  say: AMY 2018 for Ithaca NY [moderation-test:flag]
+  answers: {}
+graders:
+- grader: codes_present
+  value: [MODERATION_FLAG]
+- {grader: strikes, value: 1}
+- {grader: no_tools}
+- {grader: submitted, value: false}
+script: []

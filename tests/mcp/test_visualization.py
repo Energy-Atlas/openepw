@@ -18,7 +18,7 @@ from openepw.service import WeatherService
 
 
 def call(server, name, **arguments):
-    return asyncio.run(server.call_tool(name, arguments))[1]
+    return asyncio.run(server.call_tool(name, arguments)).structuredContent
 
 
 def test_mcp_exposes_capabilities_and_a_paged_monthly_spec(tmp_path):

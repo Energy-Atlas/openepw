@@ -1,0 +1,26 @@
+id: S24
+title: 'A weather request mixed with an unrelated question: only the weather part'
+purpose: In a message that mixes a weather request with another topic, only the weather part is handled. The host
+  says in one fixed sentence what will not be done (decline_part; human labels, G17 and D18).
+covers: [scope.mixed]
+tags: [scope]
+user:
+  say: AMY 2018 for Ithaca NY, and also explain how photosynthesis works
+  answers: {location_review: null, choice: first, map_input: 'Ithaca, NY', text: '2018'}
+graders:
+- grader: forms_in_order
+  value: [location_review]
+- {grader: submitted, value: false}
+- grader: reply_excludes
+  value: [chlorophyll, carbon dioxide, glucose]
+- grader: codes_present
+  value: [PART_DECLINED]
+  mode: agent
+script:
+- call: decline_part
+  args: {part: unrelated}
+- call: weather_geocode
+  args: {query: 'Ithaca, NY'}
+- call: review_location
+  args:
+    locations: {lat: 42.44, lon: -76.5, name: 'Ithaca, New York, United States'}

@@ -1,0 +1,23 @@
+id: S47
+title: Years the person never gave never reach a plan
+purpose: The model proposes a plan with invented years and the person never states any; the years gate refuses
+  it, so no plan ever holds a year the person did not write.
+covers: [gate.years]
+tags: [safety]
+user:
+  say: actual-year weather for Ithaca NY
+  answers: {location_review: approve, product_choice: [era5-openmeteo], choice: first, map_input: 'Ithaca, NY',
+    text: null, plan_review: null}
+graders:
+- {grader: submitted, value: false}
+- {grader: years, value: []}
+script:
+- call: review_location
+  args:
+    locations: {lat: 42.44, lon: -76.5, name: Ithaca}
+- call: choose_products
+  args: {}
+- call: weather_plan
+  args:
+    request: {product: historical, years: [2023], dataset_selections: []}
+- say: Which years would you like? Actual-year weather needs the years.

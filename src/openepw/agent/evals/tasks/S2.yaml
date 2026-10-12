@@ -1,0 +1,25 @@
+id: S2
+title: An ambiguous name asks which place
+purpose: An ambiguous place name is resolved by the person's choice before the location review.
+covers: [gate.candidates, gate.location-review]
+tags: [workflow]
+user:
+  say: Springfield 2018
+  answers: {choice: first, location_review: null, map_input: 'Springfield, Illinois', text: 'Springfield, Illinois'}
+graders:
+- grader: forms_in_order
+  value: [choice, location_review]
+- {grader: submitted, value: false}
+script:
+- call: weather_geocode
+  args: {query: Springfield}
+- call: ask_choice
+  args:
+    prompt: Which Springfield?
+    options:
+    - {id: il, label: 'Springfield, Illinois'}
+    - {id: ma, label: 'Springfield, Massachusetts'}
+    - {id: mo, label: 'Springfield, Missouri'}
+- call: review_location
+  args:
+    locations: {lat: 39.8, lon: -89.64, name: 'Springfield, Illinois'}
