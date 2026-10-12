@@ -143,3 +143,11 @@ def test_guided_mode_answers_small_talk_instead_of_reading_a_place(tmp_path):
             await h.say("What can you do?")
             assert "guided mode" in h.session.events()[-1].text
     asyncio.run(main())
+
+
+def test_closings_are_small_talk():
+    from openepw.agent.guard import small_talk
+
+    for text in ("Thanks, that's all for now.", "bye", "Thank you so much, goodbye!", "that's it", "all done"):
+        assert small_talk(text) == "bye", text
+    assert small_talk("thanks") == "thanks" and small_talk("bye for the weather in 2018") is None

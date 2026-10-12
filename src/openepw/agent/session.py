@@ -24,7 +24,7 @@ from .tracing import NullTracer, summarize_arguments
 GUARD_CODES = frozenset({
     "OUT_OF_SCOPE", "OFF_TOPIC_CLAMP", "MODERATION_FLAG", "MODERATION_UNAVAILABLE", "LINK_REMOVED",
     "READINESS_CORRECTED", "STRIKE_WARNING", "STRIKE_LIMIT", "SESSION_ENDED", "SESSION_REOPENED",
-    "TOOL_NOT_ALLOWED", "KNOWLEDGE_ANSWER",
+    "TOOL_NOT_ALLOWED", "KNOWLEDGE_ANSWER", "NOT_OFFERED", "PART_DECLINED",
 })
 WITHHELD = "[message withheld by moderation]"
 HELP_AGENT = ("I'm the openepw assistant. I find and build EPW weather files for building simulation: "
@@ -33,7 +33,8 @@ HELP_AGENT = ("I'm the openepw assistant. I find and build EPW weather files for
               "questions.")
 HELP_GUIDED = ("This is guided mode: it reads places, coordinates, years and product names (actual year, "
                "TMY, TMYx) and asks for the rest with forms; it can't answer questions.")
-SMALL_TALK_OPENING = {"greet": "Hello! ", "thanks": "You're welcome. ", "next": "", "help": ""}
+SMALL_TALK_OPENING = {"greet": "Hello! ", "thanks": "You're welcome. ", "next": "", "help": "",
+                      "bye": "You're welcome. Come back whenever you need a weather file."}
 
 
 def event_codes(event: Any) -> list[str]:
@@ -351,7 +352,8 @@ class AgentSession:
     async def _small_talk(self, kind: str) -> None:
         """A fixed reply to a greeting, thanks, "help" or "what's next"; any open form stays open."""
         intro = (HELP_GUIDED if self.state.mode == "guided" else HELP_AGENT) + " " if kind == "help" else ""
-        self.emit("assistant", SMALL_TALK_OPENING[kind] + intro + self._next_step(), code="SMALL_TALK")
+        step = "" if kind == "bye" else self._next_step()
+        self.emit("assistant", SMALL_TALK_OPENING[kind] + intro + step, code="SMALL_TALK")
 
     def _next_step(self) -> str:
         form = self.form

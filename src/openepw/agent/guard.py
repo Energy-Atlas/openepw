@@ -177,14 +177,18 @@ _HELP = (r"(?:help|help me|what can you do|what do you do|what can i do|who are 
          r"how does (?:this|it) work|how do i (?:use (?:this|it)|start|begin)|how can you help|what is this)")
 _NEXT = (r"(?:next|what next|whats next|what is next|what now|now what|what should i do next|"
          r"what do i do next|then what)")
+_BYE = (r"(?:bye|goodbye|good bye|see you|thats all|that is all|thats it|nothing else|im done|all done)"
+        r"(?: for now| for today)?")
 _SMALL_TALK = re.compile(rf"(?:(?P<greet>{_GREET}) ?)?(?:(?P<help>{_HELP})|(?P<next>{_NEXT})|"
-                         rf"(?P<thanks>{_THANKS}))?(?: ?please)?")
+                         rf"(?:(?P<thanks>{_THANKS}) ?)?(?P<bye>{_BYE})|(?P<thanks_only>{_THANKS}))?(?: ?please)?")
 
 
 def small_talk(text: str) -> str | None:
-    """'greet', 'thanks', 'help' or 'next' when the whole message is small talk, else None."""
+    """'greet', 'thanks', 'bye', 'help' or 'next' when the whole message is small talk, else None."""
     words = " ".join(re.sub(r"[^a-z\s]", " ", re.sub(r"['\u2019]", "", text.lower())).split())
     match = _SMALL_TALK.fullmatch(words) if words else None
     if match is None:
         return None
-    return next((kind for kind in ("help", "next", "thanks", "greet") if match.group(kind)), None)
+    if match.group("thanks_only"):
+        return "thanks"
+    return next((kind for kind in ("help", "next", "bye", "greet") if match.group(kind)), None)

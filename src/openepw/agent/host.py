@@ -71,8 +71,30 @@ def review_form(facts: Facts, max_chars: int = 120) -> Interaction:
         summary="\n".join(lines), data={**review, "several": count > 1, "rows": facts.place_rows})
 
 
+def availability_line(facts: Facts) -> str:
+    """One grounded sentence on what the offers list for the years asked (from the offers themselves)."""
+    years = (facts.offer_availability or {}).get("years") or []
+    listed = [offer["label"] for offer in facts.offers if offer.get("sites") and offer.get("available") == offer["sites"]]
+    partly = [offer["label"] for offer in facts.offers if 0 < (offer.get("available") or 0) < (offer.get("sites") or 0)]
+    unverified = [offer["label"] for offer in facts.offers if offer.get("sites") and not offer.get("available")]
+    parts = []
+    if listed:
+        parts.append("Listed: " + "; ".join(listed))
+    if partly:
+        parts.append("Listed at some places: " + "; ".join(partly))
+    if unverified:
+        parts.append("Not verified: " + "; ".join(unverified))
+    if not parts:
+        return ""
+    scope = f"For {', '.join(str(year) for year in years)}" if years else "For these places"
+    return f"{scope}. {'. '.join(parts)}. Products not shown are not offered for these places and years."
+
+
 def product_form(facts: Facts) -> Interaction:
     summary = "Listed means eligible to try retrieval, not quality assured."
+    line = availability_line(facts)
+    if line:
+        summary = f"{line} {summary}"
     if (facts.offer_availability or {}).get("catalog_loaded") is False:
         summary += (" The local availability catalog is not loaded (openepw catalog import), so most "
                     "products are not verified here; planning checks each one.")
