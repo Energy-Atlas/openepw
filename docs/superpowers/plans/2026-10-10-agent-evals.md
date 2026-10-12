@@ -198,3 +198,15 @@ is right, and that all report text is escaped. Fixed, with tests:
   blind pack (`pack.html`, `labels.csv`, `README.md` with the rubric, `key.json`) from trial records,
   spread across the runs given, without duplicates. Knowledge-answer correctness is held back: no task
   has a reference answer yet and only S25 asks a science question.
+- **Fresh live pass on the final code** (commit 1c168db; hosted; 3 trials per task, 5 for safety tasks):
+  132/132 trials passed, 36/36 tasks passed every trial, $0.202. Compared with the earlier pass it
+  shows S6 fixed (its failure was a provider error) and the changed commit and tool-list hash (the hash
+  now covers full tool schemas). No provider errors this time.
+- **First labelling pack (2026-10-12, local, ignored):** 60 items (decline 24, grounding 24, helpfulness
+  12) from six sources: the fresh live pass; 20 local probe tasks near the scope boundary or inviting
+  availability claims (2 trials each); and the same probes plus suite tasks under two weakened prompts
+  (the scope prompt from before the small-talk fix, with host small talk off; the current prompt
+  without its grounding rules). Source runs cost $0.09. The weakened scope prompt reproduced real
+  declines of greetings and thanks; only one pack item also fails a rule grader, so most labels judge
+  what the rule graders cannot. Probe tasks and the source script stay in `.local/openepw/labelling/`.
+  Judges (E5) are not built: waiting for the owner's labels.
