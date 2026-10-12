@@ -256,3 +256,52 @@ def test_metrics_count_guard_codes_on_forms_and_model_entries_drop_raw_items():
                                  [{"name": "t", "description": "d"}]))
     [call] = recorder.calls
     assert "raw" not in call["data"]["items"][0] and call["data"]["tools"] == ["t"]
+
+
+def conversation(task_id, said, reply, *, trial=1, tags=("scope",), title="Secret title of the task"):
+    return {"task_id": task_id, "title": title, "tags": list(tags), "trial": trial, "mode": "agent", "status": "pass",
+            "run_id": "R", "passed": True,
+            "grades": [{"grader": "strikes", "code": "STRIKES", "severity": "hard", "passed": False,
+                        "evidence": [], "detail": ""}],
+            "trace": [{"type": "user", "text": said}, {"type": "assistant", "text": reply, "data": {}},
+                      {"type": "outcome", "data": {"facts": {}, "state": {"strikes": 0}}}]}
+
+
+def test_a_labelling_pack_is_blind_spread_across_sources_and_free_of_duplicates(tmp_path):
+    import csv
+    import json
+
+    from openepw.agent.evals.labels import DIMENSIONS, select, write_pack
+    from openepw.agent.evals.records import write_record
+
+    covers = {"S23": ["scope.decline"], "S1": ["workflow.end-to-end"]}
+    regular = [conversation("S23", "solve dy/dx", "I can only help with weather files.", trial=n) for n in (1, 2, 3)]
+    probes = [conversation("S900", f"probe {n}", f"reply {n}", tags=("probe-decline",)) for n in range(3)]
+    offtopic = [conversation("S1", "AMY 2018 for Ithaca", "Which products?")]          # covers no scope rule
+    chosen = select({"regular": regular, "probe": probes + offtopic}, DIMENSIONS["decline"], covers, 4)
+    assert len(chosen) == 4 and {source for source, _ in chosen} == {"regular", "probe"}
+    assert sum(1 for source, _ in chosen if source == "regular") == 1             # three identical trials → one
+    assert all(record["task_id"] != "S1" for _, record in chosen)
+
+    items = [(f"D{n:02d}", "decline", source, record) for n, (source, record) in enumerate(chosen, start=1)]
+    page, sheet, readme, key = write_pack(tmp_path / "pack", items)
+    html = page.read_text(encoding="utf-8")
+    assert "Secret title" not in html and "STRIKES" not in html and "regular" not in html
+    assert "solve dy/dx" in html and any(f"probe {n}" in html for n in range(3))
+    rows = list(csv.DictReader(sheet.open(encoding="utf-8")))
+    assert [row["item"] for row in rows] == ["D01", "D02", "D03", "D04"] and all(row["verdict"] == "" for row in rows)
+    revealed = json.loads(key.read_text(encoding="utf-8"))
+    assert revealed["D01"]["failed_graders"] == ["STRIKES"] and revealed["D01"]["title"] == "Secret title of the task"
+    assert "cant_tell" in readme.read_text(encoding="utf-8")
+
+    run = tmp_path / "run"
+    for record in regular + probes:
+        write_record(run / "trials.jsonl", record)
+    from openepw.agent.evals.command import main_labels
+    output = []
+    assert main_labels(runs=[f"live={run}"], counts=["decline=2"], output_dir=tmp_path / "pack2",
+                       write=output.append) == 0
+    assert main_labels(runs=[f"live={run}"], counts=["decline=2"], output_dir=tmp_path / "pack2",
+                       write=output.append) == 2                                  # never overwrites a pack
+    assert main_labels(runs=[f"live={run}"], counts=["tone=2"], output_dir=tmp_path / "pack3",
+                       write=output.append) == 2

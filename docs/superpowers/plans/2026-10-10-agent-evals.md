@@ -194,3 +194,7 @@ is right, and that all report text is escaped. Fixed, with tests:
   A trial that falls back because of a transport or provider failure is retried once; if it fails
   that way again its status is `provider_error`, shown apart in the console, summary and report and
   left out of pass rates and comparisons. Other causes still fail the trial (`MODEL_FALLBACK`).
+- **Labelling pack (owner: label locally, stop before building judges):** `openepw eval labels` writes a
+  blind pack (`pack.html`, `labels.csv`, `README.md` with the rubric, `key.json`) from trial records,
+  spread across the runs given, without duplicates. Knowledge-answer correctness is held back: no task
+  has a reference answer yet and only S25 asks a science question.

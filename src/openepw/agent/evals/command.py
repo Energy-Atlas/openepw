@@ -205,3 +205,36 @@ async def main_mutate(*, tasks_path: Path | None = None, mutation_names: list[st
     write(f"{len(results)} mutation(s); {len(results) - len(uncovered)} caught"
           + (f"; NOT caught: {', '.join(uncovered)}" if uncovered else "."))
     return 1 if uncovered else 0
+
+
+def main_labels(*, runs: list[str], counts: list[str], output_dir: Path, tasks_path: Path | None = None,
+                seed: int = 7, write: Write = print) -> int:
+    """Write a blind labelling pack from run folders given as SOURCE=FOLDER."""
+    from .labels import DIMENSIONS, build_pack
+
+    folders: dict[str, Path] = {}
+    for item in runs:
+        source, _, path = item.partition("=")
+        folder = Path(path or source)
+        if not (folder / "trials.jsonl").exists():
+            write(f"{folder}: no trials.jsonl")
+            return 2
+        folders[source if path else folder.name] = folder
+    wanted: dict[str, int] = {}
+    for item in counts:
+        name, _, number = item.partition("=")
+        if name not in DIMENSIONS or not number.isdigit():
+            write(f"--count {item}: use DIMENSION=N with DIMENSION one of {', '.join(DIMENSIONS)}")
+            return 2
+        wanted[name] = int(number)
+    if (output_dir / "labels.csv").exists():
+        write(f"{output_dir} already holds a labelling pack; choose another --output-dir.")
+        return 2
+    try:
+        tasks = load_tasks() + (load_tasks(tasks_path) if tasks_path else [])
+    except TaskError as error:
+        write(f"Task error: {error}")
+        return 2
+    paths = build_pack(folders, wanted, output_dir, {task.id: task.covers for task in tasks}, seed)
+    write("Labelling pack: " + ", ".join(str(path) for path in paths))
+    return 0

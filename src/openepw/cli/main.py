@@ -54,7 +54,7 @@ def _default_eval_run(argv: list[str]) -> list[str]:
         index += 2 if takes_value else 1
     if index < len(argv) and argv[index] == "eval":
         following = argv[index + 1] if index + 1 < len(argv) else None
-        if following not in ("run", "compare", "lint", "catalog", "mutate", "-h", "--help"):
+        if following not in ("run", "compare", "lint", "catalog", "mutate", "labels", "-h", "--help"):
             argv.insert(index + 1, "run")
     return argv
 
@@ -126,6 +126,14 @@ def main(argv=None):
     eval_catalog.add_argument("--tasks", type=Path)
     eval_catalog.add_argument("--output-dir", type=Path, help="Default: <data root>/evals/catalog")
     eval_catalog.add_argument("--results", type=Path, help="A run folder whose pass rates to show")
+    eval_labels = eval_sub.add_parser("labels", help="Write a blind labelling pack for judge calibration")
+    eval_labels.add_argument("--run", action="append", required=True,
+                             help="SOURCE=FOLDER of a run whose trials to draw from (repeatable)")
+    eval_labels.add_argument("--count", action="append", required=True,
+                             help="DIMENSION=N: decline, grounding or helpfulness (repeatable)")
+    eval_labels.add_argument("--output-dir", type=Path, required=True)
+    eval_labels.add_argument("--tasks", type=Path, help="Extra task files (e.g. probes) for coverage lookup")
+    eval_labels.add_argument("--seed", type=int, default=7)
     eval_mutate = eval_sub.add_parser("mutate", help="Disable each guard in turn and check the tasks catch it")
     eval_mutate.add_argument("--tasks", type=Path)
     eval_mutate.add_argument("--mutation", action="append", help="Only this mutation (repeatable)")
@@ -184,6 +192,9 @@ def main(argv=None):
             if args.eval_command == "catalog":
                 return evals_command.main_catalog(tasks_path=args.tasks, output_dir=args.output_dir or
                                                   evals_dir / "catalog", results=args.results)
+            if args.eval_command == "labels":
+                return evals_command.main_labels(runs=args.run, counts=args.count, output_dir=args.output_dir,
+                                                 tasks_path=args.tasks, seed=args.seed)
             if args.eval_command == "mutate":
                 return asyncio.run(evals_command.main_mutate(tasks_path=args.tasks, mutation_names=args.mutation))
             return asyncio.run(evals_command.main_run(

@@ -291,6 +291,14 @@ out of pass rates. Budget, client (other HTTP) and reply failures still fail the
   emit, checks that cannot apply in the task's modes, and model-input exclusions with no proof
   that the data reached the model.
 
+**Labelling for judge calibration.** `openepw eval labels --run SOURCE=FOLDER ... --count decline=24
+--count grounding=24 --count helpfulness=12 --output-dir DIR` writes a blind labelling pack from agent-mode
+trial records: `pack.html` (each conversation, without task titles, grader verdicts or its source),
+`labels.csv` (verdict `pass`/`fail`/`cant_tell`, failure category, note), `README.md` (the rubric per
+dimension) and `key.json` (where each item came from; opened only after labelling). Items are spread
+across the runs given and near-identical conversations are dropped. Knowledge-answer correctness waits
+for tasks with reference answers.
+
 Geocoding and weather providers are offline stubs unless `--live-providers` is given; the stub
 geocoder matches names like the real search ("Ithaca" or "Ithaca, NY", not "Ithaca NY"). The
 pytest test `tests/agent/test_evals.py::test_live_agent_evals_with_a_budget_cap` runs only with
