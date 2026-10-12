@@ -18,7 +18,7 @@ class RuntimeConfig(Model):
     cds_key: SecretStr | None = None
     openmeteo_api_key: SecretStr | None = None
     bearer_token: SecretStr | None = None
-    # Hosted deployments: the built UI to serve, and Cornell email accounts (ADR 0005).
+    # Hosted deployments: the built UI to serve, and Cornell email accounts (ADR 0006).
     web_root: Path | None = None
     resend_api_key: SecretStr | None = None
     mail_from: str | None = None                 # e.g. "OpenEPW <accounts@mail.example.org>"

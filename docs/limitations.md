@@ -225,7 +225,7 @@ boroughs) appear as separate places, and continent-wide sets are not supported.
 ## Hosted deployment
 
 The Render deployment ([guide](deploy/render.md)) is a single instance. People sign in
-with personal `@cornell.edu` accounts ([ADR 0005](decisions/0005-accounts.md)), but everyone
+with personal `@cornell.edu` accounts ([ADR 0006](decisions/0006-accounts.md)), but everyone
 signed in uses the owner's NLR, Copernicus and OpenAI credentials and one model spending
 stop, and chat sessions are not separated per user. Account email needs a Resend domain
 the owner controls. There is no admin page; accounts are listed and disabled from the

@@ -2,7 +2,7 @@
 
 One Docker web service serves the chat UI and the API from the same address. People sign
 in with personal accounts: a Cornell email address and a password chosen from an emailed
-link ([ADR 0005](../decisions/0005-accounts.md)); scripts can use a bearer token. Data (Stage 1 catalog, chat sessions, weather jobs, downloads)
+link ([ADR 0006](../decisions/0006-accounts.md)); scripts can use a bearer token. Data (Stage 1 catalog, chat sessions, weather jobs, downloads)
 lives on a Render persistent disk. Files: [`Dockerfile`](../../Dockerfile),
 [`docker/entrypoint.sh`](../../docker/entrypoint.sh), [`render.yaml`](../../render.yaml),
 [`src/openepw/deploy.py`](../../src/openepw/deploy.py) (catalog install) and

@@ -4,7 +4,7 @@ Sign-up asks only for an address; the password is chosen on the page an emailed 
 link opens, so an account's password is set only by whoever reads that inbox. Reset uses
 the same page. Link tokens travel in the URL fragment, which browsers never send, so they
 stay out of access logs. Sessions are random tokens in an HttpOnly cookie, stored hashed.
-See docs/decisions/0005-accounts.md.
+See docs/decisions/0006-accounts.md.
 """
 
 from __future__ import annotations

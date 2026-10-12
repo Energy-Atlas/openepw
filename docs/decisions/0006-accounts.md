@@ -1,4 +1,7 @@
-# 0005 — Cornell email accounts replace the shared site password
+# 0006 — Cornell email accounts replace the shared site password
+
+> Renumbered from 0005 on 2026-10-12 when `main` (which already had ADR 0005, MCP agent chat) was merged into `deploy/staging`; the decision is unchanged.
+
 
 **Date:** 2026-09-30
 

@@ -88,7 +88,7 @@ class ChatView(ChatAction):
 
 
 def _accounts(config, remote: bool, mailer) -> Accounts | None:
-    """Cornell email accounts when a mail route is configured (ADR 0005), else None."""
+    """Cornell email accounts when a mail route is configured (ADR 0006), else None."""
     if mailer is None and config.resend_api_key and config.mail_from:
         mailer = ResendMailer(config.resend_api_key.get_secret_value(), config.mail_from)
     elif mailer is None and config.accounts_dev_mail:

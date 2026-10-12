@@ -149,7 +149,7 @@ def main(argv=None):
     catalog_export.add_argument("--name", default="weather-availability-catalog")
     catalog_export.add_argument("--package-version", required=True)
     catalog_export.add_argument("--metadata", type=Path, help="JSON merged into datapackage.json (title, licenses...)")
-    accounts = sub.add_parser("accounts", help="hosted accounts on this data root (ADR 0005)")
+    accounts = sub.add_parser("accounts", help="hosted accounts on this data root (ADR 0006)")
     accounts_sub = accounts.add_subparsers(dest="accounts_command", required=True)
     accounts_sub.add_parser("list")
     for action in ("disable", "enable"):
