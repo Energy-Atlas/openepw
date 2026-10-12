@@ -145,7 +145,7 @@ class ModelPolicy:
                 s.close_form()                   # a question from an earlier model turn; no longer open
             s.emit("notice", "Agent mode: describe what you need in your own words.", mode="agent")
 
-    async def _to_guided(self, s: AgentSession, reason: str, text: str | None = None) -> None:
+    async def _to_guided(self, s: AgentSession, reason: str, text: str | None = None, cause: str = "other") -> None:
         """The model is unavailable: keep the facts and continue with guided forms.
 
         ``text`` is the person's message when the model failed before doing anything with it;
@@ -154,7 +154,7 @@ class ModelPolicy:
         s.state.mode = "guided"
         s.state.pending_call, s.state.turn = None, []
         s.emit("notice", f"Switched to guided mode ({reason}). Your choices so far are kept.",
-               mode="guided", code="MODEL_UNAVAILABLE")
+               mode="guided", code="MODEL_UNAVAILABLE", cause=cause)
         if s.form is not None and "call_id" in s.form.data:
             s.close_form()
         if text is not None:
@@ -265,7 +265,7 @@ class ModelPolicy:
             try:
                 reply = await self._respond(s, tools)
             except ModelUnavailable as error:
-                await self._to_guided(s, str(error), text=text if first else None)
+                await self._to_guided(s, str(error), text=text if first else None, cause=error.cause)
                 return
             first = False
             s.state.turn.append(reply.item())
@@ -695,7 +695,7 @@ class ModelPolicy:
         try:
             reply: ModelReply = await self._respond(s, [])
         except ModelUnavailable as error:
-            await self._to_guided(s, str(error))
+            await self._to_guided(s, str(error), cause=error.cause)
             return
         s.state.turn.append(reply.item())
         if reply.text:

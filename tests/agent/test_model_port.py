@@ -148,3 +148,31 @@ def test_an_unreadable_ledger_is_model_unavailable(tmp_path):
     (tmp_path / "usage.json").write_text("{not json", encoding="utf-8")
     with pytest.raises(ModelUnavailable, match="ledger"):
         openai(lambda request: completed([]), tmp_path)
+
+
+
+@pytest.mark.parametrize("response, cause", [
+    (httpx.Response(503, json={}), "provider"),
+    (httpx.Response(429, json={}), "provider"),
+    (httpx.Response(400, json={}), "client"),
+    (httpx.Response(200, json={"status": "incomplete", "output": []}), "reply"),
+])
+def test_model_failures_name_their_cause(tmp_path, response, cause):
+    with pytest.raises(ModelUnavailable) as error:
+        asyncio.run(openai(lambda request: response, tmp_path).respond("rules", [], TOOLS))
+    assert error.value.cause == cause
+
+
+def test_transport_failures_and_limits_name_their_cause(tmp_path):
+    def offline(request):
+        raise httpx.ConnectError("offline")
+
+    with pytest.raises(ModelUnavailable) as error:
+        asyncio.run(openai(offline, tmp_path).respond("rules", [], TOOLS))
+    assert error.value.cause == "transport"
+    with pytest.raises(ModelUnavailable) as error:
+        asyncio.run(openai(offline, tmp_path, max_calls=0).respond("rules", [], TOOLS))
+    assert error.value.cause == "budget"
+    with pytest.raises(ModelUnavailable) as error:
+        OpenAIModel("")
+    assert error.value.cause == "config"

@@ -185,3 +185,12 @@ is right, and that all report text is escaped. Fixed, with tests:
 - Agent tests 322 passed, 2 skipped (live, opt-in); full suite 979 passed with only the four
   known availability-test failures; ruff and mypy clean; the wheel ships the task files,
   fixtures and coverage list.
+
+## 6. Follow-ups (2026-10-11, owner request)
+
+- Merged `feature/agent-evals` into `feature/mcp-agent-mode` and `feature/chat-ui` (fast-forward, pushed).
+- **Provider errors (finding 11):** `ModelUnavailable` now carries a cause (`config`, `budget`,
+  `transport`, `provider` for HTTP 429/5xx, `client`, `reply`), and the fallback notice records it.
+  A trial that falls back because of a transport or provider failure is retried once; if it fails
+  that way again its status is `provider_error`, shown apart in the console, summary and report and
+  left out of pass rates and comparisons. Other causes still fail the trial (`MODEL_FALLBACK`).

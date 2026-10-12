@@ -43,7 +43,9 @@ def _spread(values: list[float]) -> dict[str, float]:
 def task_summary(records: list[dict[str, Any]]) -> dict[str, Any]:
     """One task's trials (same task, mode and profile)."""
     first = records[0]
-    passed = sum(1 for record in records if record.get("passed"))
+    provider_errors = sum(1 for record in records if record.get("status") == "provider_error")
+    counted = [record for record in records if record.get("status") != "provider_error"]
+    passed = sum(1 for record in counted if record.get("passed"))
     graders: dict[str, dict[str, Any]] = {}
     hard: dict[str, int] = {}
     soft: dict[str, int] = {}
@@ -63,9 +65,12 @@ def task_summary(records: list[dict[str, Any]]) -> dict[str, Any]:
     metric = [record.get("metrics") or {} for record in records]
     return {"task_id": first["task_id"], "title": first.get("title", ""), "suite": first.get("suite", "regression"),
             "tags": first.get("tags", []), "mode": first["mode"], "profile": first.get("profile"),
-            "task_hash": first.get("task_hash"), "trials": len(records), "passed": passed,
-            "pass_rate": round(passed / len(records), 3), "pass_at_k": passed > 0, "pass_all_k": passed == len(records),
-            "status": "pass" if passed == len(records) else ("fail" if passed == 0 else "flaky"),
+            "task_hash": first.get("task_hash"), "trials": len(counted), "passed": passed,
+            "provider_errors": provider_errors, "retried": sum(1 for record in records if record.get("retried_after")),
+            "pass_rate": round(passed / len(counted), 3) if counted else None,
+            "pass_at_k": passed > 0, "pass_all_k": bool(counted) and passed == len(counted),
+            "status": ("provider_error" if not counted else "pass" if passed == len(counted)
+                       else "fail" if passed == 0 else "flaky"),
             "hard_failures": hard, "soft_failures": soft, "graders": graders,
             "model_steps": _spread([float(item.get("model_steps", 0)) for item in metric]),
             "tool_calls": _spread([float(item.get("tool_calls", 0)) for item in metric]),
@@ -83,7 +88,8 @@ def _group(tasks: list[dict[str, Any]]) -> dict[str, Any]:
     low, high = wilson(passed, trials)
     return {"tasks": len(tasks), "tasks_all_passed": sum(1 for task in tasks if task["pass_all_k"]),
             "trials": trials, "passed": passed, "pass_rate": round(passed / trials, 3) if trials else None,
-            "interval95": [low, high]}
+            "interval95": [low, high], "provider_errors": sum(task.get("provider_errors", 0) for task in tasks),
+            "retried": sum(task.get("retried", 0) for task in tasks)}
 
 
 def summarize(records: list[dict[str, Any]], pins: dict[str, Any]) -> dict[str, Any]:
@@ -132,7 +138,7 @@ def compare(baseline: dict[str, Any], current: dict[str, Any]) -> dict[str, Any]
         old = before.get(item)
         if task["status"] == "flaky":
             flaky.append(task["task_id"])
-        if old is None:
+        if old is None or task["status"] == "provider_error":
             continue
         if old.get("task_hash") != task.get("task_hash"):
             changed_task.append(task["task_id"])

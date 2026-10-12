@@ -35,6 +35,7 @@ code{padding:0 3px}pre{padding:8px;white-space:pre-wrap;word-break:break-word;ma
 border-radius:8px;padding:8px 12px;min-width:140px}.card b{display:block;font-size:20px}
 .pill{border-radius:10px;padding:0 8px;font-size:12px;font-weight:600;border:1px solid currentColor}
 .pass{color:var(--pass)}.fail{color:var(--fail)}.flaky{color:var(--flaky)}.soft{color:var(--soft)}
+.provider_error{color:var(--muted)}
 .hl{background:var(--hl)}details{margin:4px 0}summary{cursor:pointer}
 ol.trace{padding-left:0;list-style:none;font-family:ui-monospace,Consolas,monospace;font-size:12.5px}
 ol.trace li{padding:2px 4px;border-left:3px solid transparent}ol.trace li.hl{border-left-color:var(--fail)}
@@ -42,7 +43,8 @@ ol.trace li{padding:2px 4px;border-left:3px solid transparent}ol.trace li.hl{bor
 
 
 def _status(status: str) -> str:
-    return f'<span class="pill {escape(status)}">{escape(status)}</span>'
+    label = "provider error" if status == "provider_error" else status
+    return f'<span class="pill {escape(status)}">{escape(label)}</span>'
 
 
 def _rate(group: dict[str, Any]) -> str:
@@ -168,9 +170,12 @@ def _trial(record: dict[str, Any]) -> str:
         f"</td></tr>" for grade in sorted(grades, key=lambda grade: grade["passed"]))
     metric = record.get("metrics") or {}
     trace = "".join(_entry(index, entry, highlight) for index, entry in enumerate(record.get("trace") or []))
-    status = "pass" if record.get("passed") else "fail"
+    status = record.get("status") or ("pass" if record.get("passed") else "fail")
+    retried = (f" (retried after a {escape(str(record['retried_after']))} error)"
+               if record.get("retried_after") else "")
     return (f"<details{' open' if failed and not record.get('passed') else ''}><summary>Trial {record.get('trial')} "
-            f"{_status(status)} <span class=muted>{metric.get('model_steps', 0)} steps, {metric.get('seconds', 0):.1f}s, "
+            f"{_status(status)}{retried} <span class=muted>{metric.get('model_steps', 0)} steps, "
+            f"{metric.get('seconds', 0):.1f}s, "
             f"${float(metric.get('cost_usd') or 0):.4f}</span></summary>"
             f"<table><tr><th>Code</th><th>Grader</th><th>Verdict</th><th>Detail and evidence</th></tr>{rows}</table>"
             f"<details><summary>Trace ({len(record.get('trace') or [])} entries)</summary><ol class=trace>{trace}</ol>"
@@ -196,7 +201,9 @@ def render(summary: dict[str, Any], records: list[dict[str, Any]], diff: dict[st
              f"<div class=card>Tasks all passing<b>{totals['tasks_all_passed']}/{totals['tasks']}</b></div>"
              f"<div class=card>Trials passed<b>{totals['passed']}/{totals['trials']}</b></div>"
              f"<div class=card>Model cost<b>${totals['cost_usd']:.4f}</b></div>"
-             f"<div class=card>Tokens<b>{totals['input_tokens'] + totals['output_tokens']:,}</b></div></div>")
+             f"<div class=card>Tokens<b>{totals['input_tokens'] + totals['output_tokens']:,}</b></div>"
+             f"<div class=card>Provider errors<b>{totals.get('provider_errors', 0)}</b><span class=muted>"
+             f"{totals.get('retried', 0)} retried; left out of pass rates</span></div></div>")
     return (f"<!doctype html><html lang=en><head><meta charset=utf-8><meta name=viewport "
             f"content='width=device-width,initial-scale=1'><title>openepw eval report</title><style>{CSS}</style>"
             f"</head><body><main><h1>openepw eval report</h1><p class=muted>{escape(str(pins.get('run_id')))}</p>"

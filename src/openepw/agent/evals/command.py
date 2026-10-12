@@ -105,6 +105,10 @@ async def main_run(*, mode: str = "guided", scripted: bool = False, live: bool =
         write_record(folder / "trials.jsonl", record)
         failed = [grade["code"] for grade in record["grades"] if not grade["passed"]]
         status = "pass" if record["passed"] else "FAIL " + ",".join(failed)
+        if record.get("status") == "provider_error":
+            status = "PROVIDER ERROR (not counted)"
+        elif record.get("retried_after"):
+            status += f" (retried after a {record['retried_after']} error)"
         soft = [grade["code"] for grade in record["grades"] if not grade["passed"] and grade["severity"] == "soft"]
         if record["passed"] and soft:
             status = "pass (soft: " + ",".join(soft) + ")"
@@ -132,6 +136,8 @@ async def main_run(*, mode: str = "guided", scripted: bool = False, live: bool =
     totals = summary["totals"]
     write(f"{totals['passed']}/{totals['trials']} trials passed; {totals['tasks_all_passed']}/{totals['tasks']} tasks "
           f"passed every trial; estimated model cost ${totals['cost_usd']:.4f}")
+    if totals.get("provider_errors") or totals.get("retried"):
+        write(f"Provider errors: {totals['provider_errors']} trial(s) not counted; {totals['retried']} retried once.")
     if diff:
         for line in compare_text(diff):
             write(line)

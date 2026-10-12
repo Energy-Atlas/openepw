@@ -273,7 +273,10 @@ first), suites and tags, failures by grader, the task table, and each task's tri
 verdicts and a trace view with the deciding entries highlighted. The baseline is the previous
 run with the same mode, model and profile, unless `--baseline` names one. `openepw eval compare`
 prints the same comparison. A crashed trial is `RUN_ERROR` and the eval continues; a spent budget
-ends the run.
+ends the run. When the model falls back to guided mode because of a transport failure or an HTTP 429
+or 5xx from the provider (the fallback notice records the cause), the trial is retried once; if it
+fails the same way again it gets the status `provider_error`, is reported separately and is left
+out of pass rates. Budget, client (other HTTP) and reply failures still fail the trial.
 
 **Checking the graders.**
 

@@ -28,7 +28,20 @@ RESPONSES_URL = "https://api.openai.com/v1/responses"
 
 
 class ModelUnavailable(Exception):
-    """No usable model reply: no key, budget stop, transport or provider failure."""
+    """No usable model reply: no key, budget stop, transport or provider failure.
+
+    ``cause`` says why: ``config`` (no key, unreadable ledger), ``budget`` (budget or call limit),
+    ``transport`` (the request did not complete), ``provider`` (HTTP 429 or 5xx), ``client`` (any
+    other HTTP error) or ``reply`` (an incomplete or unreadable reply). Transport and provider
+    failures are transient: evals retry them and report them apart from agent failures.
+    """
+
+    def __init__(self, message: str, cause: str = "other"):
+        super().__init__(message)
+        self.cause = cause
+
+
+TRANSIENT_CAUSES = frozenset({"transport", "provider"})
 
 
 @dataclass(frozen=True)
@@ -119,7 +132,7 @@ class OpenAIModel:
                  max_calls: int | None = None, client: httpx.AsyncClient | None = None,
                  max_output_tokens: int = 2048):
         if not api_key:
-            raise ModelUnavailable("OPENAI_API_KEY is required for agent mode")
+            raise ModelUnavailable("OPENAI_API_KEY is required for agent mode", "config")
         self._key = api_key
         self.name = model
         self.ledger_path = Path(ledger_path) if ledger_path else None
@@ -133,7 +146,7 @@ class OpenAIModel:
             try:
                 self.usage.update(json.loads(self.ledger_path.read_text(encoding="utf-8")))
             except (ValueError, TypeError):        # an unreadable ledger means an unknown spend
-                raise ModelUnavailable("The model usage ledger is unreadable") from None
+                raise ModelUnavailable("The model usage ledger is unreadable", "config") from None
 
     def _save(self) -> None:
         if self.ledger_path is None:
@@ -177,16 +190,17 @@ class OpenAIModel:
         projection = (size / 3 * INPUT_USD_PER_MILLION +
                       self.max_output_tokens * OUTPUT_USD_PER_MILLION) / 1_000_000
         if self.usage["estimated_usd"] + projection >= self.max_cost_usd:
-            raise ModelUnavailable("Projected model usage exceeds the local budget stop")
+            raise ModelUnavailable("Projected model usage exceeds the local budget stop", "budget")
         if self.max_calls is not None and self.usage["calls"] >= self.max_calls:
-            raise ModelUnavailable("Model call limit reached")
+            raise ModelUnavailable("Model call limit reached", "budget")
         try:
             response = await self.client.post(RESPONSES_URL, json=payload,
                                               headers={"Authorization": "Bearer " + self._key})
         except httpx.HTTPError:
-            raise ModelUnavailable("The model request could not complete") from None
+            raise ModelUnavailable("The model request could not complete", "transport") from None
         if response.status_code >= 400:
-            raise ModelUnavailable(f"The model request returned HTTP {response.status_code}")
+            cause = "provider" if response.status_code == 429 or response.status_code >= 500 else "client"
+            raise ModelUnavailable(f"The model request returned HTTP {response.status_code}", cause)
         try:
             raw: dict[str, Any] = response.json()
             usage = raw.get("usage") or {}
@@ -200,7 +214,7 @@ class OpenAIModel:
             self.usage["estimated_usd"] += cost
             self._save()
             if raw.get("status") != "completed":
-                raise ModelUnavailable("The model reply was incomplete")
+                raise ModelUnavailable("The model reply was incomplete", "reply")
             output = list(raw.get("output") or [])
             calls = [ToolCall(str(item["call_id"]), str(item["name"]), str(item.get("arguments") or "{}"))
                      for item in output if item.get("type") == "function_call"]
@@ -209,6 +223,6 @@ class OpenAIModel:
         except ModelUnavailable:
             raise
         except (KeyError, ValueError, TypeError, AttributeError):
-            raise ModelUnavailable("The model returned an unreadable reply") from None
+            raise ModelUnavailable("The model returned an unreadable reply", "reply") from None
         return ModelReply(text="".join(texts).strip() or None, tool_calls=calls, raw=output,
                           cost_usd=cost)

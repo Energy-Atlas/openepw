@@ -26,7 +26,7 @@ from ..policy_config import SecurityPolicy, load_policy
 from ..policy_model import ModelPolicy
 from ..session import AgentSession, Policy
 from ..store import SessionStore
-from .graders import Context, grade
+from .graders import Context, grade, provider_error
 from .records import metrics, outcome, short_hash, trace_entries
 from .schema import Task, task_hash
 from .stubs import stub_service, synthetic_epw
@@ -192,6 +192,8 @@ async def run_trial(task: Task, *, mode: str, model: ModelPort | None, data_root
                      Context(mode=mode, links=security.links, max_steps=getattr(policy, "max_steps", 8)))
     record["grades"] = [verdict.as_dict() for verdict in verdicts]
     record["passed"] = all(verdict.passed for verdict in verdicts if verdict.severity == "hard")
+    cause = provider_error(record)
+    record["status"] = "pass" if record["passed"] else ("provider_error" if cause else "fail")
     record["metrics"] = metrics(trace, seconds)
     return record
 
@@ -205,7 +207,7 @@ def error_record(task: Task, *, mode: str, profile: str, trial: int, pins: dict[
             "trace": [{"type": "error", "text": f"run error: {type(error).__name__}", "data": {"code": "RUN_ERROR"}}],
             "grades": [{"grader": "run", "code": "RUN_ERROR", "severity": "hard", "passed": False,
                         "evidence": [0], "detail": type(error).__name__}],
-            "passed": False, "metrics": metrics([], seconds)}
+            "passed": False, "status": "fail", "metrics": metrics([], seconds)}
 
 
 def applies(task: Task, mode: str, profile: str) -> bool:
@@ -230,22 +232,35 @@ async def run_suite(tasks: list[Task], *, mode: str,
             model = model_factory(task) if model_factory else None
             if mode == "agent" and model is None:
                 break                                     # e.g. no script for this task
-            started = time.monotonic()
-            try:
-                with tempfile.TemporaryDirectory(prefix="openepw-eval-", ignore_cleanup_errors=True) as root:
-                    record = await run_trial(task, mode=mode, model=model, data_root=Path(root), security=security,
-                                             moderation=moderation, live_providers=live_providers, trial=trial,
-                                             pins=pins)
-            except Exception as error:
-                logger.exception("eval trial %s/%s failed", task.id, trial)
-                record = error_record(task, mode=mode, profile=security.profile, trial=trial, pins=pins,
-                                      error=error, seconds=time.monotonic() - started)
+            record = await _attempt(task, mode=mode, model=model, security=security, moderation=moderation,
+                                    live_providers=live_providers, trial=trial, pins=pins)
+            if record.get("status") == "provider_error" and not over_budget(model):
+                # A transient provider or transport failure says nothing about the agent: retry once.
+                first = provider_error(record)
+                model = model_factory(task) if model_factory else None
+                record = await _attempt(task, mode=mode, model=model, security=security, moderation=moderation,
+                                        live_providers=live_providers, trial=trial, pins=pins)
+                record["retried_after"] = first
             records.append(record)
             if on_record:
                 on_record(record)
             if over_budget(model):
                 return records                            # later trials would only test guided mode
     return records
+
+
+async def _attempt(task: Task, *, mode: str, model: ModelPort | None, security: SecurityPolicy,
+                   moderation: ModerationPort | None, live_providers: bool, trial: int,
+                   pins: dict[str, Any] | None) -> dict[str, Any]:
+    started = time.monotonic()
+    try:
+        with tempfile.TemporaryDirectory(prefix="openepw-eval-", ignore_cleanup_errors=True) as root:
+            return await run_trial(task, mode=mode, model=model, data_root=Path(root), security=security,
+                                   moderation=moderation, live_providers=live_providers, trial=trial, pins=pins)
+    except Exception as error:
+        logger.exception("eval trial %s/%s failed", task.id, trial)
+        return error_record(task, mode=mode, profile=security.profile, trial=trial, pins=pins,
+                            error=error, seconds=time.monotonic() - started)
 
 
 def over_budget(model: ModelPort | None) -> bool:

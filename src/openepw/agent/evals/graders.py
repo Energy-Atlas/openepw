@@ -198,7 +198,20 @@ def _submit_needs_approval(view: View, value: Any, ctx: Context) -> tuple[bool, 
         "A guided fallback finishing the task is not an agent pass.", always=True, modes=("agent",))
 def _no_model_fallback(view: View, value: Any, ctx: Context) -> tuple[bool, list[int], str]:
     hits = [index for index, code in view.codes() if code == "MODEL_UNAVAILABLE"]
-    return _found(hits, "model unavailable; guided mode took over")
+    causes = sorted({str(view.data(view.trace[index]).get("cause") or "unknown") for index in hits})
+    return _found(hits, f"model unavailable ({', '.join(causes)}); guided mode took over")
+
+
+def provider_error(record: dict[str, Any]) -> str | None:
+    """The cause when the model fell back because of a transient provider or transport failure."""
+    from ..model_port import TRANSIENT_CAUSES
+
+    for entry in record.get("trace") or []:
+        data = entry.get("data") or {}
+        if entry.get("type") == "notice" and data.get("code") == "MODEL_UNAVAILABLE" \
+                and data.get("cause") in TRANSIENT_CAUSES:
+            return str(data["cause"])
+    return None
 
 
 @grader("step_limit", "STEP_LIMIT", "At most the step limit of model tool steps between two inputs",

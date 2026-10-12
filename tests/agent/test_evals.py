@@ -219,3 +219,39 @@ def test_a_run_with_no_applicable_task_is_a_usage_error(tmp_path):
     output = []
     assert asyncio.run(main_run(task_ids=["S42"], evals_dir=tmp_path, write=output.append)) == 2   # agent-only task
     assert "No task applies to guided mode" in output[-1]
+
+
+
+def test_a_provider_failure_is_retried_once_and_then_reported_apart():
+    from openepw.agent.evals.metrics import summarize
+    from openepw.agent.model_port import ModelUnavailable, ScriptedModel, say
+
+    flaky = task(id="S905")
+    attempts = []
+
+    def once_then_fine(item):
+        attempts.append(item.id)
+        if len(attempts) == 1:
+            return ScriptedModel([ModelUnavailable("The model request could not complete", "transport")])
+        return ScriptedModel([say("Where?")])
+    [record] = run([flaky], factory=once_then_fine)
+    assert record["passed"] and record["status"] == "pass" and record["retried_after"] == "transport"
+    assert len(attempts) == 2
+
+    def always_down(item):
+        return ScriptedModel([ModelUnavailable("The model request returned HTTP 503", "provider")])
+    [down] = run([flaky], factory=always_down)
+    assert down["status"] == "provider_error" and not down["passed"] and down["retried_after"] == "provider"
+    notice = next(entry for entry in down["trace"] if entry["data"].get("code") == "MODEL_UNAVAILABLE")
+    assert notice["data"]["cause"] == "provider"
+    summary = summarize([record, down], {"run_id": "R"})
+    task_summary = summary["tasks"][0]
+    assert task_summary["trials"] == 1 and task_summary["provider_errors"] == 1 and task_summary["status"] == "pass"
+    assert summary["totals"]["provider_errors"] == 1 and summary["totals"]["pass_rate"] == 1.0
+
+
+def test_a_budget_or_client_failure_is_still_an_agent_failure():
+    from openepw.agent.model_port import ModelUnavailable, ScriptedModel
+
+    [record] = run([task(id="S906")], factory=lambda item: ScriptedModel([ModelUnavailable("HTTP 400", "client")]))
+    assert record["status"] == "fail" and "MODEL_FALLBACK" in failed(record) and "retried_after" not in record
