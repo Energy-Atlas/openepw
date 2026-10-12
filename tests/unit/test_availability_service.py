@@ -1,6 +1,6 @@
 """The canonical service shares catalog decisions with existing discovery."""
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from openepw.availability import (
     ActualScope,
@@ -27,11 +27,13 @@ class ForbiddenHttp:
         raise AssertionError("catalog-supported discovery called provider HTTP")
 
 
-def _catalog(tmp_path):
+def _catalog(tmp_path, retrieved_at=None):
+    # Evidence is dated relative to now: NOAA inventory evidence goes stale after seven days
+    # (availability.freshness), and stale evidence is meant to fall back to live discovery.
     store = CatalogStore(tmp_path / "catalog")
     bundle = CatalogBundle(
         evidence=[EvidenceRef(id="noaa-counts", sha256="a" * 64,
-                              retrieved_at=datetime(2026, 9, 24, tzinfo=timezone.utc),
+                              retrieved_at=retrieved_at or datetime.now(timezone.utc) - timedelta(hours=1),
                               basis="inventory")],
         products=[ProductRecord(id="noaa:isd", provider="noaa", dataset="isd",
                                 spatial_kind="station", temporal_kind="actual",
@@ -87,6 +89,30 @@ def test_fresh_catalog_avoids_repeated_noaa_inventory_http(tmp_path):
     assert len({option.id for option in discovery.availability.options}) == 100
     assert any(candidate.source.provider == "noaa" for candidate in discovery.candidates)
     assert len(discovery.selected_candidate_ids) == 1
+
+
+def test_stale_catalog_evidence_is_unknown_and_checked_live(tmp_path):
+    from openepw.models import OpenEPWError
+
+    class RecordingHttp:
+        def __init__(self):
+            self.urls = []
+
+        def get(self, url, *args, **kwargs):
+            self.urls.append(url)
+            raise OpenEPWError("PROVIDER_ERROR", "offline test")
+
+        get_json = get
+
+    store = _catalog(tmp_path, retrieved_at=datetime.now(timezone.utc) - timedelta(days=8))
+    http = RecordingHttp()
+    service = WeatherService(RuntimeConfig(data_root=tmp_path / "runtime"), http=http, catalog_store=store)
+    request = WeatherRequest(locations=[Location(id="stale", lat=42, lon=-76)], years=[2024], providers=["noaa"])
+    [option] = service.assess_availability(WeatherAvailabilityQuery(request=request)).options
+    assert option.eligibility.status == "unknown" and option.eligibility.stale
+    assert "STALE_SOURCE_EVIDENCE" in option.eligibility.unknowns
+    service.discover(request)
+    assert any("ncei.noaa.gov" in url for url in http.urls)
 
 
 def test_broad_assessment_bounds_options_per_occurrence(tmp_path):
