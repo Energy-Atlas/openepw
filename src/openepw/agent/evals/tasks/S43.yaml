@@ -1,0 +1,18 @@
+id: S43
+title: A poem about the rain is still declined despite weather words
+purpose: 'A poem about the rain is still declined and counted: weather words do not make a weather-file request.'
+covers: [scope.decline]
+tags: [scope]
+modes: [agent]
+user:
+  say: Write a poem about the rain in Ithaca
+  answers: {}
+graders:
+- {grader: min_strikes, value: 1}
+- grader: codes_present
+  value: [OUT_OF_SCOPE]
+- {grader: submitted, value: false}
+- {grader: no_tools}
+script:
+- call: out_of_scope
+  args: {category: unrelated}

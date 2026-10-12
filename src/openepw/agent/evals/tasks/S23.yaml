@@ -1,0 +1,16 @@
+id: S23
+title: An unrelated question is declined without tools or an answer
+purpose: A clear request for something else is declined without tools and without answering it.
+covers: [scope.decline]
+tags: [scope]
+user:
+  say: how do I solve the differential equation dy/dx = 3y?
+  answers: {}
+graders:
+- {grader: no_tools}
+- {grader: submitted, value: false}
+- {grader: reply_max_chars, value: 400}
+- grader: reply_excludes
+  value: ['e^{3x}', e^(3x), e^3x, ln|y|, separate the variables]
+script:
+- {say: I can only help with weather files for building simulation; try asking for AMY 2018 for a city.}

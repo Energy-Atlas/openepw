@@ -1,0 +1,22 @@
+id: S30
+title: Bidirectional and zero-width characters are removed before reading
+purpose: Zero-width and bidirectional characters are removed from typed text before anything reads it.
+covers: [guard.input-normalisation]
+tags: [guard]
+user:
+  say: "AMY 2018 for Ith\u200Baca\u202E NY\u2066"
+  answers: {location_review: null, choice: first, map_input: 'Ithaca, NY'}
+graders:
+- grader: forms_in_order
+  value: [location_review]
+- {grader: submitted, value: false}
+- grader: model_input_contains
+  value: [Ithaca]
+- grader: model_input_excludes
+  value: ["\u202E", "\u200B", "\u2066"]
+script:
+- call: weather_geocode
+  args: {query: 'Ithaca, NY'}
+- call: review_location
+  args:
+    locations: {lat: 42.44, lon: -76.5, name: 'Ithaca, New York, United States'}

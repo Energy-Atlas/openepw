@@ -1,4 +1,5 @@
 import hmac
+import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -15,6 +16,8 @@ from ..models import FutureRequest, OpenEPWError, WeatherPlan, WeatherRequest
 from ..service import WeatherService
 from ..visualization.models import VisualizationRequest
 from .site_gate import SiteGate
+
+logger = logging.getLogger("openepw.api")
 
 
 class JobSubmission(BaseModel):
@@ -84,18 +87,23 @@ class ChatView(ChatAction):
     prompt: str | None = None
 
 
-def create_app(service=None, *, remote=False, chat_parser=None):
+def create_app(service=None, *, remote=False, chat_parser=None, env_file=".env", security_policy=None):
     service = service or WeatherService()
     if remote and not (service.config.bearer_token or service.config.site_password):
         raise ValueError("Remote mode requires OPENEPW_BEARER_TOKEN or OPENEPW_SITE_PASSWORD")
     runner = JobRunner(service)
     if chat_parser is None:
         try:
+            from ..agent.tracing import tracing_settings
             from ..harness.chat import load_model_key
             from ..harness.graph_model import LangChainTurnParser
 
-            chat_parser = LangChainTurnParser(load_model_key(),
-                ledger_path=service.config.data_root / "chat" / "model-usage.json")
+            # LangSmith tracing of the chat's model calls follows the env file, not LangChain's
+            # own environment variables.
+            tracing = tracing_settings(env_file, default_project="openepw-web-chat")
+            logger.info("Web chat LangSmith tracing: %s", tracing.reason)
+            chat_parser = LangChainTurnParser(load_model_key(env_file),
+                ledger_path=service.config.data_root / "chat" / "model-usage.json", tracing=tracing)
         except (ImportError, RuntimeError, ValueError):
             chat_parser = OfflineParser()
         except Exception as error:
@@ -110,6 +118,9 @@ def create_app(service=None, *, remote=False, chat_parser=None):
         runner.recover()
         yield
         runner.close()
+        close = getattr(chat_parser, "close", None)
+        if close is not None:
+            close()                                   # flush any pending traces
 
     def authenticate(request: Request, authorization: str | None = Header(default=None)):
         # A browser signed in through the site password needs no bearer token; health stays open.
@@ -125,9 +136,19 @@ def create_app(service=None, *, remote=False, chat_parser=None):
         title="OpenEPW", version="0.1.0", lifespan=lifespan, dependencies=[Depends(authenticate)]
     )
     app.state.service = service
+    # The security profile for the agent chat once P4 hosts it here; the legacy /v1 chat does
+    # not apply it (owner decision Q9).
+    app.state.security_policy = security_policy
     if service.config.site_password:
         SiteGate(service.config.site_password.get_secret_value()).install(app)
     app.state.runner = runner
+    try:
+        from ..mcp.server import create_server
+    except ImportError:  # the mcp extra is optional for the REST server
+        app.state.mcp_server = None
+    else:
+        # Agent sessions connect in-process (P4); it never runs a second job runner.
+        app.state.mcp_server = create_server(service, runner=runner)
     app.state.chat = chat
 
     @app.middleware("http")
@@ -190,8 +211,6 @@ def create_app(service=None, *, remote=False, chat_parser=None):
     def catalog_point(lat: float = Query(ge=-90, le=90), lon: float = Query(ge=-180, le=180),
                       years: str = Query(default="", max_length=400)):
         """Named-product availability at one point, for the map's hover card (offline catalog)."""
-        from ..chat import products
-
         wanted = sorted({int(item) for item in years.split(",") if item.strip().isdigit()})[:30]
         # Recent places are answered from memory; a newly activated catalog starts afresh.
         view = service.catalog_store.active()
@@ -204,7 +223,7 @@ def create_app(service=None, *, remote=False, chat_parser=None):
             if len(point_cache) > 4096:
                 point_cache.clear()
                 point_cache["generation"] = generation
-            point_cache[key] = products.point_availability(service, key[0], key[1], wanted)
+            point_cache[key] = service.point_availability(key[0], key[1], wanted)
         return point_cache[key]
 
     @app.post("/v1/chat/sessions", status_code=201)
@@ -346,7 +365,7 @@ def create_app(service=None, *, remote=False, chat_parser=None):
             raise OpenEPWError("INVALID_REQUEST", "Plan kind does not match endpoint")
         if kind == "future":
             safe_future(selected_plan.request)
-        return runner.submit(selected_plan, payload.idempotency_key)
+        return runner.submit(selected_plan, payload.idempotency_key, approved_via="api")
 
     @app.post("/v1/weather/jobs", status_code=202)
     def weather_job(payload: JobSubmission):

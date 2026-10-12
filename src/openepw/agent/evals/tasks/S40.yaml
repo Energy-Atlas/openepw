@@ -1,0 +1,17 @@
+id: S40
+title: A question about the assistant is answered, not declined
+purpose: A question about the assistant that is not small talk is answered by the model, not declined.
+covers: [scope.conversation]
+tags: [scope]
+modes: [agent]
+user:
+  say: Who are you, and which data sources do you use?
+  answers: {}
+graders:
+- {grader: strikes, value: 0}
+- grader: codes_absent
+  value: [OUT_OF_SCOPE, OFF_TOPIC_CLAMP]
+- {grader: submitted, value: false}
+script:
+- {say: 'I''m the openepw assistant: I build EPW weather files from sources such as ERA5, NSRDB and climate.onebuilding.org
+    for places you approve.'}

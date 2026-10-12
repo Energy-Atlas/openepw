@@ -1,0 +1,24 @@
+id: S35
+title: 'Moderation unavailable: refused (hosted) or allowed with a notice (local)'
+purpose: When moderation is unavailable, the hosted profile refuses the message and the local profile continues
+  with a notice.
+covers: [guard.moderation-outage]
+tags: [guard]
+setup: {moderation: unavailable}
+user:
+  say: AMY 2018 for Ithaca NY
+  answers: {location_review: null, choice: first, map_input: 'Ithaca, NY'}
+graders:
+- grader: codes_present
+  value: [MODERATION_UNAVAILABLE]
+- {grader: submitted, value: false}
+- {grader: no_tools, profile: hosted}
+- grader: forms_in_order
+  value: [location_review]
+  profile: local
+script:
+- call: weather_geocode
+  args: {query: 'Ithaca, NY'}
+- call: review_location
+  args:
+    locations: {lat: 42.44, lon: -76.5, name: 'Ithaca, New York, United States'}

@@ -187,3 +187,7 @@ cython_debug/
 config.local.toml
 .cdsapirc
 .ecmwfdatastoresrc
+
+# Per-machine security profile overrides (the example is committed)
+config/security/*.local.yaml
+!config/security/example.local.yaml

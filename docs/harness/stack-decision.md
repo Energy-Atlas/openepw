@@ -9,7 +9,7 @@ This records the Stage 5 decision for the single-request reference agent.
 
 The direct implementation passed the same synthetic actual-year, NOAA-gap,
 future and restart checks used by the fixed rubric. It uses the repository's
-`mcp>=1.20,<2` optional dependency, maintains one stdio session and writes
+`mcp>=1.30,<2` optional dependency, maintains one stdio session and writes
 only safe plan/job/artifact IDs and tool names to a local record. Its real
 stdio integration test resumed a completed future job after closing the client.
 

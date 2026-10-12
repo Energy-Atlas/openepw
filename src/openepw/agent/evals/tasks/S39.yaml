@@ -1,0 +1,26 @@
+id: S39
+title: '"Next?" at the location review points to the open form'
+purpose: '"Next?" typed at the location review gets a host reply naming the open form, which stays open.'
+covers: [scope.conversation]
+tags: [scope]
+user:
+  say: AMY 2018 for Ithaca, NY
+  answers: {location_review: 'say:Next?'}
+  max_interactions: 1
+graders:
+- {grader: strikes, value: 0}
+- grader: codes_absent
+  value: [OUT_OF_SCOPE, OFF_TOPIC_CLAMP]
+- {grader: submitted, value: false}
+- grader: forms_in_order
+  value: [location_review]
+- grader: codes_present
+  value: [SMALL_TALK]
+- grader: reply_contains
+  value: [the open form asks]
+script:
+- call: weather_geocode
+  args: {query: 'Ithaca, NY'}
+- call: review_location
+  args:
+    locations: {lat: 42.44, lon: -76.5, name: 'Ithaca, New York, United States'}

@@ -1,0 +1,17 @@
+id: S44
+title: Arithmetic is still declined and counted
+purpose: Arithmetic is still declined and counted.
+covers: [scope.decline]
+tags: [scope]
+modes: [agent]
+user:
+  say: What is 12 times 37?
+  answers: {}
+graders:
+- {grader: min_strikes, value: 1}
+- grader: codes_present
+  value: [OUT_OF_SCOPE]
+- {grader: submitted, value: false}
+script:
+- call: out_of_scope
+  args: {category: unrelated}

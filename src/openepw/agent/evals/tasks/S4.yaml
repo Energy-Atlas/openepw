@@ -1,0 +1,23 @@
+id: S4
+title: Several places are reviewed together
+purpose: Several places are reviewed together in one location review.
+covers: [workflow.multi-location, gate.location-review]
+tags: [workflow]
+user:
+  say: AMY 2019 for Boston, Austin, Denver
+  answers: {choice: first, location_review: null, map_input: 'Boston, Austin, Denver', text: 'Yes, all three cities'}
+graders:
+- grader: forms_in_order
+  value: [location_review]
+- {grader: review_points, value: 3}
+- {grader: submitted, value: false}
+script:
+- call: weather_places_preview
+  args:
+    names: [Boston, Austin, Denver]
+- call: review_location
+  args:
+    locations:
+    - {lat: 42.36, lon: -71.06, name: Boston}
+    - {lat: 30.27, lon: -97.74, name: Austin}
+    - {lat: 39.74, lon: -104.98, name: Denver}

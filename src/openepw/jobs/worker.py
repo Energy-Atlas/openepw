@@ -41,16 +41,20 @@ class JobRunner:
         )
         self.lock = threading.Lock()
         self.active = set()
+        self._root_lock: Path | None = None
 
-    def submit(self, plan, idempotency_key=None, retry_of=None):
+    def submit(self, plan, idempotency_key=None, retry_of=None, approved_via=None):
         if isinstance(plan, str):
             plan = self.service.plan_store.get(plan)
-        job = self.store.submit(plan, idempotency_key, retry_of=retry_of)
+        job = self.store.submit(plan, idempotency_key, retry_of=retry_of, approved_via=approved_via)
         self.enqueue(job.id)
         return job
 
-    def retry_failed(self, job_id, idempotency_key=None):
-        """Submit only output identities that have no verified successful artifact."""
+    def retry_plan(self, job_id):
+        """Return the subplan of outputs with no verified successful artifact.
+
+        Side-effect free, so a caller can validate a retry before asking anyone to confirm it.
+        """
         job = self.store.get(job_id)
         if job.state not in TERMINAL:
             raise OpenEPWError("INVALID_REQUEST", "Only a finished job can be retried")
@@ -96,7 +100,17 @@ class JobRunner:
         missing = [o for o in plan.outputs if (o.id or o.name) not in produced]
         if not missing:
             raise OpenEPWError("NOTHING_TO_RETRY", "Every planned output was produced")
-        return self.submit(subplan(plan, missing), idempotency_key, retry_of=job_id)
+        return subplan(plan, missing)
+
+    def retry_failed(self, job_id, idempotency_key=None, approved_via=None):
+        """Submit only output identities that have no verified successful artifact.
+
+        The retry inherits the original job's approval unless approved_via overrides it.
+        """
+        retry = self.retry_plan(job_id)
+        inherited = self.store.get(job_id).approved_via
+        return self.submit(retry, idempotency_key, retry_of=job_id,
+                           approved_via=approved_via or inherited)
 
     def enqueue(self, job_id):
         with self.lock:
@@ -113,11 +127,21 @@ class JobRunner:
                 self.active.discard(job_id)
 
     def recover(self):
+        """Take the data root for this process, then resume unfinished jobs."""
+        from .lock import acquire_runner_lock
+
+        if getattr(self, "_root_lock", None) is None:
+            self._root_lock = acquire_runner_lock(self.service.config.data_root)
         for job_id in self.store.unfinished():
             self.enqueue(job_id)
 
     def close(self):
+        from .lock import release_runner_lock
+
         self.pool.shutdown(wait=True)
+        held, self._root_lock = getattr(self, "_root_lock", None), None
+        if held is not None:
+            release_runner_lock(held)
 
     def export_compact(self, job_id):
         from ..artifacts.export import export_compact

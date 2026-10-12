@@ -1,0 +1,42 @@
+id: S6
+title: 'No years given: they are asked for, never invented'
+purpose: With no years in the request, the years are asked for and a model's invented years never reach a plan.
+covers: [gate.years]
+tags: [workflow, safety]
+user:
+  say: actual-year weather for Ithaca NY
+  answers:
+    location_review: approve
+    product_choice: [era5-openmeteo]
+    text: '2018'
+    plan_review: null
+    choice: first
+    map_input: Ithaca, NY
+graders:
+- grader: forms_in_order
+  value: [text, plan_review]
+- grader: years
+  value: [2018]
+- {grader: submitted, value: false}
+script:
+- call: review_location
+  args:
+    locations: {lat: 42.44, lon: -76.5, name: Ithaca}
+- call: choose_products
+  args: {}
+- call: weather_plan
+  args:
+    request:
+      product: historical
+      years: [2023]
+      dataset_selections: []
+- call: ask_text
+  args: {prompt: 'Which years?', purpose: years}
+- call: weather_plan
+  args:
+    request:
+      product: historical
+      years: [2018]
+      dataset_selections: []
+- call: review_plan
+  args: {}

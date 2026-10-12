@@ -20,7 +20,7 @@ def _server(tmp_path):
 
 
 def _call(server, name, **kwargs):
-    return asyncio.run(server.call_tool(name, kwargs))[1]
+    return asyncio.run(server.call_tool(name, kwargs)).structuredContent
 
 
 def test_place_tools_are_listed(tmp_path):

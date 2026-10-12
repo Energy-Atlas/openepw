@@ -1,0 +1,17 @@
+id: S42
+title: A joke request is still declined and counted
+purpose: A request for a joke is still declined and counted.
+covers: [scope.decline]
+tags: [scope]
+modes: [agent]
+user:
+  say: Tell me a joke about cats
+  answers: {}
+graders:
+- {grader: min_strikes, value: 1}
+- grader: codes_present
+  value: [OUT_OF_SCOPE]
+- {grader: submitted, value: false}
+script:
+- call: out_of_scope
+  args: {category: unrelated}

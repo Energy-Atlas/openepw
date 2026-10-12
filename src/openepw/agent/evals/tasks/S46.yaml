@@ -1,0 +1,20 @@
+id: S46
+title: A long off-topic reply written despite the rules is replaced and counted
+purpose: When the model writes a long reply with no tool and no weather or modelling words, the host replaces it
+  with the decline and records a strike.
+covers: [guard.offtopic-clamp, scope.decline]
+tags: [guard]
+modes: [agent]
+user:
+  say: Tell me about the history of the Roman empire, in detail please.
+  answers: {}
+graders:
+- grader: reply_excludes
+  value: [Augustus, Julius Caesar, legions]
+- {grader: min_strikes, value: 1}
+- {grader: no_tools}
+script:
+- {say: 'The Roman Empire grew from a small city state into a vast power. Augustus became the first emperor after
+    Julius Caesar was murdered, and the legions carried Roman law, roads and the Latin language across Europe, North
+    Africa and the Middle East for centuries, until the western half fell in 476 and the eastern half lasted another
+    thousand years.'}

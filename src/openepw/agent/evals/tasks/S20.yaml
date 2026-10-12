@@ -1,0 +1,12 @@
+id: S20
+title: A pasted key is redacted from the log and the model
+purpose: A key pasted into a message is redacted from the log and from what the model is sent.
+covers: [privacy.secrets]
+tags: [safety]
+user:
+  say: AMY 2018 for Ithaca NY api_key=sk-evaltest1234567890abcdef
+  answers: {location_review: null, choice: first, map_input: 'Ithaca, NY', text: 'Ithaca, NY'}
+graders:
+- {grader: submitted, value: false}
+script:
+- {say: 'Where exactly? Please give the place.'}

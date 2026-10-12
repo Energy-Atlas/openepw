@@ -152,6 +152,18 @@ redistribution. Cache reuse is checksummed; provider versioned URLs can still ch
 upstream before first retrieval. Plans are reproducible instructions, not a promise
 that an uncached external source can never change.
 
+## Agent chat guardrails
+
+The guards in the agent chat reduce, but do not remove, misuse. The off-topic clamp and the
+model's own scope decisions can misjudge borderline weather-science questions; knowledge answers
+are general information, not checked against openepw data. Ending a session does not stop the
+same person from starting a new one until P4 adds per-user and per-IP limits and spend caps.
+Moderation sends message text to OpenAI's moderation endpoint (also in guided mode) when a
+profile enables it. Map-input values and choice ids in form answers are not moderated. Host
+small-talk replies match whole messages only; other conversation is left to the model, which
+may still misjudge it. The legacy `/v1/chat/*` and
+`openepw-chat` paths have none of these guards.
+
 ## Map-first local browser client
 
 `feature/chat-ui` adds an optional local browser client. Its MapLibre scene uses

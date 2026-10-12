@@ -565,6 +565,12 @@ class ChatSession:
         if command == "/retry":
             if not self.agent.job_id:
                 return "No job is selected."
+            # The server confirms a retry against the original job's reviewed plan; asking
+            # for /retry is the person's approval of that plan.
+            original = await self.mcp.call("job_inspect", job_id=self.agent.job_id)
+            approve = getattr(self.mcp, "approve", None)
+            if callable(approve) and original.get("plan_hash"):
+                approve(original["plan_hash"])
             retried = await self.mcp.call("job_retry_failed", job_id=self.agent.job_id)
             saved_plan, saved_job = self.agent.plan_hash, self.agent.job_id
             try:

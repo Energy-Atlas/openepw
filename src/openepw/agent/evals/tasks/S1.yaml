@@ -1,0 +1,43 @@
+id: S1
+title: AMY 2018 for Ithaca NY, through review, products, plan and run
+purpose: 'The full actual-year flow: the location is reviewed, products are chosen, the plan is reviewed, and only
+  Run submits; the years come from the person.'
+covers: [workflow.end-to-end, gate.location-review, gate.product-choice, gate.years, gate.plan-approval]
+tags: [workflow]
+user:
+  say: AMY 2018 for Ithaca NY
+  answers:
+    location_review: approve
+    product_choice: [era5-openmeteo]
+    plan_review: run
+    choice: first
+    text: '2018'
+    map_input: Ithaca, NY
+graders:
+- grader: forms_in_order
+  value: [location_review, product_choice, plan_review]
+- grader: tools_in_order
+  value: [weather_locations_review, weather_product_offers, weather_plan, weather_submit]
+- {grader: submitted, value: true}
+- grader: years
+  value: [2018]
+- grader: codes_absent
+  value: [PART_DECLINED]
+script:
+- call: weather_geocode
+  args: {query: 'Ithaca, NY'}
+- call: review_location
+  args:
+    locations: {lat: 42.44, lon: -76.5, name: 'Ithaca, New York, United States'}
+- call: choose_products
+  args: {}
+- call: weather_plan
+  args:
+    request:
+      product: historical
+      years: [2018]
+      dataset_selections:
+      - {provider: openmeteo, dataset: era5}
+- call: review_plan
+  args: {}
+- {say: One EPW completed. It is not certified simulation-ready (simulation_ready=false); check its QC.}

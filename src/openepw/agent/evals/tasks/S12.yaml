@@ -1,0 +1,25 @@
+id: S12
+title: 'What is available: offers without a plan'
+purpose: '"What is available" is answered from product offers without making a plan.'
+covers: [offers.available]
+tags: [workflow]
+user:
+  say: what's available in Phoenix?
+  answers: {location_review: approve, product_choice: null, choice: first, map_input: Phoenix, text: Just show what
+      is available}
+graders:
+- grader: forms_in_order
+  value: [location_review, product_choice]
+- grader: tools_absent
+  value: [weather_plan]
+- {grader: submitted, value: false}
+- grader: codes_absent
+  value: [PART_DECLINED]
+script:
+- call: weather_geocode
+  args: {query: Phoenix}
+- call: review_location
+  args:
+    locations: {lat: 33.45, lon: -112.07, name: Phoenix}
+- call: choose_products
+  args: {}

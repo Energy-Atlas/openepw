@@ -10,6 +10,7 @@ from typing import Any
 from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field, ValidationError
 
+from ..agent.tracing import langchain_tracing
 from .agent import AgentIntent, safe_prompt
 from .model import INPUT_USD_PER_MILLION, INTENT_SCHEMA, OUTPUT_USD_PER_MILLION, ModelUnavailable
 
@@ -52,7 +53,7 @@ _INSTRUCTIONS = (
 class LangChainTurnParser:
     def __init__(self, api_key: str, *, model: str = "gpt-6-luna",
                  ledger_path: str | Path | None = None, max_cost_usd: float = 8.0,
-                 structured_model: Any = None):
+                 structured_model: Any = None, tracing: Any = None, trace_client: Any = None):
         if not api_key and structured_model is None:
             raise ModelUnavailable("OPENAI_API_KEY is required for model parsing")
         self.ledger_path = Path(ledger_path) if ledger_path else None
@@ -70,6 +71,13 @@ class LangChainTurnParser:
             structured_model = client.with_structured_output(
                 TURN_SCHEMA, method="json_schema", include_raw=True, strict=True)
         self.structured_model = structured_model
+        # TracingSettings from the env file (None leaves LangChain's own behaviour unchanged).
+        self.tracing = tracing
+        self.trace_client = trace_client
+        if tracing is not None and tracing.enabled and trace_client is None:
+            from ..agent.tracing import langsmith_client
+
+            self.trace_client = langsmith_client(tracing)
 
     def _save(self) -> None:
         if self.ledger_path is None:
@@ -89,9 +97,10 @@ class LangChainTurnParser:
         if self.usage["estimated_usd"] + projected >= self.max_cost_usd:
             raise ModelUnavailable("Projected model usage exceeds the local budget stop")
         try:
-            result = self.structured_model.invoke([
-                ("system", _INSTRUCTIONS), ("human", prompt),
-            ])
+            with langchain_tracing(self.tracing, self.trace_client):
+                result = self.structured_model.invoke([
+                    ("system", _INSTRUCTIONS), ("human", prompt),
+                ])
             raw = result["raw"]
             metadata = getattr(raw, "usage_metadata", None) or {}
             input_tokens = int(metadata.get("input_tokens") or 0)
@@ -116,6 +125,14 @@ class LangChainTurnParser:
             raise ModelUnavailable(f"Model intent fields invalid: {fields}") from None
         except Exception:
             raise ModelUnavailable("OpenAI request could not complete") from None
+
+    def close(self) -> None:
+        """Send any traces still queued."""
+        if self.trace_client is not None:
+            try:
+                self.trace_client.flush(timeout=5)
+            except Exception:
+                pass
 
     def parse(self, prompt: str) -> AgentIntent:
         """Compatibility with the single-intent reference-agent interface."""

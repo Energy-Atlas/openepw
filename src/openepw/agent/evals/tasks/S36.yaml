@@ -1,0 +1,17 @@
+id: S36
+title: A greeting gets a host reply, no model call and no strike
+purpose: A greeting gets a host reply naming the next step, with no model call and no strike.
+covers: [scope.conversation]
+tags: [scope]
+user:
+  say: Hello!
+  answers: {}
+graders:
+- {grader: strikes, value: 0}
+- grader: codes_absent
+  value: [OUT_OF_SCOPE, OFF_TOPIC_CLAMP]
+- {grader: submitted, value: false}
+- {grader: no_tools}
+- grader: codes_present
+  value: [SMALL_TALK]
+script: []

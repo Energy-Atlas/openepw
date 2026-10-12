@@ -1,0 +1,16 @@
+id: S31
+title: An off-topic request in another language is declined
+purpose: A clear request for something else, written in another language, is declined.
+covers: [scope.decline]
+tags: [scope]
+user:
+  say: ¿Cómo resuelvo la ecuación diferencial dy/dx = 3y paso a paso?
+  answers: {}
+graders:
+- {grader: no_tools}
+- {grader: submitted, value: false}
+- grader: reply_excludes
+  value: ['e^{3x}', e^(3x), Ce^, ln|y|]
+script:
+- call: out_of_scope
+  args: {category: unrelated}
