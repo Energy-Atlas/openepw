@@ -207,9 +207,14 @@ NSRDB map layer, a 0.25 degree summary of the published `tdy-2023` file's grid
 sites, used for actual-year and typical-year GOES products alike): outside it they
 are not offered; inside it the probed years and file names apply; next to its edge
 they stay unverified. Without an installed map they exist only at the saved probe
-points. OneBuilding and NOAA ISD stations beyond 100 km are not offered. The
-OneBuilding inventory covers the USA, the Southwest Pacific and Europe only, so
-elsewhere no OneBuilding file is offered yet. Before
+points. OneBuilding and NOAA ISD stations beyond 100 km are not offered. OneBuilding
+files come from every TMYx regional workbook (all WMO regions); national typical-year
+families (CWEC, ISHRAE and others) are not catalogued. NSRDB Himawari-7, Meteosat and
+Meteosat IODC have no coverage mask yet, so they are listed only at the probed points
+and otherwise checked when planning; NSRDB Himawari-8 (2016-2020) is not downloaded
+because its hourly values are centred on the hour. ERA5-Land is gated by ECMWF's land-sea
+mask (land fraction at least 0.5): coasts and lake shores stay unverified and open water,
+including the middle of large lakes, is not offered, although ERA5-Land has lake values. Before
 years are given, actual-year availability is shown for the last complete
 year. The station on the map is the catalog's best-ranked station for that
 product; planning re-ranks with the chosen years and may pick another. Tags are

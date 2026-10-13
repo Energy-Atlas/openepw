@@ -100,6 +100,13 @@ it with snapshots; do not overwrite it with weather runs or newer analysis. With
 that file current coordinates can still be analyzed, but no before/after claims
 are generated. Full unresolved rows and transition details stay local.
 
+The 2026-10-13 approval admits exactly: the seven other TMYx regional workbooks
+(OneBuilding attempts 16-22), three NSRDB data-query probes (`nsrdb-singapore`,
+`nsrdb-nairobi`, `nsrdb-london` and their `-r1` revisions; NSRDB probe cap 6) and ECMWF's
+ERA5-Land land-sea mask in GRIB (`era5land-lsm`, `-r1`; 20 MB). The 200 MB overall
+ceiling is unchanged. See the [plan](../../docs/superpowers/plans/2026-10-13-availability-coverage.md)
+and the [record](../../docs/validation/availability-coverage-2026-10-13/README.md).
+
 Accepted individual judgments live in `data/onebuilding_reviews.json`. `reviews.py`
 attaches them only to explicitly listed product URLs with matching source checksums.
 The original automatic record is preserved. Reviewed metadata coordinates,
