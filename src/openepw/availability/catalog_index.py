@@ -15,7 +15,9 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import sqlite3
+import uuid
 from collections import OrderedDict
 from collections.abc import Callable, Iterable, Sequence
 from pathlib import Path
@@ -171,87 +173,132 @@ class _Cache(OrderedDict):
 
 
 class StoreCatalogIndex(CatalogIndex):
-    """A stored generation: OneBuilding and NOAA records are read from SQLite when needed."""
+    """A stored generation: OneBuilding and NOAA records are read from SQLite when needed.
 
-    def __init__(self, database: Path, generation_id: str):
+    Building the index streams the whole generation once (about 3 s for 2026.10.13). Its
+    result is a plain JSON state, saved as ``index.json`` in ``derived`` when a folder is
+    given, so a later start reads that file instead; the install step writes it in advance.
+    """
+
+    FORMAT = 1
+
+    def __init__(self, database: Path, generation_id: str, derived: Path | None = None):
+        self.database, self.generation_id = Path(database), generation_id
+        self._cache: _Cache = _Cache(8192)
+        path = derived / "index.json" if derived is not None else None
+        state = _read_state(path, generation_id, self.FORMAT) if path is not None else None
+        if state is None:
+            state = self._build_state()
+            if path is not None:
+                _write_json(path, state)
+        self._restore(state)
+
+    def _build_state(self) -> dict:
+        """Everything the index keeps, as plain JSON, from one pass over the generation."""
         from .map_layers import SitePoints
         from .store import _TABLES
 
-        self.database, self.generation_id = Path(database), generation_id
         kinds = dict(_TABLES)
-        self._cache: _Cache = _Cache(8192)
+        state: dict[str, Any] = {"format": self.FORMAT, "generation_id": self.generation_id,
+                                 "products": [], "sites": [], "entries": [], "lazy_order": [],
+                                 "lazy_info": {}, "references": {}, "site_rows": {}}
         with self._connect() as db:
             def rows(table):
                 return db.execute(f"SELECT body FROM {table} WHERE generation_id = ? ORDER BY id",
-                                  (generation_id,))
+                                  (self.generation_id,))
 
-            self.evidence = [EvidenceRef.model_validate_json(body) for (body,) in rows("evidence")]
-            self.reviews = [ReviewAnnotation.model_validate_json(body) for (body,) in rows("reviews")]
-            self._products, self._lazy_order = [], []
+            state["evidence"] = [json.loads(body) for (body,) in rows("evidence")]
+            state["reviews"] = [json.loads(body) for (body,) in rows("reviews")]
             # Only what the index needs is kept from each lazy product while streaming.
-            self._lazy_info: dict[str, tuple[str, str, str | None]] = {}   # id -> provider, dataset, URL
-            self._references: dict[str, str] = {}       # URL or id -> product id
-            self._representatives: dict[tuple[str, str], dict] = {}
+            lazy_info, references = state["lazy_info"], state["references"]
+            representatives: dict[tuple[str, str], dict] = {}
             evidence_ids: set[str] = set()
             for (body,) in rows("products"):
                 data = json.loads(body)
                 if data["provider"] in LAZY_PROVIDERS:
                     native = data.get("native_product_id")
-                    self._lazy_info[data["id"]] = (data["provider"], data["dataset"], native)
-                    self._representatives.setdefault((data["provider"], data["dataset"]), data)
+                    lazy_info[data["id"]] = [data["provider"], data["dataset"], native]
+                    representatives.setdefault((data["provider"], data["dataset"]), data)
                     if data["provider"] == "onebuilding":
                         evidence_ids.update(data.get("evidence_ids", []))
-                        self._references.setdefault(data["id"], data["id"])
+                        references.setdefault(data["id"], data["id"])
                         if native:
                             if not native.startswith(SITE):
                                 raise ValueError(f"Published file outside {SITE}: {native}")
-                            self._references.setdefault(native, data["id"])
+                            references.setdefault(native, data["id"])
                     if data["provider"] == "noaa":        # one product: kept, like the others
-                        self._products.append(kinds["products"].model_validate(data))
+                        state["products"].append(data)
                     else:
-                        self._lazy_order.append(data["id"])
+                        state["lazy_order"].append(data["id"])
                 else:
-                    self._products.append(kinds["products"].model_validate(data))
-            self._product_by_id = {product.id: product for product in self._products}
-            self._lazy_evidence = sorted(evidence_ids)
-            lazy_products = self._lazy_info
+                    state["products"].append(data)
+            state["representatives"] = list(representatives.values())
+            state["lazy_evidence"] = sorted(evidence_ids)
             # Sites: in full for the other providers; positions and ids for the lazy ones.
-            self._sites, self._site_by_id = {}, {}
-            self._site_rows: dict[str, list[tuple[str, float | None, float | None, str | None]]] = {}
-            self._site_product: dict[str, str] = {}
             map_sites: dict[str, tuple] = {}             # id -> lat, lon, name, position status
             for (body,) in rows("sites"):
                 data = json.loads(body)
-                if data["product_id"] in lazy_products:
-                    self._site_rows.setdefault(data["product_id"], []).append(
-                        (data["id"], data.get("lat"), data.get("lon"), data.get("position_status")))
-                    self._site_product[data["id"]] = data["product_id"]
+                if data["product_id"] in lazy_info:
+                    state["site_rows"].setdefault(data["product_id"], []).append(
+                        [data["id"], data.get("lat"), data.get("lon"), data.get("position_status")])
                     map_sites[data["id"]] = (data.get("lat"), data.get("lon"), data.get("name"),
                                              data.get("position_status"))
                 else:
-                    site = kinds["sites"].model_validate(data)
-                    self._sites.setdefault(site.product_id, []).append(site)
-                    self._site_by_id[site.id] = site
+                    state["sites"].append(data)
             # Entries: in full for the other providers; ids by (product, site) for the lazy ones.
-            self._entries = {}
-            self._entry_ids: dict[tuple[str, str | None], list[str]] = {}
-            self._full_entries: list[AvailabilityEntry] = []
+            entry_ids: dict[tuple[str, str | None], list[str]] = {}
             points = SitePoints()
             for (body,) in rows("entries"):
                 data = json.loads(body)
                 product_id = data["product_id"]
-                if product_id in lazy_products:
-                    self._entry_ids.setdefault((product_id, data.get("site_id")), []).append(data["id"])
+                if product_id in lazy_info:
+                    entry_ids.setdefault((product_id, data.get("site_id")), []).append(data["id"])
                     place = map_sites.get(data.get("site_id") or "")
                     if place is not None:
-                        provider, _, native = lazy_products[product_id]
+                        provider, _, native = lazy_info[product_id]
                         site = dict(zip(("lat", "lon", "name", "position_status"), place))
-                        points.add(provider, kinds["entries"].model_validate(data), site, native, data.get("site_id"))
+                        points.add(provider, kinds["entries"].model_validate(data), site, native,
+                                   data.get("site_id"))
                 else:
-                    entry = kinds["entries"].model_validate(data)
-                    self._entries.setdefault((entry.product_id, entry.site_id), []).append(entry)
-                    self._full_entries.append(entry)
-        self._points = points.result()
+                    state["entries"].append(data)
+            state["entry_ids"] = [[product_id, site_id, ids] for (product_id, site_id), ids in entry_ids.items()]
+        state["points"] = points.result()
+        return state
+
+    def _restore(self, state: dict) -> None:
+        from .store import _TABLES
+
+        kinds = dict(_TABLES)
+        self.evidence = [EvidenceRef.model_validate(item) for item in state["evidence"]]
+        self.reviews = [ReviewAnnotation.model_validate(item) for item in state["reviews"]]
+        self._products = [kinds["products"].model_validate(item) for item in state["products"]]
+        self._product_by_id = {product.id: product for product in self._products}
+        self._lazy_order: list[str] = state["lazy_order"]
+        self._lazy_info: dict[str, tuple[str, str, str | None]] = {
+            key: tuple(value) for key, value in state["lazy_info"].items()}   # type: ignore[misc]
+        self._references: dict[str, str] = state["references"]
+        self._representatives: dict[tuple[str, str], dict] = {
+            (data["provider"], data["dataset"]): data for data in state["representatives"]}
+        self._lazy_evidence: list[str] = state["lazy_evidence"]
+        self._sites: dict[str, list[SiteRecord]] = {}
+        self._site_by_id: dict[str, SiteRecord] = {}
+        for item in state["sites"]:
+            site = kinds["sites"].model_validate(item)
+            self._sites.setdefault(site.product_id, []).append(site)
+            self._site_by_id[site.id] = site
+        self._site_rows: dict[str, list[tuple[str, float | None, float | None, str | None]]] = {
+            key: [tuple(row) for row in rows] for key, rows in state["site_rows"].items()}  # type: ignore[misc]
+        self._site_product: dict[str, str] = {row[0]: key for key, rows in self._site_rows.items()
+                                              for row in rows}
+        self._entries: dict[tuple[str, str | None], list[AvailabilityEntry]] = {}
+        self._full_entries: list[AvailabilityEntry] = []
+        for item in state["entries"]:
+            entry = kinds["entries"].model_validate(item)
+            self._entries.setdefault((entry.product_id, entry.site_id), []).append(entry)
+            self._full_entries.append(entry)
+        self._entry_ids: dict[tuple[str, str | None], list[str]] = {
+            (product_id, site_id): ids for product_id, site_id, ids in state["entry_ids"]}
+        self._points = state["points"]
         published = [row for pid in self._lazy_order for row in self._site_rows.get(pid, [])
                      if positioned(row[1], row[2], row[3])]
         self.published = SiteIndex([row[1] for row in published], [row[2] for row in published],  # type: ignore[misc]
@@ -382,3 +429,26 @@ def index_for(bundle: CatalogBundle) -> CatalogIndex:
     index = CatalogIndex(bundle)
     _INDEXES[:] = [(bundle, index), *_INDEXES[:1]]
     return index
+
+
+def _read_state(path: Path, generation_id: str, version: int) -> dict | None:
+    """A saved index state, if it is for this generation and this format."""
+    try:
+        state = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(state, dict) or state.get("format") != version or state.get("generation_id") != generation_id:
+        return None
+    return state
+
+
+def _write_json(path: Path, value: Any) -> None:
+    """Atomic: a reader sees the old file or the complete new one; an unwritable folder only
+    means the next start builds the index again."""
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
+        temporary.write_text(json.dumps(value, separators=(",", ":")), encoding="utf-8")
+        os.replace(temporary, path)
+    except OSError:
+        pass

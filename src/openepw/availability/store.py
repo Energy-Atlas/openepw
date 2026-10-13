@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import sqlite3
 import uuid
 from collections.abc import Callable
@@ -181,11 +182,22 @@ class CatalogStore:
         if loaded is None or loaded[0] != generation_id:
             from .catalog_index import StoreCatalogIndex
 
-            loaded = self._loaded = (generation_id, StoreCatalogIndex(self.database, generation_id))
+            loaded = self._loaded = (generation_id, StoreCatalogIndex(
+                self.database, generation_id, self.derived(generation_id)))
         index = loaded[1]
         stale.extend(e.id for e in index.evidence if aged(e))
         snapshot.stale_sources = sorted(set(snapshot.stale_sources) | set(stale))
         return CatalogView(snapshot, index=index, load=lambda: self.bundle(generation_id))
+
+    def derived(self, generation_id: str) -> Path:
+        """Files computed from a generation (its index, the map): rebuilt when missing."""
+        return self.root / "derived" / generation_id
+
+    def prune_derived(self, keep: str) -> None:
+        """Remove the derived files of every generation but ``keep``."""
+        for folder in (self.root / "derived").glob("*"):
+            if folder.is_dir() and folder.name != keep:
+                shutil.rmtree(folder, ignore_errors=True)
 
     def bundle(self, generation_id: str) -> CatalogBundle:
         """Every record of a generation (export, refresh, status): about 1 GB for a full catalog."""

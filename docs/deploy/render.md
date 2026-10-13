@@ -69,6 +69,9 @@ openepw --data-root .local/openepw catalog export --out ../open-data/datasets/we
   package as a new catalog generation and replaces the `footprints` folder as a whole. If
   anything fails (unreachable URL, checksum mismatch, refused catalog), it logs
   `Catalog install failed: ...; keeping the installed catalog` and serves the previous one.
+  It then logs `Catalog prepared in N s`: the catalog's index and map, saved beside it, so
+  the first page after a start loads at once (a few seconds the first time per catalog
+  version, about one second on a normal restart).
 - **Custom domain:** add it under the service's Settings; Render provides the certificate.
 - **Testing log (staging only):** `OPENEPW_DEBUG_LOG=true` adds a "Copy log" button to the
   chat and `GET /v1/diagnostics`, which returns the server's recent warnings and errors

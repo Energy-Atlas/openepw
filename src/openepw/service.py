@@ -179,6 +179,53 @@ class WeatherService:
                          for provider, dataset in sorted(unmapped)],
         }
 
+    def catalog_map_payload(self) -> tuple[str, bytes, bytes]:
+        """The map as (ETag, JSON, gzipped JSON): built once per catalog generation and
+        footprints, then kept in memory and in the generation's derived files."""
+        import gzip
+
+        from fastapi.encoders import jsonable_encoder
+
+        view = self.catalog_store.active()
+        root = self.config.data_root / "footprints"
+        stamp = hashlib.sha256(b"".join(
+            path.relative_to(root).as_posix().encode() + path.read_bytes()
+            for path in sorted(root.glob("*/*/*/manifest.json")))).hexdigest()[:16] if root.is_dir() else "none"
+        key = (view.snapshot.generation_id if view is not None else None, stamp)
+        cached = getattr(self, "_map_payload", None)
+        if cached is not None and cached[0] == key:
+            return cached[1]
+        path = (self.catalog_store.derived(view.snapshot.generation_id) / f"map-{stamp}.json.gz"
+                if view is not None else None)
+        packed = None
+        if path is not None:
+            try:
+                packed = path.read_bytes()
+                body = gzip.decompress(packed)
+            except (OSError, EOFError, gzip.BadGzipFile):
+                packed = None
+        if packed is None:
+            body = json.dumps(jsonable_encoder(self.catalog_map()), separators=(",", ":")).encode()
+            packed = gzip.compress(body, 6)
+            if path is not None:
+                try:
+                    atomic_write(path, packed)
+                except OSError:
+                    pass                          # an unwritable data root: rebuilt next start
+        payload = (f'"{hashlib.sha256(body).hexdigest()[:24]}"', body, packed)
+        self._map_payload = (key, payload)
+        return payload
+
+    def warm_catalog(self) -> None:
+        """Do the work the first visitor would wait for: the catalog index, the map and the
+        first assessment. The install step calls it too, so the files exist before a start."""
+        view = self.catalog_store.active()
+        if view is None:
+            return
+        self.catalog_store.prune_derived(view.snapshot.generation_id)
+        self.catalog_map_payload()
+        self.point_availability(0.0, 0.0, [])
+
     def catalog_map(self) -> dict:
         """Return Stage 1 catalog detail as documentary display layers."""
         view = self.catalog_store.active()
