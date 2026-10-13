@@ -28,6 +28,7 @@ class ReviewedSource:
     model_version: str | None        # None: recorded as found, not checked against a review
     gates: tuple[str, ...]           # catalog products ("provider:dataset") the mask gates
     probes: tuple[tuple[float, float], ...]
+    max_bytes: int = 300_000_000     # owner-approved per-product cap (2026-10-13)
 
 
 # (API product, selector kind, selector) -> its published file. 2026-10-13 plan, E3: one grid
@@ -36,16 +37,20 @@ class ReviewedSource:
 REVIEWED_SOURCES = {
     REVIEWED_SOURCE: ReviewedSource(REVIEWED_OBJECT_KEY, REVIEWED_MODEL_VERSION, (),
                                     ((42.44, -76.5), (33.45, -112.07))),
+    # The Himawari TMY table is the Himawari-7 grid (same layout; 5 sampled chunks identical,
+    # 2026-10-13), so the Himawari-7 mask gates both.
     ("himawari-tmy", "published_name", "tmy-2020"): ReviewedSource(
-        "himawari/himawari_tmy-2020.h5", None, ("nsrdb:himawari", "nsrdb:himawari-tmy"), (SINGAPORE,)),
+        "himawari/himawari_tmy-2020.h5", None, ("nsrdb:himawari-tmy",), (SINGAPORE,)),
     ("himawari7", "actual_year", "2015"): ReviewedSource(
-        "himawari/himawari7/himawari7_irradiance_2015.h5", None, ("nsrdb:himawari7",), (SINGAPORE,)),
+        "himawari/himawari7/himawari7_irradiance_2015.h5", None, ("nsrdb:himawari7", "nsrdb:himawari-tmy"),
+        (SINGAPORE,)),
     ("nsrdb-msg-v1-0-0-tmy", "published_name", "tmy-2022"): ReviewedSource(
         "msg/v1.0.0/tmy/msg_tmy-2022.h5", None,
         ("nsrdb:nsrdb-msg-v1-0-0", "nsrdb:nsrdb-msg-v1-0-0-tmy", "nsrdb:nsrdb-msg-v1-0-0-tdy",
-         "nsrdb:nsrdb-msg-v1-0-0-tgy"), (NAIROBI, LONDON)),
+         "nsrdb:nsrdb-msg-v1-0-0-tgy"), (NAIROBI, LONDON), 400_000_000),
     ("msg-iodc", "actual_year", "2018"): ReviewedSource(
-        "meteosat/meteosat_irradiance_2018.h5", None, ("nsrdb:msg-iodc",), (SINGAPORE, NAIROBI, LONDON)),
+        "meteosat/meteosat_irradiance_2018.h5", None, ("nsrdb:msg-iodc",), (SINGAPORE, NAIROBI, LONDON),
+        550_000_000),
 }
 
 

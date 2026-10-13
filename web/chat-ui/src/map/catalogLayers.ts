@@ -31,9 +31,12 @@ const swatches: Record<CatalogLayer['kind'], Swatch> = {
 // Station names are drawn by the map overlay (placeLabels) from this zoom.
 export const STATION_LABEL_ZOOM = 8.5
 
+/** The NSRDB source-grid layers: GOES ("nsrdb") and the other satellites ("nsrdb:<file product>"). */
+export const isNsrdb = (id: string) => id === 'nsrdb' || id.startsWith('nsrdb:')
+
 export function layerSwatch(layer: Pick<CatalogLayer, 'id' | 'kind'>): Swatch {
   if (layer.id === 'era5-land') return { color: MAP_PALETTE.EXTENT, shape: 'lines' }   // its land hatch
-  return layer.id === 'nsrdb' ? { ...swatches[layer.kind], color: MAP_PALETTE.NSRDB } : swatches[layer.kind]
+  return isNsrdb(layer.id) ? { ...swatches[layer.kind], color: MAP_PALETTE.NSRDB } : swatches[layer.kind]
 }
 
 function rgb(hex: string): [number, number, number] {
@@ -143,7 +146,7 @@ export function catalogLayerSpecs(layer: CatalogLayer, id: string): AddLayerObje
       'icon-size': ['interpolate', ['linear'], ['zoom'], 1, .3, 4, .5, 8, .8, 12, 1.1],
       'icon-allow-overlap': true, 'icon-ignore-placement': true } }]
   if (layer.kind === 'cells') return [{ id: `${id}-fill`, type: 'fill', source: id, filter: polygons,
-    paint: { 'fill-pattern': layer.id === 'nsrdb' ? 'oe-hatch-nsrdb' : 'oe-hatch-region',
+    paint: { 'fill-pattern': isNsrdb(layer.id) ? 'oe-hatch-nsrdb' : 'oe-hatch-region',
       'fill-antialias': false, 'fill-opacity': fade(.6) } }]
   if (layer.kind === 'area') return [
     { id: `${id}-fill`, type: 'fill', source: id, filter: polygons,
