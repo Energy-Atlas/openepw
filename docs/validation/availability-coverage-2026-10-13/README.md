@@ -141,8 +141,8 @@ All research requests went through the collector and its ledger, except where no
 
 - Generation: 49 sources, 73,403 products, 106,991 sites, 99,438 entries, 61 reviews. Before:
   38 / 22,301 / 55,897 / 48,315 / 61.
-- Package 2026.10.13: 32 files, 85.0 MB, the largest `onebuilding/products.csv` at 30.4 MB.
-- Export, then import, is lossless: every record type is identical, and the 4 footprint files are
+- Package 2026.10.13: 38 files, 87.5 MB, the largest `onebuilding/products.csv` at 31.2 MB.
+- Export, then import, is lossless: every record type is identical, and the 10 footprint files are
   byte-identical.
 
 ## What this does not establish
