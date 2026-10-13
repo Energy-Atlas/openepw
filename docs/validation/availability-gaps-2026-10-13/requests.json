@@ -1,0 +1,116 @@
+[
+ {
+  "id": "pvgis-ithaca",
+  "provider": "pvgis",
+  "url": "https://re.jrc.ec.europa.eu/api/v5_3/tmy",
+  "kind": "probe",
+  "purpose": "2026-10-13 gaps P1: PVGIS v5_3 TMY at 42.44, -76.50: ERA5 fallback through tmy outside the SARAH3 box; one JSON response",
+  "parameters": {
+   "lat": "42.44",
+   "lon": "-76.50",
+   "outputformat": "json"
+  },
+  "range": null,
+  "limit": 1500000,
+  "archive": null,
+  "parent": null,
+  "depth": 0,
+  "revision_of": null,
+  "correction": null
+ },
+ {
+  "id": "pvgis-atlantic",
+  "provider": "pvgis",
+  "url": "https://re.jrc.ec.europa.eu/api/v5_3/tmy",
+  "kind": "probe",
+  "purpose": "2026-10-13 gaps P1: PVGIS v5_3 TMY at 40.0, -40.0: open sea more than 1,000 km from land; one JSON response",
+  "parameters": {
+   "lat": "40.0",
+   "lon": "-40.0",
+   "outputformat": "json"
+  },
+  "range": null,
+  "limit": 1500000,
+  "archive": null,
+  "parent": null,
+  "depth": 0,
+  "revision_of": null,
+  "correction": null
+ },
+ {
+  "id": "pvgis-northsea",
+  "provider": "pvgis",
+  "url": "https://re.jrc.ec.europa.eu/api/v5_3/tmy",
+  "kind": "probe",
+  "purpose": "2026-10-13 gaps P1: PVGIS v5_3 TMY at 52.30, 4.20: sea about 15 km off the Dutch coast, inside the 25 km zone; one JSON response",
+  "parameters": {
+   "lat": "52.30",
+   "lon": "4.20",
+   "outputformat": "json"
+  },
+  "range": null,
+  "limit": 1500000,
+  "archive": null,
+  "parent": null,
+  "depth": 0,
+  "revision_of": null,
+  "correction": null
+ },
+ {
+  "id": "pvgis-svalbard",
+  "provider": "pvgis",
+  "url": "https://re.jrc.ec.europa.eu/api/v5_3/tmy",
+  "kind": "probe",
+  "purpose": "2026-10-13 gaps P1: PVGIS v5_3 TMY at 78.22, 15.65: land north of the 75N grid edge; one JSON response",
+  "parameters": {
+   "lat": "78.22",
+   "lon": "15.65",
+   "outputformat": "json"
+  },
+  "range": null,
+  "limit": 1500000,
+  "archive": null,
+  "parent": null,
+  "depth": 0,
+  "revision_of": null,
+  "correction": null
+ },
+ {
+  "id": "pvgis-lake-victoria",
+  "provider": "pvgis",
+  "url": "https://re.jrc.ec.europa.eu/api/v5_3/tmy",
+  "kind": "probe",
+  "purpose": "2026-10-13 gaps P1: PVGIS v5_3 TMY at -1.0, 33.0: large lake more than 60 km from any shore; one JSON response",
+  "parameters": {
+   "lat": "-1.0",
+   "lon": "33.0",
+   "outputformat": "json"
+  },
+  "range": null,
+  "limit": 1500000,
+  "archive": null,
+  "parent": null,
+  "depth": 0,
+  "revision_of": null,
+  "correction": null
+ },
+ {
+  "id": "pvgis-northsea-r1",
+  "provider": "pvgis",
+  "url": "https://re.jrc.ec.europa.eu/api/v5_3/tmy",
+  "kind": "probe",
+  "purpose": "2026-10-13 gaps P1: PVGIS v5_3 TMY at 52.30, 4.20: sea about 15 km off the Dutch coast, inside the 25 km zone; one JSON response",
+  "parameters": {
+   "lat": "52.30",
+   "lon": "4.20",
+   "outputformat": "json"
+  },
+  "range": null,
+  "limit": 1500000,
+  "archive": null,
+  "parent": null,
+  "depth": 0,
+  "revision_of": "pvgis-northsea",
+  "correction": "The original failed after 0.37 s with a transport error and no HTTP status (the exception is not persisted); the same request is sent once more."
+ }
+]

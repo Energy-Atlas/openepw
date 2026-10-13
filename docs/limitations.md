@@ -121,6 +121,10 @@ ten temporal years. The late-century RCP4.5 source warning is retained.
   fetch time, so plans cannot promise inferred grid-cell reuse beforehand.
 - PVGIS is a published TMY product; selected month years are not availability for
   actual-year weather. Native location/time basis remains authoritative.
+- PVGIS TMY radiation is SARAH3 or ERA5 by location, and the run records which.
+  - The catalog's PVGIS domain mask leaves coasts, lakes and small islands unknown. This is
+    17% of published station positions, including Cape Town and Singapore.
+  - Points refused at sea can lie inside JRC's documented 25 km coastal zone.
 - OneBuilding uses explicit product paths or a country catalog plus a location
   name. Automatic worldwide nearest-site discovery is not included. Redistribution
   remains unverified; no source weather is committed as a fixture.

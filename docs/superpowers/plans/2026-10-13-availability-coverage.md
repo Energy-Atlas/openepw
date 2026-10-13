@@ -102,7 +102,8 @@ Steps 1–8 are done. Merged to `main` and staging, and published as open-data 2
 The [record](../../validation/availability-coverage-2026-10-13/README.md) has the requests,
 results and limits. Left, in rough order of user impact:
 
-1. **PVGIS TMY has one probe (London).**
+1. **PVGIS TMY has one probe (London).** Done 2026-10-13: see the
+   [availability-gaps plan](2026-10-13-availability-gaps.md).
    - It shows "checked when planning" everywhere else: no footprint, no mask.
    - The map draws an approximate SARAH3 envelope for display only (`map_layers.py`).
    - Candidate evidence: PVGIS's documented coverage of its radiation databases, or a mask

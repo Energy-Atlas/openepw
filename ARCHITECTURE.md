@@ -54,8 +54,9 @@ map rendering contain no weather aggregation. See the
 The read-only `/v1/catalog/map` route (`availability/map_layers.py`) turns the
 active Stage 1 catalog into display layers: NOAA stations with inventory years,
 OneBuilding sites with product/period/position, a verified NSRDB source-grid
-mask from `<data_root>/footprints/`, the approximate PVGIS SARAH3 envelope with
-its saved probe, and catalog ERA5/ERA5-Land extents. Products without reviewed
+mask from `<data_root>/footprints/`, the PVGIS TMY domain mask in 0.5° display cells
+(the approximate SARAH3 envelope only when no mask is installed), and catalog
+ERA5/ERA5-Land extents. Products without reviewed
 geometry stay listed as unmapped. The older `/v1/catalog/scopes` route exposes documented product footprints
 from the active local catalog for the initial map. It also reports products
 without mappable footprints; the browser never turns missing geometry into an
