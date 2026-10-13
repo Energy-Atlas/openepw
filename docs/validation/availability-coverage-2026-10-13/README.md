@@ -57,8 +57,29 @@ All research requests went through the collector and its ledger, except where no
     - two layout diagnostics (4 + 4 requests, 1 MiB and 16 MiB blocks).
   - The cause is that this file's `meta` table is chunked and its HDF5 metadata is not reachable
     within the cap, unlike the GOES file's contiguous table.
-  - All E3 reads stopped; the owner decides how to continue.
-  - No mask exists for Himawari, Himawari-7, Meteosat or Meteosat IODC.
+  - All E3 reads stopped and the overrun was reported.
+- **E3 after the owner raised the caps.**
+  - Caps: 80 range requests per product. Bytes: 300 MB, raised further to 400 MB for Meteosat
+    and 550 MB for IODC.
+  - Himawari's earlier use counts against its share.
+  - Each acquisition first inspected the table's layout with small cached header blocks, then read
+    its rows as a few contiguous spans. Every request was logged.
+
+| Grid (file) | Rows | Table | Requests (inspection + read) | Bytes | Probe check |
+|---|---:|---:|---:|---:|---|
+| Himawari-7 (`himawari7_irradiance_2015.h5`) | 2,170,782 | 260 MB, 130 chunks in 3 spans | 5 + 8 | 262 MB | Singapore within 8 km |
+| Himawari TMY (`himawari_tmy-2020.h5`) | 2,170,782 | same layout | about 20 (overrun) + 6 + 11 | about 78 MB | grid identity, below |
+| Meteosat (`msg_tmy-2022.h5`) | 2,693,287 | 361 MB, contiguous | 3 + 5 | 362 MB | Nairobi, London |
+| Meteosat IODC (`meteosat_irradiance_2018.h5`) | 3,869,544 | 515 MB, 248 chunks in 5 spans | 8 + 13 | 518 MB | Singapore, Nairobi, London |
+
+  - The Himawari TMY table was not read whole. It has Himawari-7's exact layout, and five chunks
+    spread over it (rows 0, 537,792, 1,092,390, 1,630,182 and 2,167,974) are byte-identical to
+    the Himawari-7 table. So the Himawari-7 mask gates both products.
+  - The masks are 0.25° cells of grid sites, as for GOES:
+    - Himawari: 59,365 cells.
+    - Meteosat: 70,892 cells.
+    - IODC: 101,547 cells.
+  - The raw coordinate tables stay local; only the masks are published.
 - **E5, live acceptance:** 6 hourly downloads with the configured NLR key, one per dataset. The raw
   CSVs stay local.
 
@@ -127,5 +148,5 @@ All research requests went through the collector and its ledger, except where no
 ## What this does not establish
 
 - Weather completeness, EPW quality, or that every OneBuilding file downloads.
-- NSRDB coverage away from the probe points for the new datasets: no mask exists yet.
+- That a point inside a grid's mask has data for every year: years still come from the probes.
 - Lake and coastal ERA5-Land coverage.

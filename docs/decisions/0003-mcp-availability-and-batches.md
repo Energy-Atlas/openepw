@@ -131,7 +131,8 @@ See the [plan](../superpowers/plans/2026-10-13-availability-coverage.md) and its
 - **NSRDB beyond GOES:** the catalog, a coverage mask per satellite family, and adapter support.
   - Himawari-7, Meteosat and Meteosat IODC, and their typical years, are downloaded.
   - Himawari-8 is not, because its hourly labels at :00 do not form hour-ending intervals.
-  - The masks are pending: the Himawari grid acquisition exceeded its request cap and stopped.
+  - The masks come from each family's published grid table, under owner-raised caps after an
+    overrun on the Himawari table. Himawari TMY shares the Himawari-7 grid.
 - **ERA5:** Copernicus's catalogue period is documented coverage.
 - **ERA5-Land:** gated by ECMWF's land–sea mask (land fraction ≥ 0.5).
 - **Masks:** each mask gates only the products its manifest names (`gates`).
