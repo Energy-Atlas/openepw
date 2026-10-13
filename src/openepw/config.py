@@ -26,6 +26,8 @@ class RuntimeConfig(Model):
     max_response_bytes: int = Field(default=50_000_000, gt=0)
     max_climate_bytes: int = Field(default=3_000_000_000, gt=0)
     workers: int = Field(default=2, ge=1, le=8)
+    # Testing deployments only: the web UI's "Copy log" button and GET /v1/diagnostics.
+    debug_log: bool = False
 
     @classmethod
     def load(

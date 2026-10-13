@@ -115,3 +115,12 @@ export type PointAvailability = {
   products: Array<{ id: string; label: string; group: 'actual' | 'typical'; status: 'supported' | 'unknown' | 'none'
     station?: { lat: number; lon: number; name?: string | null; distance_km?: number | null } }>
 }
+
+/** GET /v1/diagnostics on a testing deployment (RuntimeConfig.debug_log). */
+export type Diagnostics = {
+  version: string
+  server_time: string
+  security_profile: string | null
+  catalog_generation: string | null
+  server_log: Array<{ time: string; level: string; logger: string; message: string }>
+}

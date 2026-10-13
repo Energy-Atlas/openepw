@@ -1,4 +1,4 @@
-import type { CatalogMap, ChatEvent, CatalogScopes, JobManifest, JobSnapshot, PointAvailability, SessionSnapshot, ViewPage } from './types'
+import type { CatalogMap, ChatEvent, CatalogScopes, Diagnostics, JobManifest, JobSnapshot, PointAvailability, SessionSnapshot, ViewPage } from './types'
 
 export class ApiError extends Error {
   constructor(public code: string, message: string, public status: number,
@@ -7,8 +7,49 @@ export class ApiError extends Error {
   }
 }
 
+/** One API call, kept for the "Copy log" button of testing deployments. */
+export type ApiCall = { time: string; method: string; path: string; status: number | null; ms: number
+  body?: string; code?: string; message?: string }
+
+const MAX_CALLS = 100
+
 export class ChatApi {
-  constructor(private base = '', private fetcher: typeof fetch = (...args) => fetch(...args)) {}
+  /** The most recent calls, oldest first; read only by the debug log. */
+  readonly calls: ApiCall[] = []
+  private fetcher: typeof fetch
+
+  constructor(private base = '', fetcher: typeof fetch = (...args) => fetch(...args)) {
+    this.fetcher = async (input, init) => {
+      const started = Date.now()
+      const call: ApiCall = { time: new Date(started).toISOString(), method: init?.method ?? 'GET',
+        path: String(input).slice(this.base.length), status: null, ms: 0,
+        ...(typeof init?.body === 'string' ? { body: init.body.slice(0, 500) } : {}) }
+      this.calls.push(call)
+      if (this.calls.length > MAX_CALLS) {
+        // Polling fills the list; failures are kept longest.
+        const routine = this.calls.findIndex(item => item.status !== null && item.status < 400)
+        this.calls.splice(Math.max(routine, 0), 1)
+      }
+      try {
+        const response = await fetcher(input, init)
+        call.status = response.status
+        if (!response.ok) {
+          const detail = await response.clone().json().catch(() => null) as { code?: string; message?: string } | null
+          if (detail?.code) call.code = String(detail.code)
+          if (detail?.message) call.message = String(detail.message).slice(0, 500)
+        }
+        return response
+      } catch (error) {
+        call.message = error instanceof Error ? error.message : String(error)
+        throw error
+      } finally {
+        call.ms = Date.now() - started
+      }
+    }
+  }
+
+  /** Server diagnostics; the server answers 404 unless its debug_log setting is on. */
+  diagnostics(): Promise<Diagnostics> { return this.request('/v1/diagnostics') }
 
   private async request<T>(path: string, body?: unknown): Promise<T> {
     const response = await this.fetcher(`${this.base}${path}`, body === undefined ? undefined : {

@@ -122,6 +122,47 @@ def _choose_era5(client, sid, state):
         "product_ids": ["era5-openmeteo"], "revision": card["revision"], "idempotency_key": "product"}).json()
 
 
+def test_chat_plan_without_outputs_is_blocked_and_offers_the_product_choice_again(tmp_path):
+    """A product the planner cannot resolve here (Render staging: NSRDB GOES at Singapore)
+    gives a review that says so, offers no Run and leads back to the product choice."""
+    from openepw.chat.coordinator import OfflineParser
+
+    service = WeatherService(RuntimeConfig(data_root=tmp_path), providers=[Reanalysis()])
+    app = create_app(service, chat_parser=OfflineParser())
+    with TestClient(app) as client:
+        submitted = []
+        app.state.runner.enqueue = submitted.append
+        sid = client.post("/v1/chat/sessions").json()["id"]
+        state = client.post(f"/v1/chat/sessions/{sid}/turns", json={
+            "text": "1.2897, 103.8501 historical 2018", "revision": 0, "idempotency_key": "first"}).json()
+        state = client.post(f"/v1/chat/sessions/{sid}/location/approve", json={
+            "revision": state["revision"], "idempotency_key": "approve"}).json()
+        card = state["active_card"]
+        assert card["prompt"] == "Which weather product?"
+        state = client.post(f"/v1/chat/sessions/{sid}/products", json={
+            "product_ids": ["nsrdb-actual"], "revision": card["revision"], "idempotency_key": "nsrdb"}).json()
+        state = client.post(f"/v1/chat/sessions/{sid}/prepare", json={
+            "revision": state["revision"], "idempotency_key": "prepare"}).json()
+        card = state["active_card"]
+        assert card["kind"] == "plan_review" and card["data"]["blocked"] is True
+        assert card["prompt"] == "No outputs can be made from this choice"
+        assert card["data"]["plan_hash"] is None and state["plan_hash"] is None
+        assert card["data"]["summary"].startswith("**Nothing can be run:**")
+        assert "has no executable candidate" in card["data"]["summary"]
+        run = client.post(f"/v1/chat/sessions/{sid}/run", json={
+            "revision": state["revision"], "idempotency_key": "run"})
+        assert run.status_code == 400 and "choose other products" in run.json()["message"]
+        assert submitted == [] and client.get(f"/v1/chat/sessions/{sid}").json()["job_id"] is None
+        back = client.post(f"/v1/chat/sessions/{sid}/back", params={"to_event": card["data"]["product_event"]},
+                           json={"revision": state["revision"], "idempotency_key": "back"}).json()
+        assert back["active_card"]["prompt"] == "Which weather product?"
+        state = _choose_era5(client, sid, back)
+        prepared = client.post(f"/v1/chat/sessions/{sid}/prepare", json={
+            "revision": state["revision"], "idempotency_key": "prepare-era5"}).json()
+        assert prepared.get("plan_hash"), prepared
+        assert not prepared["active_card"]["data"].get("blocked")
+
+
 def test_chat_rest_prepares_and_runs_only_after_explicit_action(tmp_path):
     from openepw.chat.coordinator import OfflineParser
 

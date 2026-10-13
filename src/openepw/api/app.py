@@ -15,6 +15,7 @@ from ..jobs.worker import JobRunner
 from ..models import FutureRequest, OpenEPWError, WeatherPlan, WeatherRequest
 from ..service import WeatherService
 from ..visualization.models import VisualizationRequest
+from . import diagnostics
 from .site_gate import SiteGate
 
 logger = logging.getLogger("openepw.api")
@@ -150,6 +151,7 @@ def create_app(service=None, *, remote=False, chat_parser=None, env_file=".env",
         # Agent sessions connect in-process (P4); it never runs a second job runner.
         app.state.mcp_server = create_server(service, runner=runner)
     app.state.chat = chat
+    diagnostics.install(app, service)
 
     @app.middleware("http")
     async def size_limit(request, call_next):

@@ -33,7 +33,14 @@ Node or this UI.
   when free text is expected. A choice shows its options with `Other — type an
   answer`; a plan review shows `Assess and review plan` or `Run reviewed plan`
   with `Type a correction`; a map question shows `Choose on map`, GeoJSON
-  attachment and `Type coordinates`.
+  attachment and `Type coordinates`. A plan with no outputs (no chosen product
+  has data for the place and period) says so, offers no Run and shows
+  `Choose other products`, which returns to the product choice.
+- On a testing deployment (`debug_log` in the runtime config, `OPENEPW_DEBUG_LOG`
+  on Render staging) a clipboard button beside `Start over` copies a log for a bug
+  report: the page's recent API calls with their errors, the server's recent
+  warnings and errors (redacted), and the session state. Where the clipboard is
+  unavailable it saves the log as a file instead.
 - Attachments (`+`) and map geography input (`Map`) are hidden for now
   (`ATTACH_AND_MAP_INPUT` in `src/App.tsx`); the notes below describe them
   for when they return.
