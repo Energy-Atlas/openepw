@@ -74,11 +74,19 @@ simulation suitability. EnergyPlus execution is not part of ordinary tests.
 
 Meteorology may be instantaneous at interval ends while solar is interval energy.
 EPWs use fixed standard time. Direct Python, REST, MCP and CLI callers must supply
-the offset they intend (UTC is the default). Browser chat estimates a whole-hour
-offset from longitude for points without one and uses longitude-based offsets for
-sampled areas; it shows the estimate in the reviewed plan. This is not a legal
-time-zone lookup and can differ from local civil standard time. Explicit offsets
-are preserved. Existing files retain the offset used when they were generated;
+the offset they intend (UTC is the default). The location review used by browser
+chat, the agent and MCP (`weather_locations_review`) gives points without one the
+standard offset of their time zone, found offline from the coordinates (tzfpy with
+timezone-boundary-builder boundaries, accurate to about 111 m near borders; IANA rules
+from tzdata), and does the same for each point of a sampled area. Standard time is the
+smallest offset in force during the year, so no daylight saving enters EPW time. At sea
+the nautical zone applies (longitude / 15); a zone missing from the installed tz rules
+falls back to longitude, and the review says which was used. Fractional standard
+offsets (India +5:30, Nepal +5:45, Newfoundland -3:30, central Australia +9:30) are
+rounded to the nearer whole hour, a tie going to the hour nearer mean solar time, so two
+places in one zone can differ by an hour; the review names the civil offset. The review
+uses the zone's current standard time; a plan warns when a requested year used another
+(Singapore before 1982). Explicit offsets are preserved. Existing files retain the offset used when they were generated;
 download a new EPW after changing it. Older saved browser chats require the
 location to be re-entered and reviewed before an actual-year plan can run.
 Historical retrieval currently requires output offsets aligned to

@@ -357,8 +357,8 @@ def _review_points(view: View, value: int, ctx: Context) -> tuple[bool, list[int
             "" if count == value else f"{count} points reviewed")
 
 
-@grader("offset_estimated", "OFFSET_NOT_ESTIMATED", "The review estimated the standard-time offset",
-        "Coordinates have no known offset; the person must see the estimate.")
+@grader("offset_estimated", "OFFSET_NOT_ESTIMATED", "The review chose the standard-time offset",
+        "Coordinates have no given offset; the person must see the one chosen from the time zone.")
 def _offset_estimated(view: View, value: Any, ctx: Context) -> tuple[bool, list[int], str]:
     ok = bool((view.facts().get("review") or {}).get("offset_estimated"))
     return ok, [] if ok else [view.outcome_index], "" if ok else "no estimated offset in the review"

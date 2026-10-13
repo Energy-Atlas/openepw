@@ -589,6 +589,10 @@ class WeatherService:
         batch_rows: list[BatchRow] = []
         selected: list[Candidate] = []
         warnings = [i.message for i in discovery.issues]
+        if request.product in ("historical", "amy") and request.years:
+            from .planning.offsets import year_offset_warnings
+
+            warnings.extend(year_offset_warnings(locations, request.years))
         issues = list(discovery.issues)
         for occurrence, loc in enumerate(discovery.locations):
             candidate_ids = (discovery.candidate_ids_by_occurrence[occurrence]
