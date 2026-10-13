@@ -17,6 +17,13 @@ from ..models import (
 _EPW_FIELDS = ["dry_bulb", "dew_point", "relative_humidity", "pressure", "ghi", "dni",
                "dhi", "wind_speed", "wind_direction"]
 
+# NSRDB API datasets the provider adapter downloads, and their catalog product ids.
+NSRDB_PRODUCT_IDS = {"nsrdb-GOES-aggregated-v4-0-0": "nsrdb:aggregate:v4", "nsrdb-GOES-tmy-v4-0-0": "nsrdb:tmy:v4"}
+# Kept in step with providers/nsrdb.py DATASETS (checked by a test).
+NSRDB_ADAPTED = frozenset((*NSRDB_PRODUCT_IDS, "himawari7", "himawari-tmy", "nsrdb-msg-v1-0-0",
+                           "nsrdb-msg-v1-0-0-tmy", "nsrdb-msg-v1-0-0-tdy", "nsrdb-msg-v1-0-0-tgy",
+                           "msg-iodc"))
+
 
 def _location(value: dict | None) -> Location | None:
     if not value:
@@ -66,25 +73,23 @@ def normalize_contracts(inventories: dict, known: set[str], probe_locations: dic
             evidence_basis="targeted_probe", evidence_ids=["pvgis-london"],
             probe_location=_location(london.get("location")),
         ))
-    for probe_id in ("nsrdb-ithaca", "nsrdb-phoenix"):
+    # Every saved NSRDB data-query probe (Stage 1: Ithaca, Phoenix; 2026-10-13: Singapore,
+    # Nairobi, London). A dataset the adapter does not download is catalogued as unsupported.
+    probe_ids = sorted(key for key, value in inventories.items()
+                       if key.startswith("nsrdb-") and isinstance(value, dict) and "products" in value)
+    for probe_id in probe_ids:
         probe = inventories.get(probe_id)
         if not probe or probe_id not in known:
             continue
         location = _location(probe.get("location") or probe_locations.get(probe_id))
         for item in probe.get("products", []):
             native = item["name"]
-            if native == "nsrdb-GOES-aggregated-v4-0-0":
-                product_id = "nsrdb:aggregate:v4"
-                kind = "actual"
-                adapter = _EPW_FIELDS
-            elif native == "nsrdb-GOES-tmy-v4-0-0":
-                product_id = "nsrdb:tmy:v4"
-                kind = "tmy_reference"
-                adapter = _EPW_FIELDS
-            else:
-                product_id = f"nsrdb:upstream:{native}"
-                kind = "actual"
-                adapter = []
+            values = item.get("available_years_or_products", [])
+            typical = bool(values) and not any(isinstance(value, int) for value in values)
+            product_id = NSRDB_PRODUCT_IDS.get(native, f"nsrdb:{native}" if native in NSRDB_ADAPTED
+                                               else f"nsrdb:upstream:{native}")
+            kind = "tmy_reference" if typical else "actual"
+            adapter = _EPW_FIELDS if native in NSRDB_ADAPTED else []
             if not any(p.id == product_id for p in products):
                 products.append(ProductRecord(
                     id=product_id, provider="nsrdb", dataset=native, version="v4",
@@ -94,7 +99,6 @@ def normalize_contracts(inventories: dict, known: set[str], probe_locations: dic
                     access_requirements=["OPENEPW_NLR_API_KEY", "OPENEPW_NLR_EMAIL"],
                     evidence_ids=[probe_id],
                 ))
-            values = item.get("available_years_or_products", [])
             if kind == "actual":
                 scope = ActualScope(years=sorted(v for v in values if isinstance(v, int)))
                 entries.append(AvailabilityEntry(
