@@ -6,6 +6,9 @@ retries = 2
 max_response_bytes = 50000000
 max_climate_bytes = 3000000000
 workers = 2
+# Testing deployments only (Render staging sets OPENEPW_DEBUG_LOG): a "Copy log" button in the
+# web UI and GET /v1/diagnostics with the server's recent, redacted warnings and errors.
+debug_log = false
 
 [credentials]
 # Prefer environment or explicit RuntimeConfig.load(env_file=".env").

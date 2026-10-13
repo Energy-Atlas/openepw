@@ -9,7 +9,8 @@ import { geojsonGeography } from './geography'
 import { mergeJobManifests } from './jobs'
 import { ViewPanel } from './views/ViewPanel'
 import { transcriptItems } from './transcript'
-import { BackIcon, DownloadIcon, EnterIcon, RestartIcon, TickIcon, ToolIcon } from './icons'
+import { BackIcon, CopyLogIcon, DownloadIcon, EnterIcon, RestartIcon, TickIcon, ToolIcon } from './icons'
+import { copyOrSave, debugLogText } from './debugLog'
 import type { AvailabilitySummary, CatalogMap, ChatEvent, JobManifest, JobSnapshot, SessionSnapshot } from './types'
 
 const sessionKey = 'openepw-chat-session'
@@ -37,6 +38,9 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
   // Steps of the running action, shown as they start rather than only when it finishes.
   const [liveSteps, setLiveSteps] = useState<ChatEvent[]>([])
   const [confirmReset, setConfirmReset] = useState(false)
+  // Testing deployments (server debug_log on) show a "Copy log" button.
+  const [debugLog, setDebugLog] = useState(false)
+  const [logStatus, setLogStatus] = useState('')
   const acting = useRef(false)
   const [pendingTurns, setPendingTurns] = useState<Array<{ id: string; text: string }>>([])
   const [queuePaused, setQueuePaused] = useState(false)
@@ -63,6 +67,13 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
     }).catch(() => { if (live) setError('Weather service unavailable. Start the local API to chat.') })
     return () => { live = false }
   }, [sessionAttempt])
+
+  useEffect(() => {
+    let live = true
+    if (typeof api.diagnostics === 'function')
+      void api.diagnostics().then(() => { if (live) setDebugLog(true) }).catch(() => undefined)
+    return () => { live = false }
+  }, [])
 
   useEffect(() => {
     let live = true
@@ -276,6 +287,15 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
   // Start over is always available, outside the chat panel to the left of the reply area; it asks first.
   const resetButton = <button type="button" className="icon-button" aria-label="Start over" title="Start over"
     aria-expanded={confirmReset} disabled={busy} onClick={() => setConfirmReset(value => !value)}><RestartIcon /></button>
+  const copyLog = async () => {
+    const server = await api.diagnostics().catch(() => null)
+    const text = debugLogText(session, api.calls ?? [], server)
+    const done = await copyOrSave(text, `openepw-log-${session?.id.slice(0, 8) ?? 'none'}.txt`)
+    setLogStatus(done === 'copied' ? 'Log copied' : 'Log saved as a file')
+    window.setTimeout(() => setLogStatus(''), 4000)
+  }
+  const copyLogButton = debugLog && <button type="button" className="icon-button" aria-label="Copy log"
+    title={logStatus || 'Copy log for a bug report'} onClick={() => void copyLog()}><CopyLogIcon /></button>
   // Jobs of Copernicus CDS products wait in Copernicus's queue, one request per month.
   const queuedJobs = new Set((session?.events ?? []).filter(event => event.type === 'job' && event.data?.queued)
     .map(event => String(event.data?.job_id)))
@@ -514,7 +534,9 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
     </form>
         </>}
         <div className="dock-reset">
+          {copyLogButton}
           {resetButton}
+          {logStatus && <span className="log-status" role="status">{logStatus}</span>}
           {confirmReset && <div className="reset-confirm" role="alertdialog" aria-label="Start over?">
             <strong>Start over?</strong>
             <span>This starts a new conversation.</span>
