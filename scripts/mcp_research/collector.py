@@ -57,6 +57,14 @@ SAFE_PARAMS = {
     "outputformat",
 }
 
+# Owner-approved 2026-10-13 (availability gaps, P1): five PVGIS v5_3 TMY probes and one
+# justified revision, 1.5 MB each. A small 4xx body is kept for these only (no credentials).
+PVGIS_GAP_PROBES = frozenset(
+    ("pvgis-ithaca", "pvgis-atlantic", "pvgis-northsea", "pvgis-svalbard", "pvgis-lake-victoria")
+)
+PVGIS_GAP_PROBE_BYTES = 1_500_000
+ERROR_BODY_BYTES = 16_384
+
 
 @dataclass(frozen=True)
 class Limits:
@@ -212,7 +220,8 @@ class Collector:
             ):
                 return self.finish(record, "provider_limit")
         if request.kind == "probe":
-            caps = {"openmeteo": 3, "pvgis": 2, "noaa": 2, "nsrdb": self.nsrdb_probe_limit(request)}
+            caps = {"openmeteo": 3, "pvgis": self.pvgis_probe_limit(request), "noaa": 2,
+                    "nsrdb": self.nsrdb_probe_limit(request)}
             count = sum(
                 len(r["hops"])
                 for r in self.ledger["records"]
@@ -236,6 +245,8 @@ class Collector:
                 and p.hostname == "confluence.ecmwf.int"
                 and p.path == "/download/attachments/140385202/lsm_1279l4_0.1x0.1.grb"):
             cap = 20_000_000
+        if self.pvgis_gap_probe(request):
+            cap = PVGIS_GAP_PROBE_BYTES
         if request.archive:
             cap = self.archive_limit(request) - self.ledger["archive_bytes"].get(request.archive, 0)
         cap = min(cap, request.limit, self.limits.total_bytes - self.ledger["charged_bytes"])
@@ -291,6 +302,24 @@ class Collector:
         return 12
 
     @staticmethod
+    def pvgis_gap_probe(request):
+        base = request.revision_of if request.id.endswith("-r1") else request.id
+        p = urlsplit(request.url)
+        return (
+            request.provider == "pvgis"
+            and request.kind == "probe"
+            and base in PVGIS_GAP_PROBES
+            and request.id in (base, base + "-r1")
+            and p.hostname == "re.jrc.ec.europa.eu"
+            and p.path == "/api/v5_3/tmy"
+        )
+
+    @classmethod
+    def pvgis_probe_limit(cls, request):
+        """Stage 1 allowed 2; the 2026-10-13 gaps plan (P1) allows 7 for its exact probes."""
+        return 7 if cls.pvgis_gap_probe(request) else 2
+
+    @staticmethod
     def nsrdb_probe_limit(request):
         """Owner-approved 2026-10-13 (E2): three more data-query probes at named points."""
         if request.id in ("nsrdb-singapore", "nsrdb-nairobi", "nsrdb-london", "nsrdb-nairobi-r1",
@@ -327,7 +356,7 @@ class Collector:
         context = truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
         for _ in range(4):
             if request.kind == "probe":
-                provider_cap = {"openmeteo": 3, "pvgis": 2, "noaa": 2,
+                provider_cap = {"openmeteo": 3, "pvgis": self.pvgis_probe_limit(request), "noaa": 2,
                                 "nsrdb": self.nsrdb_probe_limit(request)}.get(request.provider, 0)
                 used = sum(
                     len(r["hops"])
@@ -424,6 +453,13 @@ class Collector:
                                     outcome = "redirect"
                             elif not response.is_success:
                                 outcome = "http_error"
+                                if self.pvgis_gap_probe(request) and 400 <= response.status_code < 500:
+                                    async for chunk in response.aiter_bytes(chunk_size=4096):
+                                        hop["bytes_read"] += len(chunk)
+                                        body.extend(chunk)
+                                        if len(body) >= min(cap, ERROR_BODY_BYTES):
+                                            break
+                                    del body[min(cap, ERROR_BODY_BYTES):]
                             elif "Range" in headers and not self.valid_range(response, headers):
                                 outcome = "range_rejected"
                             elif response.headers.get("content-encoding", "identity") != "identity":
@@ -474,21 +510,24 @@ class Collector:
             if request.archive:
                 self.ledger["archive_bytes"][request.archive] += charge - cap
             record["bytes_read"] += actual
-            if outcome == "saved":
+            if outcome == "saved" or (outcome == "http_error" and body):
                 secret_values = [
                     v
                     for k, v in parse_qsl(urlsplit(request.url).query)
                     if k not in SAFE_PARAMS and v != "DEMO_KEY"
                 ]
+                # An error body is kept apart from snapshots, so analysis never reads it as one.
+                saved = outcome == "saved"
                 if any(v.encode() in body for v in secret_values if v):
                     outcome = "sensitive_response"
                 else:
-                    path = self.root / "raw" / (request.id + ".body")
+                    path = self.root / "raw" / (request.id + (".body" if saved else ".error.body"))
                     temp = path.with_suffix(".tmp")
                     temp.write_bytes(body)
                     temp.replace(path)
-                    record["sha256"] = hashlib.sha256(body).hexdigest()
-                    record["snapshot"] = "raw/" + path.name
+                    prefix = "" if saved else "error_"
+                    record[prefix + "sha256"] = hashlib.sha256(body).hexdigest()
+                    record[prefix + "snapshot"] = "raw/" + path.name
             self.finish(record, outcome)
             if location is None:
                 return

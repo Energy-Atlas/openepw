@@ -697,3 +697,61 @@ def test_coordinate_spreadsheet_preserves_ids_and_rejects_invalid_points():
     assert result["rows"][0]["elevation_m"] is None
     assert len(result["rows"]) == 1
     assert result["invalid_rows"] == 1
+
+
+def test_pvgis_gap_probes_are_scoped_to_exact_ids_and_tmy_url(tmp_path):
+    m = research()
+    url = "https://re.jrc.ec.europa.eu/api/v5_3/tmy?lat=40.0&lon=-40.0&outputformat=json"
+    probe = m.Request("pvgis-atlantic", "pvgis", url, "probe", "test")
+    assert m.Collector.pvgis_probe_limit(probe) == 7
+    other_id = m.Request("pvgis-paris", "pvgis", url, "probe", "test")
+    other_path = m.Request("pvgis-atlantic", "pvgis",
+                           "https://re.jrc.ec.europa.eu/api/v5_3/seriescalc?lat=1&lon=2", "probe", "t")
+    other_host = m.Request("pvgis-atlantic", "pvgis",
+                           "https://example.org/api/v5_3/tmy?lat=1&lon=2", "probe", "t")
+    for request in (other_id, other_path, other_host):
+        assert m.Collector.pvgis_probe_limit(request) == 2
+    revision = m.Request("pvgis-atlantic-r1", "pvgis", url, "probe", "t",
+                         revision_of="pvgis-atlantic", correction="c")
+    stray = m.Request("pvgis-atlantic-r1", "pvgis", url, "probe", "t",
+                      revision_of="pvgis-london", correction="c")
+    assert m.Collector.pvgis_probe_limit(revision) == 7
+    assert m.Collector.pvgis_probe_limit(stray) == 2
+
+
+def test_pvgis_gap_probe_keeps_small_error_body_apart_and_caps_bytes(tmp_path):
+    m = research()
+    error = b'{"message": "Location over the sea."}'
+
+    def handler(request):
+        if request.url.params["lat"] == "40.0":
+            return httpx.Response(400, content=error)
+        return httpx.Response(200, content=b"x" * 1_600_000)
+
+    base = "https://re.jrc.ec.europa.eu/api/v5_3/tmy?outputformat=json&lat="
+    with m.Collector(tmp_path, transport=httpx.MockTransport(handler), spacing=0) as c:
+        sea = c.collect(m.Request("pvgis-atlantic", "pvgis", base + "40.0&lon=-40.0", "probe", "t"))
+        assert sea["outcome"] == "http_error" and "snapshot" not in sea
+        assert (tmp_path / sea["error_snapshot"]).read_bytes() == error
+        assert sea["error_sha256"] == hashlib.sha256(error).hexdigest()
+        big = c.collect(m.Request("pvgis-ithaca", "pvgis", base + "42.44&lon=-76.50", "probe", "t",
+                                  limit=5_000_000))
+        assert big["outcome"] == "byte_limit" and big["charged_bytes"] <= 1_500_000
+        # Other providers' error bodies are still never stored.
+        plain = c.collect(m.Request("other", "example", "https://example.org/x?lat=40.0", "inventory", "t"))
+        assert plain["outcome"] == "http_error" and "error_snapshot" not in plain
+    assert sorted(p.name for p in (tmp_path / "raw").iterdir()) == ["pvgis-atlantic.error.body"]
+
+
+def test_pvgis_gap_probe_cap_counts_stage_1_london(tmp_path):
+    m = research()
+    base = "https://re.jrc.ec.europa.eu/api/v5_3/tmy?outputformat=json&lat=1&lon="
+    with m.Collector(tmp_path, transport=httpx.MockTransport(lambda r: httpx.Response(200, content=b"{}")),
+                     spacing=0) as c:
+        assert c.collect(m.Request("pvgis-london", "pvgis", base + "0", "probe", "t"))["outcome"] == "saved"
+        assert c.collect(m.Request("pvgis-other", "pvgis", base + "1", "probe", "t"))["outcome"] == "saved"
+        # Stage 1's cap of 2 is spent; the approved IDs may use up to 7 in all.
+        assert c.collect(m.Request("pvgis-more", "pvgis", base + "2", "probe", "t"))["outcome"] == "provider_limit"
+        for key in sorted(m.PVGIS_GAP_PROBES):
+            assert c.collect(m.Request(key, "pvgis", base + "3", "probe", "t"))["outcome"] == "saved"
+        assert c.ledger["counts"]["probe"] == 7
