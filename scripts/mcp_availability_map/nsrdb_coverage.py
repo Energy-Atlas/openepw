@@ -19,6 +19,35 @@ REVIEWED_SOURCE = (TMY_ID, "published_name", "tdy-2023")
 REVIEWED_OBJECT_KEY = "GOES/tmy/v4.0.0/nsrdb_tdy-2023.h5"
 REVIEWED_MODEL_VERSION = "4.0.1"
 
+SINGAPORE, NAIROBI, LONDON = (1.2897, 103.8501), (-1.286, 36.817), (51.507, -0.128)
+
+
+@dataclass(frozen=True)
+class ReviewedSource:
+    object_key: str
+    model_version: str | None        # None: recorded as found, not checked against a review
+    gates: tuple[str, ...]           # catalog products ("provider:dataset") the mask gates
+    probes: tuple[tuple[float, float], ...]
+
+
+# (API product, selector kind, selector) -> its published file. 2026-10-13 plan, E3: one grid
+# per satellite family gates that family's actual-year and typical-year products, as the
+# GOES tdy-2023 grid does (owner decisions 2026-10-12 and 2026-10-13).
+REVIEWED_SOURCES = {
+    REVIEWED_SOURCE: ReviewedSource(REVIEWED_OBJECT_KEY, REVIEWED_MODEL_VERSION, (),
+                                    ((42.44, -76.5), (33.45, -112.07))),
+    ("himawari-tmy", "published_name", "tmy-2020"): ReviewedSource(
+        "himawari/himawari_tmy-2020.h5", None, ("nsrdb:himawari", "nsrdb:himawari-tmy"), (SINGAPORE,)),
+    ("himawari7", "actual_year", "2015"): ReviewedSource(
+        "himawari/himawari7/himawari7_irradiance_2015.h5", None, ("nsrdb:himawari7",), (SINGAPORE,)),
+    ("nsrdb-msg-v1-0-0-tmy", "published_name", "tmy-2022"): ReviewedSource(
+        "msg/v1.0.0/tmy/msg_tmy-2022.h5", None,
+        ("nsrdb:nsrdb-msg-v1-0-0", "nsrdb:nsrdb-msg-v1-0-0-tmy", "nsrdb:nsrdb-msg-v1-0-0-tdy",
+         "nsrdb:nsrdb-msg-v1-0-0-tgy"), (NAIROBI, LONDON)),
+    ("msg-iodc", "actual_year", "2018"): ReviewedSource(
+        "meteosat/meteosat_irradiance_2018.h5", None, ("nsrdb:msg-iodc",), (SINGAPORE, NAIROBI, LONDON)),
+}
+
 
 @dataclass(frozen=True)
 class CoverageEntry:
@@ -110,10 +139,12 @@ def load_coverage_manifest(path: Path) -> CoverageManifest:
         product = row.get("product_id")
         kind = row.get("selector_kind")
         selector = row.get("selector")
-        if (product, kind, selector) != REVIEWED_SOURCE:
+        reviewed = REVIEWED_SOURCES.get((product, kind, selector))
+        if reviewed is None:
             raise ValueError("unreviewed product selector")
-        if (row.get("source_file_id") != REVIEWED_OBJECT_KEY
-                or row.get("source_version") != REVIEWED_MODEL_VERSION):
+        if (row.get("source_file_id") != reviewed.object_key
+                or (reviewed.model_version is not None
+                    and row.get("source_version") != reviewed.model_version)):
             raise ValueError("source object disagrees with reviewed selector")
         if not isinstance(row.get("object_etag"), str) or not row["object_etag"]:
             raise ValueError("missing source ETag")

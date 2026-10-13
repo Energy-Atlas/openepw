@@ -19,12 +19,7 @@ from typing import BinaryIO, Protocol
 import h5py
 import numpy as np
 
-from .nsrdb_coverage import (
-    REVIEWED_MODEL_VERSION,
-    REVIEWED_OBJECT_KEY,
-    TMY_ID,
-    load_coverage_manifest,
-)
+from .nsrdb_coverage import REVIEWED_SOURCES, load_coverage_manifest
 
 BUCKET = "https://nrel-pds-nsrdb.s3.us-west-2.amazonaws.com/"
 DEFAULT_MAX_BYTES = 256 * 1024 * 1024
@@ -45,8 +40,9 @@ class SourceSpec:
 
 def source_spec(product_id: str, selector: str) -> SourceSpec:
     """Resolve only the reviewed API/selector/object correspondence."""
-    if product_id == TMY_ID and selector == "tdy-2023":
-        return SourceSpec(product_id, "published_name", selector, REVIEWED_OBJECT_KEY)
+    for (product, kind, reviewed_selector), reviewed in REVIEWED_SOURCES.items():
+        if (product, reviewed_selector) == (product_id, selector):
+            return SourceSpec(product_id, kind, selector, reviewed.object_key)
     raise ValueError("unsupported NSRDB product selector")
 
 
@@ -276,9 +272,10 @@ def acquire_meta(
         _stale_existing(manifest_path)
     budget = _Budget(max_bytes=max_bytes, max_requests=max_requests)
     reader = _RangeReader(transport, spec, size, etag, budget, block_bytes)
+    reviewed = REVIEWED_SOURCES[(spec.product_id, spec.selector_kind, spec.selector)]
     with h5py.File(reader, "r") as source:
-        model_version = str(source.attrs["version"])
-        if model_version != REVIEWED_MODEL_VERSION:
+        model_version = str(source.attrs.get("version", ""))
+        if reviewed.model_version is not None and model_version != reviewed.model_version:
             raise ValueError("source model version disagrees with reviewed object")
         meta = source["meta"]
         if meta.ndim != 1 or meta.chunks is not None or meta.id.get_offset() is None:
@@ -291,6 +288,8 @@ def acquire_meta(
         dtype = meta.dtype
         if length != count * dtype.itemsize or offset < 0 or offset + length > size:
             raise ValueError("inconsistent source meta layout")
+        if budget.bytes_used + length > budget.max_bytes:
+            raise ValueError(f"source meta table ({length} bytes) exceeds the byte cap")
     destination.mkdir(parents=True, exist_ok=True)
     with tempfile.NamedTemporaryFile(dir=destination, delete=False) as temporary:
         temp_path = Path(temporary.name)
@@ -330,6 +329,7 @@ def acquire_meta(
                 "request_count": budget.requests_used,
                 "transferred_bytes": budget.bytes_used,
                 "stale": False,
+                **({"gates": list(reviewed.gates)} if reviewed.gates else {}),
             }],
         }
         _atomic_bytes(manifest_path, json.dumps(manifest, indent=2, sort_keys=True).encode())
@@ -341,14 +341,20 @@ def acquire_meta(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("product_id", choices=[TMY_ID])
-    parser.add_argument("selector", help="Reviewed native selector (currently tdy-2023)")
+    parser.add_argument("product_id", choices=sorted({key[0] for key in REVIEWED_SOURCES}))
+    parser.add_argument("selector", help="Reviewed native selector (see REVIEWED_SOURCES)")
+    parser.add_argument("--max-bytes", type=int, default=DEFAULT_MAX_BYTES,
+                        help="per-product cap; the 2026-10-13 plan allows up to 300 MB")
     parser.add_argument("--output-root", type=Path, default=Path(".local/mcp-availability/nsrdb-footprints"))
     args = parser.parse_args()
     if not args.output_root.resolve().is_relative_to((Path.cwd() / ".local").resolve()):
         raise ValueError("metadata output must stay under the ignored .local tree")
-    path = acquire_meta(source_spec(args.product_id, args.selector), args.output_root,
-                        HttpTransport(), probes=((42.44, -76.5), (33.45, -112.07)))
+    if args.max_bytes > 300_000_000:
+        raise ValueError("the approved per-product cap is 300 MB")
+    spec = source_spec(args.product_id, args.selector)
+    reviewed = REVIEWED_SOURCES[(spec.product_id, spec.selector_kind, spec.selector)]
+    path = acquire_meta(spec, args.output_root, HttpTransport(), probes=reviewed.probes,
+                        max_bytes=args.max_bytes)
     entry = load_coverage_manifest(path).entries[0]
     print(json.dumps({"manifest": str(path), "product": entry.product_id,
                       "selector": entry.selector, "sites": entry.coordinate_count,
