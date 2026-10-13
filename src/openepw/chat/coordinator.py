@@ -1021,9 +1021,26 @@ class ChatCoordinator:
 
             summary = summaries[0] if len(plans) == 1 else "\n\n".join(
                 f"**{heading(request)}**\n\n{text}" for request, text in zip(requests, summaries))
+            # A plan with no outputs cannot run: say why and offer the product choice again.
+            empty = [heading(request) for request, plan in zip(requests, plans) if not plan.outputs]
+            if empty:
+                state["plan_hash"] = None
+                reasons = list(dict.fromkeys(issue.message for plan in plans for issue in plan.issues
+                                             if issue.code in ("DATASET_UNAVAILABLE", "PROVIDER_UNAVAILABLE")))
+                which = "" if len(plans) == 1 else f" ({', '.join(empty)})"
+                summary = (f"**Nothing can be run{which}:** none of the chosen products has data for "
+                           f"this location and period. Choose other products.\n\n"
+                           + "".join(f"- {reason}\n" for reason in reasons[:5]) + "\n" + summary)
+                product_event = next((event["id"] for event in reversed(state["events"])
+                                      if event["type"] == "question"
+                                      and event.get("text") == "Which weather product?"), None)
             card = {"id": uuid.uuid4().hex, "revision": state["revision"],
-                    "kind": "plan_review", "prompt": "Review these outputs, then select Run",
-                    "data": {"plan_hash": plan_hash, "request": requests[0].model_dump(mode="json"),
+                    "kind": "plan_review",
+                    "prompt": ("No outputs can be made from this choice" if empty
+                               else "Review these outputs, then select Run"),
+                    "data": {"plan_hash": None if empty else plan_hash,
+                             **({"blocked": True, "product_event": product_event} if empty else {}),
+                             "request": requests[0].model_dump(mode="json"),
                              "plans": [{"product": request.product, "plan_hash": plan.plan_hash,
                                         "output_count": len(plan.outputs),
                                         "selections": [selection.model_dump(mode="json")
@@ -1036,7 +1053,7 @@ class ChatCoordinator:
                              "warnings": [warning for plan in plans for warning in plan.warnings],
                              "issues": [issue.model_dump(mode="json") for plan in plans for issue in plan.issues]}}
             state["active_card"] = card
-            self._event(state, "plan", "Plan ready for review", card["data"])
+            self._event(state, "plan", "Plan has no outputs" if empty else "Plan ready for review", card["data"])
 
         return self._change(session_id, revision, key, update)
 
@@ -1044,6 +1061,8 @@ class ChatCoordinator:
         def update(state):
             plan_hash = state.get("plan_hash")
             card = state.get("active_card")
+            if card and card.get("data", {}).get("blocked"):
+                raise ChatActionError("This plan has no outputs to run; choose other products")
             if not plan_hash or not card or card.get("data", {}).get("plan_hash") != plan_hash:
                 raise ChatActionError("A current reviewed plan is required")
             require_reviewed_standard_time(state["facts"])

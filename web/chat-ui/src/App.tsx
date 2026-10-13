@@ -431,7 +431,7 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
               <li key={i}>{point.lat.toFixed(5)}, {point.lon.toFixed(5)}</li>)}</ol></details>}
           <p>Product: {Array.isArray(session?.facts.product_labels) ? (session.facts.product_labels as string[]).join('; ')
             : String(session?.facts.product ?? 'unresolved')}{Array.isArray(session?.facts.years) ? ` · ${(session.facts.years as number[]).join(', ')}` : ''}</p>
-          {Array.isArray(card.data?.outputs) && <p>{card.data.outputs.length} planned outputs · {String(card.data.plan_hash).slice(0, 12)}…</p>}
+          {Array.isArray(card.data?.outputs) && !card.data?.blocked && <p>{card.data.outputs.length} planned outputs · {String(card.data.plan_hash).slice(0, 12)}…</p>}
           {typeof card.data?.summary === 'string' ? <div className="md"><Markdown>{card.data.summary}</Markdown></div>
             : Array.isArray(card.data?.batch_rows) && (card.data.batch_rows as Array<Record<string, unknown>>).map((row, i) =>
               <p key={i} className="plan-row">{String(row.period_start ?? 'reference')} · {String(row.status)} · {String((row.dataset_selection as Record<string, unknown>)?.provider ?? 'unknown source')}</p>)}
@@ -494,7 +494,11 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
           <button className="reply-alt" type="button" onClick={() => setTyping(true)}>Other — type an answer</button>
         </>}
         {card?.kind === 'plan_review' && <>
-          {!card.data?.plan_hash ? <button className="reply-primary" type="button" disabled={busy}
+          {card.data?.blocked ? typeof card.data.product_event === 'number' && <button className="reply-primary" type="button"
+            disabled={busy} onClick={() => void act(current => api.back(current.id, current.revision, randomKey(),
+              card.data!.product_event as number))}>
+            Choose other products</button>
+          : !card.data?.plan_hash ? <button className="reply-primary" type="button" disabled={busy}
             onClick={() => void act(current => api.prepare(current.id, current.revision, randomKey()))}>
             Assess and review plan</button> : <button className="reply-primary" type="button" disabled={busy}
             onClick={() => void act(current => api.run(current.id, current.revision, randomKey()))}>
