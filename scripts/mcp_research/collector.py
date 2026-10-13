@@ -212,7 +212,7 @@ class Collector:
             ):
                 return self.finish(record, "provider_limit")
         if request.kind == "probe":
-            caps = {"openmeteo": 3, "pvgis": 2, "noaa": 2, "nsrdb": 3}
+            caps = {"openmeteo": 3, "pvgis": 2, "noaa": 2, "nsrdb": self.nsrdb_probe_limit(request)}
             count = sum(
                 len(r["hops"])
                 for r in self.ledger["records"]
@@ -231,6 +231,11 @@ class Collector:
             cap = 20_000_000
         if request.provider == "cmip6" and p.path == "/cmip6/pangeo-cmip6.csv":
             cap = 100_000_000
+        # Owner-approved 2026-10-13 (E4): ECMWF's published ERA5-Land land-sea mask, GRIB only.
+        if (request.id in ("era5land-lsm", "era5land-lsm-r1") and request.kind == "inventory"
+                and p.hostname == "confluence.ecmwf.int"
+                and p.path == "/download/attachments/140385202/lsm_1279l4_0.1x0.1.grb"):
+            cap = 20_000_000
         if request.archive:
             cap = self.archive_limit(request) - self.ledger["archive_bytes"].get(request.archive, 0)
         cap = min(cap, request.limit, self.limits.total_bytes - self.ledger["charged_bytes"])
@@ -256,6 +261,24 @@ class Collector:
             "onebuilding-normals-coordinate-xlsx": "Normals",
             "onebuilding-tmy3-coordinate-xlsx": "TMY3a",
         }
+        # Owner-approved 2026-10-13 (E1): the seven other TMYx regional workbooks, attempts 16-22.
+        regions = {
+            "onebuilding-region1-xlsx": "Region1_Africa_TMYx",
+            "onebuilding-region2-xlsx": "Region2_Asia_TMYx",
+            "onebuilding-region2-6-russia-xlsx": "Region2_Region6_Russia_TMYx",
+            "onebuilding-region3-xlsx": "Region3_South_America_TMYx",
+            "onebuilding-region4-canada-xlsx": "Region4_Canada_TMYx",
+            "onebuilding-region4-caribbean-xlsx": "Region4_NA_CA_Caribbean_TMYx",
+            "onebuilding-region7-xlsx": "Region7_Antarctica_TMYx",
+        }
+        filename = regions.get(request.id)
+        if (
+            request.kind == "inventory"
+            and filename
+            and request.url
+            == f"https://climate.onebuilding.org/sources/{filename}_EPW_Processing_locations.xlsx"
+        ):
+            return 22
         filename = approved.get(request.id)
         if (
             request.provider == "onebuilding"
@@ -266,6 +289,16 @@ class Collector:
         ):
             return 15
         return 12
+
+    @staticmethod
+    def nsrdb_probe_limit(request):
+        """Owner-approved 2026-10-13 (E2): three more data-query probes at named points."""
+        if request.id in ("nsrdb-singapore", "nsrdb-nairobi", "nsrdb-london", "nsrdb-nairobi-r1",
+                          "nsrdb-london-r1") and urlsplit(
+            request.url
+        ).path == "/api/solar/nsrdb_data_query.json":
+            return 6
+        return 3
 
     @staticmethod
     def archive_limit(request):
@@ -294,9 +327,8 @@ class Collector:
         context = truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
         for _ in range(4):
             if request.kind == "probe":
-                provider_cap = {"openmeteo": 3, "pvgis": 2, "noaa": 2, "nsrdb": 3}.get(
-                    request.provider, 0
-                )
+                provider_cap = {"openmeteo": 3, "pvgis": 2, "noaa": 2,
+                                "nsrdb": self.nsrdb_probe_limit(request)}.get(request.provider, 0)
                 used = sum(
                     len(r["hops"])
                     for r in self.ledger["records"]

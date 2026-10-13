@@ -128,14 +128,14 @@ def test_pvgis_envelope_is_approximate_with_its_saved_probe(tmp_path):
     assert "approximate" in pvgis["caveat"].lower()
 
 
-def test_nsrdb_mask_becomes_merged_cells_and_other_products_stay_unmapped(tmp_path):
+def test_nsrdb_mask_becomes_merged_cells_and_maps_the_products_it_gates(tmp_path):
     _mask(tmp_path, [[400, 100], [400, 101], [400, 102], [401, 100]])
     result = catalog_map(_bundle(), tmp_path)
     nsrdb = _layer(result, "nsrdb")
     assert nsrdb["rects"] == [[-155.0, 10.0, -154.25, 10.25], [-155.0, 10.25, -154.75, 10.5]]
-    assert nsrdb["source"]["selector"] == "tdy-2023"
-    assert {"provider": "nsrdb", "dataset": "nsrdb-GOES-aggregated-v4-0-0"} in [
-        {key: item[key] for key in ("provider", "dataset")} for item in result["unmapped"]]
+    assert nsrdb["source"]["selector"] == "tdy-2023" and nsrdb["label"] == "NSRDB GOES source grid"
+    # The GOES tdy-2023 grid gates the actual-year product too (owner decision 2026-10-12).
+    assert "nsrdb-GOES-aggregated-v4-0-0" not in [item["dataset"] for item in result["unmapped"]]
 
 
 @pytest.mark.parametrize("problem", [{"stale": True}, {"tamper": True}])

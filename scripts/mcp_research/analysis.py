@@ -16,6 +16,15 @@ from .coordinates import coordinate_matches, spreadsheet_rows
 from .reviews import annotate, load_registry
 from .sources import LOCATIONS, PROVIDERS, VARIABLES
 
+ONEBUILDING_INDEXES = ("onebuilding-us", "onebuilding-uk", "onebuilding-au")
+ONEBUILDING_WORKBOOKS = "onebuilding-workbooks"
+TMYX_WORKBOOKS = (
+    "onebuilding-us-xlsx", "onebuilding-uk-xlsx", "onebuilding-au-coordinate-xlsx",
+    "onebuilding-region1-xlsx", "onebuilding-region2-xlsx", "onebuilding-region2-6-russia-xlsx",
+    "onebuilding-region3-xlsx", "onebuilding-region4-canada-xlsx",
+    "onebuilding-region4-caribbean-xlsx", "onebuilding-region7-xlsx",
+)
+
 
 def coordinate_diagnostics(matches, history):
     """Account for product rows, keeping rejected candidate evidence local."""
@@ -419,6 +428,11 @@ def analyze(root):
                     "coordinates": "unknown; selected HTML catalogs expose product names/links",
                     "temporal_kind": "published_product_reference_period",
                 }
+            elif r["provider"] == "cds" and raw[:4] == b"GRIB":
+                # 2026-10-13 plan (E4): ECMWF's ERA5-Land land-sea mask; its coverage mask is
+                # built by scripts/mcp_availability_map/era5land_mask.py, not parsed here.
+                result["inventories"][r["id"]] = {"format": "GRIB 2", "bytes": len(raw),
+                                                  "use": "ERA5-Land land-sea mask"}
             elif r["provider"] == "cds":
                 data = json.loads(raw)
                 if "extent" in data:
@@ -531,7 +545,31 @@ def analyze(root):
             result["errors"].append(
                 {"id": "coordinate-baseline", "outcome": "parse_or_checksum_failure"}
             )
-    for key in ("onebuilding-us", "onebuilding-uk", "onebuilding-au"):
+    # 2026-10-13 plan (E1): every TMYx file the regional workbooks list, beyond the three
+    # country index pages, is a product of its own; the workbook row is its published evidence.
+    indexed = {
+        u
+        for key in ONEBUILDING_INDEXES
+        for u in result["inventories"].get(key, {}).get("links", [])
+        if u.endswith(".zip")
+    }
+    workbook_urls = sorted(
+        {
+            row["url"]
+            for key in TMYX_WORKBOOKS
+            for row in result["inventories"].get(key, {}).get("rows", [])
+            if row["url"].endswith(".zip") and "_TMYx" in row["url"]
+        }
+        - indexed
+    )
+    if workbook_urls:
+        result["inventories"][ONEBUILDING_WORKBOOKS] = {
+            "links": workbook_urls,
+            "count": len(workbook_urls),
+            "sources": [key for key in TMYX_WORKBOOKS if key in result["inventories"]],
+            "temporal_kind": "published_product_reference_period",
+        }
+    for key in (*ONEBUILDING_INDEXES, ONEBUILDING_WORKBOOKS):
         inventory = result["inventories"].get(key)
         if not inventory:
             continue
@@ -597,6 +635,7 @@ def analyze(root):
             "onebuilding-us": ("Ithaca", "Phoenix"),
             "onebuilding-uk": ("London",),
             "onebuilding-au": ("Sydney",),
+            ONEBUILDING_WORKBOOKS: ("Singapore", "Nairobi"),
         }
         inventory["coordinate_examples"] = [
             next(

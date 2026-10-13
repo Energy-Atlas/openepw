@@ -121,6 +121,24 @@ Recorded after a staging failure where NSRDB GOES was offered at Singapore. See 
 - **Published station files reach 100 km**, as NOAA ISD does.
 - **No live point checks while building the product list**; planning still checks.
 
+## Owner decisions 2026-10-13 (coverage of the catalog)
+
+See the [plan](../superpowers/plans/2026-10-13-availability-coverage.md) and its
+[validation record](../validation/availability-coverage-2026-10-13/README.md).
+
+- **OneBuilding:** every TMYx file the regional workbooks list is a product, with the workbook
+  row as its published evidence. The 2026-09-28 publication override extends to all regions.
+- **NSRDB beyond GOES:** the catalog, a coverage mask per satellite family, and adapter support.
+  - Himawari-7, Meteosat and Meteosat IODC, and their typical years, are downloaded.
+  - Himawari-8 is not, because its hourly labels at :00 do not form hour-ending intervals.
+  - The masks come from each family's published grid table, under owner-raised caps after an
+    overrun on the Himawari table. Himawari TMY shares the Himawari-7 grid.
+- **ERA5:** Copernicus's catalogue period is documented coverage.
+- **ERA5-Land:** gated by ECMWF's land–sea mask (land fraction ≥ 0.5).
+- **Masks:** each mask gates only the products its manifest names (`gates`).
+- **Rollout:** a hosted instance upgrades its catalog when the pinned package changes, and keeps
+  the previous one if the upgrade fails.
+
 ## Architecture boundary
 
 Availability, recommendation evidence and batch resolution belong in the canonical

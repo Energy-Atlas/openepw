@@ -11,7 +11,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from .coverage import verified_nsrdb_masks
+from .coverage import LEGACY_GATES, verified_masks
 from .models import ActualScope, CatalogBundle, TMYReferenceScope
 
 # Coarse lon/lat envelope traced against JRC's PVGIS 5.3 default irradiance-source
@@ -71,7 +71,7 @@ def merge_cell_rows(cells: list[list[int]], step: float) -> list[list[float]]:
 def _nsrdb_masks(footprints_root: Path) -> dict[tuple[str, str], dict]:
     """Load reviewed NSRDB source-grid masks; skip stale or checksum-mismatched ones."""
     masks: dict[tuple[str, str], dict] = {}
-    for entry, mask in verified_nsrdb_masks(footprints_root):
+    for entry, mask in verified_masks(footprints_root, "nsrdb"):
         step = float(entry.get("step_degrees") or mask.get("step_degrees") or 0)
         if step <= 0:
             continue
@@ -82,8 +82,14 @@ def _nsrdb_masks(footprints_root: Path) -> dict[tuple[str, str], dict]:
             "source": {key: entry.get(key) for key in (
                 "selector", "source_file_id", "source_version", "source_modified_at",
                 "retrieved_at", "coordinate_count", "meta_sha256", "mask_sha256")},
+            "gates": list(entry.get("gates") or LEGACY_GATES.get(str(entry["product_id"])) or ()),
         }
     return masks
+
+
+# The satellite each reviewed NSRDB grid comes from, for the map legend.
+NSRDB_GRIDS = {"nsrdb-GOES-tmy-v4-0-0": "GOES", "himawari7": "Himawari",
+               "nsrdb-msg-v1-0-0-tmy": "Meteosat", "msg-iodc": "Meteosat IODC"}
 
 
 def catalog_map(bundle: CatalogBundle, footprints_root: Path) -> dict:
@@ -144,23 +150,22 @@ def catalog_map(bundle: CatalogBundle, footprints_root: Path) -> dict:
                       "localities are rings. Metadata position, not EPW-header verification.",
         })
 
-    masks = _nsrdb_masks(footprints_root)
-    for pid, product in products.items():
-        if product.provider != "nsrdb":
-            continue
-        found = [(selector, mask) for (dataset, selector), mask in masks.items()
-                 if dataset == product.dataset]
-        for selector, mask in found:
-            mapped.add((product.provider, product.dataset))
-            layers.append({
-                "id": "nsrdb", "kind": "cells", "label": f"NSRDB {selector} source grid",
-                "evidence_dates": [str(mask["source"]["retrieved_at"])[:10]],
-                "count": mask["cell_count"], "step": mask["step"], "rects": mask["rects"],
-                "source": mask["source"],
-                "caveat": f"NLR source-grid sites summarized in {mask['step']}° cells for the "
-                          f"published {selector} product. Not API eligibility, actual-year "
-                          "coverage or weather completeness.",
-            })
+    # Each reviewed NSRDB grid is drawn once and marks the products it gates as mapped.
+    for (source_product, selector), mask in sorted(_nsrdb_masks(footprints_root).items()):
+        gated = {gate.split(":", 1)[1] for gate in mask["gates"]}
+        mapped |= {(product.provider, product.dataset) for product in products.values()
+                   if product.provider == "nsrdb" and product.dataset in gated}
+        satellite = NSRDB_GRIDS.get(source_product, source_product)
+        layers.append({
+            "id": "nsrdb" if source_product == "nsrdb-GOES-tmy-v4-0-0" else f"nsrdb:{source_product}",
+            "kind": "cells", "label": f"NSRDB {satellite} source grid",
+            "evidence_dates": [str(mask["source"]["retrieved_at"])[:10]],
+            "count": mask["cell_count"], "step": mask["step"], "rects": mask["rects"],
+            "source": mask["source"],
+            "caveat": f"NLR source-grid sites of the {selector} file summarized in {mask['step']}° "
+                      "cells. NSRDB products from this grid are offered inside it and not outside "
+                      "(owner decision); not weather completeness.",
+        })
 
     pvgis = [pid for pid, product in products.items() if product.provider == "pvgis"]
     if pvgis:

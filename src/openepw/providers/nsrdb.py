@@ -24,6 +24,17 @@ NAMES = {
 }
 
 
+# The NSRDB API datasets the adapter downloads. Each one's hourly CSV labels the centre of its
+# interval at :30: documented for GOES aggregated v4, and checked for the others on 2026-10-13
+# (a year of GHI centres on solar noon only with centre labels). Himawari-8 ("himawari",
+# 2016-2020) labels hours at :00, so its intervals cannot become EPW's hour-ending rows
+# without a temporal transform; it stays unsupported.
+ACTUAL_DATASETS = ("nsrdb-GOES-aggregated-v4-0-0", "himawari7", "nsrdb-msg-v1-0-0", "msg-iodc")
+PUBLISHED_DATASETS = ("nsrdb-GOES-tmy-v4-0-0", "himawari-tmy", "nsrdb-msg-v1-0-0-tmy",
+                      "nsrdb-msg-v1-0-0-tdy", "nsrdb-msg-v1-0-0-tgy")
+DATASETS = ACTUAL_DATASETS + PUBLISHED_DATASETS
+
+
 def parse_nsrdb(raw, *, synthetic=False):
     try:
         lines = raw.decode("utf-8-sig").splitlines()
@@ -41,7 +52,7 @@ def parse_nsrdb(raw, *, synthetic=False):
                 utc=True,
             )
         )
-        # Aggregated v4 60-minute CSV labels center of interval, observed at :30.
+        # The 60-minute CSV of each adapted dataset labels the centre of its interval, at :30.
         if not (stamps.minute == 30).all():
             raise ValueError("unsupported timestamp convention")
         frame = table[list(NAMES)].rename(columns=NAMES).astype(float)
@@ -79,16 +90,21 @@ class NSRDBProvider:
         candidates = []
         for row in data.get("outputs", []):
             name = row["name"]
+            published = request.product in ("tmy", "published")
             if request.dataset and request.dataset != name:
                 continue
-            published = request.product in ("tmy", "published")
-            if name != ("nsrdb-GOES-tmy-v4-0-0" if published else "nsrdb-GOES-aggregated-v4-0-0"):
+            # Without a named dataset the GOES products stay the default, as before.
+            if not request.dataset and name != ("nsrdb-GOES-tmy-v4-0-0" if published
+                                                else "nsrdb-GOES-aggregated-v4-0-0"):
+                continue
+            if name not in (PUBLISHED_DATASETS if published else ACTUAL_DATASETS):
                 continue
             years = [int(y) for y in row.get("availableYears", []) if str(y).isdigit()]
             product_id = None
             if published:
                 available = [str(y) for y in row.get("availableYears", [])]
-                choices = [y for y in available if y.startswith("tmy-")]
+                dated = [y for y in available if re.fullmatch(r"(?:tmy|tdy|tgy)-[0-9]{4}", y)]
+                choices = [y for y in dated if y.startswith("tmy-")] or dated
                 product_id = request.product_id or (max(choices) if choices else None)
                 if product_id not in available:
                     continue
@@ -112,7 +128,7 @@ class NSRDBProvider:
                     interval_minutes=60,
                     requires_credentials=["OPENEPW_NLR_API_KEY", "OPENEPW_NLR_EMAIL"],
                     warnings=[
-                        "Satellite/model data; aggregate v4 hourly interval-center convention",
+                        "Satellite/model data; hourly values labelled at their interval centre",
                         "UTC calendar-year files require neighboring year for nonzero standard-time offsets",
                     ],
                 )
@@ -122,10 +138,10 @@ class NSRDBProvider:
     def fetch(self, task, http):
         if not http.config.nlr_api_key or not http.config.nlr_email:
             raise OpenEPWError("AUTH_REQUIRED", "NSRDB requires runtime API key and email")
-        if task.source.dataset not in ("nsrdb-GOES-aggregated-v4-0-0", "nsrdb-GOES-tmy-v4-0-0"):
+        if task.source.dataset not in DATASETS:
             raise OpenEPWError("PLAN_STALE", "Unsupported NSRDB product")
         loc = Location.model_validate(task.parameters["location"])
-        published = task.source.dataset == "nsrdb-GOES-tmy-v4-0-0"
+        published = task.source.dataset in PUBLISHED_DATASETS
         start, end = interval_bounds(task.parameters) if not published else (None, None)
         if published and not re.fullmatch(
             r"(?:tmy|tdy|tgy)-[0-9]{4}", task.parameters.get("product_id") or ""

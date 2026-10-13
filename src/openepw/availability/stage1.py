@@ -107,7 +107,9 @@ def _onebuilding(inventories: dict, known: set[str], checksums: dict[str, str], 
     if len(decision_by_url) != len(registry.get("reviews", [])):
         raise CatalogImportError("Duplicate accepted review")
     seen_reviews = set()
-    for inventory_id in ("onebuilding-us", "onebuilding-uk", "onebuilding-au"):
+    # The country index pages, then every further TMYx file the regional workbooks list
+    # (2026-10-13 plan, E1; the analysis leaves out files the index pages already list).
+    for inventory_id in ("onebuilding-us", "onebuilding-uk", "onebuilding-au", "onebuilding-workbooks"):
         for match in inventories.get(inventory_id, {}).get("coordinate_matches", []):
             url = match["url"]
             token = hashlib.sha256(url.encode("utf-8")).hexdigest()[:24]
