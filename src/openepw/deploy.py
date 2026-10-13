@@ -2,10 +2,13 @@
 
 The Stage 1 catalog is published as a CSV data package in the Energy-Atlas open-data
 repository (see ``openepw.availability.package``). A hosted instance builds its catalog
-from that package on first start: ``install_catalog`` downloads ``datapackage.json``,
-checks it against a pinned SHA-256, downloads every file it lists, checks each file's size
-and SHA-256 from the descriptor, then imports the catalog and writes the footprints. A data
-root that already has an active catalog is left alone.
+from that package on start: ``install_catalog`` downloads ``datapackage.json``, checks it
+against a pinned SHA-256, downloads every file it lists, checks each file's size and SHA-256
+from the descriptor, then stages the catalog as a new generation, replaces the footprints
+folder as a whole and activates the generation. The installed package's SHA-256 is recorded
+(``catalog/package.json``); a start with the same pin does nothing, and a new pin upgrades
+(owner decision 2026-10-13). Nothing is written until everything is verified, and a failed
+upgrade leaves the previous catalog and footprints in place.
 
     python -m openepw.deploy install-catalog   # reads OPENEPW_CATALOG_URL and OPENEPW_CATALOG_SHA256
 """
@@ -29,6 +32,7 @@ from .availability.package import PackageError, from_files, safe_path, verify
 from .availability.store import CatalogImportError, CatalogStore
 
 CATALOG = Path("catalog") / "catalog.sqlite3"
+INSTALLED = Path("catalog") / "package.json"   # the SHA-256 and URL of the installed package
 LIMIT = 64 * 1024 * 1024                        # largest single file accepted
 
 
@@ -55,10 +59,18 @@ def _fetch(url: str, limit: int) -> bytes:
     return data
 
 
+def installed_package(data_root: Path) -> dict | None:
+    try:
+        return json.loads((Path(data_root) / INSTALLED).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+
+
 def install_catalog(url: str, sha256: str, data_root: Path) -> bool:
-    """Build the catalog from a pinned data package; False if a catalog is already active."""
+    """Build or upgrade the catalog from a pinned data package; False when that package is
+    already the installed one."""
     data_root = Path(data_root)
-    if has_catalog(data_root):
+    if has_catalog(data_root) and (installed_package(data_root) or {}).get("sha256") == sha256.lower():
         return False
     if not url.startswith(("https://", "file:")):
         raise InstallError("The catalog URL must use https")
@@ -81,36 +93,57 @@ def install_catalog(url: str, sha256: str, data_root: Path) -> bool:
     except (PackageError, ValueError) as error:
         raise InstallError(str(error)) from None
     data_root.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(dir=data_root) as scratch:
-        for path, data in package.footprints.items():
-            target = Path(scratch, *path.split("/"))
-            target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_bytes(data)
-        shutil.copytree(scratch, data_root / "footprints", dirs_exist_ok=True)
+    store = CatalogStore(data_root / "catalog")
     try:
-        store = CatalogStore(data_root / "catalog")
-        store.activate(store.stage(package.bundle).generation_id)       # activation marks it installed
+        generation = store.stage(package.bundle).generation_id
     except CatalogImportError as error:
         raise InstallError(f"The package catalog was refused: {error}") from None
+    current, previous = data_root / "footprints", data_root / "footprints.previous"
+    with tempfile.TemporaryDirectory(dir=data_root) as scratch:
+        staged = Path(scratch, "footprints")
+        staged.mkdir()
+        for path, data in package.footprints.items():
+            target = staged.joinpath(*path.split("/"))
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(data)
+        # The whole folder is replaced, so a mask the new package dropped stops gating.
+        shutil.rmtree(previous, ignore_errors=True)
+        if current.exists():
+            current.rename(previous)
+        staged.rename(current)
+    try:
+        store.activate(generation)
+    except Exception:
+        shutil.rmtree(current, ignore_errors=True)
+        if previous.exists():
+            previous.rename(current)
+        raise
+    shutil.rmtree(previous, ignore_errors=True)
+    (data_root / INSTALLED).write_text(json.dumps({"sha256": sha256.lower(), "url": url,
+                                                   "generation_id": generation}), encoding="utf-8")
     return True
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m openepw.deploy")
     commands = parser.add_subparsers(dest="command", required=True)
-    install = commands.add_parser("install-catalog", help="build the catalog from the open-data package on first start")
+    install = commands.add_parser("install-catalog", help="build or upgrade the catalog from the pinned open-data package")
     install.add_argument("--data-root", type=Path, default=Path(os.environ.get("OPENEPW_DATA_ROOT", ".local/openepw")))
     args = parser.parse_args(argv)
     url = os.environ.get("OPENEPW_CATALOG_URL", "")
     if not url:
         print("OPENEPW_CATALOG_URL is not set; starting without a Stage 1 catalog", file=sys.stderr)
         return 0
+    had_catalog = has_catalog(args.data_root)
     try:
         installed = install_catalog(url, os.environ.get("OPENEPW_CATALOG_SHA256", ""), args.data_root)
     except (InstallError, OSError) as error:
-        print(f"Catalog install failed: {error}", file=sys.stderr)
-        return 1
-    print("Catalog installed from the data package" if installed else "Catalog already present; install skipped")
+        # The server still starts: with the previous catalog, or with bundled contracts only.
+        keeping = "keeping the installed catalog" if had_catalog else "starting without a Stage 1 catalog"
+        print(f"Catalog install failed: {error}; {keeping}", file=sys.stderr)
+        return 0
+    print(("Catalog upgraded from the data package" if had_catalog else "Catalog installed from the data package")
+          if installed else "Catalog already installed from this package; nothing to do")
     return 0
 
 
