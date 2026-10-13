@@ -11,7 +11,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from .coverage import LEGACY_GATES, verified_masks
+from .coverage import LEGACY_GATES, mask_runs, verified_masks
 from .models import ActualScope, CatalogBundle, TMYReferenceScope
 
 # Coarse lon/lat envelope traced against JRC's PVGIS 5.3 default irradiance-source
@@ -85,6 +85,27 @@ def _nsrdb_masks(footprints_root: Path) -> dict[tuple[str, str], dict]:
             "gates": list(entry.get("gates") or LEGACY_GATES.get(str(entry["product_id"])) or ()),
         }
     return masks
+
+
+PVGIS_DISPLAY_STEP = 0.5
+
+
+def _pvgis_mask(footprints_root: Path) -> dict | None:
+    """The PVGIS domain mask's inside cells, summarised to display cells (any inside point)."""
+    for entry, mask in verified_masks(footprints_root, "pvgis"):
+        step = float(entry.get("step_degrees") or mask.get("step_degrees") or 0)
+        if step <= 0 or "pvgis:PVGIS TMY" not in (entry.get("gates") or ()):
+            continue
+        factor = PVGIS_DISPLAY_STEP / step
+        cells = {(int(row // factor), column)
+                 for row, first, last in mask_runs(mask)
+                 for column in range(int(first // factor), int((last - 1) // factor) + 1)}
+        return {"rects": merge_cell_rows([list(cell) for cell in cells], PVGIS_DISPLAY_STEP),
+                "cell_count": len(cells),
+                "source": {key: entry.get(key) for key in (
+                    "selector", "basis", "source_file_id", "documentation", "checked_by",
+                    "built_at", "mask_sha256")}}
+    return None
 
 
 # The satellite each reviewed NSRDB grid comes from, for the map legend.
@@ -201,15 +222,27 @@ def catalog_map(index, footprints_root: Path) -> dict:
         mapped |= {(products[pid].provider, products[pid].dataset) for pid in pvgis}
         probes = [[entry.probe_location.lon, entry.probe_location.lat] for entry in all_entries
                   if entry.product_id in pvgis and entry.probe_location is not None]
-        layers.append({
-            "id": "pvgis", "kind": "area", "label": "PVGIS TMY SARAH3 region",
-            "evidence_dates": dates(pvgis), "count": len(probes),
-            "polygon": [*PVGIS_SARAH3_APPROX, PVGIS_SARAH3_APPROX[0]], "probes": probes,
-            "source_url": PVGIS_SOURCE,
-            "caveat": "Approximate envelope traced from JRC's PVGIS 5.3 irradiance-source figure; "
-                      "SARAH3 covers land only and the envelope is not clipped to coastlines. "
-                      "Points are saved probes. Not TMY eligibility at arbitrary coordinates.",
-        })
+        domain = _pvgis_mask(footprints_root)
+        if domain:
+            layers.append({
+                "id": "pvgis", "kind": "cells", "label": "PVGIS TMY domain (SARAH3 or ERA5)",
+                "evidence_dates": dates(pvgis), "count": domain["cell_count"],
+                "step": PVGIS_DISPLAY_STEP, "rects": domain["rects"], "source": domain["source"],
+                "caveat": "Land between 60° S and 75° N from ECMWF's ERA5-Land land-sea mask, in "
+                          f"{PVGIS_DISPLAY_STEP}° display cells; PVGIS TMY is offered inside it. "
+                          "Coasts, lakes and small islands stay unknown; the open sea and polar "
+                          "land are not served. Radiation is SARAH3 or ERA5 by location.",
+            })
+        else:
+            layers.append({
+                "id": "pvgis", "kind": "area", "label": "PVGIS TMY SARAH3 region",
+                "evidence_dates": dates(pvgis), "count": len(probes),
+                "polygon": [*PVGIS_SARAH3_APPROX, PVGIS_SARAH3_APPROX[0]], "probes": probes,
+                "source_url": PVGIS_SOURCE,
+                "caveat": "Approximate envelope traced from JRC's PVGIS 5.3 irradiance-source figure; "
+                          "SARAH3 covers land only and the envelope is not clipped to coastlines. "
+                          "Points are saved probes. Not TMY eligibility at arbitrary coordinates.",
+            })
 
     for layer_id, land, label in (("era5", False, "ERA5 global reanalysis"),
                                   ("era5-land", True, "ERA5-Land reanalysis")):

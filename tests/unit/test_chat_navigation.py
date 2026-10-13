@@ -55,7 +55,7 @@ def test_product_choices_each_name_one_downloadable_product(tmp_path):
     labels = {option["id"]: option["label"] for option in card["options"]}
     assert labels["nsrdb-actual"] == "NSRDB actual year · GOES v4"
     assert labels["noaa-isd"] == "NOAA ISD station observations"
-    assert labels["pvgis-tmy"] == "PVGIS TMY 5.3 · SARAH3"
+    assert labels["pvgis-tmy"] == "PVGIS TMY 5.3 · SARAH3/ERA5"
     assert not any(" or " in label or "Other" in label for label in labels.values())
     chosen = chat.answer(state["id"], card["revision"], "nsrdb-actual", "nsrdb")
     assert chosen["facts"]["product"] == "historical"
@@ -240,7 +240,7 @@ def test_several_products_are_chosen_together_and_split_by_kind(tmp_path):
     queued = chat.choose_products(state["id"], chat.back(state["id"], mixed["revision"], "queued-back")[
         "active_card"]["revision"], ["era5land-cds", "era5-openmeteo", "noaa-isd", "pvgis-tmy"], "queued")
     assert queued["events"][-2]["text"] == ("- ERA5-Land actual year · Copernicus CDS\n- ERA5 actual year · Open-Meteo\n"
-                                            "- NOAA ISD station observations\n- PVGIS TMY 5.3 · SARAH3")
+                                            "- NOAA ISD station observations\n- PVGIS TMY 5.3 · SARAH3/ERA5")
     # Copernicus CDS queues on its side, so it gets its own job and never holds back the others.
     assert [(request.product, [s.provider for s in request.dataset_selections])
             for request in chat._requests(queued["facts"])] == [
