@@ -198,3 +198,22 @@ def test_profiles_set_the_short_message_threshold_and_weakening_is_named(tmp_pat
     assert load_policy("hosted").strikes.unrelated_min_words == 4 == load_policy("local").strikes.unrelated_min_words
     path = write(tmp_path, "extends: hosted\nstrikes:\n  unrelated_min_words: 12\n")
     assert any("under 12 words" in note for note in weakened(load_policy(file=path)))
+
+
+def test_serve_runs_one_worker_even_when_the_host_sets_web_concurrency(monkeypatch, tmp_path):
+    """Render sets WEB_CONCURRENCY=2 on larger instances; uvicorn would take it as the worker
+    count and exit (status 3), because the app is passed as an object (Render staging, 2026-10-13)."""
+    import uvicorn
+    from uvicorn.config import Config
+
+    from openepw.api import app as app_module
+    from openepw.cli.main import main
+
+    captured = {}
+    monkeypatch.setenv("WEB_CONCURRENCY", "2")
+    monkeypatch.setattr(app_module, "create_app", lambda service, **options: object())
+    monkeypatch.setattr(uvicorn, "run", lambda app, **options: captured.update(options))
+    assert main(["--data-root", str(tmp_path), "serve", "--host", "0.0.0.0"]) == 0
+    assert captured["workers"] == 1
+    assert Config(app=object(), **captured).workers == 1
+    assert Config(app=object(), host="0.0.0.0").workers == 2          # what happened before
