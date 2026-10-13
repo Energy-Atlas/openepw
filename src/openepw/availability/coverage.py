@@ -116,7 +116,7 @@ def load_coverage(footprints_root: Path) -> dict[str, GridCoverage]:
     """One coverage per gated catalog product (``"provider:dataset"``)."""
     grouped: dict[str, list[tuple[dict[str, Any], dict[str, Any]]]] = {}
     for entry, mask in verified_masks(footprints_root):
-        gates = entry.get("gates") or LEGACY_GATES.get(str(entry.get("product_id")), ())
+        gates: Iterable[str] = entry.get("gates") or LEGACY_GATES.get(str(entry.get("product_id"))) or ()
         for gate in gates:
             grouped.setdefault(gate, []).append((entry, mask))
     coverage = {}
