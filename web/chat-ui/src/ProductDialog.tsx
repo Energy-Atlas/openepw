@@ -42,21 +42,27 @@ export function ProductDialog({ options, selected, busy, onToggle, onConfirm, on
   const counted = options.some(option => (option.sites ?? 0) > 1)
   const groups = (['actual', 'typical'] as const).map(group => ({ group,
     items: options.filter(option => (option.group ?? 'actual') === group) })).filter(item => item.items.length)
+  const row = (option: ProductOption) => <div key={option.id} className="product-row">
+    <label>
+      <input type="checkbox" checked={selected.includes(option.id)} disabled={busy}
+        onChange={() => onToggle(option.id)} />
+      <span className="product-name">{option.label}</span>
+    </label>
+    {option.detail && <button type="button" className="info-button" aria-label={`About ${option.label}`}
+      {...hover(`${option.id}:info`, option.detail)}><InfoIcon /></button>}
+    {counted && <span className="site-count" tabIndex={0} aria-label={availabilityMessage(option)}
+      {...hover(`${option.id}:count`, availabilityMessage(option))}>
+      {option.available ?? 0} / {option.sites}</span>}
+  </div>
+  // Products the catalog lists at none of the places come last, under their own heading.
+  const catalogued = options.some(option => (option.available ?? 0) > 0)
+  const unchecked = (option: ProductOption) => catalogued && !(option.available ?? 0)
   return <section className="product-dialog" aria-label="Choose weather products">
     {groups.map(({ group, items }) => <fieldset key={group}>
       <legend className="option-group">{group === 'actual' ? 'Actual year' : 'Typical year'}</legend>
-      {items.map(option => <div key={option.id} className="product-row">
-        <label>
-          <input type="checkbox" checked={selected.includes(option.id)} disabled={busy}
-            onChange={() => onToggle(option.id)} />
-          <span className="product-name">{option.label}</span>
-        </label>
-        {option.detail && <button type="button" className="info-button" aria-label={`About ${option.label}`}
-          {...hover(`${option.id}:info`, option.detail)}><InfoIcon /></button>}
-        {counted && <span className="site-count" tabIndex={0} aria-label={availabilityMessage(option)}
-          {...hover(`${option.id}:count`, availabilityMessage(option))}>
-          {option.available ?? 0} / {option.sites}</span>}
-      </div>)}
+      {items.filter(option => !unchecked(option)).map(row)}
+      {items.some(unchecked) && <p className="option-subgroup">Not checked here · checked when planning</p>}
+      {items.filter(unchecked).map(row)}
     </fieldset>)}
     <div className="dialog-actions">
       <button className="reply-alt" type="button" onClick={onType}>Other — type an answer</button>

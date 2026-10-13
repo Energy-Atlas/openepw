@@ -192,8 +192,9 @@ def product_offers(service, locations: Any, *, kind: str | None = None, provider
                         # The WeatherRequest fields that choose exactly this product.
                         "request": {"product": product.product,
                                     "dataset_selections": [product.selection()]}})
-    options.sort(key=lambda option: (option["group"] != "actual", _ORDER.get(option["id"], len(_ORDER)),
-                                     option["id"]))
+    # Listed products first within each group; those listed nowhere here follow.
+    options.sort(key=lambda option: (option["group"] != "actual", catalogued and not option["available"],
+                                     _ORDER.get(option["id"], len(_ORDER)), option["id"]))
     tags = []
     for index, point in enumerate(points[:MAX_CALLOUT_LOCATIONS]):
         entries = []

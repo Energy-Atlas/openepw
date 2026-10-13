@@ -1,8 +1,26 @@
-# Product availability and real time zones: findings and proposal
+# Product availability and real time zones: findings and decisions
 
-Status: proposal, 2026-10-12. Not approved for implementation. The owner's answers to §5 decide
-what is built. It extends, and does not replace, the evidence ladder in
-[the NSRDB geospatial design](2026-09-24-nsrdb-geospatial-availability-design.md) and ADR 0003.
+Status: decided 2026-10-12 (§5) and implemented on `fix/availability-and-time-zones`.
+It extends the evidence ladder of [the NSRDB geospatial design](2026-09-24-nsrdb-geospatial-availability-design.md)
+and ADR 0003, and replaces the ladder's mask rule for eligibility (owner decision).
+
+**Owner decisions.**
+- **Q1, fractional offsets:** nearest whole hour.
+- **Q2, stale evidence:** split durable facts from time-sensitive ones (A2).
+- **Q3, live point checks:** no live checks while building the product list. Instead, gate
+  NSRDB with the coverage map layer. That decision replaces A1, below.
+- **Q4, order:** not asked; the recommended order was followed.
+
+**Built.**
+- T1–T4: the zone comes from the coordinates only. The geocoder's zone is not used, because
+  both sources draw on the same boundaries and the coordinate lookup is a single path.
+- A2, A3, A6, and the NSRDB map gate.
+
+**Still open.**
+- A4: importing OneBuilding regions 1, 2, 3, the rest of 4, and 7. It needs bounded
+  downloads.
+- A5: NSRDB Himawari and MSG products.
+- F5: CDS and ERA5-Land.
 
 ## 1. What happened
 

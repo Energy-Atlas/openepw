@@ -11,6 +11,7 @@ import numpy as np
 from openepw.models import Issue, Location, digest
 from openepw.planning.spatial import sample
 
+from .coverage import GridCoverage
 from .models import (
     ActualScope,
     AvailabilityEntry,
@@ -123,6 +124,26 @@ def _bundle_index(bundle) -> _BundleIndex:
     index = _BundleIndex(bundle)
     _INDEXES[:] = [(bundle, index), *_INDEXES[:1]]
     return index
+
+
+def _time_sensitive(query: AvailabilityQuery, product: ProductRecord,
+                    entries: list[AvailabilityEntry]) -> bool:
+    """Whether aged evidence can no longer vouch for this answer."""
+    if isinstance(query, FutureAvailabilityQuery) or product.provider == "cds":
+        return True
+    if query.request.product not in ("historical", "amy"):
+        return False                                   # published files stay published
+    years = _requested_years(query)
+    newest = max(years, default=0)
+    for entry in entries:
+        scope = entry.scope
+        if not isinstance(scope, ActualScope):
+            continue
+        if scope.years and newest >= max(scope.years):
+            return True
+        if not scope.years and scope.operating_end is None and newest >= datetime.now(timezone.utc).year - 1:
+            return True
+    return False
 
 
 def _requested_years(query: WeatherAvailabilityQuery) -> list[int]:
@@ -238,7 +259,8 @@ def _temporal(query: AvailabilityQuery, entry: AvailabilityEntry,
 
 def _assess(query: AvailabilityQuery, location: Location, product: ProductRecord,
             site: SiteRecord | None, entries: list[AvailabilityEntry],
-            stale_sources: set[str]) -> tuple[EligibilityDecision, float | None, float | None]:
+            stale_sources: set[str], coverage: GridCoverage | None = None,
+            ) -> tuple[EligibilityDecision, float | None, float | None]:
     reasons = []
     unknowns = []
     distance = _distance(location, site) if site else None
@@ -271,6 +293,10 @@ def _assess(query: AvailabilityQuery, location: Location, product: ProductRecord
                      and site is not None and query.request.product_id == site.id)
     if product.provider == "noaa" and not explicit_noaa and distance is not None and distance > 100:
         reasons.append("BEYOND_PROVIDER_SEARCH_RADIUS")
+    # A published station file describes its station, not a place far from it (owner decision
+    # 2026-10-12: the same 100 km as NOAA ISD).
+    if product.provider == "onebuilding" and distance is not None and distance > 100:
+        reasons.append("BEYOND_PROVIDER_SEARCH_RADIUS")
     if product.provider == "oedi" and distance is not None and distance > 150:
         reasons.append("BEYOND_PROVIDER_SEARCH_RADIUS")
     if query.max_distance_km is not None and distance is not None and distance > query.max_distance_km:
@@ -292,12 +318,21 @@ def _assess(query: AvailabilityQuery, location: Location, product: ProductRecord
         unknowns.append("LAND_MASK_UNVERIFIED")
     if product.provider == "cmip6":
         unknowns.append("GRID_CELL_UNVERIFIED")
-    if product.provider in ("nsrdb", "pvgis") and any(e.probe_location for e in entries):
+    # NSRDB GOES products are gated by the reviewed source-grid coverage map (coverage.py).
+    place = coverage.where(location.lat, location.lon) if coverage and product.provider == "nsrdb" else None
+    if place == "outside":
+        reasons.append("OUTSIDE_SOURCE_COVERAGE")
+    elif product.provider in ("nsrdb", "pvgis") and any(e.probe_location for e in entries):
         applicable = [e for e in entries if e.probe_location is None or (
             abs(e.probe_location.lat - location.lat) <= 1e-6 and
             abs(e.probe_location.lon - location.lon) <= 1e-6)]
-        if not applicable:
+        if not applicable and place == "inside":
+            reasons.append("INSIDE_SOURCE_COVERAGE")       # the probes' lists apply here
+            applicable = entries
+        elif not applicable:
             unknowns.append("TARGETED_PROBE_ONLY")
+            if place == "edge":
+                unknowns.append("NEAR_SOURCE_COVERAGE_EDGE")
         entries = applicable
     if not entries:
         unknowns.append("TEMPORAL_EVIDENCE_MISSING")
@@ -319,7 +354,13 @@ def _assess(query: AvailabilityQuery, location: Location, product: ProductRecord
     stale = bool(set(product.evidence_ids) & stale_sources or
                  any(set(e.evidence_ids) & stale_sources for e in entries))
     if stale:
-        unknowns.append("STALE_SOURCE_EVIDENCE")
+        # Owner decision 2026-10-12: a check that is due does not undo durable facts (a site's
+        # position, a published-file list, a closed dated period); it does for facts that
+        # change: the newest years, CDS's operational state and future-window directories.
+        if unknowns or _time_sensitive(query, product, entries):
+            unknowns.append("STALE_SOURCE_EVIDENCE")
+        else:
+            reasons.append("SOURCE_CHECK_DUE")
     access = "terms_required" if "accepted_terms" in product.access_requirements else (
         "credentials_required" if product.access_requirements else "unknown")
     stable_exclusions = (
@@ -328,7 +369,7 @@ def _assess(query: AvailabilityQuery, location: Location, product: ProductRecord
         "ADAPTER_PRODUCT_UNSUPPORTED",
         "SCENARIO_MISMATCH", "MODEL_MISMATCH", "MEMBER_MISMATCH",
         "PROFILE_UNSUPPORTED", "REFERENCE_PERIOD_UNSUPPORTED", "BEFORE_DOCUMENTED_START",
-        "PUBLISHED_PRODUCT_MISMATCH")
+        "PUBLISHED_PRODUCT_MISMATCH", "OUTSIDE_SOURCE_COVERAGE")
     if any(code in reasons for code in stable_exclusions) or (
         "WINDOW_NOT_PUBLISHED" in reasons and not stale
     ):
@@ -345,8 +386,10 @@ def _assess(query: AvailabilityQuery, location: Location, product: ProductRecord
                                stale=stale, access=access), distance, elevation_delta
 
 
-def evaluate(query: AvailabilityQuery, view: CatalogView) -> AvailabilityResult:
-    """Assess catalog eligibility only; no I/O or weather-quality claim."""
+def evaluate(query: AvailabilityQuery, view: CatalogView,
+             coverage: GridCoverage | None = None) -> AvailabilityResult:
+    """Assess catalog eligibility only; no I/O or weather-quality claim. ``coverage`` is the
+    reviewed NSRDB coverage map, when one is installed."""
     bundle = view.bundle
     lookup = _bundle_index(bundle)
     all_sites, all_entries = lookup.sites, lookup.entries
@@ -371,7 +414,7 @@ def evaluate(query: AvailabilityQuery, view: CatalogView) -> AvailabilityResult:
                 entries = all_entries.get((product.id, site.id if site else None), [])
                 decision, distance, elevation_delta = _assess(
                     query, location, product, site, entries,
-                    set(view.snapshot.stale_sources))
+                    set(view.snapshot.stale_sources), coverage)
                 hard_fields = (query.required_variables if query.required_variables is not None else
                                query.request.required_variables if isinstance(query, WeatherAvailabilityQuery)
                                and query.request.missing_policy == "error" else [])

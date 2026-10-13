@@ -9,6 +9,11 @@ retrieval attempt; it does not establish all hours, valid variables, EPW quality
 simulation readiness. Unknown coordinates, stale sources, sparse inventory gaps,
 unverified future periods and access restrictions are reported rather than filled.
 Refresh is opt-in and source-specific; aged evidence loses authority to exclude.
+Aged evidence (past its check cadence: 1 day for CDS, 30 for the Open-Meteo
+documentation, 7 otherwise) keeps durable facts listed, with a `SOURCE_CHECK_DUE`
+reason: site positions, published-file lists and closed dated years. It no longer
+vouches for the newest listed year, an open-ended period's last two years, CDS or
+future-window directories, which become unknown.
 Unsupported or partial raw metadata formats retain the last good generation and
 report a refresh failure. With no local inventory, only bundled Open-Meteo/CDS
 contracts screen documented capabilities. A query emits at most 50 ranked
@@ -196,8 +201,15 @@ QC, availability, or energy-model inputs. See [decision 0004](decisions/0004-map
 
 Product choices and their map tags come from the offline Stage 1 catalog
 assessment only. A product "not verified in the catalog" (outlined tag with ?)
-is checked live when planning; NSRDB actual-year and NSRDB TMY records exist
-only at the saved probe points, so elsewhere they show as unverified. Before
+is checked live when planning, and is listed after the products checked here under
+"Not checked here". NSRDB GOES products are gated by the reviewed coverage map (the
+NSRDB map layer, a 0.25 degree summary of the published `tdy-2023` file's grid
+sites, used for actual-year and typical-year GOES products alike): outside it they
+are not offered; inside it the probed years and file names apply; next to its edge
+they stay unverified. Without an installed map they exist only at the saved probe
+points. OneBuilding and NOAA ISD stations beyond 100 km are not offered. The
+OneBuilding inventory covers the USA, the Southwest Pacific and Europe only, so
+elsewhere no OneBuilding file is offered yet. Before
 years are given, actual-year availability is shown for the last complete
 year. The station on the map is the catalog's best-ranked station for that
 product; planning re-ranks with the chosen years and may pick another. Tags are

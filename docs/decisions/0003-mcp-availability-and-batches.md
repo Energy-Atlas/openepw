@@ -103,6 +103,24 @@ This extends the approved
 [output identity design](../superpowers/specs/2026-09-23-core-integration-design.md)
 without silently changing its default or invalidating existing plans/artifacts.
 
+## Owner decisions 2026-10-12 (availability in the product choice)
+
+Recorded after a staging failure where NSRDB GOES was offered at Singapore. See the
+[findings and proposal](../superpowers/specs/2026-10-12-availability-and-time-zones-design.md).
+
+- **Aged evidence keeps durable facts.** Past its check cadence, evidence still supports
+  site positions, published-file lists and closed dated years (reason `SOURCE_CHECK_DUE`);
+  it does not support the newest listed year, an open-ended period's last two years, CDS
+  or future windows (`STALE_SOURCE_EVIDENCE`, unknown). Aged evidence still cannot exclude.
+- **The NSRDB coverage map gates NSRDB GOES products.** This replaces, for eligibility,
+  the rule of the [NSRDB geospatial design](../superpowers/specs/2026-09-24-nsrdb-geospatial-availability-design.md)
+  that a generalized mask is never a positive decision: outside the reviewed mask
+  (`OUTSIDE_SOURCE_COVERAGE`) is excluded, inside it (`INSIDE_SOURCE_COVERAGE`) the
+  probed year and file lists apply, and next to it stays unknown. The `tdy-2023` mask is
+  used for the GOES aggregated and TMY products alike.
+- **Published station files reach 100 km**, as NOAA ISD does.
+- **No live point checks while building the product list**; planning still checks.
+
 ## Architecture boundary
 
 Availability, recommendation evidence and batch resolution belong in the canonical
