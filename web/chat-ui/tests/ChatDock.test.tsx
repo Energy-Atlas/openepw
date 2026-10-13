@@ -95,6 +95,21 @@ describe('chat dock and controls', () => {
     expect(within(screen.getByRole('log')).getAllByRole('listitem')).toHaveLength(2)
   })
 
+  it('offers no Run on a plan with no outputs and goes back to the product choice', async () => {
+    const blocked = state({ id: 'b', revision: 6, kind: 'plan_review', prompt: 'No outputs can be made from this choice',
+      data: { plan_hash: null, blocked: true, product_event: 4, outputs: [],
+        summary: '**Nothing can be run:** none of the chosen products has data for this location and period.' } })
+    const back = vi.fn(async () => state({ id: 'p', revision: 7, kind: 'choice', prompt: 'Which weather product?', options: [] }))
+    render(<App api={api(blocked, { back })} />)
+    const question = await screen.findByLabelText('Current question')
+    expect(within(question).getByText('Nothing can be run:')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Run reviewed plan' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Assess and review plan' })).toBeNull()
+    expect(within(question).queryByText(/planned outputs/)).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Choose other products' }))
+    await waitFor(() => expect(back).toHaveBeenCalledWith('test', 6, expect.any(String), 4))
+  })
+
   it('rolls back from an earlier agent message and can start over', async () => {
     const current = state({ id: 'y', revision: 5, kind: 'text', prompt: 'Which actual year or years?' }, { events: [
       { id: 1, type: 'question', text: 'Which weather product?' },

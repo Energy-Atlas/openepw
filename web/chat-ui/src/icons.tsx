@@ -26,6 +26,11 @@ export function SignOutIcon() {
   return <svg {...iconProps}><path d="M14 4H6v16h8" /><path d="M10 12h10" /><path d="m17 8.5 3.5 3.5-3.5 3.5" /></svg>
 }
 
+/** Clipboard glyph for copying the debug log of a testing deployment. */
+export function CopyLogIcon() {
+  return <svg {...iconProps}><rect x="6" y="5" width="12" height="15" rx="2" /><path d="M9 5V4h6v1" /><path d="M9 10h6" /><path d="M9 14h6" /></svg>
+}
+
 export function RestartIcon() {
   return <svg {...iconProps}><path d="M4 4v6h6" /><path d="M5.5 15a7 7 0 1 0 1.6-7.3L4 10" /></svg>
 }

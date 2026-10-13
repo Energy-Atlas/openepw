@@ -57,6 +57,9 @@ services:
         value: /var/data/openepw
       - key: OPENEPW_ALLOWED_EMAIL_DOMAINS
         value: cornell.edu
+      # Testing only: the chat's "Copy log" button (docs/deploy/render.md). Never in production.
+      - key: OPENEPW_DEBUG_LOG
+        value: "true"
       - key: OPENEPW_RESEND_API_KEY
         sync: false
       - key: OPENEPW_MAIL_FROM

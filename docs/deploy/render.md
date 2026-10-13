@@ -106,6 +106,10 @@ revoked alone.
   update the two variables, delete `/var/data/openepw/catalog` from the Render shell and
   restart, or run `openepw catalog import --from-package` there.
 - **Custom domain:** add it under the service's Settings; Render provides the certificate.
+- **Testing log (staging only):** `OPENEPW_DEBUG_LOG=true` adds a "Copy log" button to the
+  chat and `GET /v1/diagnostics`, which returns the server's recent warnings and errors
+  (credentials, e-mail addresses and tokens redacted). Everyone signed in sees the same
+  server log, so leave it off in production.
 - Everyone who can sign in uses your NLR, Copernicus and OpenAI accounts. The model has
   a local spending stop (`model-usage.json` on the disk, $8 by default).
 
