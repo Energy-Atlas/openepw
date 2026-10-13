@@ -19,12 +19,7 @@ from typing import BinaryIO, Protocol
 import h5py
 import numpy as np
 
-from .nsrdb_coverage import (
-    REVIEWED_MODEL_VERSION,
-    REVIEWED_OBJECT_KEY,
-    TMY_ID,
-    load_coverage_manifest,
-)
+from .nsrdb_coverage import REVIEWED_SOURCES, load_coverage_manifest
 
 BUCKET = "https://nrel-pds-nsrdb.s3.us-west-2.amazonaws.com/"
 DEFAULT_MAX_BYTES = 256 * 1024 * 1024
@@ -45,8 +40,9 @@ class SourceSpec:
 
 def source_spec(product_id: str, selector: str) -> SourceSpec:
     """Resolve only the reviewed API/selector/object correspondence."""
-    if product_id == TMY_ID and selector == "tdy-2023":
-        return SourceSpec(product_id, "published_name", selector, REVIEWED_OBJECT_KEY)
+    for (product, kind, reviewed_selector), reviewed in REVIEWED_SOURCES.items():
+        if (product, reviewed_selector) == (product_id, selector):
+            return SourceSpec(product_id, kind, selector, reviewed.object_key)
     raise ValueError("unsupported NSRDB product selector")
 
 
@@ -81,6 +77,23 @@ class HttpTransport:
             url, headers={"Range": f"bytes={start}-{end}", "If-Match": etag}
         )
         return urllib.request.urlopen(request, timeout=60)
+
+
+class _CountingTransport(HttpTransport):
+    """Counts every request and its byte range, for the acquisition log."""
+
+    def __init__(self) -> None:
+        self.requests = 0
+        self.bytes = 0
+
+    def head(self, url: str, if_none_match: str | None = None) -> dict[str, object] | None:
+        self.requests += 1
+        return super().head(url, if_none_match)
+
+    def open_range(self, url: str, start: int, end: int, etag: str) -> BinaryIO:
+        self.requests += 1
+        self.bytes += end - start + 1
+        return super().open_range(url, start, end, etag)
 
 
 @dataclass
@@ -182,6 +195,36 @@ class _RangeReader(io.RawIOBase):
         return bytes(output)
 
 
+def _meta_spans(meta, count: int, size: int) -> list[tuple[int, int]]:
+    """The byte spans holding the `meta` rows in order: one for a contiguous table; for an
+    uncompressed chunked table, its chunks (stored in row order) merged where adjacent."""
+    itemsize = meta.dtype.itemsize
+    if meta.chunks is None:
+        offset = meta.id.get_offset()
+        length = int(meta.id.get_storage_size())
+        if offset is None or length != count * itemsize or offset < 0 or offset + length > size:
+            raise ValueError("inconsistent source meta layout")
+        return [(int(offset), int(offset) + length)]
+    if meta.compression or meta.id.get_create_plist().get_nfilters():
+        raise ValueError("compressed or filtered source meta is not supported")
+    rows = meta.chunks[0]
+    chunks = sorted((meta.id.get_chunk_info(i) for i in range(meta.id.get_num_chunks())),
+                    key=lambda chunk: chunk.chunk_offset[0])
+    if [chunk.chunk_offset[0] for chunk in chunks] != list(range(0, count, rows)):
+        raise ValueError("incomplete chunked source meta")
+    spans: list[tuple[int, int]] = []
+    for chunk in chunks:
+        if chunk.size != rows * itemsize or chunk.byte_offset + chunk.size > size:
+            raise ValueError("inconsistent chunk layout")
+        if spans and chunk.byte_offset < spans[-1][1]:
+            raise ValueError("chunks are not stored in row order")
+        if spans and chunk.byte_offset == spans[-1][1]:
+            spans[-1] = (spans[-1][0], chunk.byte_offset + chunk.size)
+        else:
+            spans.append((chunk.byte_offset, chunk.byte_offset + chunk.size))
+    return spans
+
+
 def _atomic_bytes(path: Path, payload: bytes) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.NamedTemporaryFile(dir=path.parent, delete=False) as temporary:
@@ -276,31 +319,36 @@ def acquire_meta(
         _stale_existing(manifest_path)
     budget = _Budget(max_bytes=max_bytes, max_requests=max_requests)
     reader = _RangeReader(transport, spec, size, etag, budget, block_bytes)
+    # Header reads are small and scattered; the grid table itself is read in a few spans.
+    reviewed = REVIEWED_SOURCES[(spec.product_id, spec.selector_kind, spec.selector)]
     with h5py.File(reader, "r") as source:
-        model_version = str(source.attrs["version"])
-        if model_version != REVIEWED_MODEL_VERSION:
+        model_version = str(source.attrs.get("version", ""))
+        if reviewed.model_version is not None and model_version != reviewed.model_version:
             raise ValueError("source model version disagrees with reviewed object")
         meta = source["meta"]
-        if meta.ndim != 1 or meta.chunks is not None or meta.id.get_offset() is None:
+        if meta.ndim != 1:
             raise ValueError("unsupported source meta layout")
         if not {"latitude", "longitude"} <= set(meta.dtype.names or ()):
             raise ValueError("source meta lacks coordinates")
-        offset = int(meta.id.get_offset())
-        length = int(meta.id.get_storage_size())
         count = int(meta.shape[0])
         dtype = meta.dtype
-        if length != count * dtype.itemsize or offset < 0 or offset + length > size:
-            raise ValueError("inconsistent source meta layout")
+        spans = _meta_spans(meta, count, size)
+        length = sum(end - start for start, end in spans)
+        if budget.bytes_used + length > budget.max_bytes:
+            raise ValueError(f"source meta table ({length} bytes) exceeds the byte cap")
     destination.mkdir(parents=True, exist_ok=True)
     with tempfile.NamedTemporaryFile(dir=destination, delete=False) as temporary:
         temp_path = Path(temporary.name)
         try:
-            meta_sha = _read_range(transport, spec, offset, offset + length - 1,
-                                   etag, budget, temporary)
+            for start, end in spans:
+                _read_range(transport, spec, start, end - 1, etag, budget, temporary)
+            # A chunked table's last chunk is padded past the last row.
+            temporary.truncate(count * dtype.itemsize)
         except BaseException:
             temporary.close()
             temp_path.unlink(missing_ok=True)
             raise
+    meta_sha = hashlib.sha256(temp_path.read_bytes()).hexdigest()
     try:
         cells = _cells_and_nearest(temp_path, dtype, count, step_degrees, probes)
         mask = {"step_degrees": step_degrees, "cells": [list(cell) for cell in sorted(cells)]}
@@ -330,6 +378,7 @@ def acquire_meta(
                 "request_count": budget.requests_used,
                 "transferred_bytes": budget.bytes_used,
                 "stale": False,
+                **({"gates": list(reviewed.gates)} if reviewed.gates else {}),
             }],
         }
         _atomic_bytes(manifest_path, json.dumps(manifest, indent=2, sort_keys=True).encode())
@@ -341,14 +390,36 @@ def acquire_meta(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("product_id", choices=[TMY_ID])
-    parser.add_argument("selector", help="Reviewed native selector (currently tdy-2023)")
+    parser.add_argument("product_id", choices=sorted({key[0] for key in REVIEWED_SOURCES}))
+    parser.add_argument("selector", help="Reviewed native selector (see REVIEWED_SOURCES)")
+    parser.add_argument("--max-bytes", type=int, default=DEFAULT_MAX_BYTES,
+                        help="per-product cap, at most the reviewed source's approved cap")
+    parser.add_argument("--max-requests", type=int, default=DEFAULT_MAX_REQUESTS,
+                        help="per-product cap; raised to 80 for chunked tables on 2026-10-13")
+    parser.add_argument("--log", type=Path, help="JSON list every acquisition is appended to")
     parser.add_argument("--output-root", type=Path, default=Path(".local/mcp-availability/nsrdb-footprints"))
     args = parser.parse_args()
     if not args.output_root.resolve().is_relative_to((Path.cwd() / ".local").resolve()):
         raise ValueError("metadata output must stay under the ignored .local tree")
-    path = acquire_meta(source_spec(args.product_id, args.selector), args.output_root,
-                        HttpTransport(), probes=((42.44, -76.5), (33.45, -112.07)))
+    spec = source_spec(args.product_id, args.selector)
+    reviewed = REVIEWED_SOURCES[(spec.product_id, spec.selector_kind, spec.selector)]
+    if args.max_bytes > reviewed.max_bytes or args.max_requests > 80:
+        raise ValueError(f"the approved caps are {reviewed.max_bytes} bytes and 80 requests")
+    transport = _CountingTransport()
+    record = {"purpose": "acquisition", "product": spec.product_id, "object": spec.object_key,
+              "at": datetime.now(timezone.utc).isoformat()}
+    try:
+        path = acquire_meta(spec, args.output_root, transport, probes=reviewed.probes,
+                            max_bytes=args.max_bytes, max_requests=args.max_requests,
+                            block_bytes=256 * 1024)
+    except Exception as error:
+        record["error"] = f"{type(error).__name__}: {error}"
+        raise
+    finally:
+        record.update(requests=transport.requests, bytes=transport.bytes)
+        if args.log:
+            log = json.loads(args.log.read_text(encoding="utf-8")) if args.log.exists() else []
+            args.log.write_text(json.dumps([*log, record], indent=1), encoding="utf-8")
     entry = load_coverage_manifest(path).entries[0]
     print(json.dumps({"manifest": str(path), "product": entry.product_id,
                       "selector": entry.selector, "sites": entry.coordinate_count,

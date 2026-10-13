@@ -467,3 +467,27 @@ def test_acquisition_cli_rejects_output_outside_ignored_local_tree(monkeypatch, 
     ])
     with pytest.raises(ValueError, match="ignored .local"):
         acquire_main()
+
+
+def test_a_chunked_meta_table_is_read_as_spans_in_row_order(tmp_path):
+    import h5py
+    import numpy as np
+
+    from scripts.mcp_availability_map.acquire_nsrdb_meta import _meta_spans
+
+    rows = np.zeros(10, dtype=[("latitude", "<f4"), ("longitude", "<f4")])
+    rows["latitude"] = np.arange(10)
+    path = tmp_path / "chunked.h5"
+    with h5py.File(path, "w") as handle:
+        handle.create_dataset("meta", data=rows, chunks=(4,))
+    raw = path.read_bytes()
+    with h5py.File(path, "r") as handle:
+        meta = handle["meta"]
+        spans = _meta_spans(meta, 10, len(raw))
+    table = b"".join(raw[start:end] for start, end in spans)[: 10 * rows.dtype.itemsize]
+    assert np.frombuffer(table, dtype=rows.dtype)["latitude"].tolist() == list(range(10))
+    with h5py.File(tmp_path / "packed.h5", "w") as handle:
+        handle.create_dataset("meta", data=rows, chunks=(4,), compression="gzip")
+    with h5py.File(tmp_path / "packed.h5", "r") as handle:
+        with pytest.raises(ValueError, match="compressed"):
+            _meta_spans(handle["meta"], 10, 10**6)

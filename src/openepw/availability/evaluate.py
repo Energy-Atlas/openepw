@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Sequence
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 import numpy as np
 
@@ -129,7 +129,7 @@ def _bundle_index(bundle) -> _BundleIndex:
 def _time_sensitive(query: AvailabilityQuery, product: ProductRecord,
                     entries: list[AvailabilityEntry]) -> bool:
     """Whether aged evidence can no longer vouch for this answer."""
-    if isinstance(query, FutureAvailabilityQuery) or product.provider == "cds":
+    if isinstance(query, FutureAvailabilityQuery):
         return True
     if query.request.product not in ("historical", "amy"):
         return False                                   # published files stay published
@@ -143,6 +143,8 @@ def _time_sensitive(query: AvailabilityQuery, product: ProductRecord,
             return True
         if not scope.years and scope.operating_end is None and newest >= datetime.now(timezone.utc).year - 1:
             return True
+        if not scope.years and scope.operating_end and newest >= scope.operating_end.year:
+            return True                                # the newest months of a dated catalogue
     return False
 
 
@@ -241,11 +243,13 @@ def _temporal(query: AvailabilityQuery, entry: AvailabilityEntry,
             return "unknown", [], ["YEAR_NOT_LISTED_IN_DATED_INVENTORY"]
         if scope.operating_start and min(years, default=scope.operating_start.year) < scope.operating_start.year:
             return "excluded", ["BEFORE_DOCUMENTED_START"], []
-        if scope.operating_end and max(years, default=scope.operating_end.year) > scope.operating_end.year:
-            return "unknown", [], ["AFTER_DATED_CATALOG_END"]
+        if scope.operating_end and years and date(max(years), 12, 31) > scope.operating_end:
+            return "unknown", [], ["AFTER_DATED_CATALOG_END"]       # includes a year the end cuts short
         if not scope.operating_end and max(years, default=0) >= datetime.now(timezone.utc).year:
             return "unknown", [], ["MOVING_END_UNVERIFIED"]
-        if entry.evidence_basis == "documentation" and entry.site_id is None:
+        if entry.site_id is None and (entry.evidence_basis == "documentation" or product.provider == "cds"):
+            # A gridded product's documented period (owner decision 2026-10-13: Copernicus's
+            # own catalogue record counts as documentation of ERA5's global period).
             return "supported", ["DOCUMENTED_PERIOD"], []
         return "unknown", [], ["OPERATING_INTERVAL_NOT_REPORT_COVERAGE"]
     if not isinstance(scope, TMYReferenceScope):
@@ -314,14 +318,17 @@ def _assess(query: AvailabilityQuery, location: Location, product: ProductRecord
         unknowns.append("SITE_POSITION_UNVERIFIED")
     if product.provider == "cds" and abs(location.lat) >= 89:
         unknowns.append("POLAR_FOOTPRINT_CONFLICT")
-    if product.id == "cds:era5_land" or product.id == "openmeteo:era5_land":
-        unknowns.append("LAND_MASK_UNVERIFIED")
     if product.provider == "cmip6":
         unknowns.append("GRID_CELL_UNVERIFIED")
-    # NSRDB GOES products are gated by the reviewed source-grid coverage map (coverage.py).
-    place = coverage.where(location.lat, location.lon) if coverage and product.provider == "nsrdb" else None
+    # A reviewed coverage mask gates its product (coverage.py): outside is excluded, inside
+    # stands in for the point evidence, next to the edge stays unknown.
+    place = coverage.where(location.lat, location.lon) if coverage else None
+    if product.dataset in ("reanalysis-era5-land", "era5_land") and place != "inside":
+        unknowns.append("LAND_MASK_UNVERIFIED" if place is None else "NEAR_SOURCE_COVERAGE_EDGE")
     if place == "outside":
         reasons.append("OUTSIDE_SOURCE_COVERAGE")
+    elif place == "inside" and not any(e.probe_location for e in entries):
+        reasons.append("INSIDE_SOURCE_COVERAGE")
     elif product.provider in ("nsrdb", "pvgis") and any(e.probe_location for e in entries):
         applicable = [e for e in entries if e.probe_location is None or (
             abs(e.probe_location.lat - location.lat) <= 1e-6 and
@@ -387,9 +394,9 @@ def _assess(query: AvailabilityQuery, location: Location, product: ProductRecord
 
 
 def evaluate(query: AvailabilityQuery, view: CatalogView,
-             coverage: GridCoverage | None = None) -> AvailabilityResult:
-    """Assess catalog eligibility only; no I/O or weather-quality claim. ``coverage`` is the
-    reviewed NSRDB coverage map, when one is installed."""
+             coverage: dict[str, GridCoverage] | None = None) -> AvailabilityResult:
+    """Assess catalog eligibility only; no I/O or weather-quality claim. ``coverage`` holds the
+    installed coverage masks by gated product (``"provider:dataset"``)."""
     bundle = view.bundle
     lookup = _bundle_index(bundle)
     all_sites, all_entries = lookup.sites, lookup.entries
@@ -414,7 +421,8 @@ def evaluate(query: AvailabilityQuery, view: CatalogView,
                 entries = all_entries.get((product.id, site.id if site else None), [])
                 decision, distance, elevation_delta = _assess(
                     query, location, product, site, entries,
-                    set(view.snapshot.stale_sources), coverage)
+                    set(view.snapshot.stale_sources),
+                    (coverage or {}).get(f"{product.provider}:{product.dataset}"))
                 hard_fields = (query.required_variables if query.required_variables is not None else
                                query.request.required_variables if isinstance(query, WeatherAvailabilityQuery)
                                and query.request.missing_policy == "error" else [])

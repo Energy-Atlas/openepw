@@ -15,7 +15,7 @@ well under 1 GB and each EPW adds about 1.8 MB.
 
 The Stage 1 catalog is published as a CSV data package in the public
 [Energy-Atlas/open-data](https://github.com/Energy-Atlas/open-data) repository
-(`datasets/weather-availability-catalog/`). On first start the service downloads its
+(`datasets/weather-availability-catalog/`). On start the service downloads its
 `datapackage.json`, checks it against a pinned SHA-256, downloads every file it lists,
 checks each file's size and SHA-256, and builds the catalog from them. Pin a commit, not
 a branch, so the package cannot change under the deployment:
@@ -63,9 +63,12 @@ openepw --data-root .local/openepw catalog export --out ../open-data/datasets/we
   sessions are in SQLite and jobs run inside the process.
 - **Changing the password** (edit `OPENEPW_SITE_PASSWORD`, then deploy) signs every browser
   out. Ten wrong passwords from one address block that address for 10 minutes.
-- **The catalog installs only when none is active.** To move to a new package version,
-  update the two variables, delete `/var/data/openepw/catalog` from the Render shell and
-  restart, or run `openepw catalog import --from-package` there.
+- **A new catalog version rolls out by changing the pin.** Update `OPENEPW_CATALOG_URL`
+  and `OPENEPW_CATALOG_SHA256` and deploy. On start the service compares the pinned SHA-256
+  with the one it installed (`catalog/package.json`) and, if they differ, installs the
+  package as a new catalog generation and replaces the `footprints` folder as a whole. If
+  anything fails (unreachable URL, checksum mismatch, refused catalog), it logs
+  `Catalog install failed: ...; keeping the installed catalog` and serves the previous one.
 - **Custom domain:** add it under the service's Settings; Render provides the certificate.
 - **Testing log (staging only):** `OPENEPW_DEBUG_LOG=true` adds a "Copy log" button to the
   chat and `GET /v1/diagnostics`, which returns the server's recent warnings and errors

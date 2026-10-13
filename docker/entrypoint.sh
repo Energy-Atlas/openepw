@@ -1,5 +1,5 @@
 #!/bin/sh
-# Prepare the mounted data disk, build the catalog once from the open-data package, then serve as the app user.
+# Prepare the mounted data disk, install or upgrade the catalog from the pinned open-data package, then serve as the app user.
 set -eu
 
 DATA="${OPENEPW_DATA_ROOT:-/var/data/openepw}"
