@@ -55,7 +55,7 @@ def test_coordinate_lists_preview_and_single_places_keep_the_choice_flow(tmp_pat
     state = chat.create()
     state = chat.turn(state["id"], "40,-105; 41,-100 tmy", 0, "one")
     assert len(state["facts"]["geography"]) == 2 and state["facts"]["product"] == "tmy"
-    assert [point["standard_offset_minutes"] for point in state["facts"]["geography"]] == [-420, -420]
+    assert [point["standard_offset_minutes"] for point in state["facts"]["geography"]] == [-420, -360]  # Nebraska's Central zone
     single = chat.create()
     single = chat.turn(single["id"], "historical 2018 weather in Boston", 0, "two")
     assert single["active_card"]["kind"] == "choice" and len(single["facts"]["candidates"]) == 2

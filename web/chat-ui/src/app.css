@@ -204,6 +204,7 @@ button { cursor: var(--oe-cursor-pointer); }
 .product-dialog { box-sizing: border-box; width: 100%; display: flex; flex-direction: column; gap: .35rem; padding: .7rem .8rem; border-radius: 16px; background: var(--oe-paper); box-shadow: var(--oe-shadow); }
 .product-dialog fieldset { margin: 0; padding: 0; border: 0; }
 .product-dialog legend.option-group { padding: 0; margin: .15rem 0 .2rem; text-align: left; }
+.product-dialog .option-subgroup { margin: .35rem 0 .1rem; color: var(--oe-muted); font-size: .7rem; }
 .product-row { display: flex; align-items: center; gap: .4rem; min-height: 2rem; padding: 0 .3rem; border-radius: 9px; }
 .product-row:hover { background: var(--oe-tint); }
 .product-row label { flex: 0 1 auto; display: flex; align-items: center; gap: .55rem; min-width: 0; font-size: .86rem; cursor: var(--oe-cursor-pointer); }

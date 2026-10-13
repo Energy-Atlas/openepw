@@ -19,16 +19,17 @@ def test_missing_offsets_are_estimated_and_explicit_ones_kept():
     assert point["standard_offset_minutes"] == 60 and estimated is False
 
 
-def test_an_area_samples_with_longitude_offsets():
+def test_an_area_samples_with_time_zone_offsets():
     value, sampling, estimated = estimate_offsets(AREA)
-    assert value == AREA and sampling == {"standard_offset": "longitude"} and estimated is True
+    assert value == AREA and sampling == {"standard_offset": "zone"} and estimated is True
 
 
 def test_standard_time_note_names_offsets_and_estimation():
-    note = standard_time_note([Location(lat=0, lon=-76.5, standard_offset_minutes=-300)], True)
-    assert "UTC-05:00" in note and "no daylight-saving shift" in note
-    assert "estimated from longitude" in note
-    assert "estimated" not in standard_time_note([Location(lat=0, lon=0)], False)
+    note = standard_time_note([Location(lat=42.44, lon=-76.5, standard_offset_minutes=-300)], True)
+    assert "UTC-05:00 (America/New_York)" in note and "no daylight-saving shift" in note
+    assert "come from each place's time zone" in note
+    given = standard_time_note([Location(lat=0, lon=0)], False)
+    assert given == "Fixed standard time: UTC+00:00; no daylight-saving shift."
 
 
 def test_location_key_changes_when_the_geography_changes():
@@ -44,5 +45,5 @@ def test_service_review_returns_points_note_and_stable_key(tmp_path):
     assert "UTC-05:00" in first["standard_time"] and first["sampling"] is None
     assert service.review_locations({"lat": 42.44, "lon": -76.5, "name": "Ithaca"})["key"] == first["key"]
     area = service.review_locations(AREA)
-    assert area["sampling"]["standard_offset"] == "longitude" and area["point_count"] >= 1
+    assert area["sampling"]["standard_offset"] == "zone" and area["point_count"] >= 1
     assert {point["standard_offset_minutes"] for point in area["points"]} == {-300}

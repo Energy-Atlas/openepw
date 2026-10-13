@@ -45,7 +45,8 @@ some files were produced. A syntactically valid EPW is not certified simulation-
 
 Geocoding is separate: `openepw.geocode("Ithaca")` returns named candidates.
 Choose a location explicitly. Standard time defaults to UTC; specify a fixed
-standard offset for local output. No DST conversion or automatic timezone guess.
+standard offset for local output; no DST conversion. (The chat's location review, and MCP's
+`weather_locations_review`, propose the offset of each place's time zone.)
 
 Published products use `product="tmy"` (PVGIS/NSRDB), or `product="tmyx"` with a
 OneBuilding `product_id`. Do not supply actual years with a published product.

@@ -223,6 +223,18 @@ class WeatherService:
     def page_weather_data(self, view_id: str, offset: int = 0, limit: int = 100) -> dict:
         return VisualizationStore(self.config.data_root).page(view_id, offset, limit)
 
+    def _nsrdb_coverage(self):
+        """The reviewed NSRDB coverage map under the data root, reloaded when its files change."""
+        from .availability.coverage import nsrdb_coverage
+
+        root = self.config.data_root / "footprints"
+        stamp = tuple(sorted((str(path), path.stat().st_mtime_ns)
+                             for path in (root / "nsrdb").glob("*/*/*.json"))) if root.is_dir() else ()
+        cached = getattr(self, "_coverage_cache", None)
+        if cached is None or cached[0] != stamp:
+            cached = self._coverage_cache = (stamp, nsrdb_coverage(root) if stamp else None)
+        return cached[1]
+
     def assess_availability(self, query: WeatherAvailabilityQuery | FutureAvailabilityQuery) -> AvailabilityResult:
         view = self.catalog_store.active()
         if view is None:
@@ -246,7 +258,8 @@ class WeatherService:
             result.issues.insert(0, Issue(code="CATALOG_UNAVAILABLE",
                                           message="Local inventories are not loaded; bundled contracts only"))
             return self._compact_availability(result)
-        result = rank(evaluate(query, view), query)
+        coverage = self._nsrdb_coverage()
+        result = rank(evaluate(query, view, coverage), query)
         if query.refresh == "if_needed":
             relevant = {evidence_id for option in result.options
                         if option.eligibility.status == "unknown"
@@ -256,7 +269,7 @@ class WeatherService:
             if relevant:
                 refreshed = self.catalog_store.active()
                 if refreshed is not None:
-                    result = rank(evaluate(query, refreshed), query)
+                    result = rank(evaluate(query, refreshed, coverage), query)
             result.issues.extend(issues)
         return self._compact_availability(result)
 
@@ -589,6 +602,10 @@ class WeatherService:
         batch_rows: list[BatchRow] = []
         selected: list[Candidate] = []
         warnings = [i.message for i in discovery.issues]
+        if request.product in ("historical", "amy") and request.years:
+            from .planning.offsets import year_offset_warnings
+
+            warnings.extend(year_offset_warnings(locations, request.years))
         issues = list(discovery.issues)
         for occurrence, loc in enumerate(discovery.locations):
             candidate_ids = (discovery.candidate_ids_by_occurrence[occurrence]

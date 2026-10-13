@@ -13,6 +13,8 @@ into the tracked repository in Stage 1. This is a scoped reuse assessment.
 | pvlib-python | BSD-3-Clause; scientific Python | Optional solar derivation/reference, no dependency for plain EPW I/O |
 | cdsapi | Apache-2.0 | Optional direct CDS client; retain notices if redistributing |
 | Open-Meteo server / Ladybug | AGPL implementation code | HTTP data access only / no Ladybug code reuse |
+| tzfpy 2.1 (reviewed 2026-10-12) | MIT; embeds timezone-boundary-builder boundaries (ODbL 1.0, derived from OpenStreetMap) | Core dependency for offline time-zone lookup; attribution: "time-zone boundaries from timezone-boundary-builder, ODbL 1.0" |
+| tzdata | Apache-2.0 packaging of the public-domain IANA tz database | Core dependency so zoneinfo works where the system has no zone files (Windows, slim images) |
 
 Evidence: [pyepwmorph license](https://github.com/justinfmccarty/pyepwmorph/blob/374d5eec414181dd5a9c184043c574db2d95c3aa/LICENSE),
 [conflicting module](https://github.com/justinfmccarty/pyepwmorph/blob/374d5eec414181dd5a9c184043c574db2d95c3aa/pyepwmorph/tools/ladybug_psychrometrics.py),
