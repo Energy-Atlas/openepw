@@ -1,3 +1,4 @@
+import asyncio
 import hmac
 import logging
 from contextlib import asynccontextmanager
@@ -5,7 +6,8 @@ from pathlib import Path
 
 from fastapi import Depends, FastAPI, File, Header, HTTPException, Query, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import BaseModel, ValidationError, model_validator
 
 from ..availability import AvailabilityQuery
@@ -137,6 +139,11 @@ def create_app(service=None, *, remote=False, chat_parser=None, mailer=None, env
     @asynccontextmanager
     async def lifespan(app):
         runner.recover()
+        try:
+            # Before the first request: the catalog index, the map and a first assessment.
+            await asyncio.to_thread(service.warm_catalog)
+        except Exception:
+            logger.exception("Catalog warm-up failed; the first request builds it instead")
         yield
         runner.close()
         close = getattr(chat_parser, "close", None)
@@ -177,6 +184,12 @@ def create_app(service=None, *, remote=False, chat_parser=None, mailer=None, env
         app.state.mcp_server = create_server(service, runner=runner)
     app.state.chat = chat
     diagnostics.install(app, service)
+
+    # Compress JSON and the web app's files; archives, images and fonts are already compressed,
+    # and a response that is already gzipped (the map) is passed through.
+    app.add_middleware(GZipMiddleware, minimum_size=1000, compresslevel=6, exclude_content_types=(
+        "application/zip", "application/gzip", "application/x-gzip", "font/woff2", "image/avif",
+        "image/gif", "image/jpeg", "image/png", "image/webp", "text/event-stream", "video/*"))
 
     @app.middleware("http")
     async def size_limit(request, call_next):
@@ -367,8 +380,16 @@ def create_app(service=None, *, remote=False, chat_parser=None, mailer=None, env
         return service.catalog_scopes()
 
     @app.get("/v1/catalog/map")
-    def catalog_map():
-        return service.catalog_map()
+    def catalog_map(request: Request):
+        # Stored bytes: no JSON encoding per request; the browser revalidates with the ETag.
+        etag, body, packed = service.catalog_map_payload()
+        headers = {"ETag": etag, "Cache-Control": "no-cache", "Vary": "Accept-Encoding"}
+        if etag in (tag.strip() for tag in request.headers.get("if-none-match", "").split(",")):
+            return Response(status_code=304, headers=headers)
+        if "gzip" in request.headers.get("accept-encoding", "").lower():
+            return Response(packed, media_type="application/json",
+                            headers={**headers, "Content-Encoding": "gzip"})
+        return Response(body, media_type="application/json", headers=headers)
 
     @app.post("/v1/weather/plan")
     def plan(request: WeatherRequest):

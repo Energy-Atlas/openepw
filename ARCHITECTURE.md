@@ -140,7 +140,12 @@ An active generation is served from a compact index (`availability/catalog_index
 OneBuilding and NOAA records (most of the catalog) stay in SQLite, with only their
 positions, ids and map points in memory, and are read by id for the nearby files and
 stations an assessment needs; other providers are held in full. Export, refresh and
-`catalog status` read the whole generation on demand.
+`catalog status` read the whole generation on demand. The index and the map are computed
+once per generation and saved under `catalog/derived/<generation>/` (`index.json`, and the
+map as gzipped JSON keyed by the footprints); the hosted install step writes them before the
+server starts, and the server warms them before serving. `/v1/catalog/map` returns the stored
+bytes with an ETag (browsers revalidate and get 304 until the catalog changes), and a gzip
+layer compresses every larger response.
 Access/terms and operational health are reported separately. When no catalog is
 loaded, bundled dated Open-Meteo/CDS contracts screen documented capabilities;
 inventory-dependent facts remain typed unknowns. Evidence ages against local
