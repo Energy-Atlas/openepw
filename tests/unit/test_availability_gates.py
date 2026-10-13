@@ -3,7 +3,7 @@ gates NSRDB GOES products, and published station files have a 100 km reach."""
 
 import hashlib
 import json
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 from openepw.availability import (
     ActualScope,
@@ -79,8 +79,9 @@ def _nsrdb():
 
 
 # Occupied 1-degree cells around (40..45 N, 80..70 W), as (row, column) from (-90, -180).
-COVERAGE = GridCoverage(1.0, frozenset((row, column) for row in range(130, 135) for column in range(100, 110)),
-                        ("nsrdb-GOES-tmy-v4-0-0/tdy-2023",))
+_GOES = GridCoverage.from_cells(1.0, [(row, column) for row in range(130, 135) for column in range(100, 110)],
+                                ("nsrdb-GOES-tmy-v4-0-0/tdy-2023",))
+COVERAGE = {"nsrdb:nsrdb-GOES-aggregated-v4-0-0": _GOES, "nsrdb:nsrdb-GOES-tmy-v4-0-0": _GOES}
 
 
 def test_the_coverage_map_gates_nsrdb():
@@ -126,3 +127,66 @@ def test_only_masks_matching_their_manifest_checksum_are_used(tmp_path):
     entry["mask_sha256"] = "0" * 64
     (folder / "manifest.json").write_text(json.dumps({"entries": [entry]}), encoding="utf-8")
     assert nsrdb_coverage(tmp_path) is None
+
+
+def _write_mask(root, provider, product, selector, mask, **entry):
+    folder = root / provider / product / selector
+    folder.mkdir(parents=True)
+    raw = json.dumps(mask).encode()
+    (folder / "mask.json").write_bytes(raw)
+    entry = {"product_id": product, "selector": selector, "selector_kind": "published_name",
+             "mask_path": "mask.json", "mask_sha256": hashlib.sha256(raw).hexdigest(), **entry}
+    (folder / "manifest.json").write_text(json.dumps({"entries": [entry]}), encoding="utf-8")
+
+
+def test_each_mask_gates_the_products_its_manifest_names(tmp_path):
+    from openepw.availability.coverage import load_coverage
+
+    _write_mask(tmp_path, "nsrdb", "nsrdb-GOES-tmy-v4-0-0", "tdy-2023",
+                {"step_degrees": 0.25, "cells": [[528, 413]]}, step_degrees=0.25)          # no gates: legacy
+    _write_mask(tmp_path, "nsrdb", "himawari", "2018", {"step_degrees": 1.0, "runs": [[91, 283, 285]]},
+                step_degrees=1.0, gates=["nsrdb:himawari"])                                 # 1-2 N, 103-105 E
+    _write_mask(tmp_path, "era5land", "reanalysis-era5-land", "lsm",
+                {"step_degrees": 0.1, "cell_origin": "center", "runs": [[915, 2838, 2842]]},
+                step_degrees=0.1, cell_origin="center",
+                gates=["cds:reanalysis-era5-land", "openmeteo:era5_land"])
+    coverage = load_coverage(tmp_path)
+    assert set(coverage) == {"nsrdb:nsrdb-GOES-tmy-v4-0-0", "nsrdb:nsrdb-GOES-aggregated-v4-0-0",
+                             "nsrdb:himawari", "cds:reanalysis-era5-land", "openmeteo:era5_land"}
+    assert coverage["nsrdb:himawari"].where(1.29, 103.85) == "inside"
+    assert coverage["nsrdb:nsrdb-GOES-tmy-v4-0-0"].where(1.29, 103.85) == "outside"
+    land = coverage["openmeteo:era5_land"]                       # centres at 1.5 N, 103.8-104.1 E
+    assert land.where(1.52, 103.84) == "inside" and land.where(1.52, 104.08) == "inside"
+    assert land.where(1.52, 104.2) == "edge" and land.where(1.2, 103.8) == "outside"
+
+
+def _era5(dataset="reanalysis-era5-single-levels", provider="cds", end=date(2026, 9, 17)):
+    return CatalogBundle(
+        evidence=[EvidenceRef(id="cds-era5", sha256="d" * 64, retrieved_at=NOW, basis="inventory")],
+        products=[ProductRecord(id=f"{provider}:x", provider=provider, dataset=dataset,
+                                temporal_kind="actual", evidence_ids=["cds-era5"])],
+        entries=[AvailabilityEntry(id="period", product_id=f"{provider}:x",
+                                   scope=ActualScope(operating_start=date(1940, 1, 1), operating_end=end),
+                                   evidence_basis="inventory", evidence_ids=["cds-era5"])])
+
+
+def test_copernicus_catalogue_period_is_documented_coverage():
+    assert _decision(_era5(), [2018]).status == "supported"
+    cut_short = _decision(_era5(), [2026])
+    assert cut_short.status == "unknown" and "AFTER_DATED_CATALOG_END" in cut_short.unknowns
+    aged = _decision(_era5(), [2018], stale=["cds-era5"])
+    assert aged.status == "supported" and "SOURCE_CHECK_DUE" in aged.reasons
+    newest = _decision(_era5(end=date(2025, 12, 31)), [2025], stale=["cds-era5"])
+    assert newest.status == "unknown" and "STALE_SOURCE_EVIDENCE" in newest.unknowns
+
+
+def test_era5_land_is_gated_by_the_land_sea_mask():
+    land = GridCoverage.from_runs(0.1, [(915, 2838, 2842)], ("lsm",), centred=True)
+    bundle = _era5("reanalysis-era5-land")
+    gate = {"cds:reanalysis-era5-land": land}
+    assert _decision(bundle, [2018], coverage=gate, lat=1.52, lon=103.84).status == "supported"
+    coast = _decision(bundle, [2018], coverage=gate, lat=1.52, lon=104.2)
+    assert coast.status == "unknown" and "NEAR_SOURCE_COVERAGE_EDGE" in coast.unknowns
+    assert _decision(bundle, [2018], coverage=gate, lat=1.2, lon=103.8).status == "excluded"
+    unmasked = _decision(bundle, [2018], lat=1.52, lon=103.84)
+    assert unmasked.status == "unknown" and "LAND_MASK_UNVERIFIED" in unmasked.unknowns

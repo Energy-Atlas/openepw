@@ -223,16 +223,17 @@ class WeatherService:
     def page_weather_data(self, view_id: str, offset: int = 0, limit: int = 100) -> dict:
         return VisualizationStore(self.config.data_root).page(view_id, offset, limit)
 
-    def _nsrdb_coverage(self):
-        """The reviewed NSRDB coverage map under the data root, reloaded when its files change."""
-        from .availability.coverage import nsrdb_coverage
+    def _coverage(self):
+        """The reviewed coverage masks under the data root by gated product, reloaded when their
+        files change."""
+        from .availability.coverage import load_coverage
 
         root = self.config.data_root / "footprints"
         stamp = tuple(sorted((str(path), path.stat().st_mtime_ns)
-                             for path in (root / "nsrdb").glob("*/*/*.json"))) if root.is_dir() else ()
+                             for path in root.glob("*/*/*/*.json"))) if root.is_dir() else ()
         cached = getattr(self, "_coverage_cache", None)
         if cached is None or cached[0] != stamp:
-            cached = self._coverage_cache = (stamp, nsrdb_coverage(root) if stamp else None)
+            cached = self._coverage_cache = (stamp, load_coverage(root) if stamp else {})
         return cached[1]
 
     def assess_availability(self, query: WeatherAvailabilityQuery | FutureAvailabilityQuery) -> AvailabilityResult:
@@ -258,7 +259,7 @@ class WeatherService:
             result.issues.insert(0, Issue(code="CATALOG_UNAVAILABLE",
                                           message="Local inventories are not loaded; bundled contracts only"))
             return self._compact_availability(result)
-        coverage = self._nsrdb_coverage()
+        coverage = self._coverage()
         result = rank(evaluate(query, view, coverage), query)
         if query.refresh == "if_needed":
             relevant = {evidence_id for option in result.options
