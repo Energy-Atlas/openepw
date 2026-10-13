@@ -168,6 +168,10 @@ def main(argv=None):
                            security_policy=security),
                 host=args.host,
                 port=args.port,
+                # One process: sessions are in SQLite and jobs run inside it. Explicit, because
+                # uvicorn otherwise takes WEB_CONCURRENCY (Render sets 2 on larger instances),
+                # and more than one worker with an app object makes uvicorn exit (status 3).
+                workers=1,
             )
             return 0
         if args.command == "mcp":
