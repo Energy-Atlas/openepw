@@ -96,7 +96,8 @@ class SamplingSpec(Model):
     offset_x_km: float = 0
     offset_y_km: float = 0
     max_locations: int = Field(default=1000, ge=1, le=10000)
-    standard_offset: Literal["utc", "longitude"] = "utc"
+    # "zone": each sampled point's time zone; "longitude": round(lon / 15) hours.
+    standard_offset: Literal["utc", "longitude", "zone"] = "utc"
 
 
 class HybridPolicy(Model):

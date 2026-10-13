@@ -9,6 +9,11 @@ retrieval attempt; it does not establish all hours, valid variables, EPW quality
 simulation readiness. Unknown coordinates, stale sources, sparse inventory gaps,
 unverified future periods and access restrictions are reported rather than filled.
 Refresh is opt-in and source-specific; aged evidence loses authority to exclude.
+Aged evidence (past its check cadence: 1 day for CDS, 30 for the Open-Meteo
+documentation, 7 otherwise) keeps durable facts listed, with a `SOURCE_CHECK_DUE`
+reason: site positions, published-file lists and closed dated years. It no longer
+vouches for the newest listed year, an open-ended period's last two years, CDS or
+future-window directories, which become unknown.
 Unsupported or partial raw metadata formats retain the last good generation and
 report a refresh failure. With no local inventory, only bundled Open-Meteo/CDS
 contracts screen documented capabilities. A query emits at most 50 ranked
@@ -74,11 +79,19 @@ simulation suitability. EnergyPlus execution is not part of ordinary tests.
 
 Meteorology may be instantaneous at interval ends while solar is interval energy.
 EPWs use fixed standard time. Direct Python, REST, MCP and CLI callers must supply
-the offset they intend (UTC is the default). Browser chat estimates a whole-hour
-offset from longitude for points without one and uses longitude-based offsets for
-sampled areas; it shows the estimate in the reviewed plan. This is not a legal
-time-zone lookup and can differ from local civil standard time. Explicit offsets
-are preserved. Existing files retain the offset used when they were generated;
+the offset they intend (UTC is the default). The location review used by browser
+chat, the agent and MCP (`weather_locations_review`) gives points without one the
+standard offset of their time zone, found offline from the coordinates (tzfpy with
+timezone-boundary-builder boundaries, accurate to about 111 m near borders; IANA rules
+from tzdata), and does the same for each point of a sampled area. Standard time is the
+smallest offset in force during the year, so no daylight saving enters EPW time. At sea
+the nautical zone applies (longitude / 15); a zone missing from the installed tz rules
+falls back to longitude, and the review says which was used. Fractional standard
+offsets (India +5:30, Nepal +5:45, Newfoundland -3:30, central Australia +9:30) are
+rounded to the nearer whole hour, a tie going to the hour nearer mean solar time, so two
+places in one zone can differ by an hour; the review names the civil offset. The review
+uses the zone's current standard time; a plan warns when a requested year used another
+(Singapore before 1982). Explicit offsets are preserved. Existing files retain the offset used when they were generated;
 download a new EPW after changing it. Older saved browser chats require the
 location to be re-entered and reviewed before an actual-year plan can run.
 Historical retrieval currently requires output offsets aligned to
@@ -188,8 +201,15 @@ QC, availability, or energy-model inputs. See [decision 0004](decisions/0004-map
 
 Product choices and their map tags come from the offline Stage 1 catalog
 assessment only. A product "not verified in the catalog" (outlined tag with ?)
-is checked live when planning; NSRDB actual-year and NSRDB TMY records exist
-only at the saved probe points, so elsewhere they show as unverified. Before
+is checked live when planning, and is listed after the products checked here under
+"Not checked here". NSRDB GOES products are gated by the reviewed coverage map (the
+NSRDB map layer, a 0.25 degree summary of the published `tdy-2023` file's grid
+sites, used for actual-year and typical-year GOES products alike): outside it they
+are not offered; inside it the probed years and file names apply; next to its edge
+they stay unverified. Without an installed map they exist only at the saved probe
+points. OneBuilding and NOAA ISD stations beyond 100 km are not offered. The
+OneBuilding inventory covers the USA, the Southwest Pacific and Europe only, so
+elsewhere no OneBuilding file is offered yet. Before
 years are given, actual-year availability is shown for the last complete
 year. The station on the map is the catalog's best-ranked station for that
 product; planning re-ranks with the chosen years and may pick another. Tags are

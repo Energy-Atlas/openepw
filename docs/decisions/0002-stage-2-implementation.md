@@ -15,6 +15,10 @@ The approved scope is implemented with the following bounded refinements:
   Preserve their original row years and EPW calendar marker; do not invent Feb 29.
 - Historical offsets must align to provider hours. Fractional-hour interpolation
   is deferred; reject it before requesting data instead of silently shifting energy.
+  Owner decision 2026-10-12: where the service chooses the offset (the location review
+  of chat, the agent and MCP), it uses the point's time zone and rounds a fractional
+  standard offset to the nearer whole hour (a tie to the hour nearer mean solar time),
+  naming the civil offset in the review. An explicit fractional offset is still refused.
 - NSRDB native TMY/TDY/TGY support supplements the planned actual-year adapter.
   Preserve the native timezone and mixed source years.
 - REST remote mode requires a bearer token. MCP HTTP binds only to loopback;

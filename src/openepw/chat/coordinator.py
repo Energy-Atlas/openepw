@@ -19,7 +19,7 @@ from ..availability import WeatherAvailabilityQuery
 from ..availability.products import product_for, product_offers
 from ..harness.agent import safe_prompt
 from ..harness.model import ModelUnavailable
-from ..models import OpenEPWError, WeatherRequest
+from ..models import Location, OpenEPWError, WeatherRequest
 from ..places.models import PlacePreview, PlaceSetQuery
 from ..places.parse import apply_edit, classify_places, describe_place_set
 from ..planning.offsets import estimate_offsets as chat_geography
@@ -152,6 +152,16 @@ def request_location_summary(facts: dict) -> str:
     summary += f" · {missing} not found and left out" if missing else ""
     names = [point.get("name") or f"{point['lat']:.4f}, {point['lon']:.4f}" for point in geography[:3]]
     return summary + " · " + "; ".join(names) + (f" and {count - 3} more" if count > 3 else "")
+
+
+def location_standard_time(facts: dict) -> str:
+    """The standard-time note for the points under review (an area's points are sampled later)."""
+    geography = request_location(facts)
+    values = geography if isinstance(geography, list) else [geography]
+    if not values or not all(isinstance(value, dict) and "lat" in value for value in values):
+        return ""
+    return standard_time_note([Location.model_validate(value) for value in values],
+                              bool(facts.get("offset_estimated")))
 
 
 HISTORY_LIMIT = 50
@@ -509,7 +519,9 @@ class ChatCoordinator:
             several = isinstance(facts.get("geography"), list) and len(facts["geography"]) > 1
             card = {"kind": "location_review",
                     "prompt": "Are these the right locations?" if several else "Is this the right location?",
-                    "data": {"summary": request_location_summary(facts), "several": several}}
+                    "data": {"summary": "\n\n".join(filter(None, (request_location_summary(facts),
+                                                                   location_standard_time(facts)))),
+                             "several": several}}
         elif not facts.get("selections"):
             # Each option names one downloadable product; the map shows where each is available.
             self._event(state, "tool", "Checking where each product is available",

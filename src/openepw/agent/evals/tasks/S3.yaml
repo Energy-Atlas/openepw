@@ -1,6 +1,6 @@
 id: S3
-title: Coordinates show an estimated standard-time offset
-purpose: Coordinates get a location review that shows the estimated fixed standard-time offset.
+title: Coordinates show the standard-time offset from their time zone
+purpose: Coordinates get a location review that shows the fixed standard-time offset chosen from the time zone.
 covers: [gate.offsets, gate.location-review]
 tags: [workflow]
 user:

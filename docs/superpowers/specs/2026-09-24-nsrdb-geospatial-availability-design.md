@@ -50,6 +50,12 @@ The Stage 2 catalog adds a per-product, per-selector spatial evidence record rat
 4. The local output names every layer's evidence basis, source/date/version and display resolution. It distinguishes `catalog point confirmed`, `source grid site present`, `documented broad region`, and `unknown` in legend, hover and exported summary.
 5. No full weather files, source coordinate inventories, credentials or signed URLs are committed or embedded in shared docs. The provider's attribution and applicable reuse terms accompany the local artifact.
 
+## Superseded in part (2026-10-12)
+
+By owner decision, the reviewed coverage mask now gates NSRDB GOES eligibility (outside
+excluded, inside the probed lists apply, the edge unknown) for actual-year and typical-year
+products alike. See [ADR 0003](../../decisions/0003-mcp-availability-and-batches.md).
+
 ## Open scientific/source decision
 
 The precise v4 API-product-to-bulk-file mapping has not yet been verified. Its verification is the first implementation task and a gate for *exact* grid coverage claims. If NLR does not publish or confirm such a mapping, the honest deliverable is an improved map of documented scope plus the two verified points, with an explicit unresolved exact-footprint note. The user's requested exact per-version region would then require provider clarification or another authoritative source.

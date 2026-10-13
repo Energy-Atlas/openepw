@@ -8,6 +8,7 @@ from ..models import (
     SamplingSpec,
     nominal_offset_minutes,
 )
+from .timezones import zone_offset
 
 
 def cross(a, b, c):
@@ -97,7 +98,8 @@ def sample(query: BoundingBox | PolygonQuery, spec: SamplingSpec) -> list[Locati
                 or any(inside(point, hole) for hole in polygon.coordinates[1:])
             ):
                 continue
-            offset = nominal_offset_minutes(lon) if spec.standard_offset == "longitude" else 0
+            offset = (nominal_offset_minutes(lon) if spec.standard_offset == "longitude"
+                      else zone_offset(lat, lon).offset_minutes if spec.standard_offset == "zone" else 0)
             points.append(Location(lat=lat, lon=lon, standard_offset_minutes=offset))
     if not points:
         raise OpenEPWError("INVALID_GEOMETRY", "Sampling produces no locations")

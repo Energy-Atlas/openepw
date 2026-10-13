@@ -8,11 +8,10 @@ EPW fitness, and products without reviewed geometry stay unmapped.
 
 from __future__ import annotations
 
-import hashlib
-import json
 import re
 from pathlib import Path
 
+from .coverage import verified_nsrdb_masks
 from .models import ActualScope, CatalogBundle, TMYReferenceScope
 
 # Coarse lon/lat envelope traced against JRC's PVGIS 5.3 default irradiance-source
@@ -72,31 +71,18 @@ def merge_cell_rows(cells: list[list[int]], step: float) -> list[list[float]]:
 def _nsrdb_masks(footprints_root: Path) -> dict[tuple[str, str], dict]:
     """Load reviewed NSRDB source-grid masks; skip stale or checksum-mismatched ones."""
     masks: dict[tuple[str, str], dict] = {}
-    for manifest_path in sorted((footprints_root / "nsrdb").glob("*/*/manifest.json")):
-        try:
-            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
+    for entry, mask in verified_nsrdb_masks(footprints_root):
+        step = float(entry.get("step_degrees") or mask.get("step_degrees") or 0)
+        if step <= 0:
             continue
-        for entry in manifest.get("entries", []):
-            if entry.get("stale") or entry.get("selector_kind") != "published_name":
-                continue
-            mask_path = manifest_path.parent / entry.get("mask_path", "mask.json")
-            try:
-                raw = mask_path.read_bytes()
-            except OSError:
-                continue
-            if hashlib.sha256(raw).hexdigest() != entry.get("mask_sha256"):
-                continue
-            mask = json.loads(raw)
-            step = float(entry.get("step_degrees") or mask.get("step_degrees"))
-            masks[(entry["product_id"], entry["selector"])] = {
-                "rects": merge_cell_rows(mask.get("cells", []), step),
-                "cell_count": len(mask.get("cells", [])),
-                "step": step,
-                "source": {key: entry.get(key) for key in (
-                    "selector", "source_file_id", "source_version", "source_modified_at",
-                    "retrieved_at", "coordinate_count", "meta_sha256", "mask_sha256")},
-            }
+        masks[(entry["product_id"], entry["selector"])] = {
+            "rects": merge_cell_rows(mask.get("cells", []), step),
+            "cell_count": len(mask.get("cells", [])),
+            "step": step,
+            "source": {key: entry.get(key) for key in (
+                "selector", "source_file_id", "source_version", "source_modified_at",
+                "retrieved_at", "coordinate_count", "meta_sha256", "mask_sha256")},
+        }
     return masks
 
 

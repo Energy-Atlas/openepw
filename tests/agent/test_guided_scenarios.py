@@ -52,7 +52,7 @@ def test_s3_coordinates_show_an_estimated_offset(tmp_path):
     async def scenario(h):
         await h.say("42.44, -76.5 TMYx")
         assert h.form.gate == "review_location" and h.form.data["offset_estimated"] is True
-        assert "estimated" in h.form.summary
+        assert "time zone" in h.form.summary
         await h.approve()
         assert h.form.gate == "choose_products" and h.session.facts.product_type == "tmyx"
 

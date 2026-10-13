@@ -53,8 +53,8 @@ def test_each_option_names_one_product_with_its_availability_here():
     offers = product_offers(catalog, ITHACA, today=date(2026, 9, 27))
     assert catalog.queries == [("historical", [2025]), ("tmy", [])]    # no years yet: last full year
     options = {option["id"]: option for option in offers["options"]}
-    assert list(options) == ["era5-openmeteo", "nsrdb-actual", "noaa-isd", "nsrdb-tmy",
-                             "onebuilding:TMYx", "onebuilding:TMYx.2009-2023"]
+    assert list(options) == ["era5-openmeteo", "noaa-isd", "nsrdb-actual",       # listed here first
+                             "onebuilding:TMYx", "onebuilding:TMYx.2009-2023", "nsrdb-tmy"]
     assert options["noaa-isd"]["label"] == "NOAA ISD station observations"
     assert options["noaa-isd"]["detail"].endswith("ITHACA TOMPKINS REGIONAL AIRPORT · 5.2 km")
     assert options["nsrdb-actual"]["detail"].endswith("not verified in the catalog; checked when planning")

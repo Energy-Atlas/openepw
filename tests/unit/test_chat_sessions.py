@@ -133,7 +133,7 @@ def test_chat_geocoded_location_uses_local_standard_offset(tmp_path):
     assert start.isoformat() == "2012-01-01T05:00:00+00:00"
     assert end.isoformat() == "2013-01-01T05:00:00+00:00"
     assert "UTC-05:00" in standard_time_summary(request, facts["offset_estimated"])
-    assert "estimated from longitude" in standard_time_summary(request, facts["offset_estimated"])
+    assert "(America/New_York)" in standard_time_summary(request, facts["offset_estimated"])
 
 
 def test_chat_geography_estimates_missing_offsets_but_preserves_explicit_utc(tmp_path):
@@ -152,7 +152,7 @@ def test_chat_geography_estimates_missing_offsets_but_preserves_explicit_utc(tmp
     assert [point["standard_offset_minutes"] for point in selected["facts"]["geography"]] == [-300, 0]
 
 
-def test_chat_area_uses_longitude_standard_time_for_sampling(tmp_path):
+def test_chat_area_uses_time_zone_standard_time_for_sampling(tmp_path):
     from openepw.models import BoundingBox
     from openepw.planning.spatial import sample
 
@@ -164,7 +164,7 @@ def test_chat_area_uses_longitude_standard_time_for_sampling(tmp_path):
     state = coordinator.create()
     area = BoundingBox(west=-76.6, east=-76.4, south=42.3, north=42.5).model_dump()
     selected = coordinator.set_geography(state["id"], area, 0, "geo")
-    assert selected["facts"]["sampling"]["standard_offset"] == "longitude"
+    assert selected["facts"]["sampling"]["standard_offset"] == "zone"
     assert {point["standard_offset_minutes"] for point in selected["facts"]["resolved_points"]} == {-300}
     from openepw.chat.coordinator import location_key
     facts = selected["facts"] | {
@@ -172,7 +172,7 @@ def test_chat_area_uses_longitude_standard_time_for_sampling(tmp_path):
         "product": "historical", "years": [2024],
         "selections": [{"provider": "openmeteo", "dataset": "era5"}],
     }
-    assert coordinator._request(facts).sampling.standard_offset == "longitude"
+    assert coordinator._request(facts).sampling.standard_offset == "zone"
 
 
 def test_old_chat_plan_cannot_run_with_unreviewed_utc_offset(tmp_path):
