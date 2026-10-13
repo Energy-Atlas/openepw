@@ -42,7 +42,7 @@ def test_diagnostics_return_recent_warnings_redacted(tmp_path):
             log.exception("unhandled")
         body = client.get("/v1/diagnostics").json()
     text = str(body["server_log"])
-    assert body["version"] and "server_time" in body
+    assert body["version"] and "server_time" in body and "memory" in body     # None off Linux
     assert "provider said [redacted] for [email] with Bearer [redacted]" in text
     assert "Traceback" in text and "api_key=[redacted]" in text
     assert secret not in text and "tester@cornell.edu" not in text and "zzzzzzzzzzzz" not in text

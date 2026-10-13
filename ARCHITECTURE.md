@@ -30,7 +30,7 @@ src/openepw/
   jobs/{store,worker}.py  SQLite item records and bounded worker threads
   api/app.py             REST adapter
   api/site_gate.py       site password for hosted deployments (signed 30-day cookie)
-  deploy.py              hosted catalog: build once from the pinned open-data package
+  deploy.py              hosted catalog: install or upgrade from the pinned open-data package
   chat/coordinator.py     browser-neutral durable conversation facts and events
   chat/products.py        named product choices and per-location catalog availability
   mcp/server.py          MCP adapter
@@ -136,6 +136,16 @@ pin one active generation, evaluate each input occurrence independently, then ra
 eligible and uncertain alternatives with reasons. Actual sparse years, TMY source
 reference periods and future scenario/windows have separate tagged scopes. A
 supported assessment means eligible to attempt retrieval, not complete weather.
+An active generation is served from a compact index (`availability/catalog_index.py`):
+OneBuilding and NOAA records (most of the catalog) stay in SQLite, with only their
+positions, ids and map points in memory, and are read by id for the nearby files and
+stations an assessment needs; other providers are held in full. Export, refresh and
+`catalog status` read the whole generation on demand. The index and the map are computed
+once per generation and saved under `catalog/derived/<generation>/` (`index.json`, and the
+map as gzipped JSON keyed by the footprints); the hosted install step writes them before the
+server starts, and the server warms them before serving. `/v1/catalog/map` returns the stored
+bytes with an ETag (browsers revalidate and get 304 until the catalog changes), and a gzip
+layer compresses every larger response.
 Access/terms and operational health are reported separately. When no catalog is
 loaded, bundled dated Open-Meteo/CDS contracts screen documented capabilities;
 inventory-dependent facts remain typed unknowns. Evidence ages against local

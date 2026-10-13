@@ -23,6 +23,7 @@ import shutil
 import sqlite3
 import sys
 import tempfile
+import time
 import urllib.request
 from contextlib import closing
 from pathlib import Path
@@ -133,6 +134,7 @@ def main(argv: list[str] | None = None) -> int:
     url = os.environ.get("OPENEPW_CATALOG_URL", "")
     if not url:
         print("OPENEPW_CATALOG_URL is not set; starting without a Stage 1 catalog", file=sys.stderr)
+        prepare_catalog(args.data_root)                 # a catalog imported by hand, if any
         return 0
     had_catalog = has_catalog(args.data_root)
     try:
@@ -141,10 +143,27 @@ def main(argv: list[str] | None = None) -> int:
         # The server still starts: with the previous catalog, or with bundled contracts only.
         keeping = "keeping the installed catalog" if had_catalog else "starting without a Stage 1 catalog"
         print(f"Catalog install failed: {error}; {keeping}", file=sys.stderr)
+        prepare_catalog(args.data_root)
         return 0
     print(("Catalog upgraded from the data package" if had_catalog else "Catalog installed from the data package")
           if installed else "Catalog already installed from this package; nothing to do")
+    prepare_catalog(args.data_root)
     return 0
+
+
+def prepare_catalog(data_root: Path) -> None:
+    """Write the active generation's derived files (its index and the map) before the server
+    starts, so no visitor waits for them; skipped quickly when they already exist."""
+    started = time.monotonic()
+    try:
+        from .config import RuntimeConfig
+        from .service import WeatherService
+
+        WeatherService(RuntimeConfig(data_root=Path(data_root))).warm_catalog()
+    except Exception as error:                         # the server builds them on first use
+        print(f"Catalog preparation failed: {error}; the server builds it on first use", file=sys.stderr)
+        return
+    print(f"Catalog prepared in {time.monotonic() - started:.1f} s")
 
 
 if __name__ == "__main__":
