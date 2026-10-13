@@ -54,6 +54,19 @@ class RecentLog(logging.Handler):
 _recent: RecentLog | None = None
 
 
+def process_memory() -> dict[str, float] | None:
+    """Resident and peak resident memory of this process in MB, where Linux reports them."""
+    try:
+        with open("/proc/self/status", encoding="ascii") as status:
+            lines = status.read().splitlines()
+    except OSError:
+        return None
+    names = {"VmRSS": "resident_mb", "VmHWM": "peak_resident_mb"}
+    values = {names[name]: round(int(rest.split()[0]) / 1024, 1)
+              for name, _, rest in (line.partition(":") for line in lines) if name in names}
+    return values or None
+
+
 def _secret_values(service: Any) -> list[str]:
     """Every configured credential and credential-like environment value, longest first."""
     config = service.config
@@ -84,4 +97,5 @@ def install(app: FastAPI, service: Any) -> None:
                 "server_time": datetime.now(timezone.utc).isoformat(timespec="seconds"),
                 "security_profile": f"{policy.profile} ({policy.digest})" if policy else None,
                 "catalog_generation": view.snapshot.generation_id if view else None,
+                "memory": process_memory(),
                 "server_log": list(_recent.records)}

@@ -252,7 +252,7 @@ def main(argv=None):
                 view = service.catalog_store.active()
                 expected = {"openmeteo", "pvgis", "onebuilding", "noaa", "nsrdb",
                             "cds", "cmip6", "oedi"}
-                found = {product.provider for product in view.bundle.products} if view else set()
+                found = view.index.providers() if view else set()
                 result = {
                     "loaded": view is not None,
                     "generation_id": view.snapshot.generation_id if view else None,

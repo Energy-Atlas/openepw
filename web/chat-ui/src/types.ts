@@ -122,5 +122,6 @@ export type Diagnostics = {
   server_time: string
   security_profile: string | null
   catalog_generation: string | null
+  memory?: { resident_mb?: number; peak_resident_mb?: number } | null
   server_log: Array<{ time: string; level: string; logger: string; message: string }>
 }

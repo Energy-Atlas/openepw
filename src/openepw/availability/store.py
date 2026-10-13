@@ -5,8 +5,8 @@ from __future__ import annotations
 import json
 import sqlite3
 import uuid
+from collections.abc import Callable
 from contextlib import contextmanager
-from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -27,10 +27,30 @@ class CatalogImportError(ValueError):
     """A source bundle failed validation; the active generation remains intact."""
 
 
-@dataclass(frozen=True)
 class CatalogView:
-    snapshot: CatalogSnapshotRef
-    bundle: CatalogBundle
+    """An active catalog generation. ``index`` serves assessment and the map; ``bundle`` is
+    every record, held for a catalog built in memory and, for a stored generation, read in
+    full on each access and not kept (export, refresh and status only)."""
+
+    def __init__(self, snapshot: CatalogSnapshotRef, bundle: CatalogBundle | None = None, *,
+                 index=None, load: Callable[[], CatalogBundle] | None = None):
+        self.snapshot = snapshot
+        self._bundle, self._index, self._load = bundle, index, load
+
+    @property
+    def bundle(self) -> CatalogBundle:
+        if self._bundle is not None:
+            return self._bundle
+        assert self._load is not None
+        return self._load()
+
+    @property
+    def index(self):
+        if self._index is None:
+            from .catalog_index import index_for
+
+            self._index = index_for(self.bundle)
+        return self._index
 
 
 _TABLES = (
@@ -154,21 +174,28 @@ class CatalogStore:
             generation_id, raw_snapshot = row
             snapshot = CatalogSnapshotRef.model_validate_json(raw_snapshot)
             self._check_versions(snapshot)
-            # A generation's contents never change once staged, so they are read and validated
-            # once; the snapshot, version check and stale marks are still read on every call.
-            loaded = getattr(self, "_loaded", None)
-            if loaded is None or loaded[0] != generation_id:
-                contents = {}
-                for name, kind in _TABLES:
-                    records = db.execute(f"SELECT body FROM {name} WHERE generation_id = ? ORDER BY id",
-                                         (generation_id,)).fetchall()
-                    contents[name] = [kind.model_validate(json.loads(r[0])) for r in records]
-                loaded = self._loaded = (generation_id, CatalogBundle(**contents))
             stale = [row[0] for row in db.execute("SELECT source_id FROM stale_sources ORDER BY source_id")]
-        bundle = loaded[1]
-        stale.extend(e.id for e in bundle.evidence if aged(e))
+        # A generation's contents never change once staged, so its index is built once; the
+        # snapshot, version check and stale marks are still read on every call.
+        loaded = getattr(self, "_loaded", None)
+        if loaded is None or loaded[0] != generation_id:
+            from .catalog_index import StoreCatalogIndex
+
+            loaded = self._loaded = (generation_id, StoreCatalogIndex(self.database, generation_id))
+        index = loaded[1]
+        stale.extend(e.id for e in index.evidence if aged(e))
         snapshot.stale_sources = sorted(set(snapshot.stale_sources) | set(stale))
-        return CatalogView(snapshot, bundle)
+        return CatalogView(snapshot, index=index, load=lambda: self.bundle(generation_id))
+
+    def bundle(self, generation_id: str) -> CatalogBundle:
+        """Every record of a generation (export, refresh, status): about 1 GB for a full catalog."""
+        contents = {}
+        with self._connect() as db:
+            for name, kind in _TABLES:
+                records = db.execute(f"SELECT body FROM {name} WHERE generation_id = ? ORDER BY id",
+                                     (generation_id,)).fetchall()
+                contents[name] = [kind.model_validate(json.loads(r[0])) for r in records]
+        return CatalogBundle(**contents)
 
     def mark_stale(self, source_id: str):
         with self._connect() as db:
