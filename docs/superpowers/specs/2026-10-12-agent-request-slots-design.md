@@ -1,8 +1,10 @@
 # Agent request steps as separate lookups and slots — proposal (draft)
 
-**Status:** proposal recorded 2026-10-12 at the owner's request; **not approved, not started**. The
-owner asked first to merge the current work into `main` and the Render staging branch. Open
-questions are in §6.
+**Status:** proposal recorded 2026-10-12 at the owner's request. The owner answered §6 on
+2026-10-13: (1) yes, (2) yes with a label, (3) always reset, (4) **as now** (text at an open form
+stays its answer, so phase (c) is Back per slot only), (5) phase (a) first, (6) spec and plan first.
+Phase (a): [agent request lookups design](2026-10-13-agent-request-lookups-design.md), awaiting
+approval. Phases (b)–(d) are not designed.
 
 ## 1. The owner's observation
 
