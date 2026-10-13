@@ -14,6 +14,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     OPENEPW_DATA_ROOT=/var/data/openepw \
     OPENEPW_WEB_ROOT=/app/web
+# glibc gives each thread its own memory arena, and a threaded server then grows by free memory
+# it never returns; two arenas bound that (the server is one process with worker threads).
+ENV MALLOC_ARENA_MAX=2
 WORKDIR /app
 COPY pyproject.toml README.md LICENSE* ./
 COPY src ./src

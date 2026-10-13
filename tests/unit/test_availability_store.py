@@ -95,7 +95,8 @@ def test_active_contents_are_loaded_once_per_generation(tmp_path):
     store = CatalogStore(tmp_path)
     first = store.stage(bundle())
     store.activate(first.generation_id)
-    assert store.active().bundle is store.active().bundle           # not re-read and re-validated
+    assert store.active().index is store.active().index             # built once per generation
+    assert store.active().bundle is not store.active().bundle       # every record: read on demand, not kept
     second = store.stage(bundle())
     store.activate(second.generation_id)
     assert store.active().snapshot.generation_id == second.generation_id

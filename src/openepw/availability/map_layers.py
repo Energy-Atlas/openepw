@@ -92,43 +92,72 @@ NSRDB_GRIDS = {"nsrdb-GOES-tmy-v4-0-0": "GOES", "himawari7": "Himawari",
                "nsrdb-msg-v1-0-0-tmy": "Meteosat", "msg-iodc": "Meteosat IODC"}
 
 
-def catalog_map(bundle: CatalogBundle, footprints_root: Path) -> dict:
-    products = {product.id: product for product in bundle.products
+class SitePoints:
+    """The NOAA station and OneBuilding file points of the map, gathered entry by entry."""
+
+    def __init__(self) -> None:
+        self.noaa: list[list] = []
+        self.onebuilding: list[list] = []
+        self.missing = self.zero = self.onebuilding_missing = 0
+
+    def add(self, provider: str, entry, site, native_product_id: str | None, site_id: str | None) -> None:
+        get = site.get if isinstance(site, dict) else (lambda key: getattr(site, key))
+        lat, lon = get("lat"), get("lon")
+        if provider == "noaa" and isinstance(entry.scope, ActualScope):
+            if lat is None or lon is None:
+                self.missing += 1
+            elif lat == 0 and lon == 0:
+                self.zero += 1  # Placeholder origin coordinates are not a station location.
+            elif years := _years_with_reports(entry.scope):
+                self.noaa.append([lon, lat, site_id, _ranges(years), get("name")])
+        elif provider == "onebuilding" and isinstance(entry.scope, TMYReferenceScope):
+            if lat is None or lon is None:
+                self.onebuilding_missing += 1
+                return
+            scope = entry.scope
+            period = (f"{scope.start_year}-{scope.end_year}"
+                      if scope.start_year and scope.end_year else None)
+            self.onebuilding.append([lon, lat, scope.product_label, period, get("position_status"),
+                                     onebuilding_station_name(native_product_id)])
+
+    def result(self) -> dict:
+        return {"noaa_points": self.noaa, "missing": self.missing, "zero": self.zero,
+                "onebuilding_points": self.onebuilding, "onebuilding_missing": self.onebuilding_missing}
+
+
+def site_points(products, sites, entries) -> dict:
+    """The map points of catalog records held in memory."""
+    by_product = {product.id: product for product in products if product.temporal_kind != "future_window"}
+    by_site = {site.id: site for site in sites if site.product_id in by_product}
+    points = SitePoints()
+    for entry in entries:
+        site, product = by_site.get(entry.site_id or ""), by_product.get(entry.product_id)
+        if site is not None and product is not None:
+            points.add(product.provider, entry, site, product.native_product_id, site.id)
+    return points.result()
+
+
+def catalog_map(index, footprints_root: Path) -> dict:
+    """The map's layers. ``index`` is a ``CatalogIndex`` (or a catalog bundle, wrapped in one)."""
+    if isinstance(index, CatalogBundle):
+        from .catalog_index import CatalogIndex
+
+        index = CatalogIndex(index)
+    all_products, all_sites, all_entries, gathered = index.map_parts()
+    products = {product.id: product for product in all_products
                 if product.temporal_kind != "future_window"}  # Future-weather UI is suspended.
-    evidence = {item.id: item for item in bundle.evidence}
+    evidence = {item.id: item for item in index.evidence}
 
     def dates(product_ids) -> list[str]:
         refs = {ref for pid in product_ids for ref in products[pid].evidence_ids if ref in evidence}
         return sorted({(evidence[ref].checked_at or evidence[ref].retrieved_at).date().isoformat()
                        for ref in refs})
 
-    sites = {site.id: site for site in bundle.sites if site.product_id in products}
     layers: list[dict] = []
     mapped: set[tuple[str, str]] = set()
 
-    noaa_points, missing, zero = [], 0, 0
-    onebuilding_points, onebuilding_missing = [], 0
-    for entry in bundle.entries:
-        site = sites.get(entry.site_id or "")
-        product = products.get(entry.product_id)
-        if site is None or product is None:
-            continue
-        if product.provider == "noaa" and isinstance(entry.scope, ActualScope):
-            if site.lat is None or site.lon is None:
-                missing += 1
-            elif site.lat == 0 and site.lon == 0:
-                zero += 1  # Placeholder origin coordinates are not a station location.
-            elif years := _years_with_reports(entry.scope):
-                noaa_points.append([site.lon, site.lat, site.id, _ranges(years), site.name])
-        elif product.provider == "onebuilding" and isinstance(entry.scope, TMYReferenceScope):
-            if site.lat is None or site.lon is None:
-                onebuilding_missing += 1
-                continue
-            scope = entry.scope
-            period = (f"{scope.start_year}-{scope.end_year}"
-                      if scope.start_year and scope.end_year else None)
-            onebuilding_points.append([site.lon, site.lat, scope.product_label, period,
-                                       site.position_status, onebuilding_station_name(product.native_product_id)])
+    noaa_points, missing, zero = gathered["noaa_points"], gathered["missing"], gathered["zero"]
+    onebuilding_points, onebuilding_missing = gathered["onebuilding_points"], gathered["onebuilding_missing"]
     noaa_ids = [pid for pid, product in products.items() if product.provider == "noaa"]
     if noaa_points:
         mapped |= {(products[pid].provider, products[pid].dataset) for pid in noaa_ids}
@@ -170,7 +199,7 @@ def catalog_map(bundle: CatalogBundle, footprints_root: Path) -> dict:
     pvgis = [pid for pid, product in products.items() if product.provider == "pvgis"]
     if pvgis:
         mapped |= {(products[pid].provider, products[pid].dataset) for pid in pvgis}
-        probes = [[entry.probe_location.lon, entry.probe_location.lat] for entry in bundle.entries
+        probes = [[entry.probe_location.lon, entry.probe_location.lat] for entry in all_entries
                   if entry.product_id in pvgis and entry.probe_location is not None]
         layers.append({
             "id": "pvgis", "kind": "area", "label": "PVGIS TMY SARAH3 region",

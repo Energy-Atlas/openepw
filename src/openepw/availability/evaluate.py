@@ -2,15 +2,13 @@
 
 from __future__ import annotations
 
-import math
 from collections.abc import Sequence
 from datetime import date, datetime, timezone
-
-import numpy as np
 
 from openepw.models import Issue, Location, digest
 from openepw.planning.spatial import sample
 
+from .catalog_index import CatalogIndex, distance_km
 from .coverage import GridCoverage
 from .models import (
     ActualScope,
@@ -48,82 +46,7 @@ def _locations(query: AvailabilityQuery) -> list[Location]:
     return sample(locs, query.request.sampling)
 
 
-def _distance(a: Location, b: SiteRecord) -> float | None:
-    if b.lat is None or b.lon is None:
-        return None
-    lat1, lat2 = math.radians(a.lat), math.radians(b.lat)
-    dlat = lat2 - lat1
-    dlon = math.radians(b.lon - a.lon)
-    h = math.sin(dlat / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2
-    return 6371.0 * 2 * math.asin(min(1.0, math.sqrt(h)))
-
-
-_BROAD = ("approximate_locality", "conflicted")      # positions too rough for a distance
-
-
-class _SiteIndex:
-    """Positioned sites as radian arrays, for a fast first pass before the exact distances."""
-
-    def __init__(self, sites: list[SiteRecord]):
-        self.sites = [site for site in sites if site.lat is not None and site.lon is not None
-                      and site.position_status not in _BROAD]
-        self.lat = np.radians(np.array([site.lat for site in self.sites], dtype=float))
-        self.lon = np.radians(np.array([site.lon for site in self.sites], dtype=float))
-
-    def nearest(self, location: Location, *, count: int | None = None, radius: float | None = None,
-                key=lambda site: site.id) -> list[tuple[float, SiteRecord]]:
-        """The nearest sites by exact distance, ordered by (distance, key), as the full scan did.
-
-        The vectorised haversine only chooses candidates, with a small margin; each candidate's
-        distance is then recomputed with ``_distance``, so values and order are unchanged.
-        """
-        if not self.sites:
-            return []
-        lat1 = math.radians(location.lat)
-        dlon = self.lon - math.radians(location.lon)
-        h = np.sin((self.lat - lat1) / 2) ** 2 + math.cos(lat1) * np.cos(self.lat) * np.sin(dlon / 2) ** 2
-        rough = 6371.0 * 2 * np.arcsin(np.minimum(1.0, np.sqrt(h)))
-        limit = np.inf if radius is None else radius
-        if count is not None and count < len(self.sites):
-            limit = min(limit, float(np.partition(rough, count - 1)[count - 1]))
-        picked = [self.sites[index] for index in np.flatnonzero(rough <= limit + 1e-6)]
-        exact = [(distance, site) for site in picked if (distance := _distance(location, site)) is not None
-                 and (radius is None or distance <= radius)]
-        exact.sort(key=lambda item: (item[0], key(item[1])))
-        return exact[:count] if count is not None else exact
-
-
-class _BundleIndex:
-    """Lookups rebuilt from a catalog once, not on every evaluation."""
-
-    def __init__(self, bundle):
-        self.sites: dict[str, list[SiteRecord]] = {}
-        self.entries: dict[tuple[str, str | None], list[AvailabilityEntry]] = {}
-        for source_site in bundle.sites:
-            self.sites.setdefault(source_site.product_id, []).append(source_site)
-        for entry in bundle.entries:
-            self.entries.setdefault((entry.product_id, entry.site_id), []).append(entry)
-        published = {product.id for product in bundle.products if product.provider == "onebuilding"}
-        self.published = _SiteIndex([site for site in bundle.sites if site.product_id in published])
-        self.by_product: dict[str, _SiteIndex] = {}
-
-    def product_sites(self, product_id: str) -> _SiteIndex:
-        if product_id not in self.by_product:
-            self.by_product[product_id] = _SiteIndex(self.sites.get(product_id, []))
-        return self.by_product[product_id]
-
-
-# The active catalog and one pinned or previous generation, most recent first.
-_INDEXES: list[tuple[object, _BundleIndex]] = []
-
-
-def _bundle_index(bundle) -> _BundleIndex:
-    for cached, index in _INDEXES:
-        if cached is bundle:
-            return index
-    index = _BundleIndex(bundle)
-    _INDEXES[:] = [(bundle, index), *_INDEXES[:1]]
-    return index
+_distance = distance_km
 
 
 def _time_sensitive(query: AvailabilityQuery, product: ProductRecord,
@@ -180,24 +103,23 @@ def _relevant_product(query: AvailabilityQuery, product: ProductRecord) -> bool:
 
 
 def _candidate_sites(query: AvailabilityQuery, location: Location, product: ProductRecord,
-                     sites: list[SiteRecord],
-                     entries_by_site: dict[tuple[str, str | None], list[AvailabilityEntry]],
-                     index: _SiteIndex | None = None) -> Sequence[SiteRecord | None]:
-    if not sites:
+                     lookup: CatalogIndex) -> Sequence[SiteRecord | None]:
+    if not lookup.has_sites(product.id):
         return [None]
     if (isinstance(query, WeatherAvailabilityQuery) and product.provider == "noaa" and
             query.request.product_id):
-        return [site for site in sites if site.id == query.request.product_id]
+        site = lookup.site(query.request.product_id)
+        return [site] if site is not None and site.product_id == product.id else []
     if product.provider == "onebuilding" and isinstance(query, WeatherAvailabilityQuery):
         if query.request.product_id:
-            return sites[:1]
-    index = index or _SiteIndex(sites)
+            return [lookup.first_site(product.id)]
+    index = lookup.site_index(product.id)
     if product.provider == "noaa" and isinstance(query, WeatherAvailabilityQuery):
         requested = set(_requested_years(query))
         nearby = index.nearest(location, radius=100)
         listed = [(distance, site) for distance, site in nearby if any(
             isinstance(entry.scope, ActualScope) and requested <= set(entry.scope.years)
-            for entry in entries_by_site.get((product.id, site.id), []))]
+            for entry in lookup.entries(product.id, site.id))]
         supported_ids = {site.id for _, site in listed[:5]}
         uncertain = [site for _, site in nearby if site.id not in supported_ids][:3]
         chosen = [site for _, site in listed[:5]] + uncertain
@@ -206,7 +128,7 @@ def _candidate_sites(query: AvailabilityQuery, location: Location, product: Prod
     known = index.nearest(location, count=5)
     if known:
         return [site for _, site in known]
-    return sites[:1]
+    return [lookup.first_site(product.id)]
 
 
 def _temporal(query: AvailabilityQuery, entry: AvailabilityEntry,
@@ -397,9 +319,7 @@ def evaluate(query: AvailabilityQuery, view: CatalogView,
              coverage: dict[str, GridCoverage] | None = None) -> AvailabilityResult:
     """Assess catalog eligibility only; no I/O or weather-quality claim. ``coverage`` holds the
     installed coverage masks by gated product (``"provider:dataset"``)."""
-    bundle = view.bundle
-    lookup = _bundle_index(bundle)
-    all_sites, all_entries = lookup.sites, lookup.entries
+    lookup = view.index
     result = AvailabilityResult(checked_at=datetime.now(timezone.utc), snapshots=[view.snapshot])
     for occurrence, location in enumerate(_locations(query)):
         assessment = LocationAssessment(occurrence_index=occurrence,
@@ -410,15 +330,11 @@ def evaluate(query: AvailabilityQuery, view: CatalogView,
             # The 20 nearest published files, ordered by (distance, product id) as before.
             nearby = lookup.published.nearest(location, count=20, key=lambda site: site.product_id)
             selected_published = {site.product_id for _, site in nearby}
-        for product in bundle.products:
+        for product in lookup.products_for(query, selected_published):
             if not _relevant_product(query, product):
                 continue
-            if (product.provider == "onebuilding" and selected_published is not None and
-                    product.id not in selected_published):
-                continue
-            for site in _candidate_sites(query, location, product, all_sites.get(product.id, []),
-                                         all_entries, lookup.product_sites(product.id)):
-                entries = all_entries.get((product.id, site.id if site else None), [])
+            for site in _candidate_sites(query, location, product, lookup):
+                entries = lookup.entries(product.id, site.id if site else None)
                 decision, distance, elevation_delta = _assess(
                     query, location, product, site, entries,
                     set(view.snapshot.stale_sources),

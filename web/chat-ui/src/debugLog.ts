@@ -10,7 +10,9 @@ export function debugLogText(session: SessionSnapshot | null, calls: readonly Ap
     `Page: ${window.location.origin}${window.location.pathname}`,
     `Browser: ${navigator.userAgent}`,
     server ? `Server: ${server.version} · ${server.server_time} · security profile ${server.security_profile ?? 'none'}`
-      + ` · catalog ${server.catalog_generation ?? 'none'}` : 'Server: diagnostics unavailable',
+      + ` · catalog ${server.catalog_generation ?? 'none'}`
+      + (server.memory ? ` · memory ${server.memory.resident_mb ?? '?'} MB (peak ${server.memory.peak_resident_mb ?? '?'} MB)` : '')
+      : 'Server: diagnostics unavailable',
     `Session: ${session ? `${session.id} · revision ${session.revision}` : 'none'}`,
     '', '== Requests (this page, oldest first) ==']
   for (const call of calls) {

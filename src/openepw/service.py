@@ -21,6 +21,7 @@ from .availability import (
     WeatherAvailabilityQuery,
 )
 from .availability.bootstrap import bundled_contracts
+from .availability.catalog_index import CatalogIndex
 from .availability.evaluate import evaluate
 from .availability.importers import normalize_source
 from .availability.map_layers import catalog_map
@@ -144,12 +145,12 @@ class WeatherService:
     def catalog_scopes(self) -> dict:
         """Return mappable documentary footprints without assessing a request."""
         view = self.catalog_store.active()
-        bundle = view.bundle if view is not None else bundled_contracts()
-        evidence = {item.id: item for item in bundle.evidence}
+        index = view.index if view is not None else CatalogIndex(bundled_contracts())
+        evidence = {item.id: item for item in index.evidence}
         scopes = []
         unmapped = set()
         seen = set()
-        for product in bundle.products:
+        for product in index.scope_products():
             key = (product.provider, product.dataset)
             if product.temporal_kind == "future_window":
                 continue  # Future-weather map flows remain suspended.
@@ -181,11 +182,11 @@ class WeatherService:
     def catalog_map(self) -> dict:
         """Return Stage 1 catalog detail as documentary display layers."""
         view = self.catalog_store.active()
-        bundle = view.bundle if view is not None else bundled_contracts()
+        index = view.index if view is not None else CatalogIndex(bundled_contracts())
         key = view.snapshot.generation_id if view is not None else None
         cached = getattr(self, "_catalog_map_cache", None)
         if cached is None or cached[0] != key:
-            layers = catalog_map(bundle, self.config.data_root / "footprints")
+            layers = catalog_map(index, self.config.data_root / "footprints")
             cached = self._catalog_map_cache = (key, layers)
         return {"snapshot": {"generation_id": view.snapshot.generation_id,
                              "created_at": view.snapshot.created_at.isoformat()} if view else None,
@@ -487,8 +488,8 @@ class WeatherService:
             product_id = request.product_id if published else None
             if published and not product_id:
                 view = self.catalog_store.active()
-                labels = [entry.scope.product_label for entry in view.bundle.entries
-                          if entry.product_id == product.id and entry.probe_location and
+                labels = [entry.scope.product_label for entry in view.index.entries(product.id, None)
+                          if entry.probe_location and
                           abs(entry.probe_location.lat - location.lat) < 1e-6 and
                           abs(entry.probe_location.lon - location.lon) < 1e-6 and
                           hasattr(entry.scope, "product_label")] if view else []
