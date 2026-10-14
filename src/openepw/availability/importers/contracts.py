@@ -134,6 +134,36 @@ def normalize_contracts(inventories: dict, known: set[str], probe_locations: dic
                         evidence_basis="targeted_probe", evidence_ids=[probe_id],
                         probe_location=location,
                     ))
+    # Owner decision D4 (2026-10-13, availability-gaps plan): where every probe that lists an
+    # adapted dataset gives the same years or files, and its NLR page documents no value they
+    # lack, that list applies throughout the dataset's coverage mask. NLR's pages lag the data
+    # query (GOES TMY omits the -2025 files every probe lists), so the probes' list is used.
+    documented = {value["dataset"]: key for key, value in inventories.items()
+                  if key.startswith("nsrdb-doc-") and key in known and isinstance(value, dict)
+                  and value.get("dataset") and value.get("names")}
+    for native, doc_id in sorted(documented.items()):
+        if native not in NSRDB_ADAPTED:
+            continue
+        listed = {probe_id: tuple(item.get("available_years_or_products", []))
+                  for probe_id in probe_ids if probe_id in known
+                  for item in inventories[probe_id].get("products", []) if item["name"] == native}
+        lists = set(listed.values())
+        names = {str(name) for name in inventories[doc_id]["names"]}
+        if len(lists) != 1 or not names <= {str(value) for value in next(iter(lists))}:
+            continue                                # probes disagree, or the page lists more
+        values = list(next(iter(lists)))
+        product_id = NSRDB_PRODUCT_IDS.get(native, f"nsrdb:{native}")
+        evidence = [doc_id, *sorted(listed)]
+        if values and all(isinstance(value, int) for value in values):
+            entries.append(AvailabilityEntry(
+                id=f"{product_id}:documented:actual", product_id=product_id,
+                scope=ActualScope(years=sorted(values)), evidence_basis="documentation",
+                evidence_ids=evidence))
+        else:
+            entries.extend(AvailabilityEntry(
+                id=f"{product_id}:documented:{label}", product_id=product_id,
+                scope=TMYReferenceScope(product_label=str(label)), evidence_basis="documentation",
+                evidence_ids=evidence) for label in values)
     for source_id, product_id, start_year in (
         ("cds-era5", "cds:era5", 1940), ("cds-land", "cds:era5_land", 1950),
     ):
