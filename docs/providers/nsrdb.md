@@ -1,5 +1,22 @@
 # NSRDB / NLR
 
+## Years per coverage mask — 2026-10-13
+
+- **Edge probes.** Ten more data-query probes at grid edges list, for every dataset, the same
+  years and files as the five earlier probes:
+  - Honolulu, Recife, Juneau, Cape Town, Oslo, Dakar, Auckland, Sapporo and Almaty;
+  - Buenos Aires, just outside the GOES mask, lists only GOES full disc.
+- **Earliest years.** Downloads at four edges hold full data with no fill values: GOES 1998 at
+  Juneau and Honolulu, Meteosat 2005 at Oslo, Himawari-7 2011 at Auckland.
+- **The rule (owner decision D4).** Where the probes agree and NLR's dataset page lists nothing
+  more, that list applies throughout the dataset's mask.
+- **Documentation lag.** NLR's GOES TMY page omits the -2025 files that every probe lists.
+- **New upstream products.** NSRDB Polar (2013–2023) and Polar TMY appear at Oslo and are
+  catalogued as upstream products the adapter does not download.
+- **A quality note.** Meteosat 2005 wind speed at Oslo never exceeds 1.3 m/s, which looks
+  implausible. This is a data-quality observation, not an availability one.
+- **The record.** See the [record](../validation/availability-gaps-2026-10-13/README.md).
+
 ## MCP Stage 2 availability — 2026-09-24
 
 Ithaca and Phoenix point-catalog evidence is scoped to those probe locations.

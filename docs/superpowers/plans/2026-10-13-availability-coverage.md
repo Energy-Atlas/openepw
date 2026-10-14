@@ -114,10 +114,12 @@ results and limits. Left, in rough order of user impact:
      2026-10-13).
    - Its intervals run from :30 to :30, so they need a half-hour temporal transform, which
      ADR 0002 defers.
-3. **NSRDB years come only from the five probe points.**
+3. **NSRDB years come only from the five probe points.** Done 2026-10-13: see the
+   [availability-gaps plan](2026-10-13-availability-gaps.md).
    - The masks show where each grid has sites, not which years or typical-year files exist
      at every point.
-4. **ERA5-Land's land mask is a land fraction of at least 0.5.**
+4. **ERA5-Land's land mask is a land fraction of at least 0.5.** Replaced 2026-10-13: see
+   the [availability-gaps plan](2026-10-13-availability-gaps.md).
    - ERA5-Land has values over lakes and at some coastal points with a smaller fraction.
    - So coasts and lake shores are unknown, and the middle of large lakes is excluded.
    - A better mask would come from the non-missing points of an ERA5-Land field (one CDS

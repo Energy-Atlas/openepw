@@ -112,5 +112,310 @@
   "depth": 0,
   "revision_of": "pvgis-northsea",
   "correction": "The original failed after 0.37 s with a transport error and no HTTP status (the exception is not persisted); the same request is sent once more."
+ },
+ {
+  "id": "nsrdb-honolulu",
+  "provider": "nsrdb",
+  "url": "https://developer.nlr.gov/api/solar/nsrdb_data_query.json",
+  "kind": "probe",
+  "purpose": "2026-10-13 gaps N1: NSRDB datasets and years at 21.307, -157.858 (GOES west edge, Himawari-7 east edge)",
+  "parameters": {
+   "wkt": "POINT(-157.858 21.307)"
+  },
+  "range": null,
+  "limit": 1000000,
+  "archive": null,
+  "parent": null,
+  "depth": 0,
+  "revision_of": null,
+  "correction": null
+ },
+ {
+  "id": "nsrdb-recife",
+  "provider": "nsrdb",
+  "url": "https://developer.nlr.gov/api/solar/nsrdb_data_query.json",
+  "kind": "probe",
+  "purpose": "2026-10-13 gaps N1: NSRDB datasets and years at -8.05, -34.9 (GOES east edge)",
+  "parameters": {
+   "wkt": "POINT(-34.9 -8.05)"
+  },
+  "range": null,
+  "limit": 1000000,
+  "archive": null,
+  "parent": null,
+  "depth": 0,
+  "revision_of": null,
+  "correction": null
+ },
+ {
+  "id": "nsrdb-juneau",
+  "provider": "nsrdb",
+  "url": "https://developer.nlr.gov/api/solar/nsrdb_data_query.json",
+  "kind": "probe",
+  "purpose": "2026-10-13 gaps N1: NSRDB datasets and years at 58.3, -134.42 (GOES north edge)",
+  "parameters": {
+   "wkt": "POINT(-134.42 58.3)"
+  },
+  "range": null,
+  "limit": 1000000,
+  "archive": null,
+  "parent": null,
+  "depth": 0,
+  "revision_of": null,
+  "correction": null
+ },
+ {
+  "id": "nsrdb-buenos-aires",
+  "provider": "nsrdb",
+  "url": "https://developer.nlr.gov/api/solar/nsrdb_data_query.json",
+  "kind": "probe",
+  "purpose": "2026-10-13 gaps N1: NSRDB datasets and years at -34.6, -58.38 (just outside the GOES mask)",
+  "parameters": {
+   "wkt": "POINT(-58.38 -34.6)"
+  },
+  "range": null,
+  "limit": 1000000,
+  "archive": null,
+  "parent": null,
+  "depth": 0,
+  "revision_of": null,
+  "correction": null
+ },
+ {
+  "id": "nsrdb-cape-town",
+  "provider": "nsrdb",
+  "url": "https://developer.nlr.gov/api/solar/nsrdb_data_query.json",
+  "kind": "probe",
+  "purpose": "2026-10-13 gaps N1: NSRDB datasets and years at -33.925, 18.424 (Meteosat and IODC south)",
+  "parameters": {
+   "wkt": "POINT(18.424 -33.925)"
+  },
+  "range": null,
+  "limit": 1000000,
+  "archive": null,
+  "parent": null,
+  "depth": 0,
+  "revision_of": null,
+  "correction": null
+ },
+ {
+  "id": "nsrdb-oslo",
+  "provider": "nsrdb",
+  "url": "https://developer.nlr.gov/api/solar/nsrdb_data_query.json",
+  "kind": "probe",
+  "purpose": "2026-10-13 gaps N1: NSRDB datasets and years at 59.91, 10.75 (Meteosat and IODC north)",
+  "parameters": {
+   "wkt": "POINT(10.75 59.91)"
+  },
+  "range": null,
+  "limit": 1000000,
+  "archive": null,
+  "parent": null,
+  "depth": 0,
+  "revision_of": null,
+  "correction": null
+ },
+ {
+  "id": "nsrdb-dakar",
+  "provider": "nsrdb",
+  "url": "https://developer.nlr.gov/api/solar/nsrdb_data_query.json",
+  "kind": "probe",
+  "purpose": "2026-10-13 gaps N1: NSRDB datasets and years at 14.69, -17.44 (Meteosat and IODC west)",
+  "parameters": {
+   "wkt": "POINT(-17.44 14.69)"
+  },
+  "range": null,
+  "limit": 1000000,
+  "archive": null,
+  "parent": null,
+  "depth": 0,
+  "revision_of": null,
+  "correction": null
+ },
+ {
+  "id": "nsrdb-auckland",
+  "provider": "nsrdb",
+  "url": "https://developer.nlr.gov/api/solar/nsrdb_data_query.json",
+  "kind": "probe",
+  "purpose": "2026-10-13 gaps N1: NSRDB datasets and years at -36.85, 174.76 (Himawari-7 south-east)",
+  "parameters": {
+   "wkt": "POINT(174.76 -36.85)"
+  },
+  "range": null,
+  "limit": 1000000,
+  "archive": null,
+  "parent": null,
+  "depth": 0,
+  "revision_of": null,
+  "correction": null
+ },
+ {
+  "id": "nsrdb-sapporo",
+  "provider": "nsrdb",
+  "url": "https://developer.nlr.gov/api/solar/nsrdb_data_query.json",
+  "kind": "probe",
+  "purpose": "2026-10-13 gaps N1: NSRDB datasets and years at 43.06, 141.35 (Himawari-7 north)",
+  "parameters": {
+   "wkt": "POINT(141.35 43.06)"
+  },
+  "range": null,
+  "limit": 1000000,
+  "archive": null,
+  "parent": null,
+  "depth": 0,
+  "revision_of": null,
+  "correction": null
+ },
+ {
+  "id": "nsrdb-almaty",
+  "provider": "nsrdb",
+  "url": "https://developer.nlr.gov/api/solar/nsrdb_data_query.json",
+  "kind": "probe",
+  "purpose": "2026-10-13 gaps N1: NSRDB datasets and years at 43.24, 76.95 (IODC north-east)",
+  "parameters": {
+   "wkt": "POINT(76.95 43.24)"
+  },
+  "range": null,
+  "limit": 1000000,
+  "archive": null,
+  "parent": null,
+  "depth": 0,
+  "revision_of": null,
+  "correction": null
+ },
+ {
+  "id": "nsrdb-doc-nsrdb-goes-aggregated-v4-0-0",
+  "provider": "nsrdb",
+  "url": "https://developer.nlr.gov/docs/solar/nsrdb/nsrdb-GOES-aggregated-v4-0-0-download/",
+  "kind": "documentation",
+  "purpose": "2026-10-13 gaps N3: documented years ('names') of NSRDB nsrdb-GOES-aggregated-v4-0-0-download",
+  "parameters": {},
+  "range": null,
+  "limit": 1000000,
+  "archive": null,
+  "parent": null,
+  "depth": 0,
+  "revision_of": null,
+  "correction": null
+ },
+ {
+  "id": "nsrdb-doc-nsrdb-goes-tmy-v4-0-0",
+  "provider": "nsrdb",
+  "url": "https://developer.nlr.gov/docs/solar/nsrdb/nsrdb-GOES-tmy-v4-0-0-download/",
+  "kind": "documentation",
+  "purpose": "2026-10-13 gaps N3: documented years ('names') of NSRDB nsrdb-GOES-tmy-v4-0-0-download",
+  "parameters": {},
+  "range": null,
+  "limit": 1000000,
+  "archive": null,
+  "parent": null,
+  "depth": 0,
+  "revision_of": null,
+  "correction": null
+ },
+ {
+  "id": "nsrdb-doc-himawari7",
+  "provider": "nsrdb",
+  "url": "https://developer.nlr.gov/docs/solar/nsrdb/himawari7-download/",
+  "kind": "documentation",
+  "purpose": "2026-10-13 gaps N3: documented years ('names') of NSRDB himawari7-download",
+  "parameters": {},
+  "range": null,
+  "limit": 1000000,
+  "archive": null,
+  "parent": null,
+  "depth": 0,
+  "revision_of": null,
+  "correction": null
+ },
+ {
+  "id": "nsrdb-doc-himawari-tmy",
+  "provider": "nsrdb",
+  "url": "https://developer.nlr.gov/docs/solar/nsrdb/himawari-tmy-download/",
+  "kind": "documentation",
+  "purpose": "2026-10-13 gaps N3: documented years ('names') of NSRDB himawari-tmy-download",
+  "parameters": {},
+  "range": null,
+  "limit": 1000000,
+  "archive": null,
+  "parent": null,
+  "depth": 0,
+  "revision_of": null,
+  "correction": null
+ },
+ {
+  "id": "nsrdb-doc-nsrdb-msg-v1-0-0",
+  "provider": "nsrdb",
+  "url": "https://developer.nlr.gov/docs/solar/nsrdb/nsrdb-msg-v1-0-0-download/",
+  "kind": "documentation",
+  "purpose": "2026-10-13 gaps N3: documented years ('names') of NSRDB nsrdb-msg-v1-0-0-download",
+  "parameters": {},
+  "range": null,
+  "limit": 1000000,
+  "archive": null,
+  "parent": null,
+  "depth": 0,
+  "revision_of": null,
+  "correction": null
+ },
+ {
+  "id": "nsrdb-doc-nsrdb-msg-v1-0-0-tmy",
+  "provider": "nsrdb",
+  "url": "https://developer.nlr.gov/docs/solar/nsrdb/nsrdb-msg-v1-0-0-tmy-download/",
+  "kind": "documentation",
+  "purpose": "2026-10-13 gaps N3: documented years ('names') of NSRDB nsrdb-msg-v1-0-0-tmy-download",
+  "parameters": {},
+  "range": null,
+  "limit": 1000000,
+  "archive": null,
+  "parent": null,
+  "depth": 0,
+  "revision_of": null,
+  "correction": null
+ },
+ {
+  "id": "nsrdb-doc-nsrdb-msg-v1-0-0-tdy",
+  "provider": "nsrdb",
+  "url": "https://developer.nlr.gov/docs/solar/nsrdb/nsrdb-msg-v1-0-0-tdy-download/",
+  "kind": "documentation",
+  "purpose": "2026-10-13 gaps N3: documented years ('names') of NSRDB nsrdb-msg-v1-0-0-tdy-download",
+  "parameters": {},
+  "range": null,
+  "limit": 1000000,
+  "archive": null,
+  "parent": null,
+  "depth": 0,
+  "revision_of": null,
+  "correction": null
+ },
+ {
+  "id": "nsrdb-doc-nsrdb-msg-v1-0-0-tgy",
+  "provider": "nsrdb",
+  "url": "https://developer.nlr.gov/docs/solar/nsrdb/nsrdb-msg-v1-0-0-tgy-download/",
+  "kind": "documentation",
+  "purpose": "2026-10-13 gaps N3: documented years ('names') of NSRDB nsrdb-msg-v1-0-0-tgy-download",
+  "parameters": {},
+  "range": null,
+  "limit": 1000000,
+  "archive": null,
+  "parent": null,
+  "depth": 0,
+  "revision_of": null,
+  "correction": null
+ },
+ {
+  "id": "nsrdb-doc-meteosat",
+  "provider": "nsrdb",
+  "url": "https://developer.nlr.gov/docs/solar/nsrdb/meteosat-download/",
+  "kind": "documentation",
+  "purpose": "2026-10-13 gaps N3: documented years ('names') of NSRDB meteosat-download",
+  "parameters": {},
+  "range": null,
+  "limit": 1000000,
+  "archive": null,
+  "parent": null,
+  "depth": 0,
+  "revision_of": null,
+  "correction": null
  }
 ]

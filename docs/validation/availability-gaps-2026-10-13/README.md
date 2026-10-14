@@ -167,3 +167,120 @@ catalog, after with this branch and the mask:
 - Which radiation database serves a point before it is requested. The run records it.
 - The EPW timing of ERA5-sourced TMY. PVGIS's native EPW is used as published. The reported
   irradiance offset is kept, and no transform is applied.
+
+# Items 3 and 4: NSRDB years and the ERA5-Land mask
+
+Under owner decisions D4–D6 (2026-10-13) in the [plan](../../superpowers/plans/2026-10-13-availability-gaps.md).
+
+## Requests
+
+**Collector (`collect --manifest`, appended to [requests.json](requests.json)).** All 19 were
+saved.
+
+| Group | IDs | Bytes |
+|---|---|---:|
+| N3, NLR dataset pages | `nsrdb-doc-*`: GOES aggregated and TMY, Himawari-7, Himawari TMY, Meteosat and its TMY/TDY/TGY, IODC (`meteosat-download`) | 306,300 |
+| N1, edge probes (`DEMO_KEY`) | `nsrdb-honolulu`, `-recife`, `-juneau`, `-buenos-aires`, `-cape-town`, `-oslo`, `-dakar`, `-auckland`, `-sapporo`, `-almaty` | 152,510 |
+
+- A first run of N3 sent nothing: the collector rejected upper-case IDs, and the IDs were
+  lower-cased.
+
+**Ceilings after this work:**
+- metadata requests: 59 of 60;
+- probes: 22 of 23, the ceiling raised for N1 only;
+- bytes: 186.2 MB of 200 MB charged.
+
+**Outside the collector.** The key comes from `.env` and never enters a log or file. The logs
+record host and path only.
+
+- **N2, earliest-year downloads.** Four hourly CSVs with the nine EPW attributes.
+  - The first attempt of each returned NLR's 302 to its file store, which the script did not
+    follow: about 600 bytes, no data.
+  - One revision each followed HTTPS redirects only.
+
+| Dataset, year | Point | Bytes | Rows | Fill values | GHI max (W/m²) |
+|---|---|---:|---:|---:|---:|
+| GOES aggregated 1998 | Juneau | 585,157 | 8,760 | 0 | 863 |
+| GOES aggregated 1998 | Honolulu | 601,773 | 8,760 | 0 | 1,043 |
+| Meteosat 2005 | Oslo | 590,052 | 8,760 | 0 | 833 |
+| Himawari-7 2011 | Auckland | 597,539 | 8,760 | 0 | 1,102 |
+
+- **C1, one ERA5-Land field.**
+  - Requests: 1 submit, 4 status polls, 1 results lookup and 1 download from
+    `object-store.os-api.cci2.ecmwf.int`.
+  - The download is 5,236,290 bytes, SHA-256 `b1c2c41d5157b3b0…`: GRIB edition 1, 3600 × 1801
+    at 0.1°, with a bit map.
+
+## Findings
+
+**Every probe lists the same years and files per dataset**, at the edges and at the five
+earlier points:
+
+| Dataset | Years or files |
+|---|---|
+| GOES aggregated v4 | 1998–2025 |
+| GOES TMY v4 | `tmy`, `tdy` and `tgy` with `-2022` to `-2025` |
+| Himawari-7 | 2011–2015 |
+| Himawari TMY | `tmy` and `-2020` |
+| Meteosat | 2005–2022 |
+| Meteosat TMY/TDY/TGY | `-2014` and `-2022` |
+| IODC | 2017–2019 |
+
+- **NLR's pages agree, except one lag.** The GOES TMY page omits the `-2025` files.
+  - The Meteosat page's prose says "2017–2019", but its `names` list is 2005–2022.
+- **The GOES gate is right at Buenos Aires.** Just south of the GOES mask (21° S), only GOES
+  full disc is listed, which is not downloaded. GOES aggregated and TMY do not reach there.
+- **Oslo lists NSRDB Polar** (2013–2023) and Polar TMY, which are now catalogued as upstream
+  products.
+- **Earliest years hold full data at every edge tried.**
+  - One quality note: Meteosat 2005 wind speed at Oslo never exceeds 1.3 m/s, which looks
+    implausible.
+
+**The ERA5-Land field has 2,212,863 points with values.**
+- 2 m temperatures range from 224.7 to 313.9 K.
+- Compared with the land-fraction mask (≥ 0.5):
+  - 24,726 points with values have a lower fraction (lakes and coasts), and 6,737 of them
+    have a fraction of 0;
+  - 7,105 points of fraction ≥ 0.5 have no value, mostly Arctic, fjord and Patagonian coasts.
+
+## Catalog
+
+- **Importer.** For each adapted NSRDB dataset where every probe agrees and the page lists
+  nothing more, it adds an area-wide documented entry (`…:documented:…`). Nine datasets
+  qualify.
+  - The probes' list is used, so GOES TMY keeps its `-2025` files.
+- **ERA5-Land mask.** `scripts/mcp_availability_map/era5land_present.py` (GRIB 1, bit map)
+  writes `cds/reanalysis-era5-land/present-t2m`. The `lsm` mask is retired from the data root
+  and the package, and stays in the research root.
+- **Generation `b17c5cf4`:** 70 sources, 73,405 products (the two Polar products added),
+  106,991 sites, 99,583 entries, 61 reviews.
+
+**Matrix.** 18 points, against package 2026.10.13.1 imported into an empty root:
+- ERA5-Land (CDS and Open-Meteo): Lake Victoria, Lake Superior and the Caspian move from
+  excluded to supported, and the open Atlantic stays excluded.
+- NSRDB statuses are unchanged at these points. Unprobed points inside a mask are now
+  supported on documentation (for example Denver for 2018 and for `tmy-2025`, and Madrid for
+  2005) rather than on the probes' lists.
+- The new Polar products are excluded everywhere: the adapter does not download them.
+
+## Package 2026.10.13.2
+
+- Local open-data branch `data/weather-availability-catalog-2026.10.13.2`, commit `958907a`.
+- 39 files, 88.2 MB; `datapackage.json` SHA-256
+  `e46dace1892aacce26c7d3173ad0514dcc7618e22ecc9b92f4f6e8103cf3fcd5`.
+- The export is lossless: identical records, and the 12 footprint files are byte-identical.
+- Every committed blob matches its size and SHA-256, and no source URL carries a query string.
+- The push waits for the owner.
+
+## Checks
+
+- ruff and mypy are clean.
+- pytest: 1,059 passed, 20 skipped, 2 failed. The failures are the security-profile tests,
+  which also fail on `main`.
+
+## What this does not establish
+
+- That every NSRDB grid site has every listed year: 15 probes and 4 downloads are checks, not
+  a census.
+- Hourly completeness or quality beyond the four downloads.
+- That Open-Meteo's ERA5-Land covers exactly CDS's points. It is gated by the same mask.

@@ -157,6 +157,17 @@ See the [plan](../superpowers/plans/2026-10-13-availability-gaps.md) and its
   stay at its own point.
 - **Six PVGIS TMY requests under an owner-approved exception** used Stage 1's last probes.
 
+## Owner decisions 2026-10-13 (NSRDB years, ERA5-Land mask; availability-gaps plan)
+
+- **NSRDB years (D4).** Inside a dataset's coverage mask, its years and typical-year files are
+  the list that every data-query probe gives and that NLR's dataset page does not exceed.
+  - If the probes disagree, the probes' own lists stay at their points.
+  - A probe's list still applies at its own point.
+- **ERA5-Land (D5).** It is gated by the points where ERA5-Land has a value, from one CDS field.
+  This replaces the land-fraction mask of the 2026-10-13 coverage decisions.
+- **Budget (D6).** Ten NSRDB edge probes (the probe ceiling raised 12 → 23 for them only), nine
+  NLR dataset pages, four earliest-year downloads and one CDS field.
+
 ## Architecture boundary
 
 Availability, recommendation evidence and batch resolution belong in the canonical
