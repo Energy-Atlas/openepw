@@ -63,6 +63,12 @@ PVGIS_GAP_PROBES = frozenset(
     ("pvgis-ithaca", "pvgis-atlantic", "pvgis-northsea", "pvgis-svalbard", "pvgis-lake-victoria")
 )
 PVGIS_GAP_PROBE_BYTES = 1_500_000
+# Owner-approved 2026-10-13 (availability gaps, N1): ten NSRDB data-query probes at grid edges
+# and one justified revision; NSRDB probe cap 17 and the overall probe ceiling 23, for these only.
+NSRDB_EDGE_PROBES = frozenset(
+    ("nsrdb-honolulu", "nsrdb-recife", "nsrdb-juneau", "nsrdb-buenos-aires", "nsrdb-cape-town",
+     "nsrdb-oslo", "nsrdb-dakar", "nsrdb-auckland", "nsrdb-sapporo", "nsrdb-almaty")
+)
 ERROR_BODY_BYTES = 16_384
 
 
@@ -320,8 +326,24 @@ class Collector:
         return 7 if cls.pvgis_gap_probe(request) else 2
 
     @staticmethod
-    def nsrdb_probe_limit(request):
-        """Owner-approved 2026-10-13 (E2): three more data-query probes at named points."""
+    def nsrdb_edge_probe(request):
+        base = request.revision_of if request.id.endswith("-r1") else request.id
+        p = urlsplit(request.url)
+        return (
+            request.provider == "nsrdb"
+            and request.kind == "probe"
+            and base in NSRDB_EDGE_PROBES
+            and request.id in (base, base + "-r1")
+            and p.hostname == "developer.nlr.gov"
+            and p.path == "/api/solar/nsrdb_data_query.json"
+        )
+
+    @classmethod
+    def nsrdb_probe_limit(cls, request):
+        """Owner-approved 2026-10-13 (E2): three more data-query probes at named points; (N1) ten
+        edge probes and one revision."""
+        if cls.nsrdb_edge_probe(request):
+            return 17
         if request.id in ("nsrdb-singapore", "nsrdb-nairobi", "nsrdb-london", "nsrdb-nairobi-r1",
                           "nsrdb-london-r1") and urlsplit(
             request.url
@@ -353,6 +375,9 @@ class Collector:
         ceiling = (
             self.limits.probe_requests if category == "probe" else self.limits.metadata_requests
         )
+        if self.nsrdb_edge_probe(request):
+            ceiling = 23                                   # owner-approved N1 extension
+
         context = truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
         for _ in range(4):
             if request.kind == "probe":

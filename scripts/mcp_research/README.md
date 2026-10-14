@@ -118,6 +118,12 @@ it as `error_sha256` and `error_snapshot`, never as a snapshot. See the
 [plan](../../docs/superpowers/plans/2026-10-13-availability-gaps.md) and the
 [record](../../docs/validation/availability-gaps-2026-10-13/README.md).
 
+The same plan's N1 approval admits exactly ten NSRDB data-query probes and one justified
+`-r1` revision, with the NSRDB probe cap at 17 and the overall probe ceiling at 23 for them
+only. The IDs are `nsrdb-honolulu`, `nsrdb-recife`, `nsrdb-juneau`, `nsrdb-buenos-aires`,
+`nsrdb-cape-town`, `nsrdb-oslo`, `nsrdb-dakar`, `nsrdb-auckland`, `nsrdb-sapporo` and
+`nsrdb-almaty`. `analyze` reads the documented `names` of each saved `nsrdb-doc-*` page.
+
 Accepted individual judgments live in `data/onebuilding_reviews.json`. `reviews.py`
 attaches them only to explicitly listed product URLs with matching source checksums.
 The original automatic record is preserved. Reviewed metadata coordinates,

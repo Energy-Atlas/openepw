@@ -139,10 +139,116 @@ same default databases, rather than observing TMY itself.
   `data/weather-availability-catalog-2026.10.13.1` (`b606e1e`). The round trip is lossless.
   It is not pushed: the owner confirms the push, then pins staging.
 
+## Items 3 and 4 (approved 2026-10-13: D4, D5, D6)
+
+The owner asked to proceed towards items 3 and 4 on 2026-10-13, after the open-data push.
+On the same day the owner approved D4 (documented year lists), D5 (the non-missing ERA5-Land
+gate) and D6 (the budget as listed).
+
+### What is already known (offline)
+
+**NLR's dataset pages** give one year list per dataset, the `names` values, with no regional
+variation:
+- GOES aggregated v4: 1998–2025.
+- Himawari-7: 2011–2015.
+- Meteosat: 2005–2022, although the same page's prose says "2017–2019".
+
+The five probes list exactly these years.
+
+**The S3 bucket is not the API.** It holds Himawari-7 files for 2011–2020, while the API offers
+2011–2015. The years must come from the API and its documentation.
+
+**Mask extents.**
+- GOES (`tdy-2023`, which also gates GOES actual years): 21° S to 60° N.
+- Himawari-7: 55° S to 60° N.
+- Meteosat and IODC: 54.75° S to 60° N.
+- Buenos Aires, Santiago, Anchorage and Ushuaia are outside every NSRDB mask. GOES full disc
+  (2018 on, not downloaded by the adapter) is documented over all of GOES's view.
+
+### Proposed evidence
+
+**N1. Edge probes.** Ten NSRDB data-query probes through the collector.
+- Same form as E2: `GET https://developer.nlr.gov/api/solar/nsrdb_data_query.json` with
+  `api_key=DEMO_KEY&wkt=POINT(lon lat)`, 1 MB cap each, about 16 KB expected.
+- They test whether the year lists hold at each grid's edges, and the GOES gate's southern
+  limit.
+
+| ID | Point | Grids tested |
+|---|---|---|
+| `nsrdb-honolulu` | 21.307, −157.858 | GOES west edge, Himawari-7 east edge |
+| `nsrdb-recife` | −8.05, −34.90 | GOES east edge |
+| `nsrdb-juneau` | 58.30, −134.42 | GOES north edge |
+| `nsrdb-buenos-aires` | −34.60, −58.38 | just outside the GOES mask: is GOES aggregated listed? |
+| `nsrdb-cape-town` | −33.925, 18.424 | Meteosat and IODC south |
+| `nsrdb-oslo` | 59.91, 10.75 | Meteosat and IODC north |
+| `nsrdb-dakar` | 14.69, −17.44 | Meteosat and IODC west |
+| `nsrdb-auckland` | −36.85, 174.76 | Himawari-7 south-east |
+| `nsrdb-sapporo` | 43.06, 141.35 | Himawari-7 north |
+| `nsrdb-almaty` | 43.24, 76.95 | IODC north-east |
+
+- Caps: plus one justified `-r1` revision. The NSRDB probe cap rises 6 → 17 and the overall
+  probe ceiling 12 → 23, for these IDs only.
+- Bytes come from the 14.3 MB left.
+- Stop after the ten, or on any rate limit.
+
+**N2. Earliest-year downloads.** Four hourly downloads with the configured NLR key, outside
+the collector, logged like E5:
+- GOES aggregated 1998 at Juneau;
+- GOES aggregated 1998 at Honolulu;
+- Meteosat 2005 at Oslo;
+- Himawari-7 2011 at Auckland.
+
+Each uses the nine EPW attributes, with a 2 MB cap (about 0.6 MB expected) and 8 MB in total.
+The check: 8,760 rows, no fill values, and solar values that are not all zero. The key never
+enters a log or file.
+
+**N3. Dataset pages.** Through the collector (documentation, 1 MB cap each), keeping each
+documented year list as evidence:
+- `nsrdb-GOES-aggregated-v4-0-0-download`;
+- `nsrdb-GOES-tmy-v4-0-0-download`;
+- `himawari7-download`;
+- `himawari-tmy-download`;
+- `nsrdb-msg-v1-0-0-download`, and its `-tmy`, `-tdy` and `-tgy` pages;
+- `meteosat-download` (IODC).
+
+These are nine metadata requests out of the 10 left in Stage 1, all under
+`https://developer.nlr.gov/docs/solar/nsrdb/`.
+
+**C1. One ERA5-Land field** from CDS, outside the collector (CDS jobs need the configured key).
+- Request: `reanalysis-era5-land`, `2m_temperature`, 2020-01-01 00:00, global, GRIB,
+  unarchived.
+- Requests: 1 submit, at most 60 status polls 10 s apart, 1 results lookup and 1 download of at
+  most 15 MB (about 6 MB expected).
+- Stop when saved, or on failure. It is not resubmitted without the owner.
+- Each request is logged without the key.
+- The GRIB decoder gains bit-map support, so missing points read as missing.
+
+### Decisions (owner, 2026-10-13: all as recommended)
+
+- **D4. NSRDB years.** If every N1 edge point lists the documented years and N2 finds real
+  data:
+  - each dataset's documented year list becomes an area-wide entry inside its mask, as for
+    PVGIS;
+  - if any edge differs, stop and report.
+- **D5. ERA5-Land gate.** Replace the land-fraction mask with C1's non-missing points:
+  - inside: ERA5-Land has a value, including lakes and low-fraction coasts;
+  - outside: no value;
+  - near the edge: the neighbouring cell.
+- **D6. Budget.** N1–N3 and C1 as listed.
+
+### Result (2026-10-13)
+
+- **NSRDB.**
+  - All ten edge probes list the same years and files as the earlier five, and the four
+    earliest-year downloads hold full data.
+  - Nine adapted datasets now have an area-wide documented entry inside their masks.
+  - NLR's GOES TMY page lags the data query, so the probes' list is used.
+- **ERA5-Land.** One CDS field gives the mask of points with values, which now gates ERA5-Land.
+- **Package.** 2026.10.13.2 is committed on the local open-data branch
+  `data/weather-availability-catalog-2026.10.13.2` (`958907a`). The push waits for the owner.
+- See the [record](../../validation/availability-gaps-2026-10-13/README.md).
+
 ## Later items (not yet proposed)
 
-- Items 2–8 of the previous plan follow after item 1.
-- Item 3 (NSRDB years) and item 4 (an ERA5-Land non-missing field from CDS) need a new
-  ceiling, because Stage 1 has no probes left and 14.3 MB. They will be proposed with their
-  own budget.
+- Items 2 and 5–8 of the previous plan remain.
 - Item 2 (Himawari-8) waits for the temporal transform that ADR 0002 defers.

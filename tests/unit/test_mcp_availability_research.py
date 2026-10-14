@@ -755,3 +755,22 @@ def test_pvgis_gap_probe_cap_counts_stage_1_london(tmp_path):
         for key in sorted(m.PVGIS_GAP_PROBES):
             assert c.collect(m.Request(key, "pvgis", base + "3", "probe", "t"))["outcome"] == "saved"
         assert c.ledger["counts"]["probe"] == 7
+
+
+def test_nsrdb_edge_probes_extend_only_their_own_caps(tmp_path):
+    m = research()
+    url = "https://developer.nlr.gov/api/solar/nsrdb_data_query.json?api_key=DEMO_KEY&wkt=POINT%2810.75+59.91%29"
+    edge = m.Request("nsrdb-oslo", "nsrdb", url, "probe", "t")
+    assert m.Collector.nsrdb_probe_limit(edge) == 17
+    for other in (m.Request("nsrdb-paris", "nsrdb", url, "probe", "t"),
+                  m.Request("nsrdb-oslo", "nsrdb", url.replace("nsrdb_data_query", "other"), "probe", "t"),
+                  m.Request("nsrdb-oslo-r1", "nsrdb", url, "probe", "t", revision_of="nsrdb-london",
+                            correction="c")):
+        assert m.Collector.nsrdb_probe_limit(other) == 3
+    transport = httpx.MockTransport(lambda r: httpx.Response(200, content=b"{}"))
+    with m.Collector(tmp_path, transport=transport, spacing=0) as c:
+        c.ledger["counts"]["probe"] = 12                       # Stage 1's ceiling is spent
+        assert c.collect(m.Request("pvgis-x", "pvgis", "https://example.org/p", "probe", "t"))["outcome"] == "request_budget"
+        assert c.collect(edge)["outcome"] == "saved"
+        c.ledger["counts"]["probe"] = 23
+        assert c.collect(m.Request("nsrdb-dakar", "nsrdb", url, "probe", "t"))["outcome"] == "request_budget"
