@@ -248,7 +248,155 @@ These are nine metadata requests out of the 10 left in Stage 1, all under
   `data/weather-availability-catalog-2026.10.13.2` (`958907a`). The push waits for the owner.
 - See the [record](../../validation/availability-gaps-2026-10-13/README.md).
 
-## Later items (not yet proposed)
+## Remaining items: scope and proposals (2026-10-15, not approved)
 
-- Items 2 and 5–8 of the previous plan remain.
-- Item 2 (Himawari-8) waits for the temporal transform that ADR 0002 defers.
+Nothing here has been sent. For each item:
+- the challenge, and why it was not already included;
+- the scope;
+- the plan;
+- the limits and stopping conditions;
+- the owner's open questions (Q1–Q9).
+
+Research ceilings now: metadata 59 of 60, probes 22 of 23 (N1 only), 186.2 MB of 200 MB.
+
+### Item 2. NSRDB Himawari-8 (`himawari`, 2016–2020)
+
+**Challenge.**
+- Its hourly values are labelled at :00 and centred on the hour, so they span :30 to :30.
+- EPW rows are hour-ending, and ADR 0002 defers fractional-hour interpolation.
+- No Himawari-8 grid mask exists. Its 2 km grid table is several times the size of
+  Himawari-7's.
+
+**Scope.**
+- Asia–Pacific, 2016–2020.
+- Every probe inside the Himawari-7 mask lists it: Singapore, Honolulu, Auckland and Sapporo.
+- The API offers 10, 30 and 60-minute intervals.
+
+**Plan.**
+- **H1.** One 10-minute download at Singapore for 2018, about 3.6 MB with the NLR key. Compare
+  it with the 60-minute file already held, to learn whether sub-hour values are instantaneous
+  samples or interval means and where they are labelled.
+- **H2.** If they are means or regular samples, build hour-ending values by aggregating the
+  sub-hour values inside each EPW hour. This is aggregation, not interpolation, and needs an
+  ADR 0002 amendment.
+- **H3.** Gate Himawari-8 by the Himawari-7 mask, as already done for Himawari TMY, on the
+  strength of the four probes.
+- **H4.** Live acceptance: the solar-noon offset check near 0 for hour-ending labels, and the
+  hourly sums against the 60-minute product.
+
+**Stop** if H1 shows labels or semantics that do not allow an exact hour-ending aggregate.
+Himawari-8 then stays catalogued but not downloaded.
+
+**Cost per user request.** A 10-minute year is about 6 times the 60-minute download; a
+30-minute year about 2 times.
+
+- **Q1.** Approve the aggregation method in principle (H2), and H1?
+- **Q2.** Use 10 or 30-minute data?
+
+### Item 5. OneBuilding national and special typical-year families
+
+**Challenge.** These were out of scope in the earlier plans, and each family needs its own
+workbook request, product naming and terms check.
+- The OneBuilding request cap is spent: 22 of 22.
+- Several families are future-climate files, which need scenario and window semantics, not
+  a typical-year reference period.
+- Originator terms differ by family.
+
+**Scope.** From the sources page snapshot of 2026-09-23. The page's Last-Modified was
+2026-08-24.
+
+| Kind | Families (locations) |
+|---|---|
+| Existing-weather typical years | NORCERRA Norway (358); CWEC full, Canada (2,265: CWEC, 2016, 2020, 2020v2, TDY 2020v2); CSWD China (270); INMET and TRY Brazil (411 + 17); CTZ California (v2, 2010, 2016, 2022, 2025: about 424); JGMY (157, synthetic); TurTMY (81); RMY2012 Australia (69 × 3 solar weights); ISHRAE 2014 India (62); IMGW Poland (61); PHIKO South Korea (22); NIWA New Zealand (18); ArgTMY (15); TMY (12); ITMY Iran (6); AMTUes Uruguay (5); IMS Israel (4); CityUHK Hong Kong (1) |
+| Mixed (current and future) | RMY2024 Australia (83 + RCP futures); NIWA2024 (18 + SSP futures); MetEireann (6 + futures); BBSR Germany (15 + 2035) |
+| Future only | Canada NRC Future (18,049 rows, 4 kinds); BrazFuture (28) |
+
+**Plan.**
+- **O1.** One conditional re-request of the sources page, with its ETag, to catch changes.
+- **O2.** The workbooks for the existing and mixed families: 27 requests.
+  - CWEC full, which should cover every CWEC version (the per-version workbooks only as a
+    fallback);
+  - the six CTZ workbooks;
+  - each other family once.
+  - About 5 to 10 MB expected, 5 MB cap each.
+- **O3.** Offline:
+  - a register of each family's originator, method, period and terms link;
+  - product names per family, with the same coordinate and NOAA cross-checks and owner review
+    of unmatched rows as for TMYx;
+  - mixed families import only their historical-period files.
+- **O4.** Check that the adapter downloads one file per new family, live and opt-in.
+
+**Limits and stop.**
+- About 30 OneBuilding requests and one revision each, at normal host spacing.
+- Stop on any rate limit, or on a workbook format the parser rejects.
+
+- **Q3.** Catalog the future-only and future parts of the mixed families as published future
+  files (a new product kind), or leave them out?
+- **Q4.** Publish metadata for every family, or leave out families whose originators restrict
+  their files, such as ISHRAE (sold) and possibly CSWD and RMY?
+- **Q5.** Include JGMY, which is synthetic and statistically generated, as a typical year, or
+  mark it as synthetic?
+
+### Item 6. Smaller unknowns
+
+**6a. CDS polar footprint.**
+- The CDS records give ±89°, so the evaluator leaves |lat| ≥ 89 unknown for ERA5 and
+  ERA5-Land.
+- ERA5's documented grid is global, and the new ERA5-Land mask already covers Antarctica.
+- Plan: one documentation read through the collector (the last metadata request); if the grid
+  reaches ±90, drop the polar unknown.
+
+**6b. NOAA years after the inventory.**
+- `isd-inventory.csv` was last modified 2025-08-30, so 2025 is partial and 2026 is unknown.
+- NOAA has moved ISD to GHCNh, which the adapter does not read.
+- Plan: one conditional request (`If-None-Match`). If it is unchanged, record ISD as frozen at
+  August 2025. If it has changed, re-download it (about 15 MB, under the 20 MB exception).
+- **Q6.** Should a GHCNh adapter for observations from 2025 on be added? It is a new provider
+  and a larger project.
+
+**6c. The half-hour time-zone tie rule.**
+- With +5:30, the rule (nearest whole hour, a tie towards mean solar time) gives Mumbai +5 and
+  Kolkata +6, inside one civil zone.
+- There is no data to collect.
+- **Q7.** Keep it, use one offset per zone (all of India +5 or +6), or wait for a sub-hour
+  shift such as item 2's?
+
+**6d. Found in this round.**
+- Coastal points whose 0.1° cell is mostly water are unknown for PVGIS: 17% of stations.
+  - A public-domain coastline (Natural Earth 10 m land, about 5 MB) could decide land or sea
+    per point.
+- The CDS adapter takes the nearest grid cell, which near a coast can be an ERA5-Land cell
+  with no value. This still needs verifying.
+- Meteosat 2005 wind at Oslo looks implausible: at most 1.3 m/s.
+- **Q8.** Take up the coastline refinement?
+
+### Item 7. Budget
+
+Stage 1's ceilings are nearly used. Proposed new ceilings for items 2, 5 and 6, with exact IDs
+and URLs fixed at approval as before:
+- metadata 60 → 100;
+- probes 23 → 25;
+- bytes 200 → 240 MB;
+- OneBuilding attempts 22 → 55;
+- outside the collector: one NSRDB download (H1) and later acceptance downloads.
+
+### Item 8. OneBuilding terms
+
+**Challenge.** The site gives no licence and its footer reads all rights reserved. The
+catalog's OneBuilding metadata is published by owner override.
+
+**Options.**
+- (a) The owner asks OneBuilding (Lawrie and Crawley) for permission to republish the
+  metadata. A draft can be prepared; sending it is the owner's.
+- (b) Keep the override and document it, which is the current state.
+- (c) Keep OneBuilding out of the public package, and supply it to the hosted service
+  separately.
+
+This is not a legal opinion.
+- **Q9.** Which option? Shall I draft the message for (a)?
+
+### Release steps waiting for the owner
+
+- Push open-data 2026.10.13.2.
+- Merge `feature/availability-gaps` into `main` and `deploy/staging`.
+- Pin staging to that package. The pin must not precede the code.
