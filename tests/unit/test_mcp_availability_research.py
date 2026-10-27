@@ -774,3 +774,51 @@ def test_nsrdb_edge_probes_extend_only_their_own_caps(tmp_path):
         assert c.collect(edge)["outcome"] == "saved"
         c.ledger["counts"]["probe"] = 23
         assert c.collect(m.Request("nsrdb-dakar", "nsrdb", url, "probe", "t"))["outcome"] == "request_budget"
+
+
+def test_followup_requests_extend_only_their_own_ceilings(tmp_path):
+    m = research()
+    ob = "https://climate.onebuilding.org/sources/"
+    workbook = m.Request("onebuilding-jgmy-xlsx", "onebuilding", ob + "JGMY_EPW_Processing_locations.xlsx",
+                         "inventory", "t")
+    assert m.Collector.followup(workbook) and m.Collector.onebuilding_request_limit(workbook) == 55
+    for other in (m.Request("onebuilding-jgmy-xlsx", "onebuilding", ob + "ISHRAE2014_EPW_Processing_locations.xlsx",
+                            "inventory", "t"),
+                  m.Request("onebuilding-ishrae2014-xlsx", "onebuilding",
+                            ob + "ISHRAE2014_EPW_Processing_locations.xlsx", "inventory", "t"),
+                  m.Request("onebuilding-jgmy-xlsx", "onebuilding", ob + "JGMY_EPW_Processing_locations.xlsx",
+                            "documentation", "t")):
+        assert not m.Collector.followup(other) and m.Collector.onebuilding_request_limit(other) == 12
+    coast = m.Request("pvgis-coast-sea", "pvgis", "https://re.jrc.ec.europa.eu/api/v5_3/tmy?lat=1&lon=2",
+                      "probe", "t")
+    assert m.Collector.followup(coast) and m.Collector.pvgis_probe_limit(coast) == 10
+    with pytest.raises(ValueError):
+        m.Collector(tmp_path).__enter__().collect(m.Request("x", "p", "https://example.org/", "metadata", "t",
+                                                            headers={"If-Modified-Since": "x"}))
+
+
+def test_followup_ceilings_admit_only_listed_ids_once_stage_1_is_spent(tmp_path):
+    m = research()
+    land = "https://naciscdn.org/naturalearth/10m/physical/ne_10m_land.zip"
+    seen = []
+
+    def handler(request):
+        seen.append(dict(request.headers))
+        if "if-none-match" in request.headers:
+            return httpx.Response(304)
+        return httpx.Response(200, content=b"x" * 6_000_000)
+
+    with m.Collector(tmp_path, transport=httpx.MockTransport(handler), spacing=0) as c:
+        c.ledger["counts"]["metadata"] = 60
+        c.ledger["charged_bytes"] = 199_000_000
+        assert c.collect(m.Request("other", "x", "https://example.org/a", "metadata", "t"))["outcome"] == "request_budget"
+        saved = c.collect(m.Request("naturalearth-10m-land", "naturalearth", land, "inventory", "t", limit=10_000_000))
+        assert saved["outcome"] == "saved" and saved["bytes_read"] == 6_000_000
+        unchanged = c.collect(m.Request("noaa-inventory-r20261027", "noaa",
+                                        "https://www.ncei.noaa.gov/pub/data/noaa/isd-inventory.csv", "inventory",
+                                        "t", headers={"If-None-Match": '"e46a8d-63d89df6331d7"'},
+                                        limit=20_000_000))
+        assert unchanged["status"] == 304 and unchanged["outcome"] == "not_modified" and "snapshot" not in unchanged
+        assert len(unchanged["hops"]) == 1
+        assert c.ledger["counts"]["metadata"] == 62
+    assert seen[-1]["if-none-match"] == '"e46a8d-63d89df6331d7"'

@@ -71,6 +71,31 @@ NSRDB_EDGE_PROBES = frozenset(
 )
 ERROR_BODY_BYTES = 16_384
 
+# Owner-approved 2026-10-27 (availability follow-ups, item 7): these exact IDs, URLs and kinds,
+# and one justified -r1 revision each, may use metadata 100, probes 25, 240 MB in total and
+# OneBuilding attempts 55. Other requests keep the earlier ceilings.
+_OB = "https://climate.onebuilding.org/sources/"
+FOLLOWUP_WORKBOOKS = (
+    "NORCERRA", "Region4_Canada_CWEC", "INMET_TRY", "CTZ", "CTZRV2", "CTZ2010", "CTZ2016", "CTZ2022",
+    "CTZ2025", "JGMY", "TurTMY", "IMGW", "PHIKO", "NIWA", "ArgTMY", "TMY", "ITMY", "AMTUes", "IMS",
+    "CityUHK", "CSWD", "RMY2012", "RMY2024", "NIWA2024", "MetEireann", "BBSR",
+)
+FOLLOWUP_2026_10_27 = {
+    "onebuilding-sources-r20261027": ("documentation", _OB + "default.html"),
+    **{f"onebuilding-{name.lower().replace('_', '-')}-xlsx":
+       ("inventory", f"{_OB}{name}_EPW_Processing_locations.xlsx") for name in FOLLOWUP_WORKBOOKS},
+    "cds-era5-doc": ("documentation", "https://confluence.ecmwf.int/display/CKB/ERA5%3A+data+documentation"),
+    "cds-era5land-doc": ("documentation",
+                         "https://confluence.ecmwf.int/display/CKB/ERA5-Land%3A+data+documentation"),
+    "noaa-inventory-r20261027": ("inventory", "https://www.ncei.noaa.gov/pub/data/noaa/isd-inventory.csv"),
+    "naturalearth-10m-land": ("inventory", "https://naciscdn.org/naturalearth/10m/physical/ne_10m_land.zip"),
+    "pvgis-coast-land": ("probe", "https://re.jrc.ec.europa.eu/api/v5_3/tmy"),
+    "pvgis-coast-sea": ("probe", "https://re.jrc.ec.europa.eu/api/v5_3/tmy"),
+    "nsrdb-doc-himawari": ("documentation", "https://developer.nlr.gov/docs/solar/nsrdb/himawari-download/"),
+}
+FOLLOWUP_LIMITS = {"metadata": 100, "probe": 25, "total_bytes": 240_000_000, "onebuilding": 55,
+                   "pvgis": 10, "naturalearth_bytes": 10_000_000}
+
 
 @dataclass(frozen=True)
 class Limits:
@@ -175,8 +200,9 @@ class Collector:
         atomic_json(self.root / "ledger.json", self.ledger)
 
     def collect(self, request):
-        if any(key not in {"Range", "If-Match", "Accept"} for key in request.headers):
-            raise ValueError("Only public research headers Range, If-Match and Accept are allowed")
+        if any(key not in {"Range", "If-Match", "If-None-Match", "Accept"} for key in request.headers):
+            raise ValueError("Only public research headers Range, If-Match, If-None-Match and Accept "
+                             "are allowed")
         if not re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,95}", request.id):
             raise ValueError("Invalid research request identifier")
         if request.kind not in ("documentation", "inventory", "metadata", "probe"):
@@ -251,11 +277,13 @@ class Collector:
                 and p.hostname == "confluence.ecmwf.int"
                 and p.path == "/download/attachments/140385202/lsm_1279l4_0.1x0.1.grb"):
             cap = 20_000_000
-        if self.pvgis_gap_probe(request):
+        if self.pvgis_gap_probe(request) or (self.followup(request) and request.provider == "pvgis"):
             cap = PVGIS_GAP_PROBE_BYTES
+        if self.followup(request) and request.id.startswith("naturalearth-"):
+            cap = FOLLOWUP_LIMITS["naturalearth_bytes"]
         if request.archive:
             cap = self.archive_limit(request) - self.ledger["archive_bytes"].get(request.archive, 0)
-        cap = min(cap, request.limit, self.limits.total_bytes - self.ledger["charged_bytes"])
+        cap = min(cap, request.limit, self.total_bytes(request) - self.ledger["charged_bytes"])
         if cap <= 0:
             return self.finish(record, "byte_budget")
         try:
@@ -272,7 +300,26 @@ class Collector:
         return record
 
     @staticmethod
-    def onebuilding_request_limit(request):
+    def followup(request):
+        """True for an exact 2026-10-27 follow-up request (or its one -r1 revision)."""
+        base = request.revision_of if request.id.endswith("-r1") and request.revision_of else request.id
+        if request.id not in (base, base + "-r1") or base not in FOLLOWUP_2026_10_27:
+            return False
+        kind, url = FOLLOWUP_2026_10_27[base]
+        address = request.url if kind != "probe" else public_url(request.url)
+        return request.kind == kind and address == url
+
+    def total_bytes(self, request):
+        return FOLLOWUP_LIMITS["total_bytes"] if self.followup(request) else self.limits.total_bytes
+
+    @classmethod
+    def onebuilding_request_limit(cls, request):
+        if cls.followup(request) and request.provider == "onebuilding":
+            return FOLLOWUP_LIMITS["onebuilding"]
+        return cls._onebuilding_request_limit(request)
+
+    @staticmethod
+    def _onebuilding_request_limit(request):
         approved = {
             "onebuilding-au-coordinate-xlsx": "Region5_Southwest_Pacific_TMYx",
             "onebuilding-normals-coordinate-xlsx": "Normals",
@@ -323,6 +370,8 @@ class Collector:
     @classmethod
     def pvgis_probe_limit(cls, request):
         """Stage 1 allowed 2; the 2026-10-13 gaps plan (P1) allows 7 for its exact probes."""
+        if cls.followup(request):
+            return FOLLOWUP_LIMITS["pvgis"]
         return 7 if cls.pvgis_gap_probe(request) else 2
 
     @staticmethod
@@ -377,6 +426,8 @@ class Collector:
         )
         if self.nsrdb_edge_probe(request):
             ceiling = 23                                   # owner-approved N1 extension
+        if self.followup(request):
+            ceiling = FOLLOWUP_LIMITS[category]            # owner-approved 2026-10-27 budget
 
         context = truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
         for _ in range(4):
@@ -416,7 +467,7 @@ class Collector:
                 self.finish(record, "deadline")
                 return
             await asyncio.sleep(wait)
-            cap = min(cap, self.limits.total_bytes - self.ledger["charged_bytes"])
+            cap = min(cap, self.total_bytes(request) - self.ledger["charged_bytes"])
             if request.archive:
                 cap = min(
                     cap,
@@ -461,6 +512,8 @@ class Collector:
                                     int(retry) if retry.isdigit() else None
                                 )
                                 outcome = "rate_limited"
+                            elif response.status_code == 304:
+                                outcome = "not_modified"          # a conditional request: unchanged
                             elif response.is_redirect:
                                 location = urljoin(url, response.headers.get("location", ""))
                                 q = urlsplit(location)

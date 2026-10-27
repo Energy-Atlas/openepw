@@ -436,3 +436,45 @@ release is pushed, without the owner's go-ahead.
 
 Unmatched OneBuilding rows (no coordinate or NOAA match) are left out of the catalog and listed for
 the owner's later review; they do not stop the work.
+
+### Follow-up requests (fixed 2026-10-27, before any request)
+
+Under the item 7 budget. Every collector request uses `--manifest`, the IDs below and one
+justified `-r1` revision at most; a rate limit stops that provider's series. The collector
+admits these IDs only, through exact-ID allowlists as in earlier rounds; the ledger is never
+edited.
+
+**Ceilings for these IDs only:** metadata 100, probes 25, bytes 240 MB, OneBuilding attempts 55.
+The headers allowed gain `If-None-Match`, for the two conditional requests.
+
+| ID | Kind | URL (all `https://`) | Cap | Item |
+| --- | --- | --- | --- | --- |
+| `onebuilding-sources-r20261027` | documentation | `climate.onebuilding.org/sources/default.html`, `If-None-Match` the 2026-09-23 ETag | 1 MB | O1 |
+| `onebuilding-<family>-xlsx` (26) | inventory | `climate.onebuilding.org/sources/<File>_EPW_Processing_locations.xlsx` for the files listed below | 5 MB each | O2 |
+| `onebuilding-terms-<family>` (at most 2 per family, RMY2012, RMY2024, CSWD) | documentation | the originator's terms page, found by search and recorded here before the request | 5 MB | Q4 |
+| `cds-era5-doc`, `cds-era5land-doc` | documentation | `confluence.ecmwf.int/display/CKB/ERA5%3A+data+documentation` and `…/ERA5-Land%3A+data+documentation` | 5 MB | 6a |
+| `noaa-inventory-r20261027` | inventory | `www.ncei.noaa.gov/pub/data/noaa/isd-inventory.csv`, `If-None-Match` the 2025-08-30 ETag | 20 MB (existing exception) | 6b |
+| `naturalearth-10m-land` | inventory | `naciscdn.org/naturalearth/10m/physical/ne_10m_land.zip` | 10 MB | 6d |
+| `pvgis-coast-land`, `pvgis-coast-sea` | probe | `re.jrc.ec.europa.eu/api/v5_3/tmy`, two points chosen by the coastline rule and recorded here before sending | 1.5 MB | 6d check |
+| `nsrdb-doc-himawari` | documentation | `developer.nlr.gov/docs/solar/nsrdb/himawari-download/` | 1 MB | H1 years and intervals |
+
+**O2 workbooks (26).** Existing-weather families: `NORCERRA`, `Region4_Canada_CWEC` (full CWEC;
+the per-version workbooks only if it fails), `INMET_TRY`, `CTZ`, `CTZRV2`, `CTZ2010`, `CTZ2016`,
+`CTZ2022`, `CTZ2025`, `JGMY`, `TurTMY`, `IMGW`, `PHIKO`, `NIWA`, `ArgTMY`, `TMY`, `ITMY`,
+`AMTUes`, `IMS`, `CityUHK`, and `CSWD` and `RMY2012` only if their terms check clears them. Mixed
+families, historical files only: `RMY2024` (only if its terms check clears it), `NIWA2024`,
+`MetEireann`, `BBSR`. Left out: `ISHRAE2014` (Q4), `BrazFuture` and the five
+`Region4_Canada_NRC_Future*` workbooks (Q3).
+
+**Outside the collector (configured NLR key, never logged), as N2:**
+- **H1.** One 10-minute Himawari-8 download, Singapore (1.2897, 103.8501), 2018, attributes GHI,
+  DNI, DHI, temperature and solar zenith angle, UTC, 10 MB cap.
+- **H4 acceptance.** One hourly Himawari-8 year through the adapter, after H2 is implemented.
+- **O4 acceptance.** One file per new OneBuilding family through the adapter.
+
+**H2 thresholds, fixed before H1.** From the 10-minute data, each EPW hour's reference is the mean
+of the samples inside it. The re-binned hourly product passes if, for GHI over 2018:
+- the annual total is within 1% of the reference;
+- the hourly RMSE is at most 10% of the mean daylight GHI;
+- the 10-minute data show what the :00 hourly values are (centred means or instantaneous
+  samples). If they show neither, Himawari-8 stays catalogued but not downloaded.
