@@ -560,3 +560,15 @@ on Natural Earth sea about 4 km offshore, still unknown.
   (`Invalid EPW structure`).
 - **Products after O4:** 3,628 new (51,094 → 54,722 workbook products). Records:
   `onebuilding-acceptance-2026-10-27.json` and `-detail.json` in the research root.
+
+**Catalog and package (2e).** Generation `2c0b88e7`: 103 sources, 77,033 products, 110,619 sites,
+103,214 entries, 61 reviews. The matrix changes only the expected products; memory +6% (peak
+545 → 577 MB locally). Package 2026.10.27 on the local open-data branch
+`data/weather-availability-catalog-2026.10.27` (`b3885a8`, **not pushed**), `datapackage.json`
+SHA-256 `6aab7111fd6c94ae6e3d60c371c31247ed5fee3ea75fe415f6b699233ed847d6`, lossless. Research
+use: metadata 93/100, probes 24/25, 193.8/240 MB, OneBuilding 47/55. See the
+[record](../../validation/availability-followups-2026-10-27/README.md).
+
+**Waiting for the owner:** merging `feature/availability-followups` into `main` and
+`deploy/staging`, pushing the open-data branch, then pinning staging to the new commit URL and
+SHA-256. Items 2 and 5–8 are otherwise done.
