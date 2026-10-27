@@ -22,7 +22,7 @@ NSRDB_PRODUCT_IDS = {"nsrdb-GOES-aggregated-v4-0-0": "nsrdb:aggregate:v4", "nsrd
 # Kept in step with providers/nsrdb.py DATASETS (checked by a test).
 NSRDB_ADAPTED = frozenset((*NSRDB_PRODUCT_IDS, "himawari7", "himawari-tmy", "nsrdb-msg-v1-0-0",
                            "nsrdb-msg-v1-0-0-tmy", "nsrdb-msg-v1-0-0-tdy", "nsrdb-msg-v1-0-0-tgy",
-                           "msg-iodc"))
+                           "msg-iodc", "himawari"))
 
 
 def _location(value: dict | None) -> Location | None:

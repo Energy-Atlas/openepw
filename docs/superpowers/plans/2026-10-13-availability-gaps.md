@@ -528,3 +528,20 @@ on Natural Earth sea about 4 km offshore, still unknown.
   probes 9 of 10). The refinement makes 1,108 of 6,441 coastal station positions inside (unknown
   16.6% → 13.7% of 38,820 positions); sea points stay unknown. Details in `docs/providers/pvgis.md`.
   Natural Earth: `naturalearth-10m-land`, 3.3 MB.
+
+**Item 2 (H1, H2, H3).**
+- **H1** (outside the collector, configured key, never logged): one 10-minute Himawari-8 file,
+  Singapore 2018, 2.2 MB (`nsrdb-acceptance/h1-himawari-2018-singapore-10min.csv`, log
+  `h1-2026-10-27.json`, analysis `h1-analysis-2026-10-27.json`).
+  - The hourly :00 values are **instantaneous samples**: each equals the 10-minute file's :00
+    sample exactly (GHI and temperature), and the solar zenith angle fits the label instant
+    (RMSE 0.15° at no shift). They are not centred means (RMSE 9.9% of mean daylight GHI).
+  - **Re-binning passes the fixed thresholds:** annual GHI total +0.10% (≤ 1%), hourly RMSE 9.45%
+    of mean daylight GHI (≤ 10%) against hour means from the 10-minute samples. Without it, the
+    hourly RMSE is 20.5%.
+- **H2.** The adapter downloads `himawari` (hourly), keeps the :00 instants as hour-end values and
+  re-bins GHI, DNI and DHI as the mean of the hour's start and end samples; an hour without its
+  starting sample is never filled. Lineage and warnings say so. ADR 0002 amended.
+- **H3.** The Himawari-7 mask also gates Himawari-8 (`REVIEWED_SOURCES`; installed manifests are
+  updated by `scripts/mcp_availability_map/sync_gates.py`, masks unchanged). The documented years
+  2016–2020 apply where the four probes inside the mask agree.

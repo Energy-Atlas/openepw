@@ -60,6 +60,10 @@ FIXED_PRODUCTS = (
             "4 km satellite solar grid, hourly; needs an NLR key"),
     Product("nsrdb-himawari7", "historical", "nsrdb", "himawari7", "NSRDB actual year · Himawari-7 (2011–2015)",
             "NSRDB Himawari-7", "nsrdb", "4 km satellite solar grid for Asia and the Pacific, hourly; needs an NLR key"),
+    Product("nsrdb-himawari8", "historical", "nsrdb", "himawari", "NSRDB actual year · Himawari-8 (2016–2020)",
+            "NSRDB Himawari-8", "nsrdb",
+            "2 km satellite solar grid for Asia and the Pacific, hourly samples; irradiance re-binned to EPW "
+            "hours; needs an NLR key"),
     Product("nsrdb-msg", "historical", "nsrdb", "nsrdb-msg-v1-0-0", "NSRDB actual year · Meteosat (2005–2022)",
             "NSRDB Meteosat", "nsrdb",
             "4 km satellite solar grid for Europe and Africa (Meteosat prime meridian), hourly; needs an NLR key"),
