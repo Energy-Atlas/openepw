@@ -275,7 +275,7 @@ the trial; soft is tracked only) and returns the trace entries that decided it. 
 `MODEL_HOST_TOOL`, `SUBMIT_WITHOUT_APPROVAL`, `MODEL_FALLBACK` (agent), `STEP_LIMIT`,
 `UNGROUNDED_YEARS`, `FALSE_READINESS` (an uncorrected claim), `LINK_LEAK` (found by the guard's
 pattern and a broader one of the eval's own), `HIDDEN_CHARACTERS` and `SECRET_LEAK`. Listed by
-tasks: forms and tools in order, no tools, absent tools, absent forms, submitted, years, plan products, review
+tasks: forms and tools in order, no tools, absent tools, absent forms, text shown anywhere, submitted, years, plan products, review
 points, offsets, reply text required or forbidden, reply length (soft), session ended, strikes,
 guard codes present or absent, a labelled knowledge answer, text on forms, and text that must or
 must not reach the model.

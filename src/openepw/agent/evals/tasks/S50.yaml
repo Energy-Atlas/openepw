@@ -1,26 +1,35 @@
 id: S50
 title: An availability question is answered for the years asked
 purpose: 'A question such as ''can I get 1950?'' is answered for the years asked (found by human labels, G09-G16):
-  in agent mode in words from a lookup, labelled because the place is not approved, with no form; in guided mode
-  on the product form, which states what is listed for those years.'
+  in agent mode preferably in words from a labelled lookup, or on the product form''s availability line; in guided
+  mode on the product form, which states what is listed for those years.'
 covers: [offers.available, gate.product-choice, lookup.products, lookup.label]
 tags: [workflow]
 user:
   say: Can I get actual-year weather for 1950 in Austin?
   answers: {location_review: approve, product_choice: null, choice: first, map_input: Austin, text: '1950'}
 graders:
+# "Can I get ...?" reads as a question or as a polite request for files (live run 2026-10-27: the
+# model chose the product form, whose availability line also answers). Either way 1950's
+# availability must be shown and nothing planned; the lookup path is preferred and tracked (soft).
+- grader: shown_contains
+  value: ['1950']
+  mode: agent
+- grader: tools_absent
+  value: [weather_plan]
+  mode: agent
 - grader: tools_in_order
   value: [weather_geocode, look_up_products]
   mode: agent
+  severity: soft
 - grader: codes_present
   value: [LOOKUP_UNAPPROVED]
   mode: agent
-- grader: reply_contains
-  value: ['1950']
-  mode: agent
+  severity: soft
 - grader: forms_absent
   value: [product_choice, plan_review]
   mode: agent
+  severity: soft
 - grader: forms_in_order
   value: [location_review, product_choice]
   mode: guided

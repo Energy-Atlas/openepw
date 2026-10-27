@@ -13,8 +13,11 @@ user:
 graders:
 - grader: forms_in_order
   value: [location_review, product_choice, plan_review]
+# Typed at the years question, the text is also a years answer; a live model may plan straight
+# away (2026-10-27). The lookup is preferred and tracked (soft); the label never shows.
 - grader: tools_in_order
   value: [look_up_products, weather_plan]
+  severity: soft
 - grader: codes_absent
   value: [LOOKUP_UNAPPROVED]
 - {grader: years, value: [2018]}

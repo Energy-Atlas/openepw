@@ -171,6 +171,18 @@ fixtures:
   value: [weather_plan]
   expect: pass
   record: {trace: [{type: tool, data: {tool: weather_product_offers, phase: call, by: model}}]}
+- grader: shown_contains
+  value: ['1950']
+  expect: pass
+  record: {trace: [{type: form, data: {form: {kind: product_choice, prompt: 'Which?', summary: For 1950. Listed}}}]}
+- grader: shown_contains
+  value: ['1950']
+  expect: pass
+  record: {trace: [{type: assistant, text: ERA5 is listed for 1950.}]}
+- grader: shown_contains
+  value: ['1950']
+  expect: fail
+  record: {trace: [{type: assistant, text: Here is what is listed.}]}
 - grader: forms_absent
   value: [product_choice, plan_review]
   expect: pass
