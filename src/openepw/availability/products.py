@@ -82,11 +82,19 @@ STATION_LAYERS = {"noaa", "onebuilding"}
 _ORDER = {product.id: index for index, product in enumerate(FIXED_PRODUCTS)}
 
 
+# Families whose typical years are generated statistically rather than selected from observed
+# months (owner decision Q5, 2026-10-27: included, marked synthetic).
+SYNTHETIC_VARIANTS = {"JGMY"}
+
+
 def onebuilding_product(variant: str) -> Product:
     tmyx = variant.startswith("TMYx")
+    synthetic = variant in SYNTHETIC_VARIANTS
+    label = f"OneBuilding {variant.replace('_', ' ')}" + (" (synthetic)" if synthetic else "")
+    detail = ("Synthetic typical year (statistically generated, not observed months), from the nearest "
+              "listed station" if synthetic else "Published EPW file from the nearest listed station")
     return Product(f"onebuilding:{variant}", "tmyx" if tmyx else "published", "onebuilding",
-                   "OneBuilding published EPW", f"OneBuilding {variant}", variant, "onebuilding",
-                   "Published EPW file from the nearest listed station", variant)
+                   "OneBuilding published EPW", label, variant, "onebuilding", detail, variant)
 
 
 def product_for(choice_id: str) -> Product | None:

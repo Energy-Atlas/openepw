@@ -24,6 +24,14 @@ TMYX_WORKBOOKS = (
     "onebuilding-region3-xlsx", "onebuilding-region4-canada-xlsx",
     "onebuilding-region4-caribbean-xlsx", "onebuilding-region7-xlsx",
 )
+# 2026-10-27 follow-ups (item 5): national and special typical-year families. MetEireann's rows link
+# bare .epw files, which the adapter does not fetch, so its workbook adds no product.
+FAMILY_WORKBOOKS = tuple(f"onebuilding-{name}-xlsx" for name in (
+    "norcerra", "region4-canada-cwec", "inmet-try", "ctz", "ctzrv2", "ctz2010", "ctz2016", "ctz2022",
+    "ctz2025", "jgmy", "turtmy", "imgw", "phiko", "niwa", "argtmy", "tmy", "itmy", "amtues", "ims",
+    "cityuhk", "niwa2024", "meteireann", "bbsr", "luxtmy"))
+# Future-climate files of mixed families: NIWA2024's SSP years and BBSR's 2035 test reference years.
+FUTURE_FILE = re.compile(r"SSP\d|RCP|rcp|_20[3-9]\d_|TRY20[3-9]\d")
 
 
 def coordinate_diagnostics(matches, history):
@@ -452,6 +460,13 @@ def analyze(root):
                 # built by scripts/mcp_availability_map/era5land_mask.py, not parsed here.
                 result["inventories"][r["id"]] = {"format": "GRIB 2", "bytes": len(raw),
                                                   "use": "ERA5-Land land-sea mask"}
+            elif r["provider"] == "cds" and r["kind"] == "documentation":
+                # 2026-10-27 follow-ups (6a): ECMWF's ERA5 and ERA5-Land documentation pages.
+                text = raw.decode("utf-8", "replace")
+                result["inventories"][r["id"]] = {
+                    "format": "html", "bytes": len(raw),
+                    "regular_grid_values_at_poles": bool(re.search(r"exact north and south pole", text)),
+                }
             elif r["provider"] == "cds":
                 data = json.loads(raw)
                 if "extent" in data:
@@ -575,19 +590,27 @@ def analyze(root):
         if u.endswith(".zip")
     }
     workbook_urls = sorted(
-        {
+        ({
             row["url"]
             for key in TMYX_WORKBOOKS
             for row in result["inventories"].get(key, {}).get("rows", [])
             if row["url"].endswith(".zip") and "_TMYx" in row["url"]
         }
+        # 2026-10-27 follow-ups (item 5): every file the national and special family workbooks
+        # list, except future-climate files (Q3); restricted families were never requested (Q4).
+        | {
+            row["url"]
+            for key in FAMILY_WORKBOOKS
+            for row in result["inventories"].get(key, {}).get("rows", [])
+            if row["url"].endswith(".zip") and not FUTURE_FILE.search(row["url"].rsplit("/", 1)[-1])
+        })
         - indexed
     )
     if workbook_urls:
         result["inventories"][ONEBUILDING_WORKBOOKS] = {
             "links": workbook_urls,
             "count": len(workbook_urls),
-            "sources": [key for key in TMYX_WORKBOOKS if key in result["inventories"]],
+            "sources": [key for key in (*TMYX_WORKBOOKS, *FAMILY_WORKBOOKS) if key in result["inventories"]],
             "temporal_kind": "published_product_reference_period",
         }
     for key in (*ONEBUILDING_INDEXES, ONEBUILDING_WORKBOOKS):

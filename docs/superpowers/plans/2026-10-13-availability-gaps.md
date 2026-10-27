@@ -492,3 +492,31 @@ of the samples inside it. The re-binned hourly product passes if, for GHI over 2
   retired. ERA5-Land (`cds-era5land-doc`: a regular 0.1° grid) stays gated by its mask.
 - **6b.** `noaa-inventory-r20261027` returned 304 Not Modified: ISD is frozen at 2025-08-30.
   GHCNh is on the roadmap (Q6).
+
+**Q4 terms checks.** Pages found by search on 2026-10-27, recorded before the requests:
+`terms-rmy2024` (`agdatashop.csiro.au/future-climate-typical-meteorological-year`, CSIRO's download
+page) and `terms-rmy2012` (`niwa.co.nz/climate-and-weather/nathers-climate-files-2012-data-request`).
+For CSWD (Tsinghua University and the China Meteorological Bureau, published as a 2005 book) no
+terms page was found, so CSWD stays out.
+- **Q4 results.** RMY2024: CSIRO's page offers the files at $0 through a shop with login and cart,
+  with no licence shown and "All rights reserved"; RMY2012: access needs the NatHERS end-user licence
+  agreement (NIWA's request form). Neither clears, so RMY2012, RMY2024 and CSWD stay out with
+  ISHRAE. O2 is 24 workbooks.
+
+**O2 and O3 (item 5).** All 24 workbooks saved (0.9 MB, 24 OneBuilding attempts; 46 of 55 used).
+The offline analysis adds **3,995 products**, every one with the workbook's published coordinates
+(51,094 → 55,089 workbook products; none removed):
+- CWEC 2016/2020/2020v2/TDY-2020v2/original (2,262), INMET and TRY (429), NORCERRA (358), JGMY
+  (157, labelled "(synthetic)"), CTZ, CTZ v2, 2010, 2016, 2022 and 2025 (449), TurTMY (81), IMGW
+  (60), LuxTMY (29), PHIKO (22), NIWA (18), ArgTMY (16), ITMY (5), AMTUes (5), IMS (4), CityUHK (1);
+  NIWA2024 TRY, DSY1 and MDRY (54) and BBSR TRY2010 annual, summer and winter (45), historical
+  files only. The TMY family's files were already listed by the US index.
+- **Left out:** future files (NIWA2024 SSP years, BBSR TRY2035; Q3); **MetEireann** (456 rows),
+  whose rows link bare `.epw` files, which the adapter and plan checks do not accept (published
+  ZIPs only), so it is deferred rather than loosening those checks.
+- **Unparsed rows, for the owner's later review (7):** 2 in CWEC, 3 in TMY, 1 in IMGW
+  (`…Katowice.Intl.AP125600_IMGW.zip`, no separator before the station) and 1 in ITMY.
+- **Parsing changes:** station numbers after `_` (TurTMY, ArgTMY, AMTUes, BBSR); CTZ2022's
+  tab-joined rows; variants keep sub-types for PHIKO, NIWA2024 and BBSR (`TRY_NIWA2024`,
+  `TRY2010_Jahr_BBSR`) and Brazil's `TRY.<year>` files become `TRY`. Every one of the 72,810
+  earlier OneBuilding URLs parses exactly as before.

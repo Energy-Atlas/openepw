@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import re
 from datetime import date, datetime, timezone
 from typing import Any, Literal
 
@@ -135,11 +136,21 @@ class DatasetSelection(Model):
 
 
 def published_variant(product_id: str | None) -> str | None:
-    """The file family of a published EPW archive name, e.g. TMYx.2009-2023 from ..._TMYx.2009-2023.zip."""
+    """The file family of a published EPW archive name, e.g. TMYx.2009-2023 from ..._TMYx.2009-2023.zip.
+
+    Families whose files carry a sub-type keep it (KOR_KB_Andong.471360_TRY_PHIKO.zip is TRY_PHIKO;
+    BBSR's region number is dropped: ..._TRY2010_04_Jahr_BBSR.zip is TRY2010_Jahr_BBSR), and
+    Brazil's TRY files name their selected year (..._TRY.1962.zip is TRY).
+    """
     name = (product_id or "").rsplit("/", 1)[-1]
     if not name.endswith(".zip") or "_" not in name:
         return None
-    return name[:-4].rsplit("_", 1)[-1] or None
+    stem = name[:-4]
+    typed = re.search(r"[._]\d{6}_((?:[A-Za-z0-9.-]+_)+(?:PHIKO|NIWA2024|BBSR))$", stem)
+    if typed:
+        return re.sub(r"_\d{2}_", "_", typed.group(1))
+    last = stem.rsplit("_", 1)[-1]
+    return re.sub(r"^TRY\.\d{4}$", "TRY", last) or None
 
 
 class WeatherRequest(Model):

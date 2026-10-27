@@ -93,6 +93,10 @@ FOLLOWUP_2026_10_27 = {
     "pvgis-coast-land": ("probe", "https://re.jrc.ec.europa.eu/api/v5_3/tmy"),
     "pvgis-coast-sea": ("probe", "https://re.jrc.ec.europa.eu/api/v5_3/tmy"),
     "nsrdb-doc-himawari": ("documentation", "https://developer.nlr.gov/docs/solar/nsrdb/himawari-download/"),
+    # Q4 terms checks, pages found by search on 2026-10-27 (CSWD: no terms page found).
+    "terms-rmy2024": ("documentation", "https://agdatashop.csiro.au/future-climate-typical-meteorological-year"),
+    "terms-rmy2012": ("documentation",
+                      "https://niwa.co.nz/climate-and-weather/nathers-climate-files-2012-data-request"),
 }
 FOLLOWUP_LIMITS = {"metadata": 100, "probe": 25, "total_bytes": 240_000_000, "onebuilding": 55,
                    "pvgis": 10, "naturalearth_bytes": 10_000_000}
