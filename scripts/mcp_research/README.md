@@ -107,6 +107,23 @@ ERA5-Land land-sea mask in GRIB (`era5land-lsm`, `-r1`; 20 MB). The 200 MB overa
 ceiling is unchanged. See the [plan](../../docs/superpowers/plans/2026-10-13-availability-coverage.md)
 and the [record](../../docs/validation/availability-coverage-2026-10-13/README.md).
 
+The 2026-10-13 availability-gaps approval (P1) admits exactly five PVGIS v5_3 TMY probes:
+- `pvgis-ithaca`, `pvgis-atlantic`, `pvgis-northsea`, `pvgis-svalbard` and
+  `pvgis-lake-victoria`;
+- one justified `-r1` revision;
+- all at `re.jrc.ec.europa.eu/api/v5_3/tmy`, PVGIS probe cap 2 → 7, 1.5 MB each.
+
+For these only, a 4xx body of up to 16 KB is kept as `raw/<id>.error.body`. The ledger records
+it as `error_sha256` and `error_snapshot`, never as a snapshot. See the
+[plan](../../docs/superpowers/plans/2026-10-13-availability-gaps.md) and the
+[record](../../docs/validation/availability-gaps-2026-10-13/README.md).
+
+The same plan's N1 approval admits exactly ten NSRDB data-query probes and one justified
+`-r1` revision, with the NSRDB probe cap at 17 and the overall probe ceiling at 23 for them
+only. The IDs are `nsrdb-honolulu`, `nsrdb-recife`, `nsrdb-juneau`, `nsrdb-buenos-aires`,
+`nsrdb-cape-town`, `nsrdb-oslo`, `nsrdb-dakar`, `nsrdb-auckland`, `nsrdb-sapporo` and
+`nsrdb-almaty`. `analyze` reads the documented `names` of each saved `nsrdb-doc-*` page.
+
 Accepted individual judgments live in `data/onebuilding_reviews.json`. `reviews.py`
 attaches them only to explicitly listed product URLs with matching source checksums.
 The original automatic record is preserved. Reviewed metadata coordinates,

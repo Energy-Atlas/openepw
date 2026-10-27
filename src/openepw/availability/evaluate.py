@@ -252,17 +252,22 @@ def _assess(query: AvailabilityQuery, location: Location, product: ProductRecord
     elif place == "inside" and not any(e.probe_location for e in entries):
         reasons.append("INSIDE_SOURCE_COVERAGE")
     elif product.provider in ("nsrdb", "pvgis") and any(e.probe_location for e in entries):
-        applicable = [e for e in entries if e.probe_location is None or (
+        at_point = [e for e in entries if e.probe_location is not None and (
             abs(e.probe_location.lat - location.lat) <= 1e-6 and
             abs(e.probe_location.lon - location.lon) <= 1e-6)]
-        if not applicable and place == "inside":
-            reasons.append("INSIDE_SOURCE_COVERAGE")       # the probes' lists apply here
-            applicable = entries
-        elif not applicable:
+        area = [e for e in entries if e.probe_location is None]
+        if at_point:
+            entries = at_point                               # the probe's own lists
+        elif place == "inside":
+            reasons.append("INSIDE_SOURCE_COVERAGE")
+            # A documented area-wide entry (PVGIS) applies inside the mask; without one, the
+            # probes' lists apply (NSRDB). A probe's selected months never move to another point.
+            entries = area or entries
+        else:
             unknowns.append("TARGETED_PROBE_ONLY")
             if place == "edge":
                 unknowns.append("NEAR_SOURCE_COVERAGE_EDGE")
-        entries = applicable
+            entries = []
     if not entries:
         unknowns.append("TEMPORAL_EVIDENCE_MISSING")
     else:

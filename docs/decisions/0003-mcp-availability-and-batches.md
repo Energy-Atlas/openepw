@@ -139,6 +139,35 @@ See the [plan](../superpowers/plans/2026-10-13-availability-coverage.md) and its
 - **Rollout:** a hosted instance upgrades its catalog when the pinned package changes, and keeps
   the previous one if the upgrade fails.
 
+## Owner decisions 2026-10-13 (PVGIS coverage, availability-gaps plan)
+
+See the [plan](../superpowers/plans/2026-10-13-availability-gaps.md) and its
+[validation record](../validation/availability-gaps-2026-10-13/README.md).
+
+- **PVGIS TMY 5.3 is one product with a per-location radiation source:**
+  - SARAH3 where it is JRC's default, ERA5 elsewhere;
+  - the run records PVGIS's reported `radiation_db`.
+- **A domain mask gates it.** It is built from the ERA5-Land land–sea mask, with an explicit
+  unknown band (`edge_runs`):
+  - inside: land between 60° S and 75° N;
+  - outside: ocean-connected water more than 50 km from any land or published station, and
+    beyond those latitudes;
+  - unknown: coasts, lakes and small islands.
+- **Inside the mask, a documented 2005–2023 entry applies.** A probe's selected month-years
+  stay at its own point.
+- **Six PVGIS TMY requests under an owner-approved exception** used Stage 1's last probes.
+
+## Owner decisions 2026-10-13 (NSRDB years, ERA5-Land mask; availability-gaps plan)
+
+- **NSRDB years (D4).** Inside a dataset's coverage mask, its years and typical-year files are
+  the list that every data-query probe gives and that NLR's dataset page does not exceed.
+  - If the probes disagree, the probes' own lists stay at their points.
+  - A probe's list still applies at its own point.
+- **ERA5-Land (D5).** It is gated by the points where ERA5-Land has a value, from one CDS field.
+  This replaces the land-fraction mask of the 2026-10-13 coverage decisions.
+- **Budget (D6).** Ten NSRDB edge probes (the probe ceiling raised 12 → 23 for them only), nine
+  NLR dataset pages, four earliest-year downloads and one CDS field.
+
 ## Architecture boundary
 
 Availability, recommendation evidence and batch resolution belong in the canonical

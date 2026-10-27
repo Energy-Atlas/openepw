@@ -1,5 +1,15 @@
 # ERA5 and ERA5-Land via CDS
 
+## ERA5-Land mask — 2026-10-13
+
+- **The mask.** ERA5-Land (CDS and Open-Meteo) is gated by the 0.1° points where ERA5-Land has a
+  value. It was decoded from one global `2m_temperature` field (2020-01-01 00:00, GRIB 1 with a
+  bit map) and holds 2,212,863 points, lakes included (owner decision D5).
+- **It replaces the land-fraction mask (≥ 0.5).**
+  - Gained: 24,726 points with values below that fraction.
+  - Lost: 7,105 points above it that have no value, mostly Arctic and fjord coasts.
+- **The record.** See the [record](../validation/availability-gaps-2026-10-13/README.md).
+
 ## MCP Stage 2 availability — 2026-09-24
 
 The CDS catalog's 0–360 longitude bbox ending at ±89° does not resolve polar

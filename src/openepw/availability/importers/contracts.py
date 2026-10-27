@@ -53,26 +53,46 @@ def normalize_contracts(inventories: dict, known: set[str], probe_locations: dic
                 scope=ActualScope(operating_start=date(start, 1, 1)),
                 evidence_basis="documentation", evidence_ids=["openmeteo-doc"],
             ))
-    london = inventories.get("pvgis-london")
-    if london and "pvgis-london" in known:
+    # Every saved PVGIS TMY probe (Stage 1: London; 2026-10-13 gaps plan: Ithaca, Lake Victoria).
+    # Each keeps its own selected month-years, which never apply elsewhere. Owner decision D1
+    # (2026-10-13): one product whose radiation source is SARAH3 or ERA5 by location.
+    pvgis_probes = sorted(key for key, value in inventories.items()
+                          if key.startswith("pvgis-") and key in known and isinstance(value, dict)
+                          and value.get("meteo_data"))
+    if pvgis_probes:
         product_id = "pvgis:tmy:v5_3"
         products.append(ProductRecord(
             id=product_id, provider="pvgis", dataset="PVGIS TMY", version="v5_3",
             spatial_kind="grid", temporal_kind="tmy_reference",
             adapter_variables=_EPW_FIELDS, source_variables=_EPW_FIELDS,
-            evidence_ids=["pvgis-london"],
+            evidence_ids=pvgis_probes,
         ))
-        meteo = london.get("meteo_data", {})
-        selected = {int(m["month"]): int(m["year"]) for m in london.get("months_selected", [])}
-        entries.append(AvailabilityEntry(
-            id="pvgis:tmy:v5_3:london-probe", product_id=product_id,
-            scope=TMYReferenceScope(start_year=meteo.get("year_min"),
-                                    end_year=meteo.get("year_max"),
-                                    product_label="PVGIS TMY v5_3 London",
-                                    selected_month_years=selected),
-            evidence_basis="targeted_probe", evidence_ids=["pvgis-london"],
-            probe_location=_location(london.get("location")),
-        ))
+        periods: set[tuple[int | None, int | None]] = set()
+        for probe_id in pvgis_probes:
+            probe = inventories[probe_id]
+            meteo = probe["meteo_data"]
+            periods.add((meteo.get("year_min"), meteo.get("year_max")))
+            name = probe_id.removeprefix("pvgis-")
+            selected = {int(m["month"]): int(m["year"]) for m in probe.get("months_selected", [])}
+            entries.append(AvailabilityEntry(
+                id=f"{product_id}:{name}-probe", product_id=product_id,
+                scope=TMYReferenceScope(start_year=meteo.get("year_min"),
+                                        end_year=meteo.get("year_max"),
+                                        product_label=f"PVGIS TMY v5_3 {name.replace('-', ' ').title()}",
+                                        selected_month_years=selected),
+                evidence_basis="targeted_probe", evidence_ids=[probe_id],
+                probe_location=_location(probe.get("location")),
+            ))
+        # JRC documents one 2005-2023 source period for SARAH3 and ERA5 (manual; JRC139355), and
+        # every probe reports it. It applies only where the PVGIS domain mask says inside.
+        first_year, last_year = next(iter(periods)) if len(periods) == 1 else (None, None)
+        if first_year and last_year:
+            entries.append(AvailabilityEntry(
+                id=f"{product_id}:documented-domain", product_id=product_id,
+                scope=TMYReferenceScope(start_year=first_year, end_year=last_year, product_label="PVGIS TMY v5_3"),
+                evidence_basis="documentation",
+                evidence_ids=[*(["pvgis-doc"] if "pvgis-doc" in known else []), *pvgis_probes],
+            ))
     # Every saved NSRDB data-query probe (Stage 1: Ithaca, Phoenix; 2026-10-13: Singapore,
     # Nairobi, London). A dataset the adapter does not download is catalogued as unsupported.
     probe_ids = sorted(key for key, value in inventories.items()
@@ -114,6 +134,36 @@ def normalize_contracts(inventories: dict, known: set[str], probe_locations: dic
                         evidence_basis="targeted_probe", evidence_ids=[probe_id],
                         probe_location=location,
                     ))
+    # Owner decision D4 (2026-10-13, availability-gaps plan): where every probe that lists an
+    # adapted dataset gives the same years or files, and its NLR page documents no value they
+    # lack, that list applies throughout the dataset's coverage mask. NLR's pages lag the data
+    # query (GOES TMY omits the -2025 files every probe lists), so the probes' list is used.
+    documented = {value["dataset"]: key for key, value in inventories.items()
+                  if key.startswith("nsrdb-doc-") and key in known and isinstance(value, dict)
+                  and value.get("dataset") and value.get("names")}
+    for native, doc_id in sorted(documented.items()):
+        if native not in NSRDB_ADAPTED:
+            continue
+        listed = {probe_id: tuple(item.get("available_years_or_products", []))
+                  for probe_id in probe_ids if probe_id in known
+                  for item in inventories[probe_id].get("products", []) if item["name"] == native}
+        lists = set(listed.values())
+        names = {str(name) for name in inventories[doc_id]["names"]}
+        if len(lists) != 1 or not names <= {str(value) for value in next(iter(lists))}:
+            continue                                # probes disagree, or the page lists more
+        values = list(next(iter(lists)))
+        product_id = NSRDB_PRODUCT_IDS.get(native, f"nsrdb:{native}")
+        evidence = [doc_id, *sorted(listed)]
+        if values and all(isinstance(value, int) for value in values):
+            entries.append(AvailabilityEntry(
+                id=f"{product_id}:documented:actual", product_id=product_id,
+                scope=ActualScope(years=sorted(values)), evidence_basis="documentation",
+                evidence_ids=evidence))
+        else:
+            entries.extend(AvailabilityEntry(
+                id=f"{product_id}:documented:{label}", product_id=product_id,
+                scope=TMYReferenceScope(product_label=str(label)), evidence_basis="documentation",
+                evidence_ids=evidence) for label in values)
     for source_id, product_id, start_year in (
         ("cds-era5", "cds:era5", 1940), ("cds-land", "cds:era5_land", 1950),
     ):
