@@ -1,7 +1,7 @@
 # Agent request lookups (slots phase a) — Plan
 
 **Status:** **approved by the owner on 2026-10-26** (decision 1 of the branch review, in
-conversation). Implementation not started. The owner also asked for this plan and its spec to be
+conversation). Implemented on 2026-10-27 (tasks 1–5); verification and results in §4. The owner also asked for this plan and its spec to be
 merged into `main` before implementation. Design and owner answers:
 [spec](../specs/2026-10-13-agent-request-lookups-design.md) (§1).
 
@@ -119,4 +119,26 @@ commit `fix(agent): …` (or `fix(evals): …`, `fix(docs): …`) with normal au
 
 ## 4. Execution notes
 
-(Filled in while the work runs: findings, assumptions, deviations and results.)
+2026-10-27, on `feature/agent-request-lookups` after merging `main` (`f0d11e0`, a fast-forward):
+
+- **Seen points are recorded in the session,** not in `policy_model`: `AgentSession.tool` records
+  the points in results of `weather_geocode`, `weather_places_preview`, `weather_place_set`,
+  `weather_places_interpret` and `weather_locations_review`, whoever called them; typed text and
+  text or map answers at a form add theirs. Guided-mode steps and map answers therefore count too,
+  which matters after a switch from guided to agent mode.
+- **Typed coordinates** are read only as decimal pairs ("42.44, -76.5") or hemisphere pairs
+  ("42.44N 76.5W"), so years and counts are never coordinates. Seen points are kept once each to
+  four decimals.
+- **The lookup's note** is the host's own text and is not passed through the outside-text cleaning
+  (which cut it to 120 characters); names, labels and stations are.
+- **Offline statuses:** the eval stubs carry bundled coverage, so offline some products are
+  `listed` although `catalog_loaded` is false. The risk note in §3 assumed all were "not verified".
+- **S12** ("what's available in Phoenix?") is an availability question as well. With the new
+  instructions a model answers it with a lookup, so S12 gets per-mode graders like S50 (agent: geocode,
+  lookup, no product or plan form; guided: the product form). The spec said no other task changes.
+- **S55** asks "What's available for 2018 here?" at the years question, because the eval runner
+  answers each form kind the same way; the text answer records 2018, the lookup for the approved
+  place shows no label, and the plan and Run follow.
+- **Eval lint** knows `look_up_products` and checks `forms_absent` values against the form kinds.
+- Commits: `87ecea7` (seen points), `d33e86a` (lookup), `86babc7` (instructions), `0baf65f` (evals),
+  then the docs.
