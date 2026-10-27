@@ -395,8 +395,20 @@ catalog's OneBuilding metadata is published by owner override.
 This is not a legal opinion.
 - **Q9.** Which option? Shall I draft the message for (a)?
 
-### Release steps waiting for the owner
+### Release steps (owner go-ahead 2026-10-26)
 
-- Push open-data 2026.10.13.2.
-- Merge `feature/availability-gaps` into `main` and `deploy/staging`.
-- Pin staging to that package. The pin must not precede the code.
+- **Done:** `feature/availability-gaps` merged into `main` (`2047ec9`) and `main` into
+  `deploy/staging` (`ac9856f`), after ruff, mypy, the full test suite and the offline evals on each
+  merged tree. Masks without `edge_runs` keep the earlier edge rule, so staging stays correct on the
+  2026.10.13 package until the pin changes.
+- **Done:** open-data 2026.10.13.2 pushed (branch `data/weather-availability-catalog-2026.10.13.2`,
+  commit `958907a5cdf3353853de45395b43229e8524ab41`). The raw `datapackage.json` URL serves
+  SHA-256 `e46dace1892aacce26c7d3173ad0514dcc7618e22ecc9b92f4f6e8103cf3fcd5`.
+- **Waiting for the owner:** pin staging in the Render dashboard (the code is already deployed):
+
+  ```text
+  OPENEPW_CATALOG_URL=https://raw.githubusercontent.com/Energy-Atlas/open-data/958907a5cdf3353853de45395b43229e8524ab41/datasets/weather-availability-catalog/datapackage.json
+  OPENEPW_CATALOG_SHA256=e46dace1892aacce26c7d3173ad0514dcc7618e22ecc9b92f4f6e8103cf3fcd5
+  ```
+
+- Items 2 and 5–8 and questions Q1–Q9 above are still open.
