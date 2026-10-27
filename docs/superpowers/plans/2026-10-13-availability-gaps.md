@@ -458,7 +458,7 @@ The headers allowed gain `If-None-Match`, for the two conditional requests.
 | `pvgis-coast-land`, `pvgis-coast-sea` | probe | `re.jrc.ec.europa.eu/api/v5_3/tmy`, two points chosen by the coastline rule and recorded here before sending | 1.5 MB | 6d check |
 | `nsrdb-doc-himawari` | documentation | `developer.nlr.gov/docs/solar/nsrdb/himawari-download/` | 1 MB | H1 years and intervals |
 
-**O2 workbooks (26).** Existing-weather families: `NORCERRA`, `Region4_Canada_CWEC` (full CWEC;
+**O2 workbooks (26; 27 with LuxTMY, added after O1).** Existing-weather families: `NORCERRA`, `Region4_Canada_CWEC` (full CWEC;
 the per-version workbooks only if it fails), `INMET_TRY`, `CTZ`, `CTZRV2`, `CTZ2010`, `CTZ2016`,
 `CTZ2022`, `CTZ2025`, `JGMY`, `TurTMY`, `IMGW`, `PHIKO`, `NIWA`, `ArgTMY`, `TMY`, `ITMY`,
 `AMTUes`, `IMS`, `CityUHK`, and `CSWD` and `RMY2012` only if their terms check clears them. Mixed
@@ -478,3 +478,17 @@ of the samples inside it. The re-binned hourly product passes if, for GHI over 2
 - the hourly RMSE is at most 10% of the mean daylight GHI;
 - the 10-minute data show what the :00 hourly values are (centred means or instantaneous
   samples). If they show neither, Himawari-8 stays catalogued but not downloaded.
+
+### Results (2026-10-27, in progress)
+
+**First batch** (collector, `--manifest`; metadata 59 → 66 including redirect hops):
+- **O1.** The sources page changed (new ETag, Last-Modified 2026-10-21): one new family,
+  **LuxTMY** (Luxembourg, 29 locations, ASTA data 2015–2024), and RMY2024's location count. LuxTMY
+  is an existing-weather typical year, so its workbook joins O2 (`onebuilding-luxtmy-xlsx`, 27
+  workbooks in all).
+- **H1 documentation.** `nsrdb-doc-himawari`: years 2016–2020; intervals 10, 30 or 60 minutes.
+- **6a.** `cds-era5-doc` describes the CDS copy on a regular latitude/longitude grid with values at
+  the exact poles (90° N and 90° S). The ERA5 polar unknown (`POLAR_FOOTPRINT_CONFLICT`) is
+  retired. ERA5-Land (`cds-era5land-doc`: a regular 0.1° grid) stays gated by its mask.
+- **6b.** `noaa-inventory-r20261027` returned 304 Not Modified: ISD is frozen at 2025-08-30.
+  GHCNh is on the roadmap (Q6).

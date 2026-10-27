@@ -92,7 +92,8 @@ remain supported; this additional feature is deferred beyond initial local deliv
 ## Follow-ups after v0.1
 
 - Run configured Linux/macOS CI and an EnergyPlus consumption smoke check.
-- GHCNh successor adapter; ISD's current-year service is being retired by NOAA.
+- GHCNh successor adapter; ISD's inventory is frozen at 2025-08-30 (checked 2026-10-27) and NOAA
+  has moved hourly observations to GHCNh. Deferred by the owner on 2026-10-27 (Q6).
 - Generalize native OneBuilding geographic indexing, after verifying catalog and
   redistribution permissions. Do not mirror downloaded weather without permission.
 - Additional NSRDB products/intervals, CDS DNI/DHI derivation, more climate models

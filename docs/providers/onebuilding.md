@@ -1,5 +1,13 @@
 # Climate.OneBuilding
 
+## Terms — 2026-10-27
+
+The site gives no licence, and its footer reads all rights reserved. The catalog publishes
+OneBuilding metadata (workbook rows: names, coordinates, file paths) under the owner's 2026-09-28
+publication override, kept on 2026-10-27 (option b); weather files are never mirrored. Families
+whose originators restrict their files are left out of the catalog (ISHRAE 2014; CSWD and RMY
+unless a terms check clears them). This is not a legal opinion.
+
 ## MCP Stage 2 availability — 2026-09-24
 
 The local catalog retains the 56 accepted metadata correspondences, three

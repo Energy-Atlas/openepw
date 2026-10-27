@@ -79,6 +79,7 @@ FOLLOWUP_WORKBOOKS = (
     "NORCERRA", "Region4_Canada_CWEC", "INMET_TRY", "CTZ", "CTZRV2", "CTZ2010", "CTZ2016", "CTZ2022",
     "CTZ2025", "JGMY", "TurTMY", "IMGW", "PHIKO", "NIWA", "ArgTMY", "TMY", "ITMY", "AMTUes", "IMS",
     "CityUHK", "CSWD", "RMY2012", "RMY2024", "NIWA2024", "MetEireann", "BBSR",
+    "LuxTMY",                     # new on the sources page of 2026-10-21 (O1)
 )
 FOLLOWUP_2026_10_27 = {
     "onebuilding-sources-r20261027": ("documentation", _OB + "default.html"),

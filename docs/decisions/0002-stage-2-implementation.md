@@ -19,6 +19,8 @@ The approved scope is implemented with the following bounded refinements:
   of chat, the agent and MCP), it uses the point's time zone and rounds a fractional
   standard offset to the nearer whole hour (a tie to the hour nearer mean solar time),
   naming the civil offset in the review. An explicit fractional offset is still refused.
+  Owner decision 2026-10-27 (availability follow-ups, Q7): the tie rule stays, although it gives
+  Mumbai +5 and Kolkata +6 inside one civil zone (+5:30); it is documented, not changed.
 - NSRDB native TMY/TDY/TGY support supplements the planned actual-year adapter.
   Preserve the native timezone and mixed source years.
 - REST remote mode requires a bearer token. MCP HTTP binds only to loopback;
