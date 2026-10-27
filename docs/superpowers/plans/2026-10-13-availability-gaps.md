@@ -545,3 +545,18 @@ on Natural Earth sea about 4 km offshore, still unknown.
 - **H3.** The Himawari-7 mask also gates Himawari-8 (`REVIEWED_SOURCES`; installed manifests are
   updated by `scripts/mcp_availability_map/sync_gates.py`, masks unchanged). The documented years
   2016–2020 apply where the four probes inside the mask agree.
+- **H4 (live, through the service).** Sapporo, actual year 2018 (+9, inside the Himawari-7 mask;
+  the 2017 and 2018 UTC files): 8,760 rows, no missing GHI, annual GHI 1,337 kWh/m²; the year's
+  hour-ending GHI profile centres 0.05 h from solar noon; lineage names the re-binning. Record:
+  `nsrdb-acceptance/h4-himawari-2018-sapporo-2026-10-27.json`.
+
+**O4 (live, one file per family through the service, 22 families plus 5 re-runs for messages).**
+- 17 families pass (8,760 rows, the EPW header within 0.001° of the workbook): NORCERRA, CWEC,
+  INMET, CTZ, CTZ v2, CTZ2010, JGMY, TurTMY, IMGW, PHIKO, NIWA, ArgTMY, AMTUes, IMS, CityUHK,
+  NIWA2024, BBSR. QC flags are the files' own (`NATIVE_MINUTE_ZERO`; IMS also `NIGHTTIME_SOLAR`).
+- **5 families fail and stay out** (file paths are never guessed), for the owner's later review:
+  CTZ2016, CTZ2022 and CTZ2025 (the workbook URLs include `USA_United_States_of_America/` and
+  return 404; CTZ2010's path works without it), LuxTMY (URLs at the site root, 404) and ITMY
+  (`Invalid EPW structure`).
+- **Products after O4:** 3,628 new (51,094 → 54,722 workbook products). Records:
+  `onebuilding-acceptance-2026-10-27.json` and `-detail.json` in the research root.

@@ -25,11 +25,14 @@ TMYX_WORKBOOKS = (
     "onebuilding-region4-caribbean-xlsx", "onebuilding-region7-xlsx",
 )
 # 2026-10-27 follow-ups (item 5): national and special typical-year families. MetEireann's rows link
-# bare .epw files, which the adapter does not fetch, so its workbook adds no product.
+# bare .epw files, which the adapter does not fetch, so its workbook adds no product. Families whose
+# live check (O4) failed stay out, since file paths are never guessed: CTZ2016, CTZ2022 and CTZ2025
+# and LuxTMY (their workbook URLs return 404) and ITMY (its file is not a valid EPW).
 FAMILY_WORKBOOKS = tuple(f"onebuilding-{name}-xlsx" for name in (
-    "norcerra", "region4-canada-cwec", "inmet-try", "ctz", "ctzrv2", "ctz2010", "ctz2016", "ctz2022",
-    "ctz2025", "jgmy", "turtmy", "imgw", "phiko", "niwa", "argtmy", "tmy", "itmy", "amtues", "ims",
-    "cityuhk", "niwa2024", "meteireann", "bbsr", "luxtmy"))
+    "norcerra", "region4-canada-cwec", "inmet-try", "ctz", "ctzrv2", "ctz2010", "jgmy", "turtmy", "imgw",
+    "phiko", "niwa", "argtmy", "tmy", "amtues", "ims", "cityuhk", "niwa2024", "meteireann", "bbsr"))
+FAMILY_CHECK_FAILED = ("onebuilding-ctz2016-xlsx", "onebuilding-ctz2022-xlsx", "onebuilding-ctz2025-xlsx",
+                       "onebuilding-luxtmy-xlsx", "onebuilding-itmy-xlsx")
 # Future-climate files of mixed families: NIWA2024's SSP years and BBSR's 2035 test reference years.
 FUTURE_FILE = re.compile(r"SSP\d|RCP|rcp|_20[3-9]\d_|TRY20[3-9]\d")
 
