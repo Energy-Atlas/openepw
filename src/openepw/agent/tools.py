@@ -1,4 +1,4 @@
-"""What the model may call: MCP model tools plus host ask-tools, and how results reach it."""
+"""What the model may call: MCP model tools plus host ask-tools and lookups, and how results reach it."""
 
 from __future__ import annotations
 
@@ -71,6 +71,22 @@ RESULT_LIMIT = 4000
 # "review" locations or offers without a form the person can answer, so agent mode hides them.
 WRAPPED = {"weather_locations_review": "review_location", "weather_product_offers": "choose_products"}
 
+# Host lookup tools: read-only, no form, nothing stored. A lookup never feeds a plan.
+LOOKUP_TOOLS: dict[str, dict[str, Any]] = {
+    "look_up_products": {
+        "description": (
+            "Look up which weather products the catalog lists for places and years, to answer an "
+            "availability question in words. Opens no form and chooses nothing. Pass points from "
+            "weather_geocode, weather_places_preview or the person (never guessed); omit locations "
+            "to use the approved ones. Omit years to use the years the person wrote."),
+        "parameters": {"type": "object", "properties": {
+            "locations": {"anyOf": [_POINT, {"type": "array", "items": _POINT, "maxItems": 25}]},
+            "years": {"type": "array", "items": {"type": "integer"}},
+            "product": {"type": "string", "enum": ["historical", "tmy", "tmyx", "published"]},
+            "provider": {"type": "string"}}}},
+}
+LOOKUP_LIMIT = 25           # points per lookup
+
 
 # Host tools for the scope classes: the host shows the text, so wording and limits are fixed.
 SCOPE_TOOLS: dict[str, dict[str, Any]] = {
@@ -102,11 +118,12 @@ SCOPE_TOOLS: dict[str, dict[str, Any]] = {
 
 
 async def model_tools(port: Any, *, knowledge_answers: bool = True) -> list[dict[str, Any]]:
-    """The model's tool list: the server's model tools (live schemas), ask-tools and scope tools."""
+    """The model's tool list: the server's model tools (live schemas), ask-tools, lookups and scope tools."""
     listed = await port.list_tools()
     tools = [tool for tool in listed if tool["name"] in MODEL_TOOLS and tool["name"] not in WRAPPED]
     scope = [name for name in SCOPE_TOOLS if knowledge_answers or name != "knowledge_answer"]
     return (tools + [{"name": name, **spec} for name, spec in ASK_TOOLS.items()]
+            + [{"name": name, **spec} for name, spec in LOOKUP_TOOLS.items()]
             + [{"name": name, **SCOPE_TOOLS[name]} for name in scope])
 
 

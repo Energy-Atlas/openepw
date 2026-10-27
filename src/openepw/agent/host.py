@@ -13,6 +13,11 @@ from .state import Facts
 VIEWS = (("view:monthly_series", "Monthly dry-bulb temperature chart"),
          ("view:histogram", "Dry-bulb temperature distribution"))
 Advance = Callable[[AgentSession], Awaitable[None]]
+PRODUCT_KINDS = {"historical": "actual year (AMY)", "tmy": "typical year (TMY)",
+                 "tmyx": "typical year (TMYx)", "published": "published typical-year EPW"}
+LOOKUP_NOTE = ("Listed means eligible to try retrieval, not quality assured. Products not shown are not "
+               "offered for these places and years. Nothing is chosen: to get files, review the location "
+               "and choose products on the form.")
 
 
 def offset(minutes: int) -> str:
@@ -104,6 +109,64 @@ def product_form(facts: Facts) -> Interaction:
         options=[Option(id=offer["id"], label=offer["label"], detail=offer.get("detail"))
                  for offer in facts.offers],
         data={"availability": facts.offer_availability})
+
+
+def _status(option: dict[str, Any]) -> str:
+    sites, available = option.get("sites") or 0, option.get("available") or 0
+    if sites and available >= sites:
+        return "listed"
+    if available:
+        return f"listed at {available} of {sites} places"
+    return "not verified; checked when planning"
+
+
+def lookup_summary(data: dict[str, Any], *, approved: bool, points: list[dict[str, Any]],
+                   max_points: int = 5, max_products: int = 30) -> dict[str, Any]:
+    """What a lookup tells the model: statuses from weather_product_offers, without its
+    ``request`` objects, so a lookup can never feed a plan."""
+    availability = data.get("availability") or {}
+    options = data.get("options") or []
+    tags = ((availability.get("locations") or [{}])[0].get("products") or []) if len(points) == 1 else []
+    stations = {tag["option"]: tag["station"] for tag in tags if tag.get("station")}
+    products = []
+    for option in options[:max_products]:
+        entry = {"label": option["label"],
+                 "kind": PRODUCT_KINDS.get(option["request"]["product"], option["request"]["product"]),
+                 "status": _status(option)}
+        if station := stations.get(option["id"]):
+            distance = station.get("distance_km")
+            entry["station"] = f"{station.get('name') or 'station'}" + (
+                f" · {distance:g} km" if distance is not None else "")
+        products.append(entry)
+    place: dict[str, Any] = {"approved": approved, "count": len(points), "points": [
+        {"name": item.get("name"), "lat": round(item["lat"], 3), "lon": round(item["lon"], 3)}
+        for item in points[:max_points]]}
+    if len(points) > max_points:
+        place["more_points"] = len(points) - max_points
+    note = LOOKUP_NOTE
+    if availability.get("catalog_loaded") is False:
+        note += (" The local availability catalog is not loaded, so most products are not verified "
+                 "here; planning checks each one.")
+    summary = {"place": place, "years": availability.get("years") or [],
+               "years_assumed": bool(availability.get("years_assumed")),
+               "catalog_loaded": availability.get("catalog_loaded") is not False,
+               "products": products}
+    if len(options) > max_products:
+        summary["more_products"] = len(options) - max_products
+    return {**summary, "note": note}
+
+
+def lookup_label(points: list[dict[str, Any]], max_chars: int = 120) -> str:
+    """The fixed line the host shows before an answer about places that are not approved."""
+    named = [f"{clean_external(str(item.get('name') or 'point'), max_chars)} "
+             f"({item['lat']:.3f}, {item['lon']:.3f})" for item in points[:3]]
+    if len(points) > 3:
+        named.append(f"and {len(points) - 3} more")
+    several = len(points) > 1
+    return (f"Availability checked for {', '.join(named)}; "
+            + ("these locations are" if several else "this location is")
+            + " not approved yet. You'll confirm "
+            + ("them" if several else "it") + " before choosing products.")
 
 
 def years_form() -> Interaction:
