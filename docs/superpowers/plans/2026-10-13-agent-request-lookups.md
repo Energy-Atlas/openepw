@@ -1,10 +1,12 @@
 # Agent request lookups (slots phase a) — Plan
 
-**Status:** draft for the owner's approval, 2026-10-13. Not started. Design and owner answers:
+**Status:** **approved by the owner on 2026-10-26** (decision 1 of the branch review, in
+conversation). Implementation not started. The owner also asked for this plan and its spec to be
+merged into `main` before implementation. Design and owner answers:
 [spec](../specs/2026-10-13-agent-request-lookups-design.md) (§1).
 
-**Branch:** `feature/agent-request-lookups`, created from `main` at 6a9f53d. Not merged into
-`main` or `deploy/staging` without the owner's go-ahead. Production (`feature/render-deploy`) is
+**Branch:** `feature/agent-request-lookups`, created from `main` at 6a9f53d. The implementation is
+not merged into `main` or `deploy/staging` without the owner's go-ahead. Production (`feature/render-deploy`) is
 not touched.
 
 **Scope:** agent mode only (`src/openepw/agent/`), its evals and docs. Guided mode, the MCP server,

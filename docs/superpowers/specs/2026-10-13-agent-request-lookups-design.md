@@ -1,6 +1,6 @@
 # Agent request lookups (slots phase a) — design
 
-**Status:** draft for the owner's approval, 2026-10-13. Nothing is implemented. This is phase (a)
+**Status:** approved by the owner on 2026-10-26, with its plan. Nothing is implemented yet. This is phase (a)
 of the [request slots proposal](2026-10-12-agent-request-slots-design.md). Plan:
 [agent request lookups plan](../plans/2026-10-13-agent-request-lookups.md).
 
