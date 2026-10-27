@@ -248,9 +248,9 @@ These are nine metadata requests out of the 10 left in Stage 1, all under
   `data/weather-availability-catalog-2026.10.13.2` (`958907a`). The push waits for the owner.
 - See the [record](../../validation/availability-gaps-2026-10-13/README.md).
 
-## Remaining items: scope and proposals (2026-10-15, not approved)
+## Remaining items: scope and proposals (2026-10-15; decided 2026-10-27)
 
-Nothing here has been sent. For each item:
+The owner's answers are in "Owner decisions (2026-10-27)" below. For each item:
 - the challenge, and why it was not already included;
 - the scope;
 - the plan;
@@ -411,4 +411,28 @@ This is not a legal opinion.
   OPENEPW_CATALOG_SHA256=e46dace1892aacce26c7d3173ad0514dcc7618e22ecc9b92f4f6e8103cf3fcd5
   ```
 
-- Items 2 and 5–8 and questions Q1–Q9 above are still open.
+- Items 2 and 5–8: the owner answered Q1–Q9 on 2026-10-27; see "Owner decisions (2026-10-27)".
+
+## Owner decisions (2026-10-27)
+
+All answers were given in conversation on 2026-10-27. Work runs on `feature/availability-followups`
+(from `main` at `f0d11e0`). Nothing is merged into `main` or `deploy/staging`, and no open-data
+release is pushed, without the owner's go-ahead.
+
+| # | Decision |
+| --- | --- |
+| Q1 | **H1 approved:** one 10-minute download at Singapore for 2018, for research only (to learn how sub-hour values are labelled and how large the re-binning error is). |
+| Q2 | **Hourly only.** Users get 60-minute Himawari-8 data; 10 and 30-minute data are not offered. |
+| Q1/Q2 method | **Re-bin, checked.** Instantaneous variables (temperature, humidity, wind, pressure) keep their :00 values (if H1 confirms they are instantaneous), which match EPW's hour-ending timestamps. Each irradiance hour ending at *h* is the mean of the two centred values labelled *h − 1* and *h*, which keeps totals. H1 measures the error against the sub-hour data; ADR 0002 gets an amendment. **Stop** if the error is large or the labels do not fit; Himawari-8 then stays catalogued but not downloaded. |
+| Q3 | Future-only families and the future parts of mixed families are **left out**; mixed families import only their historical files. |
+| Q4 | Families whose originators restrict their files are **left out**: ISHRAE (sold). CSWD and RMY only if a terms check clears them. |
+| Q5 | **JGMY included**, marked synthetic (statistically generated). |
+| Q6 | **No GHCNh adapter now.** ISD is recorded as frozen at August 2025 if the inventory is unchanged; GHCNh goes on the roadmap. |
+| Q7 | **Keep the tie rule** (nearest whole hour, a tie towards mean solar time), documented. |
+| Q8 | **Coastline refinement approved:** Natural Earth 10 m land (public domain) decides land or sea for coastal PVGIS points. |
+| Q9 | **Option (b):** keep the owner override for OneBuilding metadata and document it. No message is sent. |
+| Item 7 | **Budget as proposed:** metadata 60 → 100, probes 23 → 25, bytes 200 → 240 MB, OneBuilding attempts 22 → 55, plus the H1 download and small live acceptance downloads (one file per new OneBuilding family, one Himawari-8 year). |
+| Release | Stop before merging: feature branches are pushed as a backup only. |
+
+Unmatched OneBuilding rows (no coordinate or NOAA match) are left out of the catalog and listed for
+the owner's later review; they do not stop the work.
