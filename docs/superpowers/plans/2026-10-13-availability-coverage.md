@@ -94,3 +94,44 @@ E1 URLs (all under `https://climate.onebuilding.org/sources/`):
 - NSRDB products other than those the E2 probes list.
 - Polar CDS footprint conflicts.
 - Production deployment.
+
+## Done, and what is left (2026-10-13)
+
+Steps 1–8 are done. Merged to `main` and staging, and published as open-data 2026.10.13
+(`data/weather-availability-catalog-2026.10.13`, commit `7e82e25`; staging is pinned to it).
+The [record](../../validation/availability-coverage-2026-10-13/README.md) has the requests,
+results and limits. Left, in rough order of user impact:
+
+1. **PVGIS TMY has one probe (London).** Done 2026-10-13: see the
+   [availability-gaps plan](2026-10-13-availability-gaps.md).
+   - It shows "checked when planning" everywhere else: no footprint, no mask.
+   - The map draws an approximate SARAH3 envelope for display only (`map_layers.py`).
+   - Candidate evidence: PVGIS's documented coverage of its radiation databases, or a mask
+     from a published grid.
+   - PVGIS 5.3 TMY may fall back to ERA5 outside SARAH; check the documentation first.
+2. **NSRDB Himawari-8 (`himawari`, 2016–2020) is catalogued but not downloadable.**
+   - Its hourly values are centred on the hour (:00 labels; checked against solar noon,
+     2026-10-13).
+   - Its intervals run from :30 to :30, so they need a half-hour temporal transform, which
+     ADR 0002 defers.
+3. **NSRDB years come only from the five probe points.** Done 2026-10-13: see the
+   [availability-gaps plan](2026-10-13-availability-gaps.md).
+   - The masks show where each grid has sites, not which years or typical-year files exist
+     at every point.
+4. **ERA5-Land's land mask is a land fraction of at least 0.5.** Replaced 2026-10-13: see
+   the [availability-gaps plan](2026-10-13-availability-gaps.md).
+   - ERA5-Land has values over lakes and at some coastal points with a smaller fraction.
+   - So coasts and lake shores are unknown, and the middle of large lakes is excluded.
+   - A better mask would come from the non-missing points of an ERA5-Land field (one CDS
+     request, CC BY 4.0).
+5. **National typical-year families** (CWEC, ISHRAE, IMGW, NIWA and the rest of the
+   OneBuilding sources page) are not catalogued.
+6. **Smaller unknowns:**
+   - CDS polar footprint conflicts;
+   - NOAA years after the dated inventory;
+   - the half-hour time-zone tie rule (Mumbai +5, Kolkata +6).
+7. **Research budget.**
+   - Stage 1's ceilings have 16.8 MB, 10 metadata requests and 6 probes left.
+   - Further evidence needs a new owner-approved budget, as in this plan.
+8. **Terms.** OneBuilding's redistribution terms are unresolved; it is published by owner
+   override.

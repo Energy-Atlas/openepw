@@ -9,7 +9,9 @@ centre (``"center"``, for grids defined by their points, such as ERA5-Land).
 
 Each manifest entry names the catalog products it gates (``gates``: ``"provider:dataset"``).
 At a point a gated product is *inside* (the point's cell is occupied), *near the edge* (a
-neighbouring cell is occupied) or *outside* (neither). Owner decisions: the NSRDB GOES
+neighbouring cell is occupied) or *outside* (neither). A mask may instead list its unknown band
+explicitly (``edge_runs``, same form as ``runs``): then a point is near the edge only in that
+band, and outside elsewhere (PVGIS, 2026-10-13 gaps plan D2). Owner decisions: the NSRDB GOES
 ``tdy-2023`` mask gates GOES actual-year and typical-year products (2026-10-12; its manifest
 predates ``gates``); each further product gets its own mask (2026-10-13).
 """
@@ -59,10 +61,12 @@ def verified_nsrdb_masks(footprints_root: Path) -> Iterator[tuple[dict[str, Any]
             yield entry, mask
 
 
-def mask_runs(mask: dict[str, Any]) -> list[tuple[int, int, int]]:
-    """A mask's occupied cells as sorted, merged row runs."""
-    runs = [(int(row), int(first), int(last)) for row, first, last in mask.get("runs", [])]
-    runs += [(int(row), int(column), int(column) + 1) for row, column in mask.get("cells", [])]
+def mask_runs(mask: dict[str, Any], key: str = "runs") -> list[tuple[int, int, int]]:
+    """A mask's occupied cells (or, with ``key="edge_runs"``, its explicit edge band) as sorted,
+    merged row runs."""
+    runs = [(int(row), int(first), int(last)) for row, first, last in mask.get(key, [])]
+    if key == "runs":
+        runs += [(int(row), int(column), int(column) + 1) for row, column in mask.get("cells", [])]
     merged: list[tuple[int, int, int]] = []
     for row, first, last in sorted(runs):
         if merged and merged[-1][0] == row and first <= merged[-1][2]:
@@ -79,25 +83,35 @@ class GridCoverage:
     sources: tuple[str, ...]                           # "product/selector" of each mask used
     centred: bool = False
     _starts: dict[int, list[int]] = field(default_factory=dict, compare=False, repr=False)
+    edges: dict[int, tuple[tuple[int, int], ...]] | None = None   # explicit edge band, if any
+    _edge_starts: dict[int, list[int]] = field(default_factory=dict, compare=False, repr=False)
 
-    @classmethod
-    def from_runs(cls, step: float, runs: Iterable[tuple[int, int, int]], sources: tuple[str, ...],
-                  centred: bool = False) -> GridCoverage:
+    @staticmethod
+    def _rows(runs: Iterable[tuple[int, int, int]]) -> dict[int, tuple[tuple[int, int], ...]]:
         rows: dict[int, list[tuple[int, int]]] = {}
         for row, first, last in mask_runs({"runs": list(runs)}):
             rows.setdefault(row, []).append((first, last))
-        frozen = {row: tuple(spans) for row, spans in rows.items()}
-        return cls(step, frozen, sources, centred, {row: [first for first, _ in spans] for row, spans in frozen.items()})
+        return {row: tuple(spans) for row, spans in rows.items()}
+
+    @classmethod
+    def from_runs(cls, step: float, runs: Iterable[tuple[int, int, int]], sources: tuple[str, ...],
+                  centred: bool = False,
+                  edge_runs: Iterable[tuple[int, int, int]] | None = None) -> GridCoverage:
+        frozen = cls._rows(runs)
+        edges = cls._rows(edge_runs) if edge_runs is not None else None
+        return cls(step, frozen, sources, centred, {row: [first for first, _ in spans] for row, spans in frozen.items()},
+                   edges, {row: [first for first, _ in spans] for row, spans in (edges or {}).items()})
 
     @classmethod
     def from_cells(cls, step: float, cells: Iterable[tuple[int, int]], sources: tuple[str, ...] = ()) -> GridCoverage:
         return cls.from_runs(step, ((row, column, column + 1) for row, column in cells), sources)
 
-    def _occupied(self, row: int, column: int) -> bool:
-        spans = self.runs.get(row)
+    def _occupied(self, row: int, column: int, edge: bool = False) -> bool:
+        spans = (self.edges or {}).get(row) if edge else self.runs.get(row)
         if not spans:
             return False
-        index = bisect.bisect_right(self._starts[row], column) - 1
+        starts = self._edge_starts[row] if edge else self._starts[row]
+        index = bisect.bisect_right(starts, column) - 1
         return index >= 0 and column < spans[index][1]
 
     def where(self, lat: float, lon: float) -> Place:
@@ -107,6 +121,8 @@ class GridCoverage:
         column = int(index((lon + 180) / self.step)) % columns
         if self._occupied(row, column):
             return "inside"
+        if self.edges is not None:
+            return "edge" if self._occupied(row, column, edge=True) else "outside"
         near = any(self._occupied(row + dr, (column + dc) % columns)
                    for dr in (-1, 0, 1) for dc in (-1, 0, 1))
         return "edge" if near else "outside"
@@ -126,14 +142,19 @@ def load_coverage(footprints_root: Path) -> dict[str, GridCoverage]:
         if step <= 0:
             continue
         runs: list[tuple[int, int, int]] = []
+        edge_runs: list[tuple[int, int, int]] = []
+        explicit = True                                   # every mask lists its edge band
         sources = []
         for entry, mask in masks:
             if float(entry.get("step_degrees") or mask.get("step_degrees") or 0) != step:
                 continue                                  # masks for one product share one grid
             runs += mask_runs(mask)
+            explicit = explicit and "edge_runs" in mask
+            edge_runs += mask_runs(mask, "edge_runs")
             sources.append(f"{entry.get('product_id')}/{entry.get('selector')}")
         if runs:
-            coverage[gate] = GridCoverage.from_runs(step, runs, tuple(sources), centred)
+            coverage[gate] = GridCoverage.from_runs(step, runs, tuple(sources), centred,
+                                                    edge_runs if explicit else None)
     return coverage
 
 

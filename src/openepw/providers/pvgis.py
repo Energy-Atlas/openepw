@@ -28,7 +28,9 @@ class PVGISProvider:
                 variables=list(VARIABLES.values()),
                 interval_minutes=60,
                 warnings=[
-                    "Coverage and selected source months verified on retrieval; TMY combines satellite radiation and ERA5 meteorology"
+                    "Coverage and selected source months verified on retrieval; radiation is SARAH3 satellite "
+                    "or ERA5 reanalysis by location (provider_inputs.meteo_data.radiation_db), "
+                    "meteorology ERA5-Land/ERA5"
                 ],
             )
         ]
@@ -54,7 +56,9 @@ class PVGISProvider:
                 variable=name,
                 source=source,
                 raw_sha256=sha,
-                transforms=["native PVGIS EPW; source details in provider_inputs"],
+                transforms=["native PVGIS EPW; radiation "
+                            f"{metadata.get('inputs', {}).get('meteo_data', {}).get('radiation_db', 'unreported')}; "
+                            "source details in provider_inputs"],
             )
             for name in data.data
             if name != "flags"

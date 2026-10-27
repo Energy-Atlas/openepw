@@ -74,8 +74,9 @@ FIXED_PRODUCTS = (
             "NSRDB Himawari TMY", "nsrdb", "4 km satellite typical year for Asia and the Pacific; needs an NLR key"),
     Product("nsrdb-msg-tmy", "tmy", "nsrdb", "nsrdb-msg-v1-0-0-tmy", "NSRDB TMY · Meteosat",
             "NSRDB Meteosat TMY", "nsrdb", "4 km satellite typical year for Europe and Africa; needs an NLR key"),
-    Product("pvgis-tmy", "tmy", "pvgis", "PVGIS TMY", "PVGIS TMY 5.3 · SARAH3", "PVGIS TMY", "pvgis",
-            "Typical year from the PVGIS point service"),
+    Product("pvgis-tmy", "tmy", "pvgis", "PVGIS TMY", "PVGIS TMY 5.3 · SARAH3/ERA5", "PVGIS TMY", "pvgis",
+            "Typical year from the PVGIS point service: SARAH3 satellite radiation where it is JRC's "
+            "default, ERA5 elsewhere; land between 60° S and 75° N"),
 )
 STATION_LAYERS = {"noaa", "onebuilding"}
 _ORDER = {product.id: index for index, product in enumerate(FIXED_PRODUCTS)}

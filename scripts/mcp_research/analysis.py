@@ -305,6 +305,25 @@ def links(raw, base):
     return sorted(set(result))
 
 
+def nsrdb_documented_names(raw):
+    """The dataset and its documented ``names`` values (years or typical-year labels) from an NLR
+    NSRDB download page (2026-10-13 availability-gaps plan, N3)."""
+    text = raw.decode("utf-8", errors="replace")
+    dataset = re.search(r"/api/nsrdb/v2/solar/([A-Za-z0-9-]+?)-download", text)
+    start = text.find(">names<")
+    if not dataset or start < 0:
+        raise ValueError("no NSRDB download endpoint or names parameter")
+    plain = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", text[start:start + 4000]))
+    options = re.search(r"Options:\s*(.*?)\s+\.", plain)
+    if not options:
+        raise ValueError("no documented names options")
+    names = [item.strip() for item in options.group(1).split(",") if item.strip()]
+    return {"dataset": dataset.group(1),
+            "names": [int(item) if item.isdigit() else item for item in names],
+            "evidence_basis": "documentation",
+            "caveat": "Documented request values; the data query may list newer typical-year files"}
+
+
 def read_snapshot(root, record):
     if record["outcome"] != "saved":
         return None
@@ -506,6 +525,8 @@ def analyze(root):
                     ],
                     "evidence_basis": "targeted probe",
                 }
+            elif r["provider"] == "nsrdb" and r["kind"] == "documentation" and r["id"].startswith("nsrdb-doc-"):
+                result["inventories"][r["id"]] = nsrdb_documented_names(raw)
         except (ValueError, KeyError, OSError, TypeError):
             result["errors"].append({"id": r["id"], "outcome": "parse_or_checksum_failure"})
     cmip_catalog = result["inventories"].get("cmip6-catalog")

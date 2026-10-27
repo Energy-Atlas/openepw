@@ -1,5 +1,21 @@
 # PVGIS
 
+## Coverage — 2026-10-13
+
+- **Radiation source by location.** PVGIS 5.3 TMY uses SARAH3 radiation where it is JRC's
+  default, and ERA5 radiation elsewhere (owner decision: one product).
+  - Ithaca returned `PVGIS-ERA5` with a 0.5 h irradiance offset.
+  - London and Lake Victoria returned `PVGIS-SARAH3`.
+  - All three report 2005–2023.
+- **Refused points.** The open Atlantic, the North Sea about 19 km offshore, and Svalbard return
+  400 "Location over the sea". The 25 km sea zone in JRC's report does not hold for `tmy` there.
+- **Domain mask.** The catalog gates the product by a mask, documented in the
+  [record](../validation/availability-gaps-2026-10-13/README.md):
+  - inside: land between 60° S and 75° N;
+  - unknown: coasts, lakes and small islands;
+  - outside: open sea and polar land.
+- **Provenance.** The adapter's warning and lineage name the run's radiation database.
+
 ## MCP Stage 2 availability — 2026-09-24
 
 The local London v5_3 metadata sample records a 2005–2023 reference period and
