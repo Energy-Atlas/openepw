@@ -520,3 +520,11 @@ The offline analysis adds **3,995 products**, every one with the workbook's publ
   tab-joined rows; variants keep sub-types for PHIKO, NIWA2024 and BBSR (`TRY_NIWA2024`,
   `TRY2010_Jahr_BBSR`) and Brazil's `TRY.<year>` files become `TRY`. Every one of the 72,810
   earlier OneBuilding URLs parses exactly as before.
+
+**6d probes, fixed before sending:** `pvgis-coast-land` at Cape Town (−33.925, 18.424), on Natural
+Earth land and inside only through the refinement; `pvgis-coast-sea` in Table Bay (−33.89, 18.45),
+on Natural Earth sea about 4 km offshore, still unknown.
+- **6d results.** Both probes returned a SARAH3 TMY (`pvgis-coast-land`, `pvgis-coast-sea`; PVGIS
+  probes 9 of 10). The refinement makes 1,108 of 6,441 coastal station positions inside (unknown
+  16.6% → 13.7% of 38,820 positions); sea points stay unknown. Details in `docs/providers/pvgis.md`.
+  Natural Earth: `naturalearth-10m-land`, 3.3 MB.

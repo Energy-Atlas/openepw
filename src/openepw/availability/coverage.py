@@ -11,7 +11,9 @@ Each manifest entry names the catalog products it gates (``gates``: ``"provider:
 At a point a gated product is *inside* (the point's cell is occupied), *near the edge* (a
 neighbouring cell is occupied) or *outside* (neither). A mask may instead list its unknown band
 explicitly (``edge_runs``, same form as ``runs``): then a point is near the edge only in that
-band, and outside elsewhere (PVGIS, 2026-10-13 gaps plan D2). Owner decisions: the NSRDB GOES
+band, and outside elsewhere (PVGIS, 2026-10-13 gaps plan D2). A mask with an edge band may also
+carry ``refine`` (``step_degrees``, ``cell_origin``, ``runs``): finer cells of the band that count
+as inside (PVGIS's coastal points on Natural Earth land, 2026-10-27 follow-ups, item 6d). Owner decisions: the NSRDB GOES
 ``tdy-2023`` mask gates GOES actual-year and typical-year products (2026-10-12; its manifest
 predates ``gates``); each further product gets its own mask (2026-10-13).
 """
@@ -85,6 +87,7 @@ class GridCoverage:
     _starts: dict[int, list[int]] = field(default_factory=dict, compare=False, repr=False)
     edges: dict[int, tuple[tuple[int, int], ...]] | None = None   # explicit edge band, if any
     _edge_starts: dict[int, list[int]] = field(default_factory=dict, compare=False, repr=False)
+    refine: GridCoverage | None = None                 # finer inside cells within the edge band
 
     @staticmethod
     def _rows(runs: Iterable[tuple[int, int, int]]) -> dict[int, tuple[tuple[int, int], ...]]:
@@ -96,11 +99,12 @@ class GridCoverage:
     @classmethod
     def from_runs(cls, step: float, runs: Iterable[tuple[int, int, int]], sources: tuple[str, ...],
                   centred: bool = False,
-                  edge_runs: Iterable[tuple[int, int, int]] | None = None) -> GridCoverage:
+                  edge_runs: Iterable[tuple[int, int, int]] | None = None,
+                  refine: GridCoverage | None = None) -> GridCoverage:
         frozen = cls._rows(runs)
         edges = cls._rows(edge_runs) if edge_runs is not None else None
         return cls(step, frozen, sources, centred, {row: [first for first, _ in spans] for row, spans in frozen.items()},
-                   edges, {row: [first for first, _ in spans] for row, spans in (edges or {}).items()})
+                   edges, {row: [first for first, _ in spans] for row, spans in (edges or {}).items()}, refine)
 
     @classmethod
     def from_cells(cls, step: float, cells: Iterable[tuple[int, int]], sources: tuple[str, ...] = ()) -> GridCoverage:
@@ -122,7 +126,9 @@ class GridCoverage:
         if self._occupied(row, column):
             return "inside"
         if self.edges is not None:
-            return "edge" if self._occupied(row, column, edge=True) else "outside"
+            if not self._occupied(row, column, edge=True):
+                return "outside"
+            return "inside" if self.refine and self.refine.where(lat, lon) == "inside" else "edge"
         near = any(self._occupied(row + dr, (column + dc) % columns)
                    for dr in (-1, 0, 1) for dc in (-1, 0, 1))
         return "edge" if near else "outside"
@@ -143,6 +149,8 @@ def load_coverage(footprints_root: Path) -> dict[str, GridCoverage]:
             continue
         runs: list[tuple[int, int, int]] = []
         edge_runs: list[tuple[int, int, int]] = []
+        fine: list[tuple[int, int, int]] = []
+        fine_step = 0.0
         explicit = True                                   # every mask lists its edge band
         sources = []
         for entry, mask in masks:
@@ -151,10 +159,17 @@ def load_coverage(footprints_root: Path) -> dict[str, GridCoverage]:
             runs += mask_runs(mask)
             explicit = explicit and "edge_runs" in mask
             edge_runs += mask_runs(mask, "edge_runs")
+            layer = mask.get("refine") or {}
+            layer_step = float(layer.get("step_degrees") or 0)
+            if (layer.get("runs") and layer_step > 0 and layer.get("cell_origin", "corner") == "corner"
+                    and fine_step in (0.0, layer_step)):
+                fine_step = layer_step
+                fine += mask_runs(layer)
             sources.append(f"{entry.get('product_id')}/{entry.get('selector')}")
         if runs:
+            refine = GridCoverage.from_runs(fine_step, fine, tuple(sources)) if fine and explicit else None
             coverage[gate] = GridCoverage.from_runs(step, runs, tuple(sources), centred,
-                                                    edge_runs if explicit else None)
+                                                    edge_runs if explicit else None, refine)
     return coverage
 
 
