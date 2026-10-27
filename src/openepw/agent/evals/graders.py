@@ -325,6 +325,13 @@ def _tools_absent(view: View, value: list[str], ctx: Context) -> tuple[bool, lis
     return _found([index for index, _ in bad], "ran " + ", ".join(tool for _, tool in bad))
 
 
+@grader("forms_absent", "UNEXPECTED_FORM", "None of these form kinds was shown",
+        "An availability question is answered in words; it opens no form.", value=list[str])
+def _forms_absent(view: View, value: list[str], ctx: Context) -> tuple[bool, list[int], str]:
+    bad = [(index, kind) for index, kind in view.forms() if kind in value]
+    return _found([index for index, _ in bad], "showed " + ", ".join(kind for _, kind in bad))
+
+
 @grader("submitted", "SUBMISSION_MISMATCH", "A job was (true) or was not (false) submitted",
         "Whether work started is the outcome that matters most.", value=bool)
 def _submitted(view: View, value: bool, ctx: Context) -> tuple[bool, list[int], str]:

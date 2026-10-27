@@ -171,6 +171,14 @@ fixtures:
   value: [weather_plan]
   expect: pass
   record: {trace: [{type: tool, data: {tool: weather_product_offers, phase: call, by: model}}]}
+- grader: forms_absent
+  value: [product_choice, plan_review]
+  expect: pass
+  record: {trace: [{type: form, data: {form: {kind: location_review}}}]}
+- grader: forms_absent
+  value: [product_choice, plan_review]
+  expect: fail
+  record: {trace: [{type: form, data: {form: {kind: product_choice}}}]}
 - grader: submitted
   value: true
   expect: pass

@@ -1,0 +1,42 @@
+id: S55
+title: A lookup for the approved place shows no label and the request goes on
+purpose: After Ithaca is approved and a product chosen, the person answers the years question with 'what's
+  available for 2018 here?'. The lookup for the approved place shows no label, and the request continues to a
+  plan; only Run submits.
+covers: [lookup.products, lookup.label, gate.plan-approval]
+tags: [workflow]
+modes: [agent]
+user:
+  say: I need weather files for Ithaca, NY.
+  answers: {location_review: approve, product_choice: [era5-openmeteo], choice: first, map_input: 'Ithaca, NY',
+    text: 'What''s available for 2018 here?', plan_review: run}
+graders:
+- grader: forms_in_order
+  value: [location_review, product_choice, plan_review]
+- grader: tools_in_order
+  value: [look_up_products, weather_plan]
+- grader: codes_absent
+  value: [LOOKUP_UNAPPROVED]
+- {grader: years, value: [2018]}
+- {grader: submitted, value: true}
+script:
+- call: weather_geocode
+  args: {query: 'Ithaca, NY'}
+- call: review_location
+  args:
+    locations: {lat: 42.44, lon: -76.5, name: 'Ithaca, New York, United States'}
+- call: choose_products
+  args: {}
+- call: ask_text
+  args: {prompt: 'Which actual year or years?', purpose: years}
+- call: look_up_products
+  args: {}
+- call: weather_plan
+  args:
+    request:
+      product: historical
+      years: [2018]
+      dataset_selections: [{provider: openmeteo, dataset: era5}]
+- call: review_plan
+  args: {}
+- say: The job finished with one EPW; it is not certified simulation-ready (simulation_ready=false), see its QC.

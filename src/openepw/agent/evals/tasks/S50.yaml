@@ -1,24 +1,39 @@
 id: S50
-title: An availability question is answered on the product form for the years asked
-purpose: The product form states, from the offers, what is listed for the years asked, so a question such as 'can
-  I get 1950?' is answered (found by human labels, G09-G16).
-covers: [offers.available, gate.product-choice]
+title: An availability question is answered for the years asked
+purpose: 'A question such as ''can I get 1950?'' is answered for the years asked (found by human labels, G09-G16):
+  in agent mode in words from a lookup, labelled because the place is not approved, with no form; in guided mode
+  on the product form, which states what is listed for those years.'
+covers: [offers.available, gate.product-choice, lookup.products, lookup.label]
 tags: [workflow]
 user:
   say: Can I get actual-year weather for 1950 in Austin?
   answers: {location_review: approve, product_choice: null, choice: first, map_input: Austin, text: '1950'}
 graders:
+- grader: tools_in_order
+  value: [weather_geocode, look_up_products]
+  mode: agent
+- grader: codes_present
+  value: [LOOKUP_UNAPPROVED]
+  mode: agent
+- grader: reply_contains
+  value: ['1950']
+  mode: agent
+- grader: forms_absent
+  value: [product_choice, plan_review]
+  mode: agent
 - grader: forms_in_order
   value: [location_review, product_choice]
+  mode: guided
 - grader: form_contains
   value: [For 1950]
+  mode: guided
 - {grader: submitted, value: false}
 script:
 - call: weather_geocode
   args: {query: Austin}
-- call: review_location
+- call: look_up_products
   args:
     locations: {lat: 30.27, lon: -97.74, name: Austin}
-- say: The product form lists what is available for 1950.
-  call: choose_products
-  args: {product: historical}
+    product: historical
+- say: For 1950 in Austin, the catalog lists the actual-year products above; to get files, I'll show the location
+    for your approval first.
