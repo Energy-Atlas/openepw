@@ -225,3 +225,19 @@ def test_lookup_summary_statuses_stations_and_limits():
                                       "products.")
     assert lookup_label([AUSTIN] * 5).endswith("and 2 more; these locations are not approved yet. "
                                                "You'll confirm them before choosing products.")
+
+
+def test_the_prompt_sends_availability_questions_to_the_lookup(tmp_path):
+    from openepw.agent.policy_model import SYSTEM, SYSTEM_WITHOUT_KNOWLEDGE
+
+    for system in (SYSTEM, SYSTEM_WITHOUT_KNOWLEDGE):
+        assert "call look_up_products and answer in words from its result only" in system
+        assert "A lookup chooses nothing" in system and "product form states" not in system
+    h, model = agent(tmp_path, [say("Hello.")])
+
+    async def main():
+        async with h:
+            await h.say("AMY 2018 for Ithaca, NY")
+            tools = model.requests[0]["tools"]
+            assert "look_up_products" in tools and "weather_product_offers" not in tools
+    run(main)
