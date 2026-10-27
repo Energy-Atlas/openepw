@@ -65,3 +65,22 @@ def test_redaction_covers_common_local_paths():
 
     for path in ("/tmp/site.epw", "/var/data/site.epw", "~/weather/site.epw", r"D:\data\site.epw"):
         assert safe_prompt(f"use {path} please") == "use [local path] please", path
+
+
+def test_written_points_reads_typed_coordinate_pairs():
+    from openepw.agent.text import written_points
+
+    assert written_points("TMYx for 42.44, -76.5 please") == [(42.44, -76.5)]
+    assert written_points("42.44 -76.50 and 40.71; -74.01") == [(42.44, -76.5), (40.71, -74.01)]
+    assert written_points("42.44N 76.5W") == [(42.44, -76.5)]
+    assert written_points("33.9 S, 151.2 E") == [(-33.9, 151.2)]
+
+
+def test_written_points_ignores_years_counts_and_out_of_range_pairs():
+    from openepw.agent.text import written_points
+
+    assert written_points("AMY 2018 2019 for Ithaca") == []
+    assert written_points("top 50 100 cities") == []
+    assert written_points("version 1.5 2.5") == [(1.5, 2.5)]       # a typed pair is a pair
+    assert written_points("95.1, 20.2") == []                        # latitude out of range
+    assert written_points("42.44, -190.5") == []

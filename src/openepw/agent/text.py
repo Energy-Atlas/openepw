@@ -58,6 +58,24 @@ def written_years(text: str) -> set[int]:
     return explicit_weather_years(_HEADCOUNT.sub(" ", POPULATION.sub(" ", text)))
 
 
+# Decimal pairs ("42.44, -76.5", "42.44 -76.50") and hemisphere pairs ("42.44N 76.5W"). Both
+# numbers of a plain pair need decimals, so years and counts are never read as coordinates.
+_DECIMAL_PAIR = re.compile(r"(?<![\w.+-])([-+]?\d{1,3}\.\d+)\s*°?\s*[,;]?\s*([-+]?\d{1,3}\.\d+)(?![\w.])")
+_HEMISPHERE_PAIR = re.compile(r"(?<![\w.])(\d{1,3}(?:\.\d+)?)\s*°?\s*([NS])\s*[,;]?\s*"
+                              r"(\d{1,3}(?:\.\d+)?)\s*°?\s*([EW])\b", re.I)
+
+
+def written_points(text: str) -> list[tuple[float, float]]:
+    """Coordinate pairs (latitude first) a person typed, within the valid ranges."""
+    points = []
+    for lat, ns, lon, ew in _HEMISPHERE_PAIR.findall(text):
+        points.append((float(lat) * (-1 if ns.upper() == "S" else 1),
+                       float(lon) * (-1 if ew.upper() == "W" else 1)))
+    for lat, lon in _DECIMAL_PAIR.findall(_HEMISPHERE_PAIR.sub(" ", text)):
+        points.append((float(lat), float(lon)))
+    return [(lat, lon) for lat, lon in points if -90 <= lat <= 90 and -180 <= lon <= 180]
+
+
 def read_product(text: str) -> str | None:
     """The weather product a message names, if any; TMYx wins over TMY."""
     for product, pattern in _PRODUCTS:
