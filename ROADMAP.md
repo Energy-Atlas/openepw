@@ -89,6 +89,12 @@ Future advanced feature: index previous verified runs/artifacts and QC summaries
 to accelerate subsequent matching requests. Existing raw caching and job recovery
 remain supported; this additional feature is deferred beyond initial local delivery.
 
+## Outstanding work (2026-10-30)
+
+The open items after the 2026-10-30 release are grouped into seven phases, each reviewed by the
+owner on completion: see the [outstanding work plan](docs/superpowers/plans/2026-10-30-outstanding-work.md).
+The follow-ups below are its phases 6 and 7.
+
 ## Follow-ups after v0.1
 
 - Run configured Linux/macOS CI and an EnergyPlus consumption smoke check.
