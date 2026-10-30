@@ -15,9 +15,9 @@ from .interactions import Answer, Event, Interaction
 from .mcp_port import ApprovalBook, MCPPort, ToolFailure, ToolResult
 from .moderation import ModerationPort, ModerationUnavailable, epw_text_fields
 from .policy_config import SecurityPolicy, default_policy
-from .state import Facts, SessionState
+from .state import Facts, SessionState, points_in
 from .store import SessionStore
-from .text import safe_prompt
+from .text import safe_prompt, written_points
 from .tracing import NullTracer, summarize_arguments
 
 # Codes the guards record, also listed on each traced turn (plan G7).
@@ -42,6 +42,9 @@ def event_codes(event: Any) -> list[str]:
     form_data = (event.data.get("form") or {}).get("data") or {}
     return [code for code in [event.data.get("code"), *event.data.get("guards", []),
                               *form_data.get("guards", [])] if code]
+# Tools whose results name places; their points become ones a lookup may use.
+PLACE_TOOLS = frozenset({"weather_geocode", "weather_places_preview", "weather_place_set",
+                         "weather_places_interpret", "weather_locations_review"})
 TERMINAL = frozenset({"completed", "partially_completed", "failed", "cancelled"})
 MAX_UPLOAD = 5_000_000
 logger = logging.getLogger("openepw.agent")
@@ -141,6 +144,8 @@ class AgentSession:
             raise
         self.trace.end(run, outputs={"summary": result.text[:1000]})
         self.emit("tool", result.text, tool=name, phase="result", by=by)
+        if name in PLACE_TOOLS:
+            self.state.see(points_in(result.data))
         return result
 
     async def _guard(self, work: Any, kind: str = "advance", inputs: dict[str, Any] | None = None) -> None:
@@ -340,6 +345,7 @@ class AgentSession:
                               categories=list(categories))
             return
         self.emit("user", text)
+        self.state.see(written_points(text))
         if self._moderation_notice(status):
             self.store.save(self.state)
             return
@@ -390,6 +396,7 @@ class AgentSession:
         said = answer_text(form, answer)
         self.state.turn_origin = "text" if answer.text else "answer"
         self.emit("user", said, answer=answer.model_dump(mode="json"))
+        self.state.see(written_points(answer.text or "") + points_in(answer.value))
         await self._guard(self.policy.on_answer(self, form, answer), "answer",
                           {"form": form.kind, "gate": form.gate, "answer": said})
 

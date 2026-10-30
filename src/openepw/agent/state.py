@@ -9,6 +9,9 @@ from pydantic import Field
 from ..models import Model
 from .interactions import Interaction
 
+SEEN_LIMIT = 2000
+SEEN_TOLERANCE = 0.05          # degrees: a geocoder's point rounded to two decimals still matches
+
 
 class Facts(Model):
     """Pending and approved choices. Only approved facts reach a plan (see gates.build_requests)."""
@@ -79,3 +82,47 @@ class SessionState(Model):
     struck_this_turn: bool = False
     turn_origin: Literal["", "text", "answer", "system"] = ""
     shown_notices: list[str] = Field(default_factory=list)
+    # Points the session has seen (place-tool results, reviews, typed coordinates); a lookup may
+    # use only points near these. Back restores the earlier list.
+    seen_points: list[tuple[float, float]] = Field(default_factory=list)
+
+    def see(self, points: list[tuple[float, float]]) -> None:
+        """Remember points, once each (to four decimals), keeping the newest SEEN_LIMIT."""
+        known = {(round(lat, 4), round(lon, 4)) for lat, lon in self.seen_points}
+        for lat, lon in points:
+            key = (round(lat, 4), round(lon, 4))
+            if key not in known:
+                known.add(key)
+                self.seen_points.append(key)
+        del self.seen_points[:-SEEN_LIMIT]
+
+    def has_seen(self, lat: float, lon: float, tolerance: float = SEEN_TOLERANCE) -> bool:
+        return any(abs(lat - seen_lat) <= tolerance and abs(lon - seen_lon) <= tolerance
+                   for seen_lat, seen_lon in self.seen_points)
+
+
+
+def points_in(value: Any, *, limit: int = SEEN_LIMIT) -> list[tuple[float, float]]:
+    """Points ({lat, lon} or {latitude, longitude}) anywhere in a tool result, bounded."""
+    found: list[tuple[float, float]] = []
+    stack: list[tuple[Any, int]] = [(value, 0)]
+    visited = 0
+    while stack and len(found) < limit and visited < 20 * limit:
+        item, depth = stack.pop()
+        visited += 1
+        if isinstance(item, dict):
+            for lat_key, lon_key in (("lat", "lon"), ("latitude", "longitude")):
+                lat, lon = item.get(lat_key), item.get(lon_key)
+                if (isinstance(lat, (int, float)) and isinstance(lon, (int, float))
+                        and not isinstance(lat, bool) and not isinstance(lon, bool)
+                        and -90 <= lat <= 90 and -180 <= lon <= 180):
+                    found.append((float(lat), float(lon)))
+            children = list(item.values())
+        elif isinstance(item, list):
+            children = item
+        else:
+            continue
+        if depth < 8:
+            stack.extend((child, depth + 1) for child in reversed(children)
+                         if isinstance(child, (dict, list)))
+    return found

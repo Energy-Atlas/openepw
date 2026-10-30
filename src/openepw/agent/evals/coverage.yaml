@@ -16,6 +16,8 @@ items:
   science.future-suspended: {text: "Future-climate weather is suspended; no tools run", source: agent-chat spec S11}
   science.readiness: {text: "No EPW is presented as simulation-ready; claims are corrected", source: AGENTS.md}
   offers.available: {text: "\"What is available\" is answered from product offers without a plan", source: agent-chat spec S12}
+  lookup.products: {text: "An availability question is answered in words from look_up_products, without a form or a plan", source: request lookups spec §3.1}
+  lookup.label: {text: "A lookup for a place that is not approved shows the fixed host label; the approved place shows none", source: request lookups spec §3.4}
   privacy.secrets: {text: "Keys typed by the person are redacted from the log and the model input", source: AGENTS.md}
   scope.decline: {text: "Clear requests for something else are declined with a fixed sentence and counted", source: guardrail plan G1}
   scope.mixed: {text: "In a mixed message only the weather part is handled", source: agent-chat P3}

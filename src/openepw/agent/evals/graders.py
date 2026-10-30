@@ -325,6 +325,13 @@ def _tools_absent(view: View, value: list[str], ctx: Context) -> tuple[bool, lis
     return _found([index for index, _ in bad], "ran " + ", ".join(tool for _, tool in bad))
 
 
+@grader("forms_absent", "UNEXPECTED_FORM", "None of these form kinds was shown",
+        "An availability question is answered in words; it opens no form.", value=list[str])
+def _forms_absent(view: View, value: list[str], ctx: Context) -> tuple[bool, list[int], str]:
+    bad = [(index, kind) for index, kind in view.forms() if kind in value]
+    return _found([index for index, _ in bad], "showed " + ", ".join(kind for _, kind in bad))
+
+
 @grader("submitted", "SUBMISSION_MISMATCH", "A job was (true) or was not (false) submitted",
         "Whether work started is the outcome that matters most.", value=bool)
 def _submitted(view: View, value: bool, ctx: Context) -> tuple[bool, list[int], str]:
@@ -378,6 +385,15 @@ def _form_contains(view: View, value: list[str], ctx: Context) -> tuple[bool, li
     texts = [text.lower() for _, text in view.form_words()]
     missing = [needle for needle in value if not any(needle.lower() in text for text in texts)]
     return (not missing, [], f"missing {missing}" if missing else "")
+
+
+@grader("shown_contains", "MISSING_SHOWN_TEXT",
+        "Each of these texts appears in what the person saw: a reply, a notice or a form (any case)",
+        "An answer may come in words or on a form; either way the person must see it.", value=list[str])
+def _shown_contains(view: View, value: list[str], ctx: Context) -> tuple[bool, list[int], str]:
+    shown = " ".join(text for _, text in view.shown()).lower()
+    missing = [text for text in value if text.lower() not in shown]
+    return not missing, [], f"not shown: {missing}" if missing else ""
 
 
 @grader("reply_excludes", "FORBIDDEN_REPLY_TEXT", "None of these texts appears in a reply (any case)",

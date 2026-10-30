@@ -1,7 +1,8 @@
 id: S12
 title: 'What is available: offers without a plan'
-purpose: '"What is available" is answered from product offers without making a plan.'
-covers: [offers.available]
+purpose: '"What is available" is answered from product offers without making a plan: in agent mode in words from a
+  lookup, with no form; in guided mode on the product form.'
+covers: [offers.available, lookup.products]
 tags: [workflow]
 user:
   say: what's available in Phoenix?
@@ -10,6 +11,13 @@ user:
 graders:
 - grader: forms_in_order
   value: [location_review, product_choice]
+  mode: guided
+- grader: tools_in_order
+  value: [weather_geocode, look_up_products]
+  mode: agent
+- grader: forms_absent
+  value: [product_choice, plan_review]
+  mode: agent
 - grader: tools_absent
   value: [weather_plan]
 - {grader: submitted, value: false}
@@ -18,8 +26,8 @@ graders:
 script:
 - call: weather_geocode
   args: {query: Phoenix}
-- call: review_location
+- call: look_up_products
   args:
     locations: {lat: 33.45, lon: -112.07, name: Phoenix}
-- call: choose_products
-  args: {}
+- say: In Phoenix the catalog lists the products above; to get files, I'll show the location for your approval
+    first.
