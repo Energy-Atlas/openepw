@@ -10,6 +10,14 @@
   - Lost: 7,105 points above it that have no value, mostly Arctic and fjord coasts.
 - **The record.** See the [record](../validation/availability-gaps-2026-10-13/README.md).
 
+## Polar points — 2026-10-27
+
+ECMWF's ERA5 documentation (snapshot `cds-era5-doc`, 2026-10-27) describes the CDS copy as
+interpolated to a regular latitude/longitude grid with values at the exact poles (90° N and
+90° S). The CDS record's ±89° box therefore no longer makes points at |latitude| ≥ 89° unknown
+(`POLAR_FOOTPRINT_CONFLICT` is retired). ERA5-Land stays gated by its mask of points with values.
+See the [availability gaps plan](../superpowers/plans/2026-10-13-availability-gaps.md).
+
 ## MCP Stage 2 availability — 2026-09-24
 
 The CDS catalog's 0–360 longitude bbox ending at ±89° does not resolve polar

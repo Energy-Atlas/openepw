@@ -67,6 +67,12 @@ def spreadsheet_rows(raw, evidence_id):
                     except (ValueError, IndexError):
                         raise ValueError("Invalid shared string reference") from None
             values[col] = value
+        cells = [value for value in values.values() if value]
+        if header is not None and len(cells) == 1 and "\t" in cells[0]:
+            parts = cells[0].split("\t")
+            if parts[:len(header)] == list(header.values()):
+                continue                                   # the header again, tab-separated
+            values = dict(zip(header, parts))
         if header is None:
             header = values
             required = {
@@ -120,10 +126,13 @@ def spreadsheet_rows(raw, evidence_id):
 
 def product_identity(url):
     name = unquote(urlsplit(url).path.rsplit("/", 1)[-1])
-    match = re.fullmatch(r"([A-Z]{3})_([A-Z0-9]+)_(.+)\.([A-Z0-9]{6})_(.+)\.zip", name)
+    # Most files put a dot before the station code; some national families use an underscore
+    # (TUR_AA_Adana_173510_TurTMY.zip).
+    match = re.fullmatch(r"([A-Z]{3})_([A-Z0-9]+)_(.+)(?:\.([A-Z0-9]{6})|_(\d{6}))_(.+)\.zip", name)
     if not match:
         return None
-    country, state, name, station, product = match.groups()
+    country, state, name, dotted, underscored, product = match.groups()
+    station = dotted or underscored
     period = re.search(r"(?<!\d)(\d{4}-\d{4})(?!\d)", product)
     return dict(
         country=country,

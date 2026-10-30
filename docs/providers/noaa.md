@@ -1,5 +1,13 @@
 # NOAA station observations
 
+## ISD frozen at August 2025 — 2026-10-27
+
+A conditional request for `isd-inventory.csv` on 2026-10-27 (`noaa-inventory-r20261027`,
+`If-None-Match` the 2025-08-30 ETag) returned 304 Not Modified. The ISD inventory is therefore
+frozen at 2025-08-30: 2025 is partial and later years are not listed (they stay unknown, never
+excluded). NOAA has moved hourly observations to GHCNh; a GHCNh adapter is on the roadmap and is
+not built now (owner decision Q6, 2026-10-27).
+
 ## MCP Stage 2 availability — 2026-09-24
 
 The local importer preserves the dated 2025-08-30 ISD history and 154,841 sparse

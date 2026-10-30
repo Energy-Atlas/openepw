@@ -121,6 +121,26 @@ Recorded after a staging failure where NSRDB GOES was offered at Singapore. See 
 - **Published station files reach 100 km**, as NOAA ISD does.
 - **No live point checks while building the product list**; planning still checks.
 
+## Owner decisions 2026-10-27 (availability follow-ups)
+
+See the [plan](../superpowers/plans/2026-10-13-availability-gaps.md), "Owner decisions (2026-10-27)".
+
+- **OneBuilding terms (Q9, option b):** the site gives no licence and reads "all rights reserved";
+  the catalog's OneBuilding metadata stays published under the owner's 2026-09-28 override, which
+  extends to the national and special families below. No permission request is sent. This is not
+  a legal opinion.
+- **National and special families (Q3–Q5):** existing-weather typical years are catalogued as
+  published products; mixed families contribute their historical files only; future-climate files
+  are left out (future weather is suspended and needs scenario and window semantics). Families whose
+  originators restrict their files are left out: ISHRAE (sold), and CSWD and RMY unless a terms
+  check clears them. JGMY is included and marked synthetic.
+- **ISD (Q6):** frozen at 2025-08-30; no GHCNh adapter now.
+- **Time zones (Q7):** the whole-hour tie rule stays (ADR 0002).
+- **Coasts (Q8):** a public-domain Natural Earth land layer decides land or sea for coastal PVGIS
+  points.
+- **Himawari-8 (Q1, Q2):** hourly data only; EPW hours are re-binned from the :00-centred values,
+  checked against one 10-minute research download (ADR 0002 amendment).
+
 ## Owner decisions 2026-10-13 (coverage of the catalog)
 
 See the [plan](../superpowers/plans/2026-10-13-availability-coverage.md) and its
@@ -131,6 +151,7 @@ See the [plan](../superpowers/plans/2026-10-13-availability-coverage.md) and its
 - **NSRDB beyond GOES:** the catalog, a coverage mask per satellite family, and adapter support.
   - Himawari-7, Meteosat and Meteosat IODC, and their typical years, are downloaded.
   - Himawari-8 is not, because its hourly labels at :00 do not form hour-ending intervals.
+    (Superseded 2026-10-27: downloaded with irradiance re-binned; ADR 0002 amendment.)
   - The masks come from each family's published grid table, under owner-raised caps after an
     overrun on the Himawari table. Himawari TMY shares the Himawari-7 grid.
 - **ERA5:** Copernicus's catalogue period is documented coverage.

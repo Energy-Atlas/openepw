@@ -273,3 +273,12 @@ def test_temporal_coverage_can_outweigh_five_nearest_noaa_stations():
                              providers=["noaa"])
     result = evaluate(WeatherAvailabilityQuery(request=request), _view(bundle))
     assert any(o.site.id == "S5" and o.eligibility.status == "supported" for o in result.options)
+
+
+def test_cds_polar_points_are_not_unknown_for_the_record_box():
+    from openepw.availability.bootstrap import bundled_contracts
+
+    request = WeatherRequest(locations=Location(lat=89.6, lon=10), years=[2020], providers=["cds"])
+    result = evaluate(WeatherAvailabilityQuery(request=request), _view(bundled_contracts()))
+    assert result.options
+    assert all("POLAR_FOOTPRINT_CONFLICT" not in option.eligibility.unknowns for option in result.options)

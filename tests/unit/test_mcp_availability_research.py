@@ -774,3 +774,106 @@ def test_nsrdb_edge_probes_extend_only_their_own_caps(tmp_path):
         assert c.collect(edge)["outcome"] == "saved"
         c.ledger["counts"]["probe"] = 23
         assert c.collect(m.Request("nsrdb-dakar", "nsrdb", url, "probe", "t"))["outcome"] == "request_budget"
+
+
+def test_followup_requests_extend_only_their_own_ceilings(tmp_path):
+    m = research()
+    ob = "https://climate.onebuilding.org/sources/"
+    workbook = m.Request("onebuilding-jgmy-xlsx", "onebuilding", ob + "JGMY_EPW_Processing_locations.xlsx",
+                         "inventory", "t")
+    assert m.Collector.followup(workbook) and m.Collector.onebuilding_request_limit(workbook) == 55
+    for other in (m.Request("onebuilding-jgmy-xlsx", "onebuilding", ob + "ISHRAE2014_EPW_Processing_locations.xlsx",
+                            "inventory", "t"),
+                  m.Request("onebuilding-ishrae2014-xlsx", "onebuilding",
+                            ob + "ISHRAE2014_EPW_Processing_locations.xlsx", "inventory", "t"),
+                  m.Request("onebuilding-jgmy-xlsx", "onebuilding", ob + "JGMY_EPW_Processing_locations.xlsx",
+                            "documentation", "t")):
+        assert not m.Collector.followup(other) and m.Collector.onebuilding_request_limit(other) == 12
+    coast = m.Request("pvgis-coast-sea", "pvgis", "https://re.jrc.ec.europa.eu/api/v5_3/tmy?lat=1&lon=2",
+                      "probe", "t")
+    assert m.Collector.followup(coast) and m.Collector.pvgis_probe_limit(coast) == 10
+    with pytest.raises(ValueError):
+        m.Collector(tmp_path).__enter__().collect(m.Request("x", "p", "https://example.org/", "metadata", "t",
+                                                            headers={"If-Modified-Since": "x"}))
+
+
+def test_followup_ceilings_admit_only_listed_ids_once_stage_1_is_spent(tmp_path):
+    m = research()
+    land = "https://naciscdn.org/naturalearth/10m/physical/ne_10m_land.zip"
+    seen = []
+
+    def handler(request):
+        seen.append(dict(request.headers))
+        if "if-none-match" in request.headers:
+            return httpx.Response(304)
+        return httpx.Response(200, content=b"x" * 6_000_000)
+
+    with m.Collector(tmp_path, transport=httpx.MockTransport(handler), spacing=0) as c:
+        c.ledger["counts"]["metadata"] = 60
+        c.ledger["charged_bytes"] = 199_000_000
+        assert c.collect(m.Request("other", "x", "https://example.org/a", "metadata", "t"))["outcome"] == "request_budget"
+        saved = c.collect(m.Request("naturalearth-10m-land", "naturalearth", land, "inventory", "t", limit=10_000_000))
+        assert saved["outcome"] == "saved" and saved["bytes_read"] == 6_000_000
+        unchanged = c.collect(m.Request("noaa-inventory-r20261027", "noaa",
+                                        "https://www.ncei.noaa.gov/pub/data/noaa/isd-inventory.csv", "inventory",
+                                        "t", headers={"If-None-Match": '"e46a8d-63d89df6331d7"'},
+                                        limit=20_000_000))
+        assert unchanged["status"] == 304 and unchanged["outcome"] == "not_modified" and "snapshot" not in unchanged
+        assert len(unchanged["hops"]) == 1
+        assert c.ledger["counts"]["metadata"] == 62
+    assert seen[-1]["if-none-match"] == '"e46a8d-63d89df6331d7"'
+
+
+def _sheet(rows):
+    import xml.etree.ElementTree as E
+
+    ns = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+    root = E.Element("worksheet", xmlns=ns)
+    data = E.SubElement(root, "sheetData")
+    for index, values in enumerate(rows, 1):
+        row = E.SubElement(data, "row", r=str(index))
+        for col, value in enumerate(values):
+            cell = E.SubElement(row, "c", r=f"{chr(65 + col)}{index}", t="inlineStr")
+            E.SubElement(E.SubElement(cell, "is"), "t").text = value
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        z.writestr("xl/worksheets/sheet1.xml", E.tostring(root))
+    return buf.getvalue()
+
+
+def test_family_workbooks_accept_underscore_stations_and_tab_joined_rows():
+    a = importlib.import_module("mcp_research.coordinates")
+    header = ["Country", "City/Station", "WMO", "Latitude (N+/S-)", "Longitude (E+/W-)", "URL"]
+    tur = "https://climate.onebuilding.org/WMO_Region_6_Europe/TUR_Turkiye/AA_Adana/TUR_AA_Adana_173510_TurTMY.zip"
+    ctz = ("https://climate.onebuilding.org/California_CTZ_2022/"
+           "USA_CA_CZ16_Alturas.Muni.AP.725958_CTZ2022.zip")
+    rows = a.spreadsheet_rows(_sheet([
+        header, ["TUR", "Adana", "173510", "36.98", "35.35", tur],
+        ["\t".join(header)],                                           # the header again, tab-joined
+        ["\t".join(["USA", "Alturas.Muni.AP", "725958", "41.48", "-120.57", ctz])],
+    ]), "synthetic")
+    assert [(r["station_id"], r["country"]) for r in rows["rows"]] == [("173510", "TUR"), ("725958", "USA")]
+    assert rows["invalid_rows"] == 0
+    assert a.product_identity(tur)["product"] == "TurTMY"
+    # A dotted station still parses as before.
+    assert a.product_identity("https://x/GBR_ENG_London.037720_TMYx.2009-2023.zip")["period"] == "2009-2023"
+
+
+def test_family_variants_and_future_files():
+    from openepw.models import published_variant
+
+    an = importlib.import_module("mcp_research.analysis")
+    assert published_variant("https://x/KOR_KB_Andong.471360_TRY_PHIKO.zip") == "TRY_PHIKO"
+    assert published_variant("https://x/DEU_BB_Potsdam_103790_TRY2010_04_Jahr_BBSR.zip") == "TRY2010_Jahr_BBSR"
+    assert published_variant("https://x/NZL_AUK_Auckland.Intl.AP.931100_DSY1_NIWA2024.zip") == "DSY1_NIWA2024"
+    assert published_variant("https://x/BRA_SP_Sao.Paulo.837810_TRY.1962.zip") == "TRY"
+    assert published_variant("https://x/CAN_AB_Abee.AgDM.712850_CWEC2016.zip") == "CWEC2016"
+    assert published_variant("https://x/CAN_ON_X.Y.612345_3074935_CWEC2016.zip") == "CWEC2016"
+    assert published_variant("https://x/USA_NY_Ithaca.725190_TMYx.2009-2023.zip") == "TMYx.2009-2023"
+    assert published_variant("https://x/IRL_NW_Belmullet.039760_TRY_MetEireann.epw") is None
+    for future in ("NZL_AUK_Auckland.931100_TRY_M1_SSP26_2040_NIWA2024.zip",
+                   "DEU_BB_Potsdam_103790_TRY2035_04_Jahr_BBSR.zip"):
+        assert an.FUTURE_FILE.search(future)
+    for current in ("NZL_AUK_Auckland.931100_TRY_NIWA2024.zip", "DEU_BB_Potsdam_103790_TRY2010_04_Jahr_BBSR.zip",
+                    "USA_NY_Ithaca.725190_TMYx.2009-2023.zip", "CAN_AB_Abee.712850_CWEC2020.zip"):
+        assert not an.FUTURE_FILE.search(current)

@@ -131,3 +131,11 @@ approximate locality points and name/code conflicts are distinct statuses. No
 annotation claims verified EPW coordinates, archive-byte equivalence or permission
 to substitute weather. New/changed metadata requires renewed review, not automatic
 reuse of a previous judgment. Missing evidence leaves annotations stale/unresolved.
+
+The 2026-10-27 follow-ups approval (availability gaps plan, item 7) admits exactly the IDs in
+`FOLLOWUP_2026_10_27` (collector.py) and one justified `-r1` revision each, with metadata 100,
+probes 25, 240 MB in total and OneBuilding attempts 55 for them only: the sources page and ISD
+inventory conditional requests (`If-None-Match`; a 304 is recorded as `not_modified`), 24
+OneBuilding family workbooks, ECMWF's ERA5 and ERA5-Land documentation, NLR's Himawari-8 page,
+two terms pages, Natural Earth 1:10m land (10 MB) and two PVGIS coastal probes. See the
+[record](../../docs/validation/availability-followups-2026-10-27/README.md).

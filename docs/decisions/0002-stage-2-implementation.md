@@ -19,6 +19,15 @@ The approved scope is implemented with the following bounded refinements:
   of chat, the agent and MCP), it uses the point's time zone and rounds a fractional
   standard offset to the nearer whole hour (a tie to the hour nearer mean solar time),
   naming the civil offset in the review. An explicit fractional offset is still refused.
+  Owner decision 2026-10-27 (availability follow-ups, Q7): the tie rule stays, although it gives
+  Mumbai +5 and Kolkata +6 inside one civil zone (+5:30); it is documented, not changed.
+- Amendment 2026-10-27 (owner decisions Q1 and Q2, availability follow-ups item 2): NSRDB
+  Himawari-8 hourly rows are instantaneous samples at :00 (checked against one 10-minute
+  research download). Instantaneous variables are used as the EPW hour-end values; each
+  irradiance hour is the mean of the samples at its start and end. This re-binning of hourly
+  samples onto the same hours is allowed; it is not the deferred fractional-hour shift, and no
+  sub-hourly data is offered. It passed fixed thresholds at Singapore 2018 (annual GHI within
+  0.1%, hourly RMSE 9.5% of mean daylight GHI) and is recorded in each output's lineage.
 - NSRDB native TMY/TDY/TGY support supplements the planned actual-year adapter.
   Preserve the native timezone and mixed source years.
 - REST remote mode requires a bearer token. MCP HTTP binds only to loopback;

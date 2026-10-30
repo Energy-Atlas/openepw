@@ -60,6 +60,10 @@ FIXED_PRODUCTS = (
             "4 km satellite solar grid, hourly; needs an NLR key"),
     Product("nsrdb-himawari7", "historical", "nsrdb", "himawari7", "NSRDB actual year · Himawari-7 (2011–2015)",
             "NSRDB Himawari-7", "nsrdb", "4 km satellite solar grid for Asia and the Pacific, hourly; needs an NLR key"),
+    Product("nsrdb-himawari8", "historical", "nsrdb", "himawari", "NSRDB actual year · Himawari-8 (2016–2020)",
+            "NSRDB Himawari-8", "nsrdb",
+            "2 km satellite solar grid for Asia and the Pacific, hourly samples; irradiance re-binned to EPW "
+            "hours; needs an NLR key"),
     Product("nsrdb-msg", "historical", "nsrdb", "nsrdb-msg-v1-0-0", "NSRDB actual year · Meteosat (2005–2022)",
             "NSRDB Meteosat", "nsrdb",
             "4 km satellite solar grid for Europe and Africa (Meteosat prime meridian), hourly; needs an NLR key"),
@@ -82,11 +86,19 @@ STATION_LAYERS = {"noaa", "onebuilding"}
 _ORDER = {product.id: index for index, product in enumerate(FIXED_PRODUCTS)}
 
 
+# Families whose typical years are generated statistically rather than selected from observed
+# months (owner decision Q5, 2026-10-27: included, marked synthetic).
+SYNTHETIC_VARIANTS = {"JGMY"}
+
+
 def onebuilding_product(variant: str) -> Product:
     tmyx = variant.startswith("TMYx")
+    synthetic = variant in SYNTHETIC_VARIANTS
+    label = f"OneBuilding {variant.replace('_', ' ')}" + (" (synthetic)" if synthetic else "")
+    detail = ("Synthetic typical year (statistically generated, not observed months), from the nearest "
+              "listed station" if synthetic else "Published EPW file from the nearest listed station")
     return Product(f"onebuilding:{variant}", "tmyx" if tmyx else "published", "onebuilding",
-                   "OneBuilding published EPW", f"OneBuilding {variant}", variant, "onebuilding",
-                   "Published EPW file from the nearest listed station", variant)
+                   "OneBuilding published EPW", label, variant, "onebuilding", detail, variant)
 
 
 def product_for(choice_id: str) -> Product | None:

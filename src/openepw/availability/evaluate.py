@@ -238,8 +238,9 @@ def _assess(query: AvailabilityQuery, location: Location, product: ProductRecord
     if site and (site.lat is None or site.lon is None or
                  site.position_status in ("approximate_locality", "conflicted")):
         unknowns.append("SITE_POSITION_UNVERIFIED")
-    if product.provider == "cds" and abs(location.lat) >= 89:
-        unknowns.append("POLAR_FOOTPRINT_CONFLICT")
+    # CDS records give a ±89° box, but ECMWF's ERA5 documentation (2026-10-27 snapshot,
+    # `cds-era5-doc`) describes the regular latitude/longitude grid with values at 90° N and 90° S,
+    # so polar points are not unknown for that reason (availability follow-ups, item 6a).
     if product.provider == "cmip6":
         unknowns.append("GRID_CELL_UNVERIFIED")
     # A reviewed coverage mask gates its product (coverage.py): outside is excluded, inside

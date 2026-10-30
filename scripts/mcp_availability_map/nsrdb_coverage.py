@@ -38,11 +38,13 @@ REVIEWED_SOURCES = {
     REVIEWED_SOURCE: ReviewedSource(REVIEWED_OBJECT_KEY, REVIEWED_MODEL_VERSION, (),
                                     ((42.44, -76.5), (33.45, -112.07))),
     # The Himawari TMY table is the Himawari-7 grid (same layout; 5 sampled chunks identical,
-    # 2026-10-13), so the Himawari-7 mask gates both.
+    # 2026-10-13), so the Himawari-7 mask gates both. It also gates Himawari-8 (2026-10-27, H3):
+    # every probe inside it (Singapore, Honolulu, Auckland, Sapporo) lists both.
     ("himawari-tmy", "published_name", "tmy-2020"): ReviewedSource(
         "himawari/himawari_tmy-2020.h5", None, ("nsrdb:himawari-tmy",), (SINGAPORE,)),
     ("himawari7", "actual_year", "2015"): ReviewedSource(
-        "himawari/himawari7/himawari7_irradiance_2015.h5", None, ("nsrdb:himawari7", "nsrdb:himawari-tmy"),
+        "himawari/himawari7/himawari7_irradiance_2015.h5", None,
+        ("nsrdb:himawari7", "nsrdb:himawari-tmy", "nsrdb:himawari"),
         (SINGAPORE,)),
     ("nsrdb-msg-v1-0-0-tmy", "published_name", "tmy-2022"): ReviewedSource(
         "msg/v1.0.0/tmy/msg_tmy-2022.h5", None,
