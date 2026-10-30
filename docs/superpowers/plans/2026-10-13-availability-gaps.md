@@ -404,7 +404,8 @@ This is not a legal opinion.
 - **Done:** open-data 2026.10.13.2 pushed (branch `data/weather-availability-catalog-2026.10.13.2`,
   commit `958907a5cdf3353853de45395b43229e8524ab41`). The raw `datapackage.json` URL serves
   SHA-256 `e46dace1892aacce26c7d3173ad0514dcc7618e22ecc9b92f4f6e8103cf3fcd5`.
-- **Waiting for the owner:** pin staging in the Render dashboard (the code is already deployed):
+- **Superseded:** this pin was never set; staging was pinned to 2026.10.27 instead (see "Released"
+  under the 2026-10-27 decisions). The unused values:
 
   ```text
   OPENEPW_CATALOG_URL=https://raw.githubusercontent.com/Energy-Atlas/open-data/958907a5cdf3353853de45395b43229e8524ab41/datasets/weather-availability-catalog/datapackage.json
@@ -564,7 +565,7 @@ on Natural Earth sea about 4 km offshore, still unknown.
 **Catalog and package (2e).** Generation `2c0b88e7`: 103 sources, 77,033 products, 110,619 sites,
 103,214 entries, 61 reviews. The matrix changes only the expected products; memory +6% (peak
 545 → 577 MB locally). Package 2026.10.27 on the local open-data branch
-`data/weather-availability-catalog-2026.10.27` (`b3885a8`, **not pushed**), `datapackage.json`
+`data/weather-availability-catalog-2026.10.27` (`b3885a8`, pushed 2026-10-30), `datapackage.json`
 SHA-256 `6aab7111fd6c94ae6e3d60c371c31247ed5fee3ea75fe415f6b699233ed847d6`, lossless. Research
 use: metadata 93/100, probes 24/25, 193.8/240 MB, OneBuilding 47/55. See the
 [record](../../validation/availability-followups-2026-10-27/README.md).
@@ -577,13 +578,13 @@ use: metadata 93/100, probes 24/25, 193.8/240 MB, OneBuilding 47/55. See the
   `b3885a8e06a518c3c981f7b44a01ed3dbb84c748`. The raw `datapackage.json` URL serves SHA-256
   `6aab7111fd6c94ae6e3d60c371c31247ed5fee3ea75fe415f6b699233ed847d6`, and the PVGIS mask
   resolves from it with its declared size and hash.
-- **Waiting for the owner (decision 3):** pin staging in the Render dashboard:
+- **Done (decision 3, by the owner on 2026-10-30):** staging pinned in the Render dashboard and
+  redeployed; the owner reports it works. The pin:
 
   ```text
   OPENEPW_CATALOG_URL=https://raw.githubusercontent.com/Energy-Atlas/open-data/b3885a8e06a518c3c981f7b44a01ed3dbb84c748/datasets/weather-availability-catalog/datapackage.json
   OPENEPW_CATALOG_SHA256=6aab7111fd6c94ae6e3d60c371c31247ed5fee3ea75fe415f6b699233ed847d6
   ```
 
-  Until then staging serves the code with its earlier catalog: Himawari-8 shows as not verified
-  and PVGIS coasts stay unknown, which is safe. This pin replaces the 2026.10.13.2 one, which was
-  never set.
+  This pin replaces the 2026.10.13.2 one, which was never set. Production
+  (`feature/render-deploy`) is unchanged and keeps its own pin.
