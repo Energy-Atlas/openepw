@@ -69,3 +69,14 @@ unchanged and apply under every profile; a profile cannot weaken plan approval o
 submission confirmation. See the
 [guardrail plan](../superpowers/plans/2026-10-09-agent-guardrails.md) and the
 [agent README](../agent/README.md#security-profiles-and-guards).
+
+## Note (2026-10-27): availability lookups
+
+The agent's model gains one host lookup tool, `look_up_products`, so it can answer availability
+questions in words. A lookup is read-only: it opens no form, records nothing in the session facts
+and returns no `request` objects, so plans still take their datasets only from offers the person
+chose on the product form. Its points must be ones the session has seen and its years ones the
+person wrote; a lookup for places that are not approved carries a fixed host label. Reviews and
+product choices are still forms, `weather_locations_review` and `weather_product_offers` stay hidden
+from the agent's model, and the gates above are unchanged. See the
+[request lookups design](../superpowers/specs/2026-10-13-agent-request-lookups-design.md).

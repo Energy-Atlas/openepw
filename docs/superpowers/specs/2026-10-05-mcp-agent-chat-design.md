@@ -129,6 +129,8 @@ read as an answer or a correction.
 Forms come from **host ask-tools** that the model calls (`ask_choice`,
 `ask_text`, `review_location`, `choose_products`, `request_map_input`,
 `request_upload`, `review_plan`). Guided mode emits the same forms directly.
+Since 2026-10-27 one read-only host lookup, `look_up_products`, answers availability questions
+without a form; see the [request lookups design](2026-10-13-agent-request-lookups-design.md).
 
 ### Host guard-rails (both modes)
 

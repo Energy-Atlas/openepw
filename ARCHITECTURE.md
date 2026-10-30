@@ -287,7 +287,9 @@ and redaction, `openepw.agent.text`).
 
 P3 adds agent mode: a `ModelPort` (OpenAI Responses adapter over `httpx` with a usage ledger and
 budget stop, and a `ScriptedModel` for tests) and a `ModelPolicy` that runs a tool-calling loop
-over the MCP model tools plus host ask-tools. Ask-tools open the same forms as guided mode; a
+over the MCP model tools plus host ask-tools and one read-only host lookup (`look_up_products`,
+which answers availability questions in words, opens no form and records nothing). Ask-tools open
+the same forms as guided mode; a
 gatekeeper refuses host-only tools, rewrites plan requests to approved facts and answers
 `GATE_REQUIRED` with the next step. An unavailable model switches the session to guided mode with
 its facts. `openepw eval` runs packaged scenarios through the same session in guided mode, with

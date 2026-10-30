@@ -186,3 +186,20 @@ def test_stage1_import_keeps_noaa_station_names():
                    "noaa-inventory-authorized": {"station_years": {"72509014739": {"2018": [1] * 12}}}}
     _, sites, _ = _noaa(inventories, {"noaa-history", "noaa-inventory-authorized"})
     assert sites[0].name == "BOSTON LOGAN INTL"
+
+
+def test_station_names_of_national_family_files():
+    from openepw.availability.map_layers import onebuilding_station_name
+
+    assert onebuilding_station_name("https://x/TUR_AA_Adana_173510_TurTMY.zip") == "Adana"
+    assert onebuilding_station_name("https://x/USA_CA_CZ16_Alturas.Muni.AP.725958_CTZ2022.zip") == "Alturas Muni AP"
+
+
+def test_jgmy_is_labelled_synthetic():
+    from openepw.availability.products import onebuilding_product
+
+    jgmy = onebuilding_product("JGMY")
+    assert jgmy.label == "OneBuilding JGMY (synthetic)" and "Synthetic" in jgmy.detail
+    assert jgmy.product == "published"
+    assert onebuilding_product("TRY_NIWA2024").label == "OneBuilding TRY NIWA2024"
+    assert onebuilding_product("TMYx.2009-2023").label == "OneBuilding TMYx.2009-2023"

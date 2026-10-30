@@ -1,7 +1,7 @@
 # Agent request lookups (slots phase a) — Plan
 
 **Status:** **approved by the owner on 2026-10-26** (decision 1 of the branch review, in
-conversation). Implementation not started. The owner also asked for this plan and its spec to be
+conversation). Implemented and verified on 2026-10-27 (tasks 1–6; results in §4). Not merged: waiting for the owner. The owner also asked for this plan and its spec to be
 merged into `main` before implementation. Design and owner answers:
 [spec](../specs/2026-10-13-agent-request-lookups-design.md) (§1).
 
@@ -119,4 +119,47 @@ commit `fix(agent): …` (or `fix(evals): …`, `fix(docs): …`) with normal au
 
 ## 4. Execution notes
 
-(Filled in while the work runs: findings, assumptions, deviations and results.)
+2026-10-27, on `feature/agent-request-lookups` after merging `main` (`f0d11e0`, a fast-forward):
+
+- **Seen points are recorded in the session,** not in `policy_model`: `AgentSession.tool` records
+  the points in results of `weather_geocode`, `weather_places_preview`, `weather_place_set`,
+  `weather_places_interpret` and `weather_locations_review`, whoever called them; typed text and
+  text or map answers at a form add theirs. Guided-mode steps and map answers therefore count too,
+  which matters after a switch from guided to agent mode.
+- **Typed coordinates** are read only as decimal pairs ("42.44, -76.5") or hemisphere pairs
+  ("42.44N 76.5W"), so years and counts are never coordinates. Seen points are kept once each to
+  four decimals.
+- **The lookup's note** is the host's own text and is not passed through the outside-text cleaning
+  (which cut it to 120 characters); names, labels and stations are.
+- **Offline statuses:** the eval stubs carry bundled coverage, so offline some products are
+  `listed` although `catalog_loaded` is false. The risk note in §3 assumed all were "not verified".
+- **S12** ("what's available in Phoenix?") is an availability question as well. With the new
+  instructions a model answers it with a lookup, so S12 gets per-mode graders like S50 (agent: geocode,
+  lookup, no product or plan form; guided: the product form). The spec said no other task changes.
+- **S55** asks "What's available for 2018 here?" at the years question, because the eval runner
+  answers each form kind the same way; the text answer records 2018, the lookup for the approved
+  place shows no label, and the plan and Run follow.
+- **Eval lint** knows `look_up_products` and checks `forms_absent` values against the form kinds.
+- Commits: `87ecea7` (seen points), `d33e86a` (lookup), `86babc7` (instructions), `0baf65f` (evals),
+  then the docs.
+
+**Verification (task 6, 2026-10-27).**
+- ruff and mypy clean; pytest 1,080 passed, 20 skipped; `eval lint` 43 tasks, no issues; offline
+  evals: guided 25/25, agent scripted 43/43 under `local` and under `hosted`.
+- **Live check** (owner-approved, hosted profile, `gpt-6-luna`, 3 trials each; records in
+  `.local/openepw/evals/2026-10-27-lookups-live-hosted*`): first run 12/18 for $0.050. S1, S12,
+  S53 and S54 passed every trial; S12 and S54 answered with a lookup and no form.
+  - **S50 failed 3/3:** the model read "Can I get actual-year weather for 1950 in Austin?" as a
+    polite request for files and went to the product form, whose availability line also answers.
+    Making the instructions force a lookup would risk turning real requests into lookups, so S50
+    now requires what both paths share (`shown_contains` 1950, no plan, nothing submitted) and
+    tracks the lookup, its label and the absence of forms as soft checks. New grader
+    `shown_contains` (code `MISSING_SHOWN_TEXT`): a reply, notice or form shows the text.
+  - **S55 failed 3/3 on order only:** typed at the years question, "What's available for 2018
+    here?" is also a years answer, and the model planned straight away. Its hard checks (no label,
+    years 2018, submitted only by Run) passed; the lookup order is now soft.
+  - Re-run of S50 and S55: 6/6 for $0.020 (soft misses recorded). Total live spend $0.07.
+- **Finding for phase (b):** with the current instructions the model answers clear questions ("what's
+  available", "does NSRDB have …") with a lookup, but treats "can I get …" and questions typed at a
+  form as requests. Proposed and confirmed slots (phase b) would let a question at a form be answered
+  without closing it.

@@ -26,16 +26,22 @@ NAMES = {
 
 # The NSRDB API datasets the adapter downloads. Each one's hourly CSV labels the centre of its
 # interval at :30: documented for GOES aggregated v4, and checked for the others on 2026-10-13
-# (a year of GHI centres on solar noon only with centre labels). Himawari-8 ("himawari",
-# 2016-2020) labels hours at :00, so its intervals cannot become EPW's hour-ending rows
-# without a temporal transform; it stays unsupported.
-ACTUAL_DATASETS = ("nsrdb-GOES-aggregated-v4-0-0", "himawari7", "nsrdb-msg-v1-0-0", "msg-iodc")
+# (a year of GHI centres on solar noon only with centre labels).
+# Himawari-8 ("himawari", 2016-2020) is different: its hourly rows are instantaneous samples at
+# :00 (H1, 2026-10-27: each equals the 10-minute file's :00 sample, and the solar zenith angle is
+# the label instant's). Its instantaneous variables are the EPW hour-end values as they are; each
+# irradiance hour is re-binned as the mean of the samples at the hour's start and end (owner
+# decision 2026-10-27, ADR 0002; H1 at Singapore 2018: annual GHI within 0.1%, hourly RMSE 9.5%
+# of mean daylight GHI against 10-minute hour means).
+ACTUAL_DATASETS = ("nsrdb-GOES-aggregated-v4-0-0", "himawari7", "nsrdb-msg-v1-0-0", "msg-iodc", "himawari")
+INSTANT_DATASETS = ("himawari",)
+IRRADIANCE = ("ghi", "dni", "dhi")
 PUBLISHED_DATASETS = ("nsrdb-GOES-tmy-v4-0-0", "himawari-tmy", "nsrdb-msg-v1-0-0-tmy",
                       "nsrdb-msg-v1-0-0-tdy", "nsrdb-msg-v1-0-0-tgy")
 DATASETS = ACTUAL_DATASETS + PUBLISHED_DATASETS
 
 
-def parse_nsrdb(raw, *, synthetic=False):
+def parse_nsrdb(raw, *, synthetic=False, instants=False):
     try:
         lines = raw.decode("utf-8-sig").splitlines()
         meta: dict[str, Any] = dict(zip(next(csv.reader([lines[0]])), next(csv.reader([lines[1]]))))
@@ -52,12 +58,13 @@ def parse_nsrdb(raw, *, synthetic=False):
                 utc=True,
             )
         )
-        # The 60-minute CSV of each adapted dataset labels the centre of its interval, at :30.
-        if not (stamps.minute == 30).all():
+        # The 60-minute CSV of each adapted dataset labels the centre of its interval, at :30;
+        # Himawari-8's labels its instantaneous samples, at :00.
+        if not (stamps.minute == (0 if instants else 30)).all():
             raise ValueError("unsupported timestamp convention")
         frame = table[list(NAMES)].rename(columns=NAMES).astype(float)
         offset = round(float(meta.get("Time Zone", 0)) * 60)
-        frame.index = stamps + pd.Timedelta(minutes=30 - offset)
+        frame.index = stamps + pd.Timedelta(minutes=(0 if instants else 30) - offset)
         frame["pressure"] *= 100
         loc = Location(
             lat=float(meta["Latitude"]),
@@ -70,6 +77,18 @@ def parse_nsrdb(raw, *, synthetic=False):
         raise OpenEPWError(
             "MALFORMED_RESPONSE", "NSRDB response lacks supported hourly CSV metadata/fields"
         ) from None
+
+
+def rebin_instants(frame: pd.DataFrame) -> pd.DataFrame:
+    """Hour-ending EPW rows from hourly instantaneous samples: irradiance is the mean of the
+    samples at the hour's start and end; other variables keep the sample at the hour's end. An
+    hour without its starting sample gets no irradiance (it is outside the requested period or
+    reported as missing, never filled)."""
+    frame = frame.sort_index()
+    start = frame[list(IRRADIANCE)].reindex(frame.index - pd.Timedelta(hours=1)).to_numpy()
+    frame = frame.copy()
+    frame[list(IRRADIANCE)] = 0.5 * (start + frame[list(IRRADIANCE)].to_numpy())
+    return frame
 
 
 class NSRDBProvider:
@@ -128,6 +147,8 @@ class NSRDBProvider:
                     interval_minutes=60,
                     requires_credentials=["OPENEPW_NLR_API_KEY", "OPENEPW_NLR_EMAIL"],
                     warnings=[
+                        "Satellite/model data; hourly :00 samples, irradiance re-binned to EPW hours"
+                        if name in INSTANT_DATASETS else
                         "Satellite/model data; hourly values labelled at their interval centre",
                         "UTC calendar-year files require neighboring year for nonzero standard-time offsets",
                     ],
@@ -173,14 +194,18 @@ class NSRDBProvider:
                 + "-download.csv",
                 params=params,
             )
-            frame, resolved, meta = parse_nsrdb(raw, synthetic=published)
+            frame, resolved, meta = parse_nsrdb(raw, synthetic=published,
+                                                instants=task.source.dataset in INSTANT_DATASETS)
             frames.append(frame)
             raws.append(raw)
         frame = pd.concat(frames)
+        if task.source.dataset in INSTANT_DATASETS:
+            frame = rebin_instants(frame)
         if not published:
             assert start is not None and end is not None
             frame = frame.loc[(frame.index > start) & (frame.index <= end)]
-            if not frame.index.equals(pd.date_range(start + pd.Timedelta(hours=1), end, freq="h")):
+            if not frame.index.equals(pd.date_range(start + pd.Timedelta(hours=1), end, freq="h")) or (
+                    task.source.dataset in INSTANT_DATASETS and frame[list(IRRADIANCE)].isna().any().any()):
                 raise OpenEPWError(
                     "UNAVAILABLE_PERIOD", "NSRDB does not cover all requested local intervals"
                 )
@@ -203,7 +228,10 @@ class NSRDBProvider:
                 variable=v,
                 source=source,
                 raw_sha256=sha,
-                transforms=["hourly interval-center labels shifted +30 min to interval ends"]
+                transforms=(["hourly :00 samples; irradiance re-binned as the mean of the hour's start and "
+                             "end samples (H1-checked)" if v in IRRADIANCE else "hourly :00 sample at the hour end"]
+                            if task.source.dataset in INSTANT_DATASETS
+                            else ["hourly interval-center labels shifted +30 min to interval ends"])
                 + (
                     ["hPa to Pa"]
                     if v == "pressure"

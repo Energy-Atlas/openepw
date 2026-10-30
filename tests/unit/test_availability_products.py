@@ -95,7 +95,7 @@ def test_a_typed_type_or_provider_narrows_the_choices_and_lists_count_places():
 
 def test_without_a_catalog_every_named_product_is_offered_for_checking_when_planning():
     offers = product_offers(object(), ITHACA)
-    assert len(offers["options"]) == 13                                # 8, plus NSRDB beyond GOES (2026-10-13)
+    assert len(offers["options"]) == 14                                # 8, NSRDB beyond GOES, Himawari-8
     assert all(option["detail"].endswith("availability is checked when planning") for option in offers["options"])
     assert offers["availability"]["locations"] == []
 
@@ -119,7 +119,7 @@ def test_service_offers_delegate_with_named_filters(tmp_path):
 
     service = WeatherService(RuntimeConfig(data_root=tmp_path))
     offers = service.product_offers(ITHACA, product="historical", provider="NSRDB", years=[2018])
-    assert [option["id"] for option in offers["options"]] == ["nsrdb-actual", "nsrdb-himawari7", "nsrdb-msg", "nsrdb-msg-iodc"]
+    assert [option["id"] for option in offers["options"]] == ["nsrdb-actual", "nsrdb-himawari7", "nsrdb-himawari8", "nsrdb-msg", "nsrdb-msg-iodc"]
     point = service.point_availability(42.444, -76.5019, [2018])
     assert point["years"] == [2018] and {row["id"] for row in point["products"]} >= {"nsrdb-actual"}
 

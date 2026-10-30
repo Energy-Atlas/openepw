@@ -1,5 +1,26 @@
 # Climate.OneBuilding
 
+## National and special families — 2026-10-27
+
+- **Catalogued (17 families, 3,628 files, coordinates as published):** CWEC (2016, 2020, 2020v2,
+  TDY 2020v2, original), INMET and TRY, NORCERRA, JGMY (labelled synthetic), CTZ, CTZ v2, CTZ2010,
+  TurTMY, IMGW, PHIKO, NIWA, ArgTMY, AMTUes, IMS, CityUHK, and the historical files of NIWA2024
+  (TRY, DSY1, MDRY) and BBSR (TRY2010 annual, summer and winter).
+- **Variants:** a file's variant is its last `_` segment, except PHIKO, NIWA2024 and BBSR, which
+  keep their sub-type (`TRY_NIWA2024`, `TRY2010_Jahr_BBSR`); Brazil's `TRY.<year>` files are `TRY`.
+- **Left out:** future-climate files; ISHRAE, CSWD, RMY2012, RMY2024 (terms); MetEireann (bare `.epw`
+  links; the adapter takes published ZIPs only); CTZ2016, CTZ2022, CTZ2025 and LuxTMY (published
+  paths return 404); ITMY (not a valid EPW). One file per family was downloaded and read. See
+  the [record](../validation/availability-followups-2026-10-27/README.md).
+
+## Terms — 2026-10-27
+
+The site gives no licence, and its footer reads all rights reserved. The catalog publishes
+OneBuilding metadata (workbook rows: names, coordinates, file paths) under the owner's 2026-09-28
+publication override, kept on 2026-10-27 (option b); weather files are never mirrored. Families
+whose originators restrict their files are left out of the catalog (ISHRAE 2014; CSWD and RMY
+unless a terms check clears them). This is not a legal opinion.
+
 ## MCP Stage 2 availability — 2026-09-24
 
 The local catalog retains the 56 accepted metadata correspondences, three

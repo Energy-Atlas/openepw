@@ -1,0 +1,26 @@
+id: S53
+title: A request for files shows availability on the product form
+purpose: A request for files (not a question) goes through the location review to the product form, which states
+  what is listed for the years asked (the earlier S50 path, kept in agent mode).
+covers: [offers.available, gate.product-choice]
+tags: [workflow]
+modes: [agent]
+user:
+  say: AMY 1950 for Austin
+  answers: {location_review: approve, product_choice: null, choice: first, map_input: Austin, text: '1950'}
+graders:
+- grader: forms_in_order
+  value: [location_review, product_choice]
+- grader: form_contains
+  value: [For 1950]
+- grader: tools_absent
+  value: [weather_plan]
+- {grader: submitted, value: false}
+script:
+- call: weather_geocode
+  args: {query: Austin}
+- call: review_location
+  args:
+    locations: {lat: 30.27, lon: -97.74, name: Austin}
+- call: choose_products
+  args: {product: historical}

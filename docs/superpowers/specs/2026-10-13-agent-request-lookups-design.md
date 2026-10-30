@@ -1,6 +1,7 @@
 # Agent request lookups (slots phase a) — design
 
-**Status:** approved by the owner on 2026-10-26, with its plan. Nothing is implemented yet. This is phase (a)
+**Status:** approved by the owner on 2026-10-26, with its plan. Implemented on 2026-10-27 on
+`feature/agent-request-lookups` (not merged); deviations are in the plan's execution notes. This is phase (a)
 of the [request slots proposal](2026-10-12-agent-request-slots-design.md). Plan:
 [agent request lookups plan](../plans/2026-10-13-agent-request-lookups.md).
 
@@ -183,7 +184,8 @@ in line with the owner's rule of no live point checks at product-list time.
   without a product choice) are unit tests, not eval tasks: a live model rarely produces them, so
   live trials would test nothing.
 - No other existing task changes in phase (a): lookups add steps, and the order graders check
-  subsequences.
+  subsequences. (Implementation found one exception: S12, "what's available in Phoenix?", is an
+  availability question too and gets the same per-mode graders as S50.)
 - **Coordination:** the owner allowed changes to `evals/`. The changes are kept small and additive
   (one grader, coverage ids, task files) so they merge easily with the parallel eval-framework work.
 

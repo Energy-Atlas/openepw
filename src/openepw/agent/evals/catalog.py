@@ -69,9 +69,9 @@ def fixture_counts() -> dict[str, dict[str, int]]:
 
 def known_tools() -> frozenset[str]:
     from ...mcp.access import HOST_TOOLS, LEGACY_TOOLS, MODEL_TOOLS
-    from ..tools import ASK_TOOLS, SCOPE_TOOLS
+    from ..tools import ASK_TOOLS, LOOKUP_TOOLS, SCOPE_TOOLS
 
-    return frozenset(MODEL_TOOLS | HOST_TOOLS | LEGACY_TOOLS | set(ASK_TOOLS) | set(SCOPE_TOOLS))
+    return frozenset(MODEL_TOOLS | HOST_TOOLS | LEGACY_TOOLS | set(ASK_TOOLS) | set(LOOKUP_TOOLS) | set(SCOPE_TOOLS))
 
 
 FORM_KINDS = frozenset({"text", "choice", "location_review", "product_choice", "map_input", "upload", "plan_review"})
@@ -118,10 +118,10 @@ def lint(tasks: list[Task]) -> list[Issue]:
                 unknown = [tool for tool in use.value or [] if tool not in known_tools()]
                 if unknown:
                     issues.append(Issue("error", where, f"{use.grader}: unknown tool(s) {', '.join(unknown)}"))
-            if use.grader == "forms_in_order":
+            if use.grader in ("forms_in_order", "forms_absent"):
                 unknown = [kind for kind in use.value or [] if kind not in FORM_KINDS]
                 if unknown:
-                    issues.append(Issue("error", where, f"forms_in_order: unknown form kind(s) {', '.join(unknown)}"))
+                    issues.append(Issue("error", where, f"{use.grader}: unknown form kind(s) {', '.join(unknown)}"))
             if use.grader not in ("codes_present", "codes_absent"):
                 continue
             for code in use.value or []:

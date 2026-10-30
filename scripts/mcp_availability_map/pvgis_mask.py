@@ -17,6 +17,11 @@ open Atlantic, the North Sea about 19 km off the coast, and Svalbard did not. Of
 fetches anything.
 
     python -m scripts.mcp_availability_map.pvgis_mask <grib> <footprints root> [<analysis.json>]
+        [--land ne_10m_land.zip]
+
+With ``--land`` (availability follow-ups 2026-10-27, item 6d), the mask gains ``refine``: fine
+cells of the edge band that are at least one fine cell inland on Natural Earth's 1:10m land
+(``coast.py``). A point there is inside; other edge points stay unknown.
 """
 
 from __future__ import annotations
@@ -30,7 +35,10 @@ from pathlib import Path
 
 import numpy as np
 
+from scripts.mcp_availability_map.coast import FINE, inland, land_rows, polygon_edges
 from scripts.mcp_availability_map.era5land_mask import SOURCE_URL, decode
+
+LAND_URL = "https://naciscdn.org/naturalearth/10m/physical/ne_10m_land.zip"
 
 GATES = ("pvgis:PVGIS TMY",)
 LAND = 0.5
@@ -46,6 +54,9 @@ CHECKS = {
     "North Sea": (52.30, 4.20, "edge"), "Svalbard": (78.22, 15.65, "outside"),
     "Antarctica": (-75.0, 0.0, "outside"), "Mid-Pacific": (0.0, -150.0, "outside"),
 }
+# The refinement's probes (2026-10-27, item 6d): both returned a TMY; only the land point is
+# inside through the refinement, the near-shore sea point stays in the edge band.
+REFINE_CHECKS = {"Cape Town": (-33.925, 18.424, True), "Table Bay": (-33.89, 18.45, False)}
 # Checked only when station positions are given: atolls ERA5-Land does not resolve.
 ATOLLS = {"Male": (4.175, 73.509), "Funafuti": (-8.52, 179.2)}
 
@@ -155,12 +166,43 @@ def runs_of(cells: np.ndarray) -> list[list[int]]:
     return runs
 
 
+def refine(edge: np.ndarray, step: float, land_zip: bytes, chunk: int = 512) -> list[list[int]]:
+    """Fine-cell runs (corner origin, ``FINE`` degrees) inside the edge band that are inland on
+    Natural Earth land, within the PVGIS latitudes."""
+    per = round(step / FINE)
+    if abs(per * FINE - step) > 1e-9 or per % 2:
+        raise ValueError("the fine grid must split each cell evenly")
+    edges = polygon_edges(land_zip)
+    columns = round(360 / FINE)
+    total = round(180 / FINE)
+    centres_x = -180 + (np.arange(columns) + 0.5) * FINE
+    coarse_columns = np.round((centres_x + 180) / step).astype(np.int64) % edge.shape[1]
+    first = int(math.floor((INNER[0] - step / 2 + 90) / FINE))
+    last = int(math.ceil((INNER[1] + step / 2 + 90) / FINE))
+    runs: list[list[int]] = []
+    for start in range(first, last, chunk):
+        stop = min(start + chunk, last)
+        rows = range(max(start - 1, 0), min(stop + 1, total))
+        core = inland(land_rows(edges, rows))
+        for index, row in enumerate(rows):
+            if not start <= row < stop:
+                continue
+            coarse = int((row + 0.5) * FINE / step + 0.5)
+            centre = -90 + coarse * step
+            if not INNER[0] - 1e-9 <= centre <= INNER[1] + 1e-9:
+                continue
+            cells = core[index] & edge[coarse][coarse_columns]
+            if cells.any():
+                runs += [[row, first_column, end] for _, first_column, end in runs_of(cells[None, :])]
+    return runs
+
+
 def place(inside: np.ndarray, edge: np.ndarray, lat: float, lon: float, step: float) -> str:
     row, column = round((lat + 90) / step), round((lon + 180) / step) % inside.shape[1]
     return "inside" if inside[row, column] else "edge" if edge[row, column] else "outside"
 
 
-def build(grib: Path, footprints: Path, analysis: Path | None = None) -> Path:
+def build(grib: Path, footprints: Path, analysis: Path | None = None, land: Path | None = None) -> Path:
     data = grib.read_bytes()
     field, grid = decode(data)
     step = grid["di"]
@@ -172,6 +214,15 @@ def build(grib: Path, footprints: Path, analysis: Path | None = None) -> Path:
         if (found := place(inside, edge, lat, lon, step)) != expected:
             raise ValueError(f"check failed at {name}: {found}, expected {expected}")
     mask = {"step_degrees": step, "cell_origin": "center", "runs": runs_of(inside), "edge_runs": runs_of(edge)}
+    land_bytes = land.read_bytes() if land else None
+    if land_bytes:
+        mask["refine"] = {"step_degrees": FINE, "cell_origin": "corner", "runs": refine(edge, step, land_bytes)}
+        fine = {(row, column) for row, first, end in mask["refine"]["runs"]
+                for column in (int((lon + 180) // FINE) for _, (lat, lon, _) in REFINE_CHECKS.items())
+                if first <= column < end}
+        for name, (lat, lon, expected) in REFINE_CHECKS.items():
+            if ((int((lat + 90) // FINE), int((lon + 180) // FINE)) in fine) != expected:
+                raise ValueError(f"refinement check failed at {name}")
     raw = json.dumps(mask, separators=(",", ":")).encode()
     folder = footprints / "pvgis" / "tmy-v5_3" / "domain"
     folder.mkdir(parents=True, exist_ok=True)
@@ -187,12 +238,17 @@ def build(grib: Path, footprints: Path, analysis: Path | None = None) -> Path:
                              "analysis_sha256": hashlib.sha256(analysis.read_bytes()).hexdigest() if analysis else None},
         "documentation": "JRC139355, PVGIS 5.3 Dataset Update (2024), Table 1 and sections 3.1-3.2",
         "checked_by": ["pvgis-london", "pvgis-ithaca", "pvgis-atlantic", "pvgis-northsea-r1",
-                       "pvgis-svalbard", "pvgis-lake-victoria"],
+                       "pvgis-svalbard", "pvgis-lake-victoria", "pvgis-coast-land", "pvgis-coast-sea"],
         "built_at": datetime.now(timezone.utc).isoformat(), "native_crs": "EPSG:4326",
         "native_longitude_convention": "0_to_360", "grid_points": int(field.size),
         "inside_points": int(inside.sum()), "edge_points": int(edge.sum()),
         "step_degrees": step, "cell_origin": "center", "mask_path": "mask.json",
-        "mask_sha256": hashlib.sha256(raw).hexdigest(), "stale": False, "gates": list(GATES)}]}
+        "mask_sha256": hashlib.sha256(raw).hexdigest(), "stale": False, "gates": list(GATES),
+        **({"refine": {"source_file_id": LAND_URL, "source_sha256": hashlib.sha256(land_bytes).hexdigest(),
+                       "evidence_id": "naturalearth-10m-land", "license": "Natural Earth: public domain",
+                       "basis": "Natural Earth 1:10m land, fine cell and its eight neighbours on land",
+                       "step_degrees": FINE, "runs": len(mask["refine"]["runs"]),
+                       "cells": sum(b - a for _, a, b in mask["refine"]["runs"])}} if land_bytes else {})}]}
     (folder / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     return folder / "manifest.json"
 
@@ -202,8 +258,9 @@ def main() -> None:
     parser.add_argument("grib", type=Path)
     parser.add_argument("footprints", type=Path)
     parser.add_argument("analysis", type=Path, nargs="?", help="research analysis.json with station positions")
+    parser.add_argument("--land", type=Path, help="Natural Earth ne_10m_land.zip for the coastal refinement")
     args = parser.parse_args()
-    path = build(args.grib, args.footprints, args.analysis)
+    path = build(args.grib, args.footprints, args.analysis, args.land)
     entry = json.loads(path.read_text(encoding="utf-8"))["entries"][0]
     print(json.dumps({"manifest": str(path), "inside_points": entry["inside_points"],
                       "edge_points": entry["edge_points"], "grid_points": entry["grid_points"],

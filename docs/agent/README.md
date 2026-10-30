@@ -98,6 +98,23 @@ schemas, minus the two the host wraps, plus these host ask-tools:
 | `request_upload(prompt)` | EPW upload | the artifact id |
 | `review_plan()` | plan review | submitted job ids (the host submits) |
 
+One host lookup tool answers availability questions in words, without a form
+([request lookups design](../superpowers/specs/2026-10-13-agent-request-lookups-design.md)):
+
+| Lookup | Opens | Returns |
+| --- | --- | --- |
+| `look_up_products(locations?, years?, product?, provider?)` | nothing | the place, years, and each listed product's kind and status (`listed`, `listed at k of n places`, `not verified; checked when planning`) |
+
+The lookup calls `weather_product_offers` (recorded `by: lookup`), stores nothing in the facts and
+leaves out the offers' `request` objects, so it can never feed a plan. Before the call the host
+checks that each point lies within 0.05° of a point the session has seen (a place-tool result, a
+review, or coordinates the person typed; else `UNGROUNDED_POINT`), that the years are ones the
+person wrote (else `YEARS_NOT_WRITTEN`), that there are at most 25 points (else
+`INVALID_ARGUMENTS`), and that omitted locations have an approved review (else `GATE_REQUIRED`,
+need `weather_geocode`). For points that are not the approved review, the host shows a fixed line
+once per point set (`LOOKUP_UNAPPROVED`): "Availability checked for Austin, Texas, United States
+(30.270, -97.740); this location is not approved yet. You'll confirm it before choosing products."
+
 The host gatekeeper applies to every call:
 
 - submit, cancel, retry, export, upload and the legacy tools return `TOOL_NOT_ALLOWED`;
@@ -128,12 +145,14 @@ Typed at an open form, it gets the same reply and the form stays open. Closings 
 for now", "bye") get a short host reply without a next step. In a mixed message the weather part is
 handled and the model calls the host tool `decline_part` (`rule_change`, `unrelated` or `needs_data`):
 the host shows one fixed sentence once per session (`PART_DECLINED`), for example "Only you can start a
-run, from the plan review", and the turn goes on without a strike. The product form states, from the
-offers, what is listed for the place and years asked ("For 1950. Listed: ERA5 actual year · Open-Meteo
-…"), which answers availability questions; questions about the data itself are answered after the run.
+run, from the plan review", and the turn goes on without a strike. Availability questions ("Does NSRDB
+have 2023 for Ithaca, NY?") are answered in words from `look_up_products`; the product form still states,
+from the offers, what is listed for the place and years asked ("For 1950. Listed: ERA5 actual year ·
+Open-Meteo …"). Questions about the data itself are answered after the run.
 A knowledge answer that only repeats the question is sent back to the model once. Guided mode gives no
 knowledge answers and does not send sentences that cannot be a place to the geocoder. Eval scenarios
-S23–S26, S28, S31, S36–S44 and S48–S52 check this.
+S23–S26, S28, S31, S36–S44 and S48–S52 check this; S12, S50 and S53–S55 check lookups and the product
+form's availability line.
 
 Text typed while an ask-tool form is open becomes that tool's answer, so corrections reach the
 model. A turn stops after 8 tool steps, 2 retries of one failing tool or 60 seconds; malformed
@@ -232,7 +251,7 @@ execution notes: [agent evals plan](../superpowers/plans/2026-10-10-agent-evals.
 `--output-dir` and `--baseline`. Evals are advisory and offline in automated checks; live runs
 are manual (there is no GitHub CI).
 
-**Tasks.** One YAML file per task in `openepw/agent/evals/tasks/` (S1–S47), validated on load:
+**Tasks.** One YAML file per task in `openepw/agent/evals/tasks/` (43 tasks, S1–S55), validated on load:
 an unknown key, grader, grader value or coverage id is an error naming the file and line. A task
 has:
 
@@ -256,7 +275,7 @@ the trial; soft is tracked only) and returns the trace entries that decided it. 
 `MODEL_HOST_TOOL`, `SUBMIT_WITHOUT_APPROVAL`, `MODEL_FALLBACK` (agent), `STEP_LIMIT`,
 `UNGROUNDED_YEARS`, `FALSE_READINESS` (an uncorrected claim), `LINK_LEAK` (found by the guard's
 pattern and a broader one of the eval's own), `HIDDEN_CHARACTERS` and `SECRET_LEAK`. Listed by
-tasks: forms and tools in order, no tools, absent tools, submitted, years, plan products, review
+tasks: forms and tools in order, no tools, absent tools, absent forms, text shown anywhere, submitted, years, plan products, review
 points, offsets, reply text required or forbidden, reply length (soft), session ended, strikes,
 guard codes present or absent, a labelled knowledge answer, text on forms, and text that must or
 must not reach the model.

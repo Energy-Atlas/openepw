@@ -89,7 +89,9 @@ the nautical zone applies (longitude / 15); a zone missing from the installed tz
 falls back to longitude, and the review says which was used. Fractional standard
 offsets (India +5:30, Nepal +5:45, Newfoundland -3:30, central Australia +9:30) are
 rounded to the nearer whole hour, a tie going to the hour nearer mean solar time, so two
-places in one zone can differ by an hour; the review names the civil offset. The review
+places in one zone can differ by an hour (Mumbai +5, Kolkata +6, both +5:30); the review names the
+civil offset. The owner kept this rule on 2026-10-27 (Q7) over one offset per zone; EPW data stay
+hourly, so no sub-hour shift is planned. The review
 uses the zone's current standard time; a plan warns when a requested year used another
 (Singapore before 1982). Explicit offsets are preserved. Existing files retain the offset used when they were generated;
 download a new EPW after changing it. Older saved browser chats require the

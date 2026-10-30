@@ -1,5 +1,18 @@
 # NSRDB / NLR
 
+## Himawari-8 — 2026-10-27
+
+- **Downloaded, hourly only** (owner decisions Q1, Q2). Its hourly rows are instantaneous samples
+  at :00: each equals the 10-minute file's :00 sample, and the solar zenith angle is the label
+  instant's (H1, Singapore 2018).
+- **EPW hours:** instantaneous variables are the hour-end values; GHI, DNI and DHI are the mean of
+  the samples at the hour's start and end. Against 10-minute hour means: annual GHI +0.10%,
+  hourly RMSE 9.45% of mean daylight GHI (ADR 0002 amendment).
+- **Live check (H4):** Sapporo 2018 through the service, 8,760 rows, no missing GHI, solar-noon
+  offset 0.05 h.
+- **Coverage:** the Himawari-7 mask gates it; NLR documents 2016–2020 and every probe inside the
+  mask lists those years. See the [record](../validation/availability-followups-2026-10-27/README.md).
+
 ## Years per coverage mask — 2026-10-13
 
 - **Edge probes.** Ten more data-query probes at grid edges list, for every dataset, the same

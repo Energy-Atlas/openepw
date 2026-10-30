@@ -28,7 +28,7 @@ PVGIS_SOURCE = ("https://joint-research-centre.ec.europa.eu/sites/default/files/
 def onebuilding_station_name(url: str | None) -> str | None:
     """Station name from a OneBuilding file name, e.g. AUS_QLD_Coconut.Island.AP.941820_TMYx.zip."""
     # Station codes are WMO numbers or alphanumeric (A05735, USA109).
-    match = re.search(r"/(?:[A-Z]{3}_)(?:[A-Z]{2,3}_)?([^/_]+?)\.(?:\d{5,6}|[A-Z]{1,3}\d{3,6})_[^/]+\.zip$",
+    match = re.search(r"/(?:[A-Z]{3}_)(?:[A-Z]{2,3}_)?(?:CZ\d{2}_)?([^/_]+?)(?:\.(?:\d{5,6}|[A-Z]{1,3}\d{3,6})|_\d{6})_[^/]+\.zip$",
                       url or "")
     return match.group(1).replace(".", " ") if match else None
 

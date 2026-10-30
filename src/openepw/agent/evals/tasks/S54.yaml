@@ -1,0 +1,32 @@
+id: S54
+title: A provider question is answered in words without a form
+purpose: '"Does NSRDB have 2023 for Ithaca, NY?" is answered from a lookup for the geocoded place, labelled as not
+  approved; no form opens and nothing is planned.'
+covers: [lookup.products, lookup.label]
+tags: [workflow]
+modes: [agent]
+user:
+  say: Does NSRDB have 2023 for Ithaca, NY?
+  answers: {location_review: approve, product_choice: null, choice: first, map_input: 'Ithaca, NY', text: '2023'}
+graders:
+- grader: tools_in_order
+  value: [weather_geocode, look_up_products]
+- grader: forms_absent
+  value: [location_review, product_choice, plan_review]
+- grader: codes_present
+  value: [LOOKUP_UNAPPROVED]
+- grader: reply_contains
+  value: [NSRDB, '2023']
+- grader: tools_absent
+  value: [weather_plan]
+- {grader: years, value: [2023]}
+- {grader: submitted, value: false}
+script:
+- call: weather_geocode
+  args: {query: 'Ithaca, NY'}
+- call: look_up_products
+  args:
+    locations: {lat: 42.44, lon: -76.5, name: 'Ithaca, New York, United States'}
+    provider: nsrdb
+- say: For 2023 at Ithaca, NY, the lookup shows the NSRDB actual-year products above and their status; tell me if
+    you want the files.

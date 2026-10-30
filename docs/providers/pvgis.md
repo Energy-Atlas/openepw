@@ -1,5 +1,21 @@
 # PVGIS
 
+## Coasts — 2026-10-27
+
+- **Refinement.** Inside the mask's unknown band, a point is inside when Natural Earth's 1:10m land
+  (public domain) covers its 0.0125° cell and the eight around it, about 1.4 km inland. Sea points
+  in the band stay unknown. The layer is `refine` in the mask (97,000 runs; the mask grows from
+  0.7 MB to 2.5 MB, 0.6 MB gzipped).
+- **Effect.** Of 38,820 published station positions between 60° S and 75° N, unknown falls from
+  16.6% to 13.7%; Cape Town and Honolulu become inside. Coastal city centres within about 1.4 km
+  of the water (Singapore, Lisbon, Venice) stay unknown.
+- **Probes.** Cape Town (newly inside) and Table Bay about 4 km offshore both returned a SARAH3
+  TMY. With the North Sea refusal at 19 km, PVGIS serves some near-shore sea, so sea points are
+  neither inside nor outside here.
+- **Not changed.** The 0.1° rule counts a cell inside when ERA5-Land's land fraction is at least
+  0.5, which includes some near-shore sea.
+- The map still draws the 0.1° mask only.
+
 ## Coverage — 2026-10-13
 
 - **Radiation source by location.** PVGIS 5.3 TMY uses SARAH3 radiation where it is JRC's
