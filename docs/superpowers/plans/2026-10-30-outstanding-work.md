@@ -27,11 +27,26 @@ detail stays where it was first written.
 
 Branch: `docs/phase-1-cleanup`. Prerequisites: none.
 
+Owner answers (2026-10-30):
+- **Merge:** at the end, the phase's docs-only changes and this plan may merge into `main` without
+  a separate go-ahead. `deploy/staging` is not touched. Any code change still waits for the
+  owner.
+- **ROADMAP:** restructure it into short sections for each completed line of work (MCP stages,
+  agent chat, availability, staging) with links, then the phases. Condense the long paragraphs;
+  the history stays in git and the linked records.
+- **Flaky test:** up to about one hour of machine time. That allows several full runs, some in
+  random order or under parallel load, then targeted reruns.
+- **Cleanup (1.4, added):** delete the merged branches `feature/agent-request-lookups`,
+  `feature/availability-followups` and `docs/record-staging-pin`, locally and on origin, and their
+  worktrees. Each is first confirmed fully merged into `main`; nothing unmerged is deleted.
+  `feature/webui`, `feature/account-login` and `feature/render-deploy` are never touched.
+
 | # | Item | Source | Done when |
 |---|---|---|---|
 | 1.1 | Bring the ROADMAP up to date with the agent chat, availability and staging work since Stage 6, and link this plan | [ROADMAP](../../../ROADMAP.md) | ROADMAP lists these phases and their status |
 | 1.2 | Fix stale status lines: the [slots spec](../specs/2026-10-12-agent-request-slots-design.md) ("not merged"), the [evals design](../specs/2026-10-10-agent-evals-design.md) ("Not built yet") and the [NSRDB geospatial design](../specs/2026-09-24-nsrdb-geospatial-availability-design.md) ("owner review is required"; check whether the 2026-10-13 coverage masks superseded it) | the documents | Each status matches what is in `main` |
 | 1.3 | Find the flaky test: one failure in a slow 8-minute run on 2026-10-30, none on rerun. Rerun the suite under load and record any failure | 2026-10-30 release | The test is named and fixed, or documented as timing-sensitive |
+| 1.4 | Delete the merged branches and their worktrees (see the owner answers above) | Owner answer 2026-10-30 | Each confirmed merged, then deleted locally and on origin |
 
 ## Phase 2 — Finish the agent evals (about 3 days)
 
@@ -138,7 +153,7 @@ Branch: `feature/platform-backlog` (7.1–7.2) and `feature/science-backlog` (7.
 | Telling OneBuilding that the CTZ and LuxTMY published paths return 404 | An external message |
 | Production promotion (`feature/render-deploy`) and accounts | Owner said no promotion for now |
 | `feature/webui` (49 unique UI commits) and `feature/account-login` | Owner's branches |
-| Deleting merged branches (`feature/agent-request-lookups`, `feature/availability-followups`, `docs/record-staging-pin`) and their worktrees | Deletion needs explicit approval |
+| Deleting merged branches | Deletion needs explicit approval; the three merged branches were approved on 2026-10-30 (phase 1.4) |
 | Merging, deploying, open-data pushes and Render pins after each phase | Release go-ahead |
 
 ## Order and total
