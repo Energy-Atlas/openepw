@@ -33,6 +33,9 @@ Offline tests use synthetic data and injected HTTP transports. `OPENEPW_RUN_LIVE
 enables provider acceptance checks in `tests/integration`; credentials load from
 ignored `.env` explicitly inside those checks. Expensive climate checks additionally
 require `OPENEPW_RUN_CLIMATE=1`. Do not run them merely to test unrelated changes.
+Each offline test runs in its own temporary working directory, with a fake `OPENAI_API_KEY` and
+the LangSmith variables cleared (`tests/conftest.py`). So a local `.env` and exported keys never
+change the result, and tests never trace to LangSmith. Live tests keep the real environment.
 Stage 1 disposable probe scripts are excluded from production lint; compile checks
 cover them. Windows/Linux/macOS CI is configured for Python 3.11 and 3.13. Report
 actual local and CI results separately. EnergyPlus smoke validation is optional
