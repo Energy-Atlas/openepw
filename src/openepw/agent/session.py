@@ -15,6 +15,7 @@ from .interactions import Answer, Event, Interaction
 from .mcp_port import ApprovalBook, MCPPort, ToolFailure, ToolResult
 from .moderation import ModerationPort, ModerationUnavailable, epw_text_fields
 from .policy_config import SecurityPolicy, default_policy
+from .slots import request_form
 from .state import Facts, SessionState, points_in
 from .store import SessionStore
 from .text import safe_prompt, written_points
@@ -113,6 +114,11 @@ class AgentSession:
 
     def events(self, after: int = 0) -> list[Event]:
         return self.store.events(self.id, after)
+
+    @property
+    def seq(self) -> int:
+        """The newest event's number: the input a part's origin points to."""
+        return self.store.last_seq(self.id)
 
     def emit(self, type: str, text: str = "", **data: Any) -> Event:
         return self.store.append(self.id, type, text, data)
@@ -447,6 +453,26 @@ class AgentSession:
                           code="MODEL_UNAVAILABLE")
             return
         await self._guard(switch(self, mode), "mode", {"mode": mode})
+
+    async def show_request(self) -> None:
+        """Show the request summary on request (CLI /request); see open_request_summary."""
+        if self._refuse_if_ended():
+            return
+        await self._guard(self._show_request(), "request")
+
+    async def _show_request(self) -> None:
+        self.open_request_summary()
+
+    def open_request_summary(self) -> Interaction:
+        """Open the request summary over the current form, which ``return_to`` remembers (in agent
+        mode approving it reopens that form; Change replaces it)."""
+        form = self.form
+        if form is not None and form.gate == "review_request":
+            back = form.data.get("return_to")
+        else:
+            back = form.model_dump(mode="json") if form is not None else None
+        summary = request_form(self.facts, max_chars=self.security.external_text.max_chars)
+        return self.open_form(summary.model_copy(update={"data": {**summary.data, "return_to": back}}))
 
     async def new_request(self) -> None:
         if self._refuse_if_ended():

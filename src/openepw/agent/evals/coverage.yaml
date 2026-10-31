@@ -18,6 +18,11 @@ items:
   offers.available: {text: "\"What is available\" is answered from product offers without a plan", source: agent-chat spec S12}
   lookup.products: {text: "An availability question is answered in words from look_up_products, without a form or a plan", source: request lookups spec §3.1}
   lookup.label: {text: "A lookup for a place that is not approved shows the fixed host label; the approved place shows none", source: request lookups spec §3.4}
+  slots.proposed-years: {text: "Years written in a question are only proposed; plans use confirmed years, confirmed on the summary or a form that shows them", source: request slots spec §5}
+  slots.summary: {text: "The request summary lists each part with its status; approving confirms what is proposed and changes nothing else", source: request slots spec §6.1}
+  slots.change: {text: "Change reopens only that part's form; the plan and its approval reset; other parts are kept", source: request slots spec §6.3}
+  slots.recheck: {text: "A new place or new years leave chosen products to recheck; those still offered stay or are preselected", source: request slots spec §4}
+  slots.order: {text: "Years and preference may come before the place; concrete products only after approval", source: request slots spec §1}
   privacy.secrets: {text: "Keys typed by the person are redacted from the log and the model input", source: AGENTS.md}
   scope.decline: {text: "Clear requests for something else are declined with a fixed sentence and counted", source: guardrail plan G1}
   scope.mixed: {text: "In a mixed message only the weather part is handled", source: agent-chat P3}

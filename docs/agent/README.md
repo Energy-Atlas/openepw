@@ -34,8 +34,11 @@ the catalog to see per-location availability (see [usage](../usage.md)):
 ```
 
 One process runs jobs for a data root: stop `openepw serve` or use another data root
-(`DATA_ROOT_BUSY` otherwise). Commands: `/back`, `/new`, `/upload <path>`, `/status`,
-`/mode [agent|guided]`, `/help`, `/quit`. Sessions are saved in
+(`DATA_ROOT_BUSY` otherwise). Commands: `/back`, `/new`, `/request` (the request summary),
+`/upload <path>`, `/status`, `/mode [agent|guided]`, `/help`, `/quit`. At the request summary
+or the plan review, `ok` confirms (`run` runs the plan) and `change years` (or `place`,
+`products`, `preference`) changes one part; at a product form with products preselected, `ok`
+keeps them. Sessions are saved in
 `<data root>/agent/sessions.sqlite`; an unknown `--session` ID is reported as
 `SESSION_NOT_FOUND`, and a saved agent session resumed without a key continues in guided mode.
 
@@ -66,11 +69,12 @@ requested trace cannot start, and the web server logs the same at start-up.
 ## Forms and gates
 
 Every step is a typed form (`text`, `choice`, `location_review`, `product_choice`, `map_input`,
-`upload`, `plan_review`). Guided mode asks them in the gate order: place → location review
-(with fixed standard-time offsets) → products → years (actual-year only) → plan review → run →
-job progress → next steps (charts, compact ZIP, new request). Plans are built by the host from
-the approved review, chosen offers and the years the person wrote; a model-supplied plan request
-is rewritten the same way. "Run" submits only the plans the open review shows: any change
+`upload`, `plan_review`, `request_summary`). Guided mode asks them in the gate order: place →
+location review (with fixed standard-time offsets) → products → years (actual-year only) →
+request summary (only when years are just asked about) → plan review → run → job progress →
+next steps (charts, compact ZIP, new request). Plans are built by the host from the approved
+review, chosen offers and the person's confirmed years; a model-supplied plan request is
+rewritten the same way. "Run" submits only the plans the open review shows: any change
 (years, products, place) replans and reopens the review first. Each plan approval answers
 exactly one submission confirmation, and an approval is dropped if the submission fails before
 the server asks. Future weather stays suspended (scenario names such as SSP5-8.5, RCP 4.5 or
@@ -82,6 +86,51 @@ crosses a started job, and keeps uploaded or retrieved EPW artifacts. An unexpec
 the open form and shows `INTERNAL_ERROR` with a correlation id that is logged locally; the
 exception text is not shown. Credentials and local paths in what the person types are replaced
 (`[redacted]`, `[local path]`) before anything is logged or sent to a model.
+
+## Request parts, the summary and Change
+
+A request has four parts the person sets, each with a status derived from the facts
+([request slots design](../superpowers/specs/2026-10-30-agent-request-slots-design.md),
+`openepw.agent.slots`):
+
+| Part | Value | Status |
+| --- | --- | --- |
+| place | the reviewed points | `proposed` until the location review is approved, then `confirmed` |
+| preference | actual year / typical year / TMYx, and a provider | `confirmed` when the person wrote it or chose on a form; `proposed` when only the model's filter set it |
+| products | the chosen offers | `confirmed` when chosen on the product form; `recheck` after a change elsewhere |
+| years | the years written | `proposed` for years written in a question ("is 2018 available?", "2018?"), else `confirmed` |
+
+Each part also records its origin (the person's message, a form, the host, or the model). Plans
+use confirmed parts only: a plan with years that are only asked about is refused with
+`GATE_REQUIRED`, need `review_request`. Choosing products on a form that shows those years ("For
+1950. Listed: …") confirms them; otherwise the request summary does.
+
+Changing one part resets only what depends on it, and always the plan and its approval:
+
+- **New place:** a new review; years and preference kept; the chosen products are kept to
+  recheck, and after approval the product form shows them preselected where still offered.
+- **New years:** offers are fetched again before planning. Products still offered stay
+  confirmed with their new availability; any other is reported (`PRODUCTS_RECHECK`) and the
+  product form opens again with the remaining ones preselected.
+- **New preference:** chosen products that no longer fit it are rechecked.
+
+The **request summary** (`request_summary`, gate `review_request`) lists the parts with their
+status and origin (also in `data.parts`). Approve confirms what is proposed and changes nothing
+else. It opens when years were only asked about (need `confirm_request`), on `/request`, on the
+model's `review_request`, or in guided mode on "show my request". The **plan review** lists the
+same parts. Both offer **Change** for each part (`change:<part>`; products only after the place is
+approved). Change is handled by the host in both modes, with no model call: the plan resets, a
+model question still open is closed as `{"status": "person_changed", "part": …}`, and only that
+part's form opens (the place input, the years form with the current years, or the product form
+with the current choice preselected). After it is answered the host replans and shows the plan
+review. Change takes a snapshot, so Back undoes it; both are refused once a job started from the
+plan (`JOB_STARTED`). Typed text still answers an open form; in agent mode text at a Change form
+is read by the host rules.
+
+Sessions saved before these parts existed load unchanged (every year and product confirmed).
+Sessions saved now carry three new fields that older code rejects, so rolling a deployment back
+would make newer sessions unreadable. The web chat (`web/chat-ui`) still runs the legacy
+`/v1/chat` routes and shows none of this until the agent core is hosted there (P4).
 
 ## Agent mode
 
@@ -96,6 +145,7 @@ schemas, minus the two the host wraps, plus these host ask-tools:
 | `ask_choice(prompt, options, multi?)` | choice list | chosen option ids |
 | `request_map_input(prompt)` | place input | the place or geography |
 | `request_upload(prompt)` | EPW upload | the artifact id |
+| `review_request()` | request summary | `confirmed` and the parts (a Change goes to the host) |
 | `review_plan()` | plan review | submitted job ids (the host submits) |
 
 One host lookup tool answers availability questions in words, without a form
@@ -120,8 +170,12 @@ The host gatekeeper applies to every call:
 - submit, cancel, retry, export, upload and the legacy tools return `TOOL_NOT_ALLOWED`;
 - `weather_locations_review` and `weather_product_offers` return `USE_ASK_TOOL`, so a review
   always shows a form;
-- `weather_plan` is rewritten to the approved locations, chosen datasets and years the person
-  wrote, or answered `GATE_REQUIRED` with the ask-tool to call (`need`).
+- `weather_plan` is rewritten to the approved locations, chosen datasets and confirmed years,
+  or answered `GATE_REQUIRED` with the ask-tool to call (`need`: `review_location`,
+  `choose_products`, `ask_text` or `review_request`).
+
+The state block the model sees each step is the parts table (part, status, value, origin) plus
+the plans, jobs, EPW artifacts and the open form.
 
 The assistant helps with weather files for building simulation. The model sorts messages into
 four kinds:
@@ -146,7 +200,9 @@ for now", "bye") get a short host reply without a next step. In a mixed message 
 handled and the model calls the host tool `decline_part` (`rule_change`, `unrelated` or `needs_data`):
 the host shows one fixed sentence once per session (`PART_DECLINED`), for example "Only you can start a
 run, from the plan review", and the turn goes on without a strike. Availability questions ("Does NSRDB
-have 2023 for Ithaca, NY?") are answered in words from `look_up_products`; the product form still states,
+have 2023 for Ithaca, NY?"), including requests phrased as questions ("Can I get TMYx for Phoenix?"),
+are answered in words from `look_up_products`; if something fits and the person seems to want files,
+the model then opens the location review in the same turn. The product form still states,
 from the offers, what is listed for the place and years asked ("For 1950. Listed: ERA5 actual year ·
 Open-Meteo …"). Questions about the data itself are answered after the run.
 A knowledge answer that only repeats the question is sent back to the model once. Guided mode gives no
@@ -155,7 +211,9 @@ S23–S26, S28, S31, S36–S44 and S48–S52 check this; S12, S50 and S53–S55 
 form's availability line.
 
 Text typed while an ask-tool form is open becomes that tool's answer, so corrections reach the
-model. A turn stops after 8 tool steps, 2 retries of one failing tool or 60 seconds; malformed
+model. Years in it are recorded first; when the text reads as a question the result adds
+`proposed_years` and the hint to answer with `look_up_products` and confirm with
+`review_request` before `weather_plan`. A turn stops after 8 tool steps, 2 retries of one failing tool or 60 seconds; malformed
 calls get one repair attempt and then the guided form for that step. If the model is unavailable
 (no key, budget stop, network or provider error) the session switches to guided mode and keeps
 its facts. After a run finishes, the model summarises the host's job message (QC issue codes,
@@ -251,7 +309,7 @@ execution notes: [agent evals plan](../superpowers/plans/2026-10-10-agent-evals.
 `--output-dir` and `--baseline`. Evals are advisory and offline in automated checks; live runs
 are manual (there is no GitHub CI).
 
-**Tasks.** One YAML file per task in `openepw/agent/evals/tasks/` (43 tasks, S1–S55), validated on load:
+**Tasks.** One YAML file per task in `openepw/agent/evals/tasks/` (51 tasks, S1–S63), validated on load:
 an unknown key, grader, grader value or coverage id is an error naming the file and line. A task
 has:
 
@@ -259,9 +317,9 @@ has:
   guardrail plan that the task protects), `suite` (`regression` or `capability`) and `tags`;
 - `modes` and `profiles` it runs under, and `setup`: an uploaded synthetic EPW with planted text,
   provider outages near points, and moderation (`default`: the real endpoint in live runs and the
-  stub offline; `stub`; `unavailable`);
+  stub offline; `stub`; `unavailable`), and offers the stub catalog does not list for some years (`unlisted`);
 - `user`: what the person says (`say`, then `then`) and how they answer each form kind
-  (`approve`, option ids or `first`, `say:<text>` to type instead, other text, or null to stop);
+  (`approve`, `run` or `change:<part>`, a list of them used in turn at a review, option ids, `first` or`n  `selected`, `say:<text>` to type instead, other text, or null to stop);
 - `graders`: the checks for this task, each with a value, an optional `severity`, an optional
   `profile` (S33 expects the session to end under `hosted` and only a warning under `local`) and an
   optional `mode` (S8 expects `PART_DECLINED` only in agent mode);
@@ -277,8 +335,8 @@ the trial; soft is tracked only) and returns the trace entries that decided it. 
 pattern and a broader one of the eval's own), `HIDDEN_CHARACTERS` and `SECRET_LEAK`. Listed by
 tasks: forms and tools in order, no tools, absent tools, absent forms, text shown anywhere, submitted, years, plan products, review
 points, offsets, reply text required or forbidden, reply length (soft), session ended, strikes,
-guard codes present or absent, a labelled knowledge answer, text on forms, and text that must or
-must not reach the model.
+guard codes present or absent, a labelled knowledge answer, text on forms, text that must or
+must not reach the model, and the final status of request parts (`PART_STATUS`).
 
 **Trial records.** Every trial, passing or not, is one JSON line in
 `<data root>/evals/<run id>/trials.jsonl` (default data root `.local/openepw`, ignored by git):
@@ -313,7 +371,8 @@ out of pass rates. Budget, client (other HTTP) and reply failures still fail the
 - `openepw eval mutate` switches off one guard at a time inside the process (links, outside-text
   cleaning, input normalisation, redaction, moderation, the strike limit, strike counting, the
   short-message rule, small talk, the off-topic clamp, readiness correction, the years gate, the
-  host-tool gate and the plan-approval gate) and runs the tasks that cover it offline; each must
+  host-tool gate, the plan-approval gate, proposed years, summary confirmation, product recheck
+  and Change) and runs the tasks that cover it offline; each must
   make at least one task fail;
 - `openepw eval lint` reports agent tasks without a script, tasks without coverage, graders
   without fixtures, code checks for codes the agent never records or that the profile cannot

@@ -349,6 +349,24 @@ def _years(view: View, value: list[int], ctx: Context) -> tuple[bool, list[int],
     return ok, [] if ok else [view.outcome_index], "" if ok else f"years were {years}"
 
 
+PartStatus = dict[Literal["place", "preference", "products", "years"],
+                  Literal["empty", "proposed", "confirmed", "recheck"]]
+
+
+@grader("part_status", "PART_STATUS", "Each named request part ends with this status",
+        "Plans use confirmed parts only; a change elsewhere must leave a part to recheck (slots design §3).",
+        value=PartStatus)
+def _part_status(view: View, value: dict[str, str], ctx: Context) -> tuple[bool, list[int], str]:
+    from ..slots import status
+    from ..state import Facts
+
+    facts = Facts.model_validate(view.facts())
+    wrong = {part: status(facts, part) for part, wanted in value.items()  # type: ignore[arg-type]
+             if status(facts, part) != wanted}                            # type: ignore[arg-type]
+    return (not wrong, [view.outcome_index] if wrong else [],
+            ", ".join(f"{part} was {found}" for part, found in wrong.items()))
+
+
 @grader("plan_products_exclude", "PLAN_PRODUCT", "No plan uses these products",
         "A year with a typical-year product does not make it actual-year weather.", value=list[str])
 def _plan_products_exclude(view: View, value: list[str], ctx: Context) -> tuple[bool, list[int], str]:

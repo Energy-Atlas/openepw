@@ -1,0 +1,39 @@
+id: S57
+title: Change years from the plan review keeps the place and products
+purpose: 'At the plan review the person changes only the years. The host reopens the years form, keeps the approved
+  place and the chosen product (still offered, so still confirmed), makes a new plan and shows it; only Run submits.
+  Change needs no model call (slots design §6.3).'
+covers: [slots.change, slots.recheck, gate.plan-approval]
+tags: [workflow]
+user:
+  say: AMY 2018 for Ithaca, NY
+  answers: {location_review: approve, product_choice: [era5-openmeteo], choice: first, map_input: 'Ithaca, NY',
+    text: '2019', plan_review: ['change:years', run]}
+graders:
+- grader: forms_in_order
+  value: [location_review, product_choice, plan_review, text, plan_review]
+- grader: tools_in_order
+  value: [weather_plan, weather_plan, weather_submit]
+- {grader: years, value: [2019]}
+- grader: part_status
+  value: {place: confirmed, products: confirmed, years: confirmed}
+- {grader: review_points, value: 1}
+- {grader: submitted, value: true}
+script:
+- call: weather_geocode
+  args: {query: 'Ithaca, NY'}
+- call: review_location
+  args:
+    locations: {lat: 42.44, lon: -76.5, name: 'Ithaca, New York, United States'}
+- call: choose_products
+  args: {}
+- call: weather_plan
+  args:
+    request:
+      product: historical
+      years: [2018]
+      dataset_selections: [{provider: openmeteo, dataset: era5}]
+- call: review_plan
+  args: {}
+- say: The job finished with one EPW for 2019; it is not certified simulation-ready (simulation_ready=false), see its
+    QC.

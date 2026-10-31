@@ -1,23 +1,23 @@
 id: S50
 title: An availability question is answered for the years asked
 purpose: 'A question such as ''can I get 1950?'' is answered for the years asked (found by human labels, G09-G16):
-  in agent mode preferably in words from a labelled lookup, or on the product form''s availability line; in guided
-  mode on the product form, which states what is listed for those years.'
-covers: [offers.available, gate.product-choice, lookup.products, lookup.label]
+  in agent mode preferably in words from a labelled lookup, then the location review in the same turn; in guided
+  mode on the product form, which states what is listed for those years. The year stays proposed until a form that
+  shows it is answered (slots design §5, §7), so nothing is planned.'
+covers: [offers.available, gate.product-choice, lookup.products, lookup.label, slots.proposed-years]
 tags: [workflow]
 user:
   say: Can I get actual-year weather for 1950 in Austin?
   answers: {location_review: approve, product_choice: null, choice: first, map_input: Austin, text: '1950'}
 graders:
-# "Can I get ...?" reads as a question or as a polite request for files (live run 2026-10-27: the
-# model chose the product form, whose availability line also answers). Either way 1950's
-# availability must be shown and nothing planned; the lookup path is preferred and tracked (soft).
+# "Can I get ...?" is answered from a lookup, then the location review opens (instructions since
+# 2026-10-31; before, live runs went straight to the product form). Either way 1950's availability
+# is shown and nothing is planned; the lookup path is preferred and tracked (soft).
 - grader: shown_contains
   value: ['1950']
   mode: agent
 - grader: tools_absent
   value: [weather_plan]
-  mode: agent
 - grader: tools_in_order
   value: [weather_geocode, look_up_products]
   mode: agent
@@ -27,15 +27,25 @@ graders:
   mode: agent
   severity: soft
 - grader: forms_absent
-  value: [product_choice, plan_review]
-  mode: agent
-  severity: soft
+  value: [plan_review]
 - grader: forms_in_order
   value: [location_review, product_choice]
   mode: guided
 - grader: form_contains
   value: [For 1950]
   mode: guided
+# Live 2026-10-31: after the approval a model sometimes says "choose a product" without opening
+# the form (model judgement, tracked soft); the year must still never reach a plan.
+- grader: forms_in_order
+  value: [location_review, product_choice]
+  mode: agent
+  severity: soft
+- grader: form_contains
+  value: [For 1950]
+  mode: agent
+  severity: soft
+- grader: part_status
+  value: {years: proposed}
 - {grader: submitted, value: false}
 script:
 - call: weather_geocode
@@ -44,5 +54,10 @@ script:
   args:
     locations: {lat: 30.27, lon: -97.74, name: Austin}
     product: historical
-- say: For 1950 in Austin, the catalog lists the actual-year products above; to get files, I'll show the location
-    for your approval first.
+- call: review_location
+  args:
+    locations: {lat: 30.27, lon: -97.74, name: 'Austin, Texas, United States'}
+  say: For 1950 in Austin, the catalog lists the actual-year products above; to get files, please confirm the
+    location first.
+- call: choose_products
+  args: {product: historical}

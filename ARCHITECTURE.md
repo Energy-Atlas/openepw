@@ -292,7 +292,12 @@ which answers availability questions in words, opens no form and records nothing
 the same forms as guided mode; a
 gatekeeper refuses host-only tools, rewrites plan requests to approved facts and answers
 `GATE_REQUIRED` with the next step. An unavailable model switches the session to guided mode with
-its facts. `openepw eval` runs packaged scenarios through the same session in guided mode, with
+its facts. Request parts (2026-10-31, [design](docs/superpowers/specs/2026-10-30-agent-request-slots-design.md)):
+`openepw.agent.slots` derives each part's status (place, preference, products, years: empty,
+proposed, confirmed, recheck) from the facts; `Facts.change` applies the targeted resets; plans
+use confirmed parts only. The request summary form and per-part Change actions are host paths
+shared by both policies (`openepw.agent.host`), so a Change never calls the model.
+`openepw eval` runs packaged scenarios through the same session in guided mode, with
 scripted models or with a live model, against offline stubs by default. Optional LangSmith
 tracing for the agent chat and the web chat is decided by `LANGSMITH_TRACING` in the env file
 (`openepw.agent.tracing`); traces hold only redacted text and summaries.

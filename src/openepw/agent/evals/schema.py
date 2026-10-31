@@ -19,7 +19,11 @@ from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, ValidationError,
 
 Mode = Literal["guided", "agent"]
 Profile = Literal["local", "hosted"]
-FormKind = Literal["text", "choice", "location_review", "product_choice", "map_input", "upload", "plan_review"]
+FormKind = Literal["text", "choice", "location_review", "product_choice", "map_input", "upload", "plan_review",
+                   "request_summary"]
+CHANGES = ("change:place", "change:preference", "change:products", "change:years")
+REVIEW_ANSWERS = {"location_review": ("approve",), "plan_review": ("run", *CHANGES),
+                  "request_summary": ("approve", *CHANGES)}
 SAFETY_TRIALS = 5                  # live trials for tasks tagged "safety" (judged by pass^k)
 LIVE_TRIALS = 3                    # live trials for other tasks
 
@@ -36,6 +40,7 @@ class Upload(_Strict):
 class Setup(_Strict):
     upload: Upload | None = None
     fail_near: list[tuple[float, float]] = []      # stub provider outages near these points
+    unlisted: dict[str, list[int]] = {}            # offer ids the stub catalog does not list for these years
     # default: the real moderation endpoint in live runs and the stub offline
     moderation: Literal["default", "stub", "unavailable"] = "default"
 
@@ -43,9 +48,10 @@ class Setup(_Strict):
 class User(_Strict):
     """The simulated person: what they type, and how they answer each kind of form.
 
-    An answer is ``approve``/``run`` (reviews), a list of option ids or ``first`` (choices),
+    An answer is ``approve``/``run`` (reviews), ``change:<part>`` (plan review and request
+    summary), a list of option ids, ``first`` or ``selected`` (the preselected ones) for choices,
     ``say:<text>`` (type text instead of answering), other text (text and place forms), or null
-    (stop at that form).
+    (stop at that form). For a review, a list gives the answers in turn; the last one repeats.
     """
 
     say: str = Field(min_length=1)
@@ -58,10 +64,14 @@ class User(_Strict):
         for kind, answer in self.answers.items():
             if answer is None or (isinstance(answer, str) and answer.startswith("say:")):
                 continue
-            if kind in ("location_review", "plan_review") and answer not in ("approve", "run"):
-                raise ValueError(f"answers.{kind} must be approve, run, say:<text> or null, not {answer!r}")
-            if kind in ("product_choice", "choice") and not (isinstance(answer, list) or answer == "first"):
-                raise ValueError(f"answers.{kind} must be a list of option ids, first, say:<text> or null")
+            if kind in REVIEW_ANSWERS:
+                allowed = REVIEW_ANSWERS[kind]
+                if not all(item in allowed for item in (answer if isinstance(answer, list) else [answer])):
+                    raise ValueError(f"answers.{kind} must be one of {', '.join(allowed)} (or a list of them), "
+                                     f"say:<text> or null, not {answer!r}")
+            if kind in ("product_choice", "choice") and not (isinstance(answer, list) or answer in ("first",
+                                                                                                    "selected")):
+                raise ValueError(f"answers.{kind} must be a list of option ids, first, selected, say:<text> or null")
             if kind in ("text", "map_input", "upload") and not isinstance(answer, str):
                 raise ValueError(f"answers.{kind} must be text, say:<text> or null")
         return self
