@@ -9,7 +9,7 @@ prerequisites listed for it.
 | 1 | Done 2026-10-30. The test isolation fix (`fix/offline-test-isolation`) was merged into `main` on the owner's go-ahead the same day |
 | 2 | Deferred, not worked (owner, 2026-10-30): LangSmith is not available for now |
 | 3 | Done: spec and plan approved by the owner on 2026-10-31 with the §14 defaults |
-| 4 | Built 2026-10-31 on `feature/agent-request-slots`; live check about $0.22 of the $1 cap; waiting for the owner's review |
+| 4 | Done 2026-10-31: built on `feature/agent-request-slots` (live check about $0.22 of the $1 cap) and merged into `main` on the owner's go-ahead |
 | 5–7 | Not started |
 
 This list replaces the scattered open items in the older plans. Each item names its source so that
@@ -291,7 +291,7 @@ owner's answers at the start are under phase 3 above.
 
 ### Phase 4 (2026-10-31)
 
-Started on the owner's word above. Branch `feature/agent-request-slots`, pushed; not merged.
+Started on the owner's word above. Branch `feature/agent-request-slots`, pushed.
 Details, routine choices, deviations and the live check are in the
 [slots plan](2026-10-30-agent-request-slots.md) §4.
 
@@ -301,5 +301,8 @@ Details, routine choices, deviations and the live check are in the
 - 4.3: live check, about $0.22 of the $1 cap. Hard checks held in every trial; the model
   sometimes stops with text where a form should open (tracked soft in S50 and S56).
 - 4.4: agent README, ARCHITECTURE, FEATURES, ADR 0005 note, ROADMAP and the status lines.
-- Open for the owner: review and merge of the branch; P4; whether to delete the merged branches
-  `fix/offline-test-isolation`, `docs/defer-phase-2` and `docs/agent-request-slots`.
+- **Owner review (2026-10-31):** "go ahead and merge … We may delete the merged branches." The
+  branch was merged into `main`; the merged branches `fix/offline-test-isolation`,
+  `docs/defer-phase-2` and `docs/agent-request-slots` were deleted locally and on `origin`.
+- Still open: whether P4 (the web chat on the agent core) becomes a phase. The owner asked for an
+  explanation of P4 first.

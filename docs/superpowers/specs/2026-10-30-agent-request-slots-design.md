@@ -3,7 +3,7 @@
 **Status:** written 2026-10-30 in phase 3 of the
 [outstanding work plan](../plans/2026-10-30-outstanding-work.md). **Approved by the owner on
 2026-10-31** with the §14 defaults (questions 1–3) and a $1 live check cap; question 4 (P4 as a
-phase) was not decided. Built in phase 4 on `feature/agent-request-slots`; see the
+phase) was not decided. Built in phase 4 and merged into `main` on 2026-10-31; see the
 [plan](../plans/2026-10-30-agent-request-slots.md) §4 for deviations and results.
 This covers phases (b), (c) and (d) of the [request slots proposal](2026-10-12-agent-request-slots-design.md).
 Phase (a) is the [request lookups design](2026-10-13-agent-request-lookups-design.md), merged on 2026-10-30.

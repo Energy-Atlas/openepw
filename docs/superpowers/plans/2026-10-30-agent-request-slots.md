@@ -3,7 +3,8 @@
 **Status:** written 2026-10-30 in phase 3 of the
 [outstanding work plan](2026-10-30-outstanding-work.md). **Approved by the owner on 2026-10-31**
 ("Approved with the defaults you specified. Keep $1 spending cap. Start implementing phase 4."),
-which ended phase 3. Implemented in phase 4 on `feature/agent-request-slots`; execution notes in §4.
+which ended phase 3. Implemented in phase 4 on `feature/agent-request-slots`; execution notes in §4. Merged into
+`main` on 2026-10-31 on the owner's go-ahead ("go ahead and merge").
 Design and owner answers: [spec](../specs/2026-10-30-agent-request-slots-design.md) (§1, open
 questions §14).
 
@@ -194,4 +195,7 @@ tool ran for the model. The remaining variation is model judgement (stopping wit
 form should open), tracked as soft checks in S50 and S56 as task 7 provides.
 
 **Not done.** No web change (P4 is not in any phase; the owner did not decide question 4).
-Nothing is merged into `main` or `deploy/staging`.
+`deploy/staging` is not changed.
+
+**Merge.** The owner reviewed the report and said ("go ahead and merge") on 2026-10-31; the branch was
+merged into `main` with a merge commit. `deploy/staging` was not touched.

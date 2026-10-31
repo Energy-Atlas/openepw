@@ -15,7 +15,7 @@ detail lives in those documents and in git history.
 | Agent chat, guardrails, evals, request lookups | In `main` and on staging | [ADR 0005](docs/decisions/0005-mcp-agent-chat.md), [agent README](docs/agent/README.md) |
 | Availability catalog | Open-data 2026.10.27; staging pinned to it on 2026-10-30 | [ADR 0003](docs/decisions/0003-mcp-availability-and-batches.md), the records below |
 | Hosted deployment | Render staging from `deploy/staging`; production not promoted | [Render guide](docs/deploy/render.md) |
-| Outstanding work | Phase 1 done 2026-10-30; phase 2 deferred (no LangSmith for now); phase 3 approved 2026-10-31; phase 4 built on `feature/agent-request-slots`, awaiting review; phases 5–7 not started | [outstanding work plan](docs/superpowers/plans/2026-10-30-outstanding-work.md) |
+| Outstanding work | Phase 1 done 2026-10-30; phase 2 deferred (no LangSmith for now); phase 3 approved 2026-10-31; phase 4 merged into `main` 2026-10-31; phases 5–7 not started | [outstanding work plan](docs/superpowers/plans/2026-10-30-outstanding-work.md) |
 
 ## v0.1 implementation — complete
 
