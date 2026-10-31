@@ -4,7 +4,8 @@
 `docs/superpowers/plans/2026-10-10-agent-evals.md`, was approved on 2026-10-10. E1, E2 and E4 (plan
 tasks 1–7) are built and merged; the plan's execution notes record what was built. E3, E5 and task 10
 are not built: they are phase 2 of the
-[outstanding work plan](../plans/2026-10-30-outstanding-work.md). It describes the
+[outstanding work plan](../plans/2026-10-30-outstanding-work.md), deferred by the owner on
+2026-10-30 while LangSmith is not available. It describes the
 eval framework as it is now, compares ways of grading, proposes a test-suite design, and
 proposes how to help a person inspect suite design, results and traces.
 

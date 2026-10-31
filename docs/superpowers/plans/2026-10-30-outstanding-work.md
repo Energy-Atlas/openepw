@@ -6,8 +6,9 @@ prerequisites listed for it.
 
 | Phase | State |
 | --- | --- |
-| 1 | Done 2026-10-30. The test isolation fix (`fix/offline-test-isolation`) waits for the owner's go-ahead |
-| 2–7 | Not started |
+| 1 | Done 2026-10-30. The test isolation fix (`fix/offline-test-isolation`) was merged into `main` on the owner's go-ahead the same day |
+| 2 | Deferred, not worked (owner, 2026-10-30): LangSmith is not available for now |
+| 3–7 | Not started |
 
 This list replaces the scattered open items in the older plans. Each item names its source so that
 detail stays where it was first written.
@@ -55,6 +56,11 @@ Owner answers (2026-10-30):
 
 ## Phase 2 — Finish the agent evals (about 3 days)
 
+**Deferred, not worked (owner, 2026-10-30):** "Let's say langsmith is not available for the
+moment - can we mark this stage as unworked and continue to the next stage?" Nothing in this phase
+was started. When it resumes, 2.1 (task 10) and the offline part of 2.3 need no LangSmith; 2.2 does,
+and the live judge pass in 2.3 still needs a cap.
+
 Branch: `feature/agent-evals-judges`. Source: the [agent evals plan](2026-10-10-agent-evals.md),
 tasks 8–11, which wait there.
 
@@ -71,7 +77,8 @@ Prerequisites:
 | 2.3 | E5, task 9: model judges for wrong declines, unsupported availability claims, answer correctness and helpfulness. They are calibrated against the owner's labels in `.local/openepw/labelling/pack-2026-10-12/labels.reviewed.csv` | Agreement and Cohen's kappa reported; judges stay soft; one live judge pass recorded within the cap |
 | 2.4 | Task 11: the agent README (evals, testing and trace guides), ARCHITECTURE, FEATURES, limitations and the evals plan's execution notes | Updated |
 
-This phase comes before phase 4, so the slots work is measured with the judges.
+This phase was meant to come before phase 4, so the slots work is measured with the judges. While
+it is deferred, phase 4 measures the slots with the rule graders only (see 4.2).
 
 ## Phase 3 — Design request slots (b)–(d) (about 1 day)
 
@@ -99,7 +106,7 @@ $1).
 | # | Item | Done when |
 |---|---|---|
 | 4.1 | Build (b), (c) and (d) to the approved phase 3 plan | ruff, mypy, pytest and the offline evals pass |
-| 4.2 | Eval tasks for the slots, with phase 2 judge checks | Agent and guided suites pass offline |
+| 4.2 | Eval tasks for the slots, with phase 2 judge checks if phase 2 has been done by then; otherwise rule graders only | Agent and guided suites pass offline |
 | 4.3 | Live check | Results recorded within the cap |
 | 4.4 | Agent README, ARCHITECTURE, FEATURES, and an ADR or ADR amendment | Updated |
 
@@ -158,13 +165,14 @@ Branch: `feature/platform-backlog` (7.1–7.2) and `feature/science-backlog` (7.
 | Telling OneBuilding that the CTZ and LuxTMY published paths return 404 | An external message |
 | Production promotion (`feature/render-deploy`) and accounts | Owner said no promotion for now |
 | `feature/webui` (49 unique UI commits) and `feature/account-login` | Owner's branches |
-| Deleting merged branches | Deletion needs explicit approval; the three merged branches were approved on 2026-10-30 (phase 1.4) |
+| Deleting merged branches | Deletion needs explicit approval; the three merged branches were approved on 2026-10-30 (phase 1.4), and `docs/outstanding-work-plan` after phase 1 the same day |
 | Merging, deploying, open-data pushes and Render pins after each phase | Release go-ahead |
 
 ## Order and total
 
 1 → 2 → 3 → 4, then 5 and 6 in either order, with 7 last. Phases 1–5 take about 14 days of
-agent work; all seven take about 21.
+agent work; all seven take about 21. With phase 2 deferred, the order is 1 → 3 → 4, then 5 and 6,
+then 7; phase 2 can be picked up whenever LangSmith is available or its use is waived.
 
 ## Execution notes
 
@@ -227,3 +235,10 @@ Started on the owner's word ("go ahead and implement phase 1"). Branch `docs/pha
     under `.local/openepw/`.
   - This session's own worktree (`.claude/worktrees/mcp-agent-request-slots-2459d2`) stays
     while the session uses it; the desktop app manages it.
+- **Owner review (2026-10-30):**
+  - "You may go ahead merging offline-test-isolation into main; leave deploy/staging unchanged."
+    Merged into `main` with a merge commit, because `main` had moved on by the phase 1 docs;
+    the published fix branch was not rebased. `deploy/staging` is unchanged.
+  - Deleting `docs/outstanding-work-plan` approved ("Ok"); confirmed merged, then deleted
+    locally and on origin.
+  - Phase 2 deferred, not worked, because LangSmith is not available for now.
