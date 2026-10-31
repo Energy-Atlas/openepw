@@ -231,6 +231,7 @@ def test_the_instructions_and_tools_name_the_request_summary():
     assert "review_request" in ASK_TOOLS and NEED_TOOL["confirm_request"] == "review_request"
     for system in (SYSTEM, SYSTEM_WITHOUT_KNOWLEDGE):
         assert "review_request" in system and "Can I get" in system and "same turn" in system
+        assert "review_location if the place is not approved yet" in system
 
 
 def test_cli_reads_ok_and_change_on_the_summary_and_plan_review():

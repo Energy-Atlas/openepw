@@ -232,6 +232,7 @@ def test_the_prompt_sends_availability_questions_to_the_lookup(tmp_path):
 
     for system in (SYSTEM, SYSTEM_WITHOUT_KNOWLEDGE):
         assert "look_up_products and say in one or two sentences, from its result only" in system
+        assert "review_location if the place is not approved yet" in system
         assert "A lookup chooses nothing" in system and "product form states" not in system
     h, model = agent(tmp_path, [say("Hello.")])
 

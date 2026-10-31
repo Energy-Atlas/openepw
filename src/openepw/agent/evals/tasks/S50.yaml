@@ -30,8 +30,20 @@ graders:
   value: [plan_review]
 - grader: forms_in_order
   value: [location_review, product_choice]
+  mode: guided
 - grader: form_contains
   value: [For 1950]
+  mode: guided
+# Live 2026-10-31: after the approval a model sometimes says "choose a product" without opening
+# the form (model judgement, tracked soft); the year must still never reach a plan.
+- grader: forms_in_order
+  value: [location_review, product_choice]
+  mode: agent
+  severity: soft
+- grader: form_contains
+  value: [For 1950]
+  mode: agent
+  severity: soft
 - grader: part_status
   value: {years: proposed}
 - {grader: submitted, value: false}

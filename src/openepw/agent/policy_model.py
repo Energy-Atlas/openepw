@@ -79,8 +79,9 @@ def _scope(knowledge: bool) -> str:
             "Questions about availability (which products or years exist for a place), including a request "
             "phrased as a question (\"Can I get ...\", \"Is there ... for ...\"): resolve the place, call "
             "look_up_products and say in one or two sentences, from its result only, what is and isn't "
-            "listed. Then, if something fits and the person seems to want files, call review_location in "
-            "the same turn; otherwise open no form.\n")
+            "listed. Then, if something fits and the person seems to want files, take the next step in the "
+            "same turn: review_location if the place is not approved yet; if it is, choose_products, or "
+            "review_request for years only asked about. Otherwise open no form.\n")
 
 
 _RULES = """The host enforces these rules; you cannot bypass them:
@@ -284,8 +285,8 @@ class ModelPolicy:
         if facts.proposed_years:
             # Years in a question are proposed; the gate refuses a plan with them (design §5.3).
             result["proposed_years"] = facts.proposed_years
-            result["next"] = ("Answer the question with look_up_products, then confirm with review_request "
-                              "before weather_plan")
+            result["next"] = ("Answer the question with look_up_products, then call review_request (a form; "
+                              "do not ask in text) to confirm before weather_plan")
         elif facts.confirmed_years and facts.chosen and needs_years(facts) and not facts.plans:
             result["next"] = "weather_plan with the chosen requests and these years, then review_plan"
         return result
