@@ -38,10 +38,11 @@ def next_need(facts: Facts) -> str:
         return "where"
     if not _reviewed(facts):
         return "review_location"
-    if not facts.chosen:
+    if not facts.chosen or facts.recheck:
         return "choose_products"
-    if needs_years(facts) and not facts.years:
-        return "years"
+    if needs_years(facts) and not facts.confirmed_years:
+        # Years written only in a question are confirmed on the request summary.
+        return "confirm_request" if facts.proposed_years else "years"
     if not facts.plans:
         return "plan"
     if not facts.job_ids or any(plan.get("output_count") and not plan.get("job_id")
@@ -55,12 +56,17 @@ def _selection(value: dict[str, Any]) -> dict[str, Any]:
 
 
 def build_requests(facts: Facts) -> list[dict[str, Any]]:
-    """One request per kind from the approved review, chosen offers and stated years."""
+    """One request per kind from the approved review, chosen offers and confirmed years."""
     if not _reviewed(facts):
         raise GateRequired("review_location", "The person has not approved these locations")
     if not facts.chosen:
         raise GateRequired("choose_products", "The person has not chosen a weather product")
-    if needs_years(facts) and not facts.years:
+    if facts.recheck:
+        raise GateRequired("choose_products", "A change means the person must choose the products again")
+    if needs_years(facts) and not facts.confirmed_years:
+        if facts.proposed_years:
+            raise GateRequired("confirm_request", "The person asked about these years but has not "
+                                                  "confirmed them; show the request summary")
         raise GateRequired("years", "Actual-year weather needs the person's years")
     assert facts.review is not None
     base = {"locations": facts.review["geography"], "sampling": facts.review.get("sampling") or {}}
@@ -73,7 +79,7 @@ def build_requests(facts: Facts) -> list[dict[str, Any]]:
     queued = [offer for offer in actual if any(item["provider"] in QUEUED_PROVIDERS
                                                for item in offer["request"]["dataset_selections"])]
     direct = [offer for offer in actual if offer not in queued]
-    requests = [{**base, "product": "historical", "years": list(facts.years),
+    requests = [{**base, "product": "historical", "years": facts.confirmed_years,
                  "dataset_selections": selections(group)} for group in (direct, queued) if group]
     if typical:
         kinds = {offer["request"]["product"] for offer in typical}
@@ -86,8 +92,9 @@ def check_plan_request(facts: Facts, request: dict[str, Any]) -> dict[str, Any]:
     """Rewrite a proposed plan request to the approved facts, or say which step is missing.
 
     Locations and sampling always come from the approved review; datasets must be among the
-    chosen offers; years must be among the person's stated years. Typical products (TMY, TMYx,
-    published) are one group, so the chosen selections, not the product word, decide the match.
+    chosen offers; years must be among the person's confirmed years (years only asked about
+    need the request summary first). Typical products (TMY, TMYx, published) are one group, so
+    the chosen selections, not the product word, decide the match.
     """
     approved = build_requests(facts)
     historical = request.get("product", "historical") == "historical"
@@ -99,5 +106,8 @@ def check_plan_request(facts: Facts, request: dict[str, Any]) -> dict[str, Any]:
     years = sorted(set(request.get("years") or []))
     if not set(years) <= set(facts.years):
         raise GateRequired("years", "The plan's years differ from the years the person stated")
+    if set(years) & set(facts.proposed_years):
+        raise GateRequired("confirm_request", "The person asked about these years but has not "
+                                              "confirmed them; show the request summary")
     return {**match, "dataset_selections": proposed or match["dataset_selections"],
             "years": (years or match["years"]) if historical else []}

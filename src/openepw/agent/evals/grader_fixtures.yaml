@@ -207,6 +207,16 @@ fixtures:
   value: [2018]
   expect: fail
   record: {trace: [{type: outcome, data: {facts: {years: [2019]}}}]}
+- grader: part_status
+  value: {years: confirmed, products: recheck}
+  expect: pass
+  record: {trace: [{type: outcome, data: {facts: {years: [2018], recheck: true,
+    chosen: [{id: era5-openmeteo, request: {product: historical, dataset_selections: []}}]}}}]}
+- grader: part_status
+  value: {years: confirmed}
+  expect: fail
+  note: a year asked about in a question is only proposed
+  record: {trace: [{type: outcome, data: {facts: {years: [2018], proposed_years: [2018]}}}]}
 - grader: plan_products_exclude
   value: [historical]
   expect: fail

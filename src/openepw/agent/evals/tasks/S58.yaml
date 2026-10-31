@@ -1,0 +1,40 @@
+id: S58
+title: Change place from the plan review keeps years and preference and rechecks products
+purpose: 'At the plan review the person changes only the place. The years and the actual-year preference are kept;
+  after the new location is approved, the product form reopens with the product still offered preselected
+  (slots design §4), then a new plan is reviewed and run.'
+covers: [slots.change, slots.recheck, gate.location-review]
+tags: [workflow]
+user:
+  say: AMY 2018 for Ithaca, NY
+  answers: {location_review: approve, product_choice: selected, choice: first, map_input: Boston,
+    text: '2018', plan_review: ['change:place', run]}
+graders:
+- grader: forms_in_order
+  value: [location_review, product_choice, plan_review, map_input, location_review, product_choice, plan_review]
+- grader: form_contains
+  value: [those still offered are selected]
+- {grader: years, value: [2018]}
+- grader: part_status
+  value: {place: confirmed, preference: confirmed, products: confirmed, years: confirmed}
+- grader: shown_contains
+  value: [Boston]
+- {grader: submitted, value: true}
+script:
+- call: weather_geocode
+  args: {query: 'Ithaca, NY'}
+- call: review_location
+  args:
+    locations: {lat: 42.44, lon: -76.5, name: 'Ithaca, New York, United States'}
+- call: choose_products
+  args: {}
+- call: weather_plan
+  args:
+    request:
+      product: historical
+      years: [2018]
+      dataset_selections: [{provider: openmeteo, dataset: era5}]
+- call: review_plan
+  args: {}
+- say: The job finished with one EPW for Boston; it is not certified simulation-ready (simulation_ready=false), see
+    its QC.

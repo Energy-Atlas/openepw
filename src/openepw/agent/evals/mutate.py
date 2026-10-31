@@ -121,6 +121,27 @@ def _approval_gate_off() -> list[Any]:
     return [mock.patch("openepw.agent.session.AgentSession.answer", text_runs)]
 
 
+def _questions_off() -> list[Any]:
+    return [mock.patch("openepw.agent.policy_model.reads_as_question", lambda text: False),
+            mock.patch("openepw.agent.guided.reads_as_question", lambda text: False)]
+
+
+def _confirmation_off() -> list[Any]:
+    return [mock.patch("openepw.agent.host.confirm_request", lambda s: False)]
+
+
+def _recheck_off() -> list[Any]:
+    async def nothing(s: Any) -> None:
+        return None
+    return [mock.patch("openepw.agent.host.refresh_offers", nothing)]
+
+
+def _change_off() -> list[Any]:
+    async def refused(s: Any, part: str, advance: Any) -> None:
+        s.emit("error", "Choose one of the listed options.", code="UNKNOWN_CHOICE")
+    return [mock.patch("openepw.agent.host.change_part", refused)]
+
+
 def _has(module: str, name: str) -> bool:
     import importlib
 
@@ -147,6 +168,12 @@ MUTATIONS = [
     Mutation("host-tool-gate-off", "The model may call host-only tools", ("gate.host-tools",), _host_tool_gate_off),
     Mutation("approval-gate-off", "Text typed at the plan review counts as Run", ("gate.plan-approval",),
              _approval_gate_off),
+    Mutation("questions-off", "Years written in a question count as confirmed", ("slots.proposed-years",),
+             _questions_off),
+    Mutation("confirmation-off", "Approving the request summary confirms nothing", ("slots.summary",),
+             _confirmation_off),
+    Mutation("recheck-off", "Chosen products are not rechecked after new years", ("slots.recheck",), _recheck_off),
+    Mutation("change-off", "Change actions are refused", ("slots.change",), _change_off),
 ]
 
 

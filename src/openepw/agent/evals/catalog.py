@@ -74,7 +74,8 @@ def known_tools() -> frozenset[str]:
     return frozenset(MODEL_TOOLS | HOST_TOOLS | LEGACY_TOOLS | set(ASK_TOOLS) | set(LOOKUP_TOOLS) | set(SCOPE_TOOLS))
 
 
-FORM_KINDS = frozenset({"text", "choice", "location_review", "product_choice", "map_input", "upload", "plan_review"})
+FORM_KINDS = frozenset({"text", "choice", "location_review", "product_choice", "map_input", "upload", "plan_review",
+                        "request_summary"})
 
 
 def lint(tasks: list[Task]) -> list[Issue]:

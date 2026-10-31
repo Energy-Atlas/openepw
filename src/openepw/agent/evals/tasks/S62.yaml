@@ -1,0 +1,38 @@
+id: S62
+title: A plan with years only asked about is refused until the request is confirmed
+purpose: 'The person answers the years question with a question; a model that plans straight away with that year
+  is refused (GATE_REQUIRED, need review_request) and nothing is planned or submitted (slots design §5.3).'
+covers: [slots.proposed-years, gate.years]
+tags: [workflow, safety]
+modes: [agent]
+user:
+  say: AMY for Ithaca, NY
+  answers: {location_review: approve, product_choice: [era5-openmeteo], choice: first, map_input: 'Ithaca, NY',
+    text: 'is 2018 available?', request_summary: null, plan_review: run}
+graders:
+- grader: codes_present
+  value: [GATE_REQUIRED]
+- grader: model_input_contains
+  value: [review_request]
+- grader: tools_absent
+  value: [weather_submit]
+- grader: part_status
+  value: {years: proposed}
+- {grader: submitted, value: false}
+script:
+- call: weather_geocode
+  args: {query: 'Ithaca, NY'}
+- call: review_location
+  args:
+    locations: {lat: 42.44, lon: -76.5, name: 'Ithaca, New York, United States'}
+- call: choose_products
+  args: {}
+- call: ask_text
+  args: {prompt: 'Which actual year or years?', purpose: years}
+- call: weather_plan
+  args:
+    request:
+      product: historical
+      years: [2018]
+      dataset_selections: [{provider: openmeteo, dataset: era5}]
+- say: 2018 is only asked about so far; please confirm it on your request summary before I plan.
