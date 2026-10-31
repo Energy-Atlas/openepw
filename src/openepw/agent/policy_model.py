@@ -476,8 +476,9 @@ class ModelPolicy:
                     value += "; to recheck: call choose_products"
             elif part == "years" and facts.years:
                 value = (f"confirmed {facts.confirmed_years or 'none'}"
-                         + (f"; proposed {facts.proposed_years} (asked about in a question; confirm with "
-                            "review_request)" if facts.proposed_years else ""))
+                         + (f"; proposed {facts.proposed_years} (asked about in a question; choosing "
+                            "products on the product form, which shows them, confirms them; with products "
+                            "already chosen, confirm with review_request)" if facts.proposed_years else ""))
             origin = f" · {entry['origin']}" if entry["origin"] and status != "empty" else ""
             lines.append(f"- {part}: {status} ({value}){origin}")
         plans = "; ".join(f"{plan['plan_hash'][:16]} {plan['product']} {plan['output_count']} outputs"
@@ -833,8 +834,12 @@ class ModelPolicy:
             facts.approved_key = facts.review["key"]
             facts.origins["place"] = {"by": "form", "seq": s.seq}
             s.emit("assistant", "Location approved.")
+            # Live check 2026-10-31: after a lookup and this approval a model said "choose on the
+            # form" without opening it, so the result names the next step as other results do.
             return {"approved": True, "location_key": facts.review["key"],
-                    "point_count": facts.review["point_count"]}
+                    "point_count": facts.review["point_count"],
+                    "next": ("weather_plan" if facts.chosen and not facts.recheck else
+                             "choose_products (its form shows the years; choosing there confirms them)")}
         if name == "review_plan" and answer.approve:
             started = await host.run_plans(s, self._reopen_plan_review)
             if started or s.form is None:        # nothing new to run also answers the question

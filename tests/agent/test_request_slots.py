@@ -203,6 +203,7 @@ def test_agent_question_is_proposed_and_a_plan_with_it_is_refused(tmp_path):
             block = model.requests[-1]["items"][0]["text"]
             assert "Request parts (authoritative; plans use only confirmed parts):" in block
             assert "- years: proposed (confirmed none; proposed [2018]" in block
+            assert "confirm with review_request" in block
     run(main)
 
 

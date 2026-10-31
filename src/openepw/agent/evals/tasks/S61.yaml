@@ -1,13 +1,14 @@
 id: S61
-title: '"Can I get TMYx for Phoenix?" is looked up, then the location review opens'
-purpose: 'A request phrased as a question is answered from a lookup and, in the same turn, the location review
-  opens (slots design §7). The lookup is preferred (soft); the review before any product form and no plan are hard
-  checks. The typed TMYx is a confirmed preference.'
+title: '"Can I get actual-year weather for Phoenix?" is looked up, then the location review opens'
+purpose: 'A request phrased as a question is answered from a lookup and, since a product fits, the location review
+  opens in the same turn (slots design §7). The lookup is preferred (soft); the review before any product form and
+  no plan are hard checks. The typed product kind is a confirmed preference. (The offline stub lists actual-year
+  products only, so a TMYx question would correctly open no form.)'
 covers: [lookup.products, lookup.label, gate.location-review]
 tags: [workflow]
 modes: [agent]
 user:
-  say: Can I get TMYx for Phoenix?
+  say: Can I get actual-year weather for Phoenix?
   answers: {location_review: approve, product_choice: null, choice: first, map_input: Phoenix}
 graders:
 - grader: tools_in_order
@@ -26,10 +27,10 @@ script:
 - call: look_up_products
   args:
     locations: {lat: 33.45, lon: -112.07, name: Phoenix}
-    product: tmyx
+    product: historical
 - call: review_location
   args:
     locations: {lat: 33.45, lon: -112.07, name: 'Phoenix, Arizona, United States'}
-  say: The catalog result above says what is listed for Phoenix. To get files, please confirm the location first.
+  say: The catalog lists actual-year products for Phoenix (above). To get files, please confirm the location first.
 - call: choose_products
-  args: {product: tmyx}
+  args: {product: historical}
