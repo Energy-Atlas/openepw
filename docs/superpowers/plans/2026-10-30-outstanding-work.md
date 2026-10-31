@@ -1,8 +1,13 @@
 # Outstanding work after the 2026-10-30 release — phase plan
 
 **Status:** phases and their contents agreed with the owner on 2026-10-30 ("Valid findings … group
-them by phases"; "Ensure these plans are written down"). No phase is started. Each phase starts only
-on the owner's word, with the prerequisites listed for it.
+them by phases"; "Ensure these plans are written down"). Each phase starts only on the owner's word, with the
+prerequisites listed for it.
+
+| Phase | State |
+| --- | --- |
+| 1 | Done 2026-10-30. The test isolation fix (`fix/offline-test-isolation`) waits for the owner's go-ahead |
+| 2–7 | Not started |
 
 This list replaces the scattered open items in the older plans. Each item names its source so that
 detail stays where it was first written.
@@ -163,4 +168,62 @@ agent work; all seven take about 21.
 
 ## Execution notes
 
-None yet.
+### Phase 1 (2026-10-30)
+
+Started on the owner's word ("go ahead and implement phase 1"). Branch `docs/phase-1-cleanup`.
+
+- **1.1 ROADMAP:**
+  - Restructured into an at-a-glance table, then one section per line of work: v0.1, the MCP
+    stages, chat and agent, the availability catalog, hosted deployment, the backlog and the
+    standing constraints. Each section links its plans and records.
+  - The long Stage 1–6 paragraphs are condensed into a table. Their detail stays in the linked
+    acceptance records and in git.
+  - The "Follow-ups after v0.1" list maps onto phases 6 and 7. Two items are not scheduled:
+    native OneBuilding indexing (it waits for permissions) and rate-limit scheduling (only if
+    evidence shows a need).
+- **1.2 Status lines:**
+  - The slots spec now records the merge (`0483872`, `3ac7e3d`) and points phases (b)–(d) to
+    phases 3 and 4.
+  - The evals design records that E1, E2 and E4 are built and that E3, E5 and task 10 are
+    phase 2.
+  - The NSRDB geospatial design is marked superseded and kept as history. Its map part was done
+    on 2026-09-24. Its service rule was replaced by the owner's 2026-10-12 decision (ADR 0003:
+    the mask gates NSRDB GOES), the 2026-10-13 per-product masks and the 2026-10-27 Himawari-8
+    gate.
+  - The plan file of that design was left as written: its own header already marks it
+    historical.
+- **1.3 Flaky test:**
+  - **Runs:** six full runs, two at a time for load, two in default order and four shuffled
+    (seeds 11, 22, 33, 44, through a scratch plugin). 1,091 passed in every run, in 5:09–5:28
+    under load.
+  - **Two false starts (my own setup, not the suite):** a `--basetemp` under the long
+    scratchpad path exceeded the Windows path limit (`WinError 206`), and pytest does not
+    create a missing parent of `--basetemp`. Short roots under `%TEMP%` fixed both.
+  - **Named:** the 2026-10-13 failure is in the session log:
+    `tests/agent/test_policy_config.py::test_a_security_file_is_used_by_path`. With
+    `OPENAI_API_KEY` unset, it and `test_chat_eval_and_serve_choose_their_profiles` fail every
+    time: the hosted profile refuses to start without a moderation key. A worktree has no
+    `.env`, so this is an environment dependence, not timing.
+  - **Second dependence, found while checking:** run from the main checkout, whose `.env` has
+    `LANGSMITH_TRACING` on, 13 API and site-gate tests build the web chat with real LangSmith
+    tracing and the real key. Their log shows 18 "tracing: on" events.
+  - **The 2026-10-30 run:** it kept only the summary line, so its failing test cannot be named.
+    It ran from the main checkout with a dummy key. The tracing dependence above is the likely
+    cause, but this is not proven.
+  - **Fix**, on its own branch because it is test code and needs the owner's go-ahead:
+    `fix/offline-test-isolation`, commit `2247700`.
+    - An autouse fixture in `tests/conftest.py` runs every offline test in a temporary working
+      directory, with a fake `OPENAI_API_KEY` and the LangSmith variables cleared. Live tests
+      keep the real environment. `CONTRIBUTING.md` explains this.
+    - Checked: in the worktree with no key, 1,091 passed. From the main checkout, 1,091 passed,
+      and the only "tracing: on" left is `test_create_app_reads_tracing_from_its_env_file`,
+      which uses its own fake key on purpose.
+  - Machine time used: about 40 minutes.
+- **1.4 Cleanup:**
+  - Each branch was first confirmed to be an ancestor of `origin/main`.
+  - `feature/agent-request-lookups` and `feature/availability-followups` were deleted locally
+    and on origin; `docs/record-staging-pin` was local only.
+  - The follow-ups worktree was removed. Its only untracked content was a 64 KB empty catalog
+    under `.local/openepw/`.
+  - This session's own worktree (`.claude/worktrees/mcp-agent-request-slots-2459d2`) stays
+    while the session uses it; the desktop app manages it.
