@@ -1,9 +1,11 @@
 # Agent request slots (slots phases b–d) — Plan
 
-**Status:** draft for the owner's review, written 2026-10-30 in phase 3 of the
-[outstanding work plan](2026-10-30-outstanding-work.md). The owner's approval ends phase 3; the
-tasks below are phase 4. Design and owner answers:
-[spec](../specs/2026-10-30-agent-request-slots-design.md) (§1, open questions §14).
+**Status:** written 2026-10-30 in phase 3 of the
+[outstanding work plan](2026-10-30-outstanding-work.md). **Approved by the owner on 2026-10-31**
+("Approved with the defaults you specified. Keep $1 spending cap. Start implementing phase 4."),
+which ended phase 3. Implemented in phase 4 on `feature/agent-request-slots`; execution notes in §4.
+Design and owner answers: [spec](../specs/2026-10-30-agent-request-slots-design.md) (§1, open
+questions §14).
 
 **Branch:** `feature/agent-request-slots`, created from `main` when phase 4 starts. Nothing is merged
 into `main` or `deploy/staging` without the owner's go-ahead. Production (`feature/render-deploy`)
@@ -121,4 +123,75 @@ Total about 5 days, as estimated in the outstanding work plan.
 
 ## 4. Execution notes
 
-(Phase 4.)
+### Phase 4 (2026-10-31)
+
+Started on the owner's word ("Approved with the defaults you specified. Keep $1 spending cap.
+Start implementing phase 4."). Branch `feature/agent-request-slots` from `main` (`a0ce906`).
+Commits: `9b6142b` (tasks 1–6), `8daf71e` and `9466a4e` (fixes from the live check), then this
+documentation and the S56 grader change.
+
+**Built (tasks 1–6, 8).**
+- `state.py`: `Facts.proposed_years`, `origins`, `recheck` (defaulted), `confirmed_years`,
+  `Facts.change` and `confirm_years`; `set_geography` keeps the chosen products to recheck.
+- New `slots.py`: derived statuses, part values and origins in words, the request summary form
+  and the Change options.
+- `gates.py`: plans use confirmed years; `recheck` and proposed years block a plan (need
+  `choose_products` or `confirm_request`); `NEED_TOOL` maps `confirm_request → review_request`.
+- `text.reads_as_question`; agent `_note_text` (years and product words) and guided
+  `_read_time_and_product` record proposed years.
+- `host.py`: `fetch_offers`, `refresh_offers` (new years or preference: still-offered products
+  stay confirmed, others `recheck` with `PRODUCTS_RECHECK`), `choose` (confirms the years the
+  product form shows), `confirm_request`, `change_part`, `answer_summary`, `place_form`; the plan
+  review gains `data.parts` and Change options; the product form gains `data.selected` and
+  `data.recheck`; the years form hint shows the current years.
+- Agent: ask-tool `review_request`; parts table in the state block; `_replied` adds
+  `proposed_years` and the hint; instructions for "can I get" and confirmed parts; Change answers
+  go to the host path; text at a Change form is read by the host rules.
+- Guided: Change, the summary (need `confirm_request` and "show my request"), targeted resets.
+- Session: `show_request` / `open_request_summary` (with `return_to`); store `last_seq`.
+- CLI: `/request`, `ok` and `change <part>` at the summary and plan review, `ok` keeps a
+  preselection, `[selected]` marks.
+- Evals: form kind `request_summary`; runner answers `change:<part>`, lists of review answers
+  used in turn, and `selected`; setup `unlisted` (offers the stub does not list for some years);
+  grader `part_status` (`PART_STATUS`) with fixtures; coverage ids `slots.*`; tasks S56–S63 and
+  changes to S50 and S55; mutations `questions-off`, `confirmation-off`, `recheck-off`,
+  `change-off`, each caught by at least one task.
+
+**Routine choices and deviations.**
+- Origins add `model` to `text | form | host`: a preference set only by the model's filter is
+  `proposed`, which needs a distinct origin.
+- Approving the summary confirms years and a model-set preference, not the place: a place is
+  confirmed only on the location review, which shows the standard-time offsets.
+- Proposed years are kept in `years` and fetched with the offers, so the product form can show
+  them and confirm them (§5.4); any years change drops the stored offers, which are fetched again
+  before the next plan.
+- Guided mode still clears the years when only typical-year products are chosen (existing rule);
+  the design's "years kept" applies to agent mode and to place and preference changes.
+- The summary opened by `/request` remembers the open form (`return_to`); in agent mode approving
+  it reopens that form (a model question stays open); in guided mode the host continues in gate
+  order.
+- In agent mode, text typed at a form opened by a Change is read by the host's guided rules, so
+  "2019" at the Change years form needs no model call. Other host-opened forms are unchanged.
+- Adding `Setup.unlisted` changes every task's hash (its default is part of the dump), so eval
+  comparisons with earlier baselines show all tasks as changed.
+- The approval result gains a `next` hint and the state block says the product form confirms the
+  years it shows; both came from the live check below.
+
+**Live check (task 7).** Hosted profile, model `gpt-6-luna`, stub providers, 3 trials each of S50,
+S55, S56, S57 and S61. Records in `.local/openepw/evals/2026-10-31-slots-live*` (ignored).
+
+| Run | Code | Result | Cost |
+| --- | --- | --- | --- |
+| `slots-live` | `9b6142b` | 9/15: S55, S56, S57 3/3; S50 0/3 (after approval the model wrote "choose a product" without opening the form); S61 0/3 (task asked for TMYx, which the stub never offers; the model rightly opened no form) | $0.059 |
+| `slots-live-2` | approval hint, S61 rephrased | S61 3/3; S50 0/3 (the model now showed the request summary before the product form) | $0.015 |
+| `slots-live-3` | state-block hint | S50 3/3, S55 3/3 (lookup skipped twice, soft) | $0.027 |
+| `slots-live-final` | `8daf71e` | 11/15: S50 0/3 (text instead of the form again); one S55 trial reviewed the approved place again after the lookup, then asked in text | $0.059 |
+| `slots-live-final-2` | `9466a4e` | 14/15 as graded then; S56 #3 took a valid other path (years asked before the review, confirmed on the product form) and passes under the revised S56 graders (re-graded from the record) | $0.063 |
+
+Total spend about $0.22 of the $1 cap. In every trial of every run the hard safety checks held:
+no plan used a year that was only asked about, nothing was submitted without Run, and no host-only
+tool ran for the model. The remaining variation is model judgement (stopping with text where a
+form should open), tracked as soft checks in S50 and S56 as task 7 provides.
+
+**Not done.** No web change (P4 is not in any phase; the owner did not decide question 4).
+Nothing is merged into `main` or `deploy/staging`.

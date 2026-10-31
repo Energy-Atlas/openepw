@@ -80,3 +80,17 @@ person wrote; a lookup for places that are not approved carries a fixed host lab
 product choices are still forms, `weather_locations_review` and `weather_product_offers` stay hidden
 from the agent's model, and the gates above are unchanged. See the
 [request lookups design](../superpowers/specs/2026-10-13-agent-request-lookups-design.md).
+
+## Note (2026-10-31): request parts, summary and Change
+
+A request has four parts (place, product preference, products, years), each with a status derived
+from the facts. Plans use confirmed parts only: years written in a question are only proposed, and
+`weather_plan` with them is refused with `GATE_REQUIRED`, need `review_request`. A new form,
+the request summary (`request_summary`, gate `review_request`), lists the parts; approving it
+confirms what is proposed. The model opens it with the new ask-tool `review_request`; the host
+opens it when a plan needs a proposed part and on request. The plan review and the summary offer a
+Change action per part; Change is a host path in both modes, with no model call: the plan and its
+approval reset and only that part's form opens. A change to one part resets only what depends on
+it (a new place leaves the chosen products to recheck; new years keep products still offered).
+Run still approves exactly the plans shown, and the other gates above are unchanged. See the
+[request slots design](../superpowers/specs/2026-10-30-agent-request-slots-design.md).

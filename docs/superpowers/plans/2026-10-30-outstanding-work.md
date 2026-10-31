@@ -8,8 +8,9 @@ prerequisites listed for it.
 | --- | --- |
 | 1 | Done 2026-10-30. The test isolation fix (`fix/offline-test-isolation`) was merged into `main` on the owner's go-ahead the same day |
 | 2 | Deferred, not worked (owner, 2026-10-30): LangSmith is not available for now |
-| 3 | Spec and plan written 2026-10-30; waiting for the owner's approval, which ends the phase |
-| 4–7 | Not started |
+| 3 | Done: spec and plan approved by the owner on 2026-10-31 with the §14 defaults |
+| 4 | Built 2026-10-31 on `feature/agent-request-slots`; live check about $0.22 of the $1 cap; waiting for the owner's review |
+| 5–7 | Not started |
 
 This list replaces the scattered open items in the older plans. Each item names its source so that
 detail stays where it was first written.
@@ -284,3 +285,21 @@ owner's answers at the start are under phase 3 above.
 - **Findings:** the web chat is not on the agent core (P4, recorded above); a session saved after
   phase 4 cannot be read by older code, which matters for a staging rollback; no other branch
   touches `src/openepw/agent/`.
+- **Owner review (2026-10-31):** "Approved with the defaults you specified. Keep $1 spending cap.
+  Start implementing phase 4." Questions 1–3 take their defaults; question 4 (P4 as a phase) is
+  not decided.
+
+### Phase 4 (2026-10-31)
+
+Started on the owner's word above. Branch `feature/agent-request-slots`, pushed; not merged.
+Details, routine choices, deviations and the live check are in the
+[slots plan](2026-10-30-agent-request-slots.md) §4.
+
+- 4.1 built to the approved plan; ruff, mypy, pytest and the offline evals pass.
+- 4.2: nine new tasks (S56–S63 plus the unit test for old sessions), S50 and S55 changed, a
+  `part_status` grader and four mutations, all caught. Rule graders only (phase 2 deferred).
+- 4.3: live check, about $0.22 of the $1 cap. Hard checks held in every trial; the model
+  sometimes stops with text where a form should open (tracked soft in S50 and S56).
+- 4.4: agent README, ARCHITECTURE, FEATURES, ADR 0005 note, ROADMAP and the status lines.
+- Open for the owner: review and merge of the branch; P4; whether to delete the merged branches
+  `fix/offline-test-isolation`, `docs/defer-phase-2` and `docs/agent-request-slots`.

@@ -12,6 +12,16 @@ user:
 graders:
 - grader: forms_in_order
   value: [location_review, product_choice, text, request_summary, plan_review]
+  mode: guided
+# A model may ask for years before the location review (live 2026-10-31); the product form then
+# shows the year and choosing there confirms it, so the summary is not needed (design §5.4).
+- grader: forms_in_order
+  value: [text, plan_review]
+  mode: agent
+- grader: forms_in_order
+  value: [location_review, product_choice, text, request_summary, plan_review]
+  mode: agent
+  severity: soft
 - grader: tools_in_order
   value: [look_up_products, review_request]
   mode: agent
