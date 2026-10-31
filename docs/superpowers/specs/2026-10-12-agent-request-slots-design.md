@@ -5,8 +5,10 @@
 stays its answer, so phase (c) is Back per slot only), (5) phase (a) first, (6) spec and plan first.
 Phase (a): [agent request lookups design](2026-10-13-agent-request-lookups-design.md), approved
 2026-10-26, implemented 2026-10-27 and merged into `main` (`0483872`) and `deploy/staging` (`3ac7e3d`)
-on 2026-10-30. Phases (b)–(d) are not designed yet: they are phases 3 (design) and 4 (build) of the
-[outstanding work plan](../plans/2026-10-30-outstanding-work.md).
+on 2026-10-30. Phases (b)–(d) are phases 3 (design) and 4 (build) of the
+[outstanding work plan](../plans/2026-10-30-outstanding-work.md); their draft design, written
+2026-10-30 and awaiting the owner's review, is the
+[request slots design](2026-10-30-agent-request-slots-design.md).
 
 ## 1. The owner's observation
 

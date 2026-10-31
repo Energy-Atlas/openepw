@@ -8,7 +8,8 @@ prerequisites listed for it.
 | --- | --- |
 | 1 | Done 2026-10-30. The test isolation fix (`fix/offline-test-isolation`) was merged into `main` on the owner's go-ahead the same day |
 | 2 | Deferred, not worked (owner, 2026-10-30): LangSmith is not available for now |
-| 3–7 | Not started |
+| 3 | Spec and plan written 2026-10-30; waiting for the owner's approval, which ends the phase |
+| 4–7 | Not started |
 
 This list replaces the scattered open items in the older plans. Each item names its source so that
 detail stays where it was first written.
@@ -85,6 +86,25 @@ it is deferred, phase 4 measures the slots with the rule graders only (see 4.2).
 Branch: `docs/agent-request-slots`. Source: the
 [slots proposal](../specs/2026-10-12-agent-request-slots-design.md) §5–§6. The owner's 2026-10-13
 answer (6) requires a spec and plan before code; their approval ends this phase.
+
+Owner answers (2026-10-30, at the start of the phase):
+- **A question typed at an open form** still answers the form (2026-10-13 answer 4 stands), but
+  text that reads as a question is stored as *proposed*, not confirmed. The model answers it with a
+  lookup and asks for confirmation before any plan. Plain answers are confirmed at once, as now.
+- **"Can I get …" requests:** the model runs the read-only lookup, says in words what is and is
+  not available, then opens the product form in the same turn if something fits.
+- **Changing one part:** a request summary, shown in the plan review and on request, lists each
+  part with its status and a Change action; changing a part opens only its form. The step-by-step
+  Back stays.
+- **`feature/webui`:** the owner asked what it is. It is the first web UI attempt (`ui/`,
+  2026-09-20 to 09-23, REST only, a scripted command box and no model), superseded by the
+  map-first chat UI in `web/chat-ui` (ADR 0004). It does not read agent forms, so the design
+  leaves the branch alone.
+- **Finding while reading the code:** `web/chat-ui` itself still calls the legacy `/v1/chat`
+  routes (`ChatCoordinator`), not the agent core. Hosting the agent core in the web chat is ADR
+  0005's P4, which is not built and is not one of these seven phases. Slots therefore reach people
+  through the CLI (and the evals) until P4; the design defines the form data a P4 web renderer
+  would read. Whether to add P4 as a phase is the owner's decision.
 
 | # | Item | Done when |
 |---|---|---|
@@ -242,3 +262,25 @@ Started on the owner's word ("go ahead and implement phase 1"). Branch `docs/pha
   - Deleting `docs/outstanding-work-plan` approved ("Ok"); confirmed merged, then deleted
     locally and on origin.
   - Phase 2 deferred, not worked, because LangSmith is not available for now.
+
+### Phase 3 (2026-10-30)
+
+Started on the owner's word ("ok to advance to phase 3"). Branch `docs/agent-request-slots`. The
+owner's answers at the start are under phase 3 above.
+
+- **Read:** the slots proposal, the phase (a) design, plan and live-check notes, ADR 0005, and the
+  agent core (`state`, `gates`, `tools`, `policy_model`, `guided`, `host`, `session`,
+  `interactions`, `cli`, the eval runner and tasks).
+- **Written:** the [slots design](../specs/2026-10-30-agent-request-slots-design.md) and the
+  [slots plan](2026-10-30-agent-request-slots.md). The design keeps the values in the existing
+  `Facts` fields and derives each part's status, so there is one source of truth and old saved
+  sessions load unchanged.
+- **Routine choices made** (documented in the spec): question words for `reads_as_question`;
+  per-year confirmation; Change handled by the host in both modes; the summary appears only when a
+  part is proposed, so most existing eval tasks keep their form order.
+- **Open questions for the owner** (spec §14, each with a default): confirmation by a form that
+  shows the value; keeping still-offered products after new years; Change without the model;
+  whether P4 becomes a phase.
+- **Findings:** the web chat is not on the agent core (P4, recorded above); a session saved after
+  phase 4 cannot be read by older code, which matters for a staging rollback; no other branch
+  touches `src/openepw/agent/`.
