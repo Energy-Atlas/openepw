@@ -16,7 +16,7 @@ TOOLS = {
     "weather_geocode", "weather_places_interpret", "weather_places_preview", "weather_place_set",
     "weather_locations_review", "weather_product_offers", "weather_assess", "weather_discover",
     "weather_plan", "plan_inspect", "epw_upload", "epw_register_path", "weather_submit",
-    "job_inspect", "job_cancel", "job_retry_failed", "artifact_inspect",
+    "job_inspect", "job_outputs", "job_cancel", "job_retry_failed", "artifact_inspect",
     "weather_visualization_capabilities", "weather_data_describe", "weather_visualize",
     "weather_data_page", "weather_export_compact", "weather_fetch", "weather_inspect",
 }
@@ -119,6 +119,12 @@ def _summary_cases(tmp_path):
         "weather_plan": plan, "plan_inspect": {**plan, "offset": 0, "limit": 50},
         "weather_submit": job, "weather_fetch": job, "job_inspect": job, "job_cancel": job,
         "job_retry_failed": job, "artifact_inspect": artifact,
+        "job_outputs": {"job_id": "j1", "state": "partially_completed", "total": 2,
+                        "counts": {"succeeded": 1, "failed": 1}, "outputs": [
+                            {"place": {"name": "Ithaca"}, "year": 2018, "provider": "openmeteo", "dataset": "era5",
+                             "status": "succeeded", "artifact_id": "art1", "issue_codes": []},
+                            {"place": {"name": "Boston"}, "year": 2018, "provider": "openmeteo", "dataset": "era5",
+                             "status": "failed", "artifact_id": None, "issue_codes": ["PROVIDER_ERROR"]}]},
         "weather_inspect": artifact,
         "epw_upload": upload, "epw_register_path": upload,
         "weather_visualization_capabilities": service.visualization_capabilities(),

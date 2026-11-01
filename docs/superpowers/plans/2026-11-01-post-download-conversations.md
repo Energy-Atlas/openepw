@@ -97,4 +97,70 @@ Actual and reference sources never mix.
 
 ## 5. Execution notes
 
-(Filled in as the phase runs.)
+### Phase 5 (2026-11-01)
+
+Started on the owner's word above; branch `feature/post-download-conversations` from `main`
+(`7581988`).
+
+**Built.**
+- `jobs/outputs.py` (`job_outputs`), REST `GET /v1/jobs/{id}/outputs`, MCP model tool
+  `job_outputs` with its summary.
+- `agent/outputs.py`: the session's files merged across a job and its retries, the host's file
+  list, download offers (`download` events, also for the compact ZIP), the retry form and
+  `run_retry` (one-shot approval of the original plan, three retries per job chain), one look at
+  running jobs, and the follow-up patterns guided mode reads before places and years.
+- Guided mode: follow-ups at any form; "What next?" gains "List my files", "Download files" and
+  "Retry failed outputs". Agent mode: host tools `list_outputs` and `offer_download`, ask-tool
+  `review_retry`, rule 6 in the system prompt, and the values of a prepared view (48 rows at most,
+  labelled by place and years, with coverage) in `weather_visualize` results.
+- `gates.next_need` and the agent's results step wait while a retry runs; `Facts` keeps
+  `failed_jobs` and `retry_of` (Back keeps both).
+- CLI: `/outputs`, `/download [numbers|all] [folder]` through the MCP artifact resource
+  (`InProcessMCP.read_artifact`), checksum, exclusive create and partial-file cleanup.
+- Web: download offers as links, the new tool steps named, the job card counting merged outputs
+  after a retry, the month-of-year profile in the chart menu; the web host counts a retry's jobs
+  against `running_jobs`.
+- `month_of_year_profile` implemented in the visualization engine and drawn in the browser.
+- Evals: `fail_once_near` stub setting, graders `tool_counts` and `download_files` with fixtures,
+  `$artifacts` in scripts, tasks S64–S67, coverage ids `followup.*`, mutations `retry-form-off`
+  and `download-filter-off`.
+- Tests: `tests/unit/test_job_outputs.py`, `tests/agent/test_outputs.py`, a CLI download test,
+  profile tests, web tests for download links and the merged card.
+
+**Routine choices and deviations.**
+- A download in the browser is a link the browser saves; in the CLI it is a command, so local
+  paths never enter the conversation (the 2026-09-26 plan's path placeholder is not needed).
+- Agent mode leaves follow-up wording to the model with host tools; guided mode uses fixed
+  patterns. A download request that names a product or "weather" ("download AMY 2019 for
+  Boston") is read as a new request.
+- The retry form is a `choice` form (gate `review_retry`), so every renderer already shows it;
+  a retry is offered only after the request's jobs finished.
+- S67's agent grading accepts a correct reply from the session state without `list_outputs`: in
+  the live check the model answered "no files yet" from the state block twice, with no tool and no
+  form. Guided mode still checks the host's `NO_OUTPUTS` reply.
+- Test isolation: `tests/conftest.py` puts this checkout's `src` on `PYTHONPATH`, and the stdio
+  test passes it explicitly, so MCP subprocesses no longer import an older installed copy (a stale
+  2026-09-21 user-site install made two stdio tests fail).
+
+**Browser check (2026-11-01).** Local server on the eval stubs with Boston failing once, guided
+mode, built app: "Boston, Denver 2016" → review → ERA5 → Run → partial result (1 of 2, Boston
+`PROVIDER_ERROR`) → "What next?" with the three new options → "List my files" (both rows, the
+failure with its code) → "Download files" (one link, Denver; the link serves the file with its
+planned name) → "Retry failed outputs" → retry form listing Boston → "Retry 1 failed output(s)"
+→ retry job completed → the card shows both outputs succeeded. Fixed on the way: the retry note
+was rendered inside the last list item, and the card summed both jobs ("3/3 · 1 failed"). Only
+console errors: the expected `/v1/diagnostics` 404s (debug log off).
+
+**Live check (2026-11-01).** Agent mode, hosted profile, stub providers, `gpt-6-luna`, tasks
+S64–S67 with 2 trials each: S64, S65 and S66 passed 6/6 (list, one-year download, retry through
+the form, the January profile answered from the view's values); S67 failed 2/2 on the strict
+`NO_OUTPUTS` grader although both replies were correct (see above); after the change S67 passed
+2/2. Cost about $0.047 of the $1 cap. Records under `.local/openepw/evals/phase5-live-20261101*`.
+
+**Checks.** ruff and mypy clean. Offline evals: lint 55 tasks, 0 errors; guided 34/34 under
+`local` and `hosted`; scripted agent 55/55 under both; mutations 20 of 20 caught. vitest 108,
+`tsc` clean, `npm run build` passes. pytest (repository `.venv`): 1189 passed, 20 skipped, 3 failed;
+two were this branch's (the MCP support tests list every tool and summary; `job_outputs` added, now
+passing). The third, `test_b_published_batch_exact_product_occurrences_and_export`, counts tool
+calls including job polls against a limit of 30: 32, 36 and 45 on this branch and 37 on `main`
+(`7581988`) on the same machine, so it predates the branch (as in P4).
