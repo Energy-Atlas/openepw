@@ -2,7 +2,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { App, sessionKey } from '../src/App'
 import { ApiError, type SessionHandlers } from '../src/api'
-import { FIXTURES, event, fakeApi, form, snapshot } from './agentFixtures'
+import { FIXTURES, event, fakeApi, form, messageField, snapshot } from './agentFixtures'
 
 afterEach(() => { cleanup(); sessionStorage.clear() })
 
@@ -61,7 +61,7 @@ describe('chat dock and controls', () => {
   it('shows a refusal such as a rate limit and keeps the form', async () => {
     const input = vi.fn(async () => { throw new ApiError('RATE_LIMIT', 'Too many messages in a minute; wait a moment and try again.', 429) })
     render(<App api={fakeApi(FIXTURES.text, { input })} />)
-    fireEvent.change(await screen.findByRole('textbox', { name: 'Message' }), { target: { value: '2019' } })
+    fireEvent.change(await messageField(), { target: { value: '2019' } })
     fireEvent.click(screen.getByRole('button', { name: 'Send' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('Too many messages')
     expect(screen.getByRole('textbox', { name: 'Message' })).toBeInTheDocument()
@@ -111,7 +111,7 @@ describe('chat dock and controls', () => {
 
   it('keeps Start over beside the dock, outside the message form', async () => {
     render(<App api={fakeApi(FIXTURES.text)} />)
-    const field = await screen.findByRole('textbox', { name: 'Message' })
+    const field = await messageField()
     const reset = screen.getByRole('button', { name: 'Start over' })
     expect(field.closest('form')!.contains(reset)).toBe(false)
     expect(reset.closest('.dock-reset')!.parentElement).toHaveClass('chat-dock')

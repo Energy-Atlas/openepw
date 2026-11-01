@@ -1,8 +1,8 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { App } from '../src/App'
 import type { FormKind } from '../src/types'
-import { FIXTURES, event, fakeApi, form, snapshot } from './agentFixtures'
+import { FIXTURES, event, fakeApi, form, messageField, snapshot } from './agentFixtures'
 
 afterEach(() => { cleanup(); sessionStorage.clear() })
 
@@ -11,7 +11,16 @@ describe('map-first shell', () => {
     render(<App api={fakeApi(snapshot(null))} />)
     expect(screen.getByLabelText('Weather map')).toBeInTheDocument()
     expect(screen.getByRole('complementary', { name: 'Weather chat' })).toBeInTheDocument()
-    expect(await screen.findByRole('textbox', { name: 'Message' })).toBeInTheDocument()
+    expect(await messageField()).toBeInTheDocument()
+  })
+
+  it('shows a disabled message field until a session is open', async () => {
+    let open!: (value: ReturnType<typeof snapshot>) => void
+    const api = fakeApi(snapshot(null), { create: vi.fn(() => new Promise(resolve => { open = resolve })) })
+    render(<App api={api} />)
+    expect(screen.getByRole('textbox', { name: 'Message' })).toBeDisabled()
+    open(snapshot(null))                                     // the next test opens its own session
+    await waitFor(() => expect(screen.getByRole('textbox', { name: 'Message' })).toBeEnabled())
   })
 
   it('has no scene panel or brand box over the map', () => {
@@ -22,7 +31,7 @@ describe('map-first shell', () => {
 
   it('hides attachment and map input for now', async () => {
     render(<App api={fakeApi(FIXTURES.map_input)} />)
-    expect(await screen.findByRole('textbox', { name: 'Message' })).toBeInTheDocument()
+    expect(await messageField()).toBeInTheDocument()
     expect(screen.queryByLabelText('Attach EPW or GeoJSON')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Pick geography on map' })).not.toBeInTheDocument()
   })
@@ -140,7 +149,7 @@ describe('answers', () => {
     const state = FIXTURES.location_review
     const api = fakeApi(state)
     render(<App api={api} />)
-    const message = await screen.findByRole('textbox', { name: 'Message' })
+    const message = await messageField()
     expect(message).toHaveAttribute('placeholder', 'Or describe a correction')
     expect(screen.getByLabelText('Current question')).toHaveTextContent('Springfield')
     fireEvent.change(message, { target: { value: 'use Boston instead' } })
@@ -196,7 +205,7 @@ describe('answers', () => {
     const state = FIXTURES.text
     const api = fakeApi(state)
     render(<App api={api} />)
-    const message = await screen.findByRole('textbox', { name: 'Message' })
+    const message = await messageField()
     expect(message.getAttribute('placeholder')).toContain('2018')
     fireEvent.change(message, { target: { value: '2019' } })
     fireEvent.click(screen.getByRole('button', { name: 'Send' }))

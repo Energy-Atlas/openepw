@@ -1,4 +1,5 @@
-import { vi } from 'vitest'
+import { screen, waitFor } from '@testing-library/react'
+import { expect, vi } from 'vitest'
 import type { ChatApi } from '../src/api'
 import type { AgentEvent, AgentForm, AgentSnapshot, FormKind } from '../src/types'
 import forms from './fixtures/agent-forms.json'
@@ -30,4 +31,13 @@ export function fakeApi(state: AgentSnapshot, extra: Record<string, unknown> = {
     calls: [], ...extra,
   }
   return api as typeof api & ChatApi
+}
+
+/** The message field once a session is open (before that it shows disabled). */
+export function messageField(): Promise<HTMLElement> {
+  return waitFor(() => {
+    const field = screen.getByRole('textbox', { name: 'Message' })
+    expect(field).toBeEnabled()
+    return field
+  })
 }

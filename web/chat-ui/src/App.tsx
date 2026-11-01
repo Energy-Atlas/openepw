@@ -303,6 +303,12 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
         {session && <FormDock snapshot={session} busy={busy} checked={checked} pendingChoice={pendingChoice}
           onPendingChoice={setPendingChoice} onToggleProduct={toggleProduct} onAnswer={answer}
           onText={text => void send({ type: 'text', text })} onUpload={file => void upload(file)} />}
+        {!session && <form className="composer" aria-label="Reply" onSubmit={event => event.preventDefault()}>
+          <label className="visually-hidden" htmlFor="chat-message">Message</label>
+          <div className="composer-row">
+            <input id="chat-message" name="message" placeholder="Connecting to the weather service…" disabled />
+          </div>
+        </form>}
         {session?.ended && <p className="warning" role="status">This session has ended. Start over to continue.</p>}
         {error && <p className="error" role="alert">{error}</p>}
         {!session && error && <button type="button" onClick={() => setSessionAttempt(value => value + 1)}>
