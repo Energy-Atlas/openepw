@@ -1,6 +1,6 @@
 # Agent chat core (agent and guided mode)
 
-`openepw.agent` is one conversation core for the CLI and (from P4) the web chat. It is a real
+`openepw.agent` is one conversation core for the CLI and the web chat (P4). It is a real
 MCP client of the local openepw server over the SDK's in-memory transport and never calls the
 weather service directly. It has two modes with the same forms and host guard-rails:
 
@@ -129,8 +129,54 @@ is read by the host rules.
 
 Sessions saved before these parts existed load unchanged (every year and product confirmed).
 Sessions saved now carry three new fields that older code rejects, so rolling a deployment back
-would make newer sessions unreadable. The web chat (`web/chat-ui`) still runs the legacy
-`/v1/chat` routes and shows none of this until the agent core is hosted there (P4).
+would make newer sessions unreadable. The web chat shows the same parts, summary and Change
+actions (see [Web chat](#web-chat-p4)).
+
+## Web chat (P4)
+
+`openepw serve` hosts the same sessions for the browser chat (`web/chat-ui`) under `/v2/agent`
+([plan](../superpowers/plans/2026-11-01-agent-web-chat.md)). `openepw.agent.web.AgentHost` runs
+each input in a worker thread with its own event loop, MCP client (in-memory transport) and
+policy, so a blocking tool only blocks its own turn; one input runs at a time per session
+(`SESSION_BUSY`). Sessions are in `<data root>/agent/sessions.sqlite`, the CLI's store (a web
+session can be resumed with `openepw chat --session <id>` on that data root); ownership, recent
+inputs, model spend and started jobs are in `<data root>/agent/web.sqlite`.
+
+| Route | Purpose |
+| --- | --- |
+| `POST /v2/agent/sessions` | New session: agent mode when `OPENAI_API_KEY` is set, else guided |
+| `GET /v2/agent/sessions/{id}` | Snapshot: mode, open form, recent events, request parts, places, place candidates, product offers, jobs, busy, ended |
+| `POST /v2/agent/sessions/{id}/inputs` | One input of type `text`, `answer`, `back`, `new`, `mode` or `request`; 202, the turn runs in the background |
+| `POST /v2/agent/sessions/{id}/upload` | An EPW (5 MB) for the model's upload form |
+| `GET /v2/agent/sessions/{id}/events` | Server-sent events after `Last-Event-ID` or `?after=`: `agent` frames carry events, `state` frames the session after a turn; `?poll=1` returns JSON once |
+
+A session belongs to the person who created it: the signed-in account where a deployment has
+accounts, else the client address (the first `X-Forwarded-For` entry, as the account gate reads
+it). Anyone else gets 404. After Run the host follows jobs in short passes
+(`AgentSession.check_jobs`, one `job_inspect` round per pass) while no form is open, then the
+results step runs as in the CLI. The browser follows the session's events and shows the open
+form by kind (the product dialog with map tags, the location review, the plan review with Run and
+Change, the request summary), an agent/guided switch, "Your request" and Back. Model text is
+rendered as Markdown without raw HTML or images; links open in a new tab without access to the
+page. Chats saved through the old `/v1/chat` routes are left as they are (owner, 2026-11-01).
+
+The security profile's `limits` apply to web sessions only (all off in `local`):
+
+| Setting | `hosted` | Effect |
+| --- | --- | --- |
+| `sessions_per_hour` | 10 | new sessions per person (`SESSION_LIMIT`, 429) |
+| `inputs_per_minute` | 12 | messages, form answers and other inputs per person (`RATE_LIMIT`, 429) |
+| `running_jobs` | 3 | weather jobs running at once per person, checked at Run (`JOB_LIMIT`, 429) |
+| `session_usd` | 0.25 | model spend per session |
+| `person_usd_per_day` | 1.00 | model spend per person per UTC day |
+| `total_usd_per_day` | 10.00 | model spend of all web sessions per UTC day |
+
+A spend cap stops the model before its next call and the session continues in guided mode
+(`MODEL_UNAVAILABLE`, cause `budget`), as when the CLI's budget stop is reached. Each call's
+estimated cost is recorded atomically, so concurrent turns cannot lose spend; one call may exceed
+a cap by its own cost. The web chat does not record LangSmith traces yet. Not built (guardrails
+plan §7): a lower place cap per approval, Copernicus products for admins only, alerts on
+guard-code spikes; retrying failed outputs from the browser (the CLI has no retry either).
 
 ## Agent mode
 
@@ -285,8 +331,9 @@ Guards, each recorded as a code in the session events and the LangSmith run meta
   "(strike N of 3)"; the second adds a warning (`STRIKE_WARNING`). At the limit, `end_session`
   closes the session (`SESSION_ENDED`: later input is refused, running jobs finish and their
   outputs stay), `guided` switches to guided mode for good, and `warn` only notes it
-  (`STRIKE_LIMIT`). In guided mode only moderation flags count. Until P4 adds per-user limits, a
-  person can start a new session after one ends.
+  (`STRIKE_LIMIT`). In guided mode only moderation flags count. In the web chat the profile's
+  `limits` bound how many sessions a person may start (see [Web chat](#web-chat-p4)); in the CLI
+  a person can start a new session after one ends.
 
 ## Evals
 

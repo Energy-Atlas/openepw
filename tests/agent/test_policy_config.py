@@ -30,7 +30,18 @@ def test_the_packaged_profiles_differ_only_where_the_plan_says():
     assert hosted.strikes.counting == "session"
     assert "nrel.gov" in hosted.links.allowlist and hosted.links.policy == "allowlist"
     differences = {key for key in hosted.settings() if hosted.settings()[key] != local.settings()[key]}
-    assert differences == {"profile", "strikes", "moderation"}
+    assert differences == {"profile", "strikes", "moderation", "limits"}
+    # Web limits (P4): hosted sets every one; local turns them all off.
+    assert None not in hosted.limits.model_dump().values()
+    assert set(local.limits.model_dump().values()) == {None}
+    assert hosted.limits.running_jobs == 3 and hosted.limits.total_usd_per_day == 10.0
+
+
+def test_weakened_names_limits_looser_than_hosted(tmp_path):
+    path = write(tmp_path, "extends: hosted\nlimits:\n  running_jobs: 9\n  session_usd: null\n")
+    notes = " ".join(weakened(load_policy(file=path)))
+    assert "limits.running_jobs is 9" in notes and "limits.session_usd is off" in notes
+    assert not [note for note in weakened(load_policy("hosted")) if note.startswith("limits.")]
 
 
 def test_profiles_report_their_source_and_a_stable_digest():
@@ -182,7 +193,7 @@ def test_bad_keys_and_list_items_are_repaired_and_the_label_kept(tmp_path, caplo
                            "moderation:\n  check: [input, 7]\n")
     policy = load_policy(file=path)
     hosted = load_policy("hosted")
-    assert policy.profile == "local+override" and policy.limits == {}
+    assert policy.profile == "local+override" and policy.limits == load_policy("local").limits
     assert policy.links.allowlist == hosted.links.allowlist
     assert policy.moderation.check == hosted.moderation.check
     assert len(caplog.records) < 10

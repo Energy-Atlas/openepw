@@ -1,262 +1,119 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { App } from '../src/App'
-import type { ChatApi } from '../src/api'
-import type { SessionSnapshot } from '../src/types'
+import { App, sessionKey } from '../src/App'
+import { ApiError, type SessionHandlers } from '../src/api'
+import { FIXTURES, event, fakeApi, form, messageField, snapshot } from './agentFixtures'
 
-type Card = NonNullable<SessionSnapshot['active_card']>
-
-function state(card: Card | null, extra: Partial<SessionSnapshot> = {}): SessionSnapshot {
-  return { id: 'test', revision: card?.revision ?? 1, facts: {}, events: card ? [
-    { id: 1, type: 'question', text: card.prompt }] : [], active_card: card, view_ids: [], ...extra }
-}
-
-function api(snapshot: SessionSnapshot, extra: Record<string, unknown> = {}): ChatApi {
-  return { create: vi.fn(async () => snapshot), get: async () => snapshot,
-    catalogMap: async () => ({ schema: 'catalog-map-1', snapshot: null, layers: [], unmapped: [] }),
-    ...extra } as unknown as ChatApi
-}
-
-afterEach(() => sessionStorage.clear())
+afterEach(() => { cleanup(); sessionStorage.clear() })
 
 describe('chat dock and controls', () => {
-  it('keeps the current question with its options in the fixed dock, outside the scrolling log', async () => {
-    const card: Card = { id: 'p', revision: 2, kind: 'choice', prompt: 'Which weather product?',
-      options: [{ id: 'historical', label: 'Actual-year weather', detail: 'ERA5, NSRDB, NOAA ISD' }] }
-    render(<App api={api(state(card))} />)
+  it('keeps the current question in the fixed dock, outside the scrolling log', async () => {
+    render(<App api={fakeApi(FIXTURES.plan_review)} />)
     const question = await screen.findByLabelText('Current question')
     expect(question.closest('.chat-dock')).not.toBeNull()
     expect(screen.getByRole('log').contains(question)).toBe(false)
-    expect(within(screen.getByRole('group', { name: 'Reply options' })).getByRole('button', {
-      name: /Actual-year weather.*ERA5, NSRDB, NOAA ISD/ })).toBeInTheDocument()
   })
 
-  it('uses icon buttons for send and confirm and adapts the hint to the question', async () => {
-    render(<App api={api(state({ id: 'y', revision: 1, kind: 'text', prompt: 'Which actual year or years?' }))} />)
-    const send = await screen.findByRole('button', { name: 'Send' })
-    expect(send.querySelector('svg')).not.toBeNull()
-    expect(send.textContent).toBe('')
-    expect(screen.getByRole('textbox', { name: 'Message' })).toHaveAttribute('placeholder', 'e.g. 2018 or 2016–2018')
+  it('shows Working and no actions while a turn runs', async () => {
+    render(<App api={fakeApi({ ...FIXTURES.plan_review, busy: true })} />)
+    expect(await screen.findByRole('status', { name: 'Working' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Run reviewed plan' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Your request' })).toBeDisabled()
   })
 
-  it('shows a tick confirm when typing an Other answer', async () => {
-    render(<App api={api(state({ id: 'c', revision: 1, kind: 'choice', prompt: 'Which weather product?',
-      options: [{ id: 'tmy', label: 'TMY reference' }] }))} />)
-    fireEvent.click(await screen.findByRole('button', { name: 'Other — type an answer' }))
-    const confirm = screen.getByRole('button', { name: 'Confirm' })
-    expect(confirm.querySelector('svg')).not.toBeNull()
-    expect(screen.getByRole('textbox', { name: 'Message' })).toHaveAttribute('placeholder', 'Type another answer')
-  })
-
-  it('never shows a server waiting window while a turn is queued', async () => {
-    let finish!: (value: SessionSnapshot) => void
-    const sendTurn = vi.fn((_id, _text, _revision, _key, onQueue) => {
-      onQueue?.({ queue_id: 'q', state: 'queued', position: 0 })
-      return new Promise(resolve => { finish = resolve })
+  it('follows events and the session after each turn from the subscription', async () => {
+    let handlers!: SessionHandlers
+    const subscribe = vi.fn((_id: string, _after: number, given: SessionHandlers) => { handlers = given; return () => undefined })
+    const start = snapshot(form('map_input', 'Where do you need weather?'), { busy: true, cursor: 2 })
+    render(<App api={fakeApi(start, { subscribe })} />)
+    await waitFor(() => expect(subscribe).toHaveBeenCalledWith('session-1', 2, expect.anything()))
+    act(() => {
+      handlers.event(event(2, 'assistant', 'already shown'))             // not after the cursor
+      handlers.event(event(3, 'user', 'Boston'))
+      handlers.event(event(4, 'view', 'Monthly chart', { view_id: 'view-1' }))
+      handlers.state({ ...FIXTURES.location_review, id: 'session-1', busy: false })
     })
-    const initial = state(null)
-    render(<App api={api(initial, { sendTurn })} />)
-    fireEvent.change(await screen.findByRole('textbox', { name: 'Message' }), { target: { value: 'Boston' } })
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Send' })).toBeEnabled())
+    const log = screen.getByRole('log')
+    expect(log).toHaveTextContent('Boston')
+    expect(log).not.toHaveTextContent('already shown')
+    expect(await screen.findByRole('button', { name: 'Approve location' })).toBeInTheDocument()
+  })
+
+  it('switches mode, shows the request and goes back with the header buttons', async () => {
+    const api = fakeApi({ ...FIXTURES.text, model_available: true })
+    render(<App api={api} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Guided mode' }))
+    await waitFor(() => expect(api.input).toHaveBeenLastCalledWith('session-1', { type: 'mode', mode: 'agent' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Your request' }))
+    await waitFor(() => expect(api.input).toHaveBeenLastCalledWith('session-1', { type: 'request' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+    await waitFor(() => expect(api.input).toHaveBeenLastCalledWith('session-1', { type: 'back' }))
+  })
+
+  it('offers no mode switch without a model or after the strike limit', async () => {
+    render(<App api={fakeApi({ ...FIXTURES.text, model_available: false })} />)
+    expect(await screen.findByRole('button', { name: 'Guided mode' })).toBeDisabled()
+    cleanup()
+    render(<App api={fakeApi({ ...FIXTURES.text, mode: 'guided', downgraded: true })} />)
+    expect(await screen.findByRole('button', { name: 'Guided mode' })).toBeDisabled()
+  })
+
+  it('shows a refusal such as a rate limit and keeps the form', async () => {
+    const input = vi.fn(async () => { throw new ApiError('RATE_LIMIT', 'Too many messages in a minute; wait a moment and try again.', 429) })
+    render(<App api={fakeApi(FIXTURES.text, { input })} />)
+    fireEvent.change(await messageField(), { target: { value: '2019' } })
     fireEvent.click(screen.getByRole('button', { name: 'Send' }))
-    await waitFor(() => expect(sendTurn).toHaveBeenCalled())
-    expect(screen.queryByText(/Withdraw waiting message|Waiting on server/)).not.toBeInTheDocument()
-    finish({ ...initial, revision: 2 })
+    expect(await screen.findByRole('alert')).toHaveTextContent('Too many messages')
+    expect(screen.getByRole('textbox', { name: 'Message' })).toBeInTheDocument()
   })
 
-  it('hides plan actions while an action is running', async () => {
-    let finish!: (value: SessionSnapshot) => void
-    const prepare = vi.fn(() => new Promise(resolve => { finish = resolve }))
-    const review = state({ id: 'r', revision: 3, kind: 'plan_review', prompt: 'Assess options and review a plan' })
-    render(<App api={api(review, { prepare })} />)
-    fireEvent.click(await screen.findByRole('button', { name: 'Assess and review plan' }))
-    await waitFor(() => expect(screen.queryByRole('button', { name: 'Assess and review plan' })).not.toBeInTheDocument())
-    expect(screen.queryByRole('button', { name: 'Type a correction' })).not.toBeInTheDocument()
-    expect(screen.getByRole('status', { name: 'Working' })).toBeInTheDocument()
-    finish({ ...review, revision: 4 })
-  })
-
-  it('has no text input while a weather job is running', async () => {
-    const running = state(null, { job_id: 'job-1' })
-    const job = vi.fn(async () => ({ id: 'job-1', state: 'running', total: 2, completed: 0, failed: 0 }))
-    render(<App api={api(running, { job })} />)
-    await screen.findByLabelText('Current weather job')
+  it('hides the reply area of an ended session', async () => {
+    render(<App api={fakeApi({ ...snapshot(null), ended: true })} />)
+    expect(await screen.findByText(/This session has ended/)).toBeInTheDocument()
     expect(screen.queryByRole('textbox', { name: 'Message' })).not.toBeInTheDocument()
   })
 
-  it('renders assistant markdown and the plan summary as bullets', async () => {
-    const review = state({ id: 'r', revision: 3, kind: 'plan_review', prompt: 'Review these outputs, then select Run',
-      data: { plan_hash: 'a'.repeat(64), summary: '- **Boston** · 2018 · openmeteo/era5 · planned' } },
-    { events: [{ id: 1, type: 'message', text: 'Previewed places:\n1. **Boston**\n2. Denver', data: { role: 'assistant' } }] })
-    render(<App api={api(review)} />)
-    const question = await screen.findByLabelText('Current question')
-    expect(within(question).getByRole('listitem')).toHaveTextContent('Boston · 2018 · openmeteo/era5 · planned')
-    expect(within(question).getByText('Boston').tagName).toBe('STRONG')
-    expect(within(screen.getByRole('log')).getAllByRole('listitem')).toHaveLength(2)
+  it('uploads an EPW for an upload form', async () => {
+    const uploadEpw = vi.fn(async () => FIXTURES.upload)
+    render(<App api={fakeApi(FIXTURES.upload, { uploadEpw })} />)
+    const file = new File(['LOCATION,Ithaca'], 'ithaca.epw', { type: 'text/plain' })
+    fireEvent.change(await screen.findByLabelText('EPW file'), { target: { files: [file] } })
+    await waitFor(() => expect(uploadEpw).toHaveBeenCalledWith('session-1', file))
   })
 
-  it('offers no Run on a plan with no outputs and goes back to the product choice', async () => {
-    const blocked = state({ id: 'b', revision: 6, kind: 'plan_review', prompt: 'No outputs can be made from this choice',
-      data: { plan_hash: null, blocked: true, product_event: 4, outputs: [],
-        summary: '**Nothing can be run:** none of the chosen products has data for this location and period.' } })
-    const back = vi.fn(async () => state({ id: 'p', revision: 7, kind: 'choice', prompt: 'Which weather product?', options: [] }))
-    render(<App api={api(blocked, { back })} />)
-    const question = await screen.findByLabelText('Current question')
-    expect(within(question).getByText('Nothing can be run:')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Run reviewed plan' })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Assess and review plan' })).toBeNull()
-    expect(within(question).queryByText(/planned outputs/)).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: 'Choose other products' }))
-    await waitFor(() => expect(back).toHaveBeenCalledWith('test', 6, expect.any(String), 4))
-  })
-
-  it('rolls back from an earlier agent message and can start over', async () => {
-    const current = state({ id: 'y', revision: 5, kind: 'text', prompt: 'Which actual year or years?' }, { events: [
-      { id: 1, type: 'question', text: 'Which weather product?' },
-      { id: 2, type: 'message', text: 'Actual-year weather', data: { role: 'user' } },
-      { id: 3, type: 'question', text: 'Which actual year or years?' }] })
-    const back = vi.fn(async () => ({ ...current, revision: 6, active_card: null }))
-    const client = api(current, { back })
-    render(<App api={client} />)
-    expect(screen.queryByRole('button', { name: 'Go back one step' })).not.toBeInTheDocument()
-    const earlier = (await screen.findByText('Which weather product?')).closest('article')!
-    expect(within(screen.getByRole('log')).getAllByRole('button', { name: 'Roll back to here' })).toHaveLength(1)
-    fireEvent.click(within(earlier).getByRole('button', { name: 'Roll back to here' }))
-    await waitFor(() => expect(back).toHaveBeenCalledWith('test', 5, expect.any(String), 1))
-    fireEvent.click(screen.getByRole('button', { name: 'Start over' }))
-    expect(client.create).toHaveBeenCalledTimes(1)                                // asks before resetting
-    const confirm = screen.getByRole('alertdialog', { name: 'Start over?' })
-    fireEvent.click(within(confirm).getByRole('button', { name: 'Cancel' }))
-    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Start over' }))
-    fireEvent.click(within(screen.getByRole('alertdialog', { name: 'Start over?' })).getByRole('button', { name: 'Start over' }))
-    await waitFor(() => expect(client.create).toHaveBeenCalledTimes(2))
-  })
-
-  it('summarises a chosen location for approval or a typed correction', async () => {
-    const review = state({ id: 'l', revision: 4, kind: 'location_review', prompt: 'Is this the right location?',
-      data: { summary: '**Cambridge, Massachusetts** · 42.3700, -71.1100' } },
-    { facts: { location: { id: 'cambridge', name: 'Cambridge, Massachusetts', lat: 42.37, lon: -71.11 } } })
-    const approveLocation = vi.fn(async () => ({ ...review, revision: 5, active_card: null }))
-    const sendTurn = vi.fn(async () => ({ ...review, revision: 5 }))
-    render(<App api={api(review, { approveLocation, sendTurn })} />)
-    const question = await screen.findByLabelText('Current question')
-    expect(within(question).getByText('Cambridge, Massachusetts').tagName).toBe('STRONG')
-    expect(within(question).getByText(/42\.3700, -71\.1100/)).toBeInTheDocument()
-    const message = screen.getByRole('textbox', { name: 'Message' })
-    expect(message).toHaveAttribute('placeholder', 'Or describe a correction')
-    fireEvent.click(screen.getByRole('button', { name: 'Approve location' }))
-    await waitFor(() => expect(approveLocation).toHaveBeenCalledWith('test', 4, expect.any(String)))
-  })
-
-  it('asks to approve a place list, with list edits as the correction', async () => {
-    const review = state({ id: 'l', revision: 6, kind: 'location_review', prompt: 'Are these the right locations?',
-      data: { summary: '**2 places** · Boston; Denver', several: true } })
-    const approveLocation = vi.fn(async () => ({ ...review, revision: 7, active_card: null }))
-    render(<App api={api(review, { approveLocation })} />)
-    expect(await screen.findByRole('textbox', { name: 'Message' })).toHaveAttribute('placeholder', 'Or edit the list, e.g. remove 3')
-    fireEvent.click(screen.getByRole('button', { name: 'Approve locations' }))
-    await waitFor(() => expect(approveLocation).toHaveBeenCalledWith('test', 6, expect.any(String)))
-  })
-
-  it('ticks actual and typical products together and counts availability across the sites', async () => {
-    const card: Card = { id: 'p', revision: 8, kind: 'choice', prompt: 'Which weather product?', options: [
-      { id: 'era5-openmeteo', label: 'ERA5 actual year · Open-Meteo', detail: '25 km grid', group: 'actual',
-        available: 3, unverified: 0, sites: 3 },
-      { id: 'nsrdb-actual', label: 'NSRDB actual year · GOES v4', detail: '4 km grid', group: 'actual',
-        available: 1, unverified: 2, sites: 3 },
-      { id: 'onebuilding:TMYx.2009-2023', label: 'OneBuilding TMYx.2009-2023', detail: 'station file', group: 'typical',
-        available: 2, unverified: 0, sites: 3 }],
-    data: { field: 'product', availability: { years: [2025], years_assumed: true, omitted_locations: 0, locations: [
-      { index: 0, lat: 42.4, lon: -76.5, products: [] }] } } }
-    const chooseProducts = vi.fn(async () => ({ ...state(card), revision: 9, active_card: null }))
-    render(<App api={api(state(card), { chooseProducts })} />)
-    const dialog = await screen.findByRole('region', { name: 'Choose weather products' })
-    expect(within(dialog).getByText('Actual year')).toBeInTheDocument()
-    expect(within(dialog).getByText('Typical year')).toBeInTheDocument()
-    expect(within(dialog).queryByText('4 km grid')).not.toBeInTheDocument()          // no descriptions inline
-    const nsrdbRow = within(dialog).getByRole('checkbox', { name: 'NSRDB actual year · GOES v4' }).closest('.product-row')!
-    const info = within(dialog).getByRole('button', { name: 'About NSRDB actual year · GOES v4' })
-    expect(nsrdbRow.querySelector('label')!.nextElementSibling).toBe(info)            // right after the name
-    fireEvent.mouseEnter(info)
-    expect(screen.getByRole('tooltip')).toHaveTextContent('4 km grid')
-    fireEvent.mouseLeave(info)
-    const count = within(nsrdbRow as HTMLElement).getByText('1 / 3')
-    expect(nsrdbRow.lastElementChild).toBe(count)                                      // right-aligned column
-    fireEvent.mouseEnter(count)
-    expect(screen.getByRole('tooltip')).toHaveTextContent(
-      'NSRDB actual year · GOES v4 is available at 1 of the 3 sites selected. 2 more are not verified')
-    fireEvent.mouseLeave(count)
-    expect(screen.getByLabelText('Current question')).toHaveTextContent('Map tags show availability for 2025')
-    expect(within(dialog).getByRole('button', { name: 'Confirm product' })).toBeDisabled()
-    fireEvent.click(within(dialog).getByRole('checkbox', { name: 'NSRDB actual year · GOES v4' }))
-    fireEvent.click(within(dialog).getByRole('checkbox', { name: 'OneBuilding TMYx.2009-2023' }))    // both kinds
-    expect(within(dialog).getByRole('checkbox', { name: 'NSRDB actual year · GOES v4' })).toBeChecked()
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Confirm 2 products' }))
-    await waitFor(() => expect(chooseProducts).toHaveBeenCalledWith('test', 8,
-      ['nsrdb-actual', 'onebuilding:TMYx.2009-2023'], expect.any(String)))
-  })
-
-  it('shows one card for the jobs of a mixed request with their combined progress', async () => {
-    const running = state(null, { job_id: 'a', job_ids: ['a', 'b'], job_groups: [['a'], ['b']], events: [
-      { id: 1, type: 'message', text: '- ERA5 actual year · Open-Meteo\n- ERA5-Land actual year · Copernicus CDS',
-        data: { role: 'user', choice: true } },
-      { id: 2, type: 'job', text: 'Weather job started', data: { job_id: 'a' } },
-      { id: 3, type: 'job', text: 'Weather job started', data: { job_id: 'b', queued: true } }] })
+  it('shows one card for the jobs of a request with their combined progress', async () => {
+    const running = snapshot(null, { job_ids: ['a', 'b'] })
     const job = vi.fn(async (id: string) => id === 'a'
       ? { id: 'a', state: 'completed', total: 2, completed: 2, failed: 0 }
       : { id: 'b', state: 'running', total: 1, completed: 0, failed: 0 })
-    render(<App api={api(running, { job })} />)
+    render(<App api={fakeApi(running, { job })} />)
     const card = await screen.findByLabelText('Current weather job')
     await waitFor(() => expect(card).toHaveTextContent('running · 2/3 outputs · 0 failed'))
     expect(card).toHaveTextContent('Weather jobs (2)')
-    expect(card).toHaveTextContent('Copernicus CDS requests wait in the Copernicus queue')   // why it is slow
     expect(card).toHaveTextContent('Finished outputs can be downloaded now')
-    const choice = within(screen.getByRole('log')).getAllByRole('listitem')                  // a bullet per product
-    expect(choice.map(item => item.textContent)).toEqual(['ERA5 actual year · Open-Meteo',
-      'ERA5-Land actual year · Copernicus CDS'])
-    expect(job).toHaveBeenCalledWith('a')
-    expect(job).toHaveBeenCalledWith('b')
   })
 
-  it('keeps Start over at the left of the message field, and present without one', async () => {
-    render(<App api={api(state({ id: 'y', revision: 1, kind: 'text', prompt: 'Which actual year or years?' }))} />)
-    const field = await screen.findByRole('textbox', { name: 'Message' })
+  it('resumes the saved session and starts over only after asking', async () => {
+    sessionStorage.setItem(sessionKey, 'session-1')
+    const api = fakeApi(FIXTURES.text)
+    render(<App api={api} />)
+    await screen.findByLabelText('Current question')
+    expect(api.get).toHaveBeenCalledWith('session-1')
+    expect(api.create).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Start over' }))
+    const confirm = screen.getByRole('alertdialog', { name: 'Start over?' })
+    fireEvent.click(within(confirm).getByRole('button', { name: 'Cancel' }))
+    expect(api.create).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Start over' }))
+    fireEvent.click(within(screen.getByRole('alertdialog', { name: 'Start over?' })).getByRole('button', { name: 'Start over' }))
+    await waitFor(() => expect(api.create).toHaveBeenCalledTimes(1))
+  })
+
+  it('keeps Start over beside the dock, outside the message form', async () => {
+    render(<App api={fakeApi(FIXTURES.text)} />)
+    const field = await messageField()
     const reset = screen.getByRole('button', { name: 'Start over' })
-    expect(field.closest('form')!.contains(reset)).toBe(false)                     // the field keeps its width
-    expect(reset.closest('.dock-reset')!.parentElement).toHaveClass('chat-dock')   // its own place beside the dock
-    cleanup()
-    render(<App api={api(state({ id: 'p', revision: 2, kind: 'choice', prompt: 'Which weather product?',
-      options: [{ id: 'era5-openmeteo', label: 'ERA5 actual year · Open-Meteo', group: 'actual' }],
-      data: { field: 'product' } }))} />)
-    await screen.findByRole('region', { name: 'Choose weather products' })
-    expect(screen.queryByRole('textbox', { name: 'Message' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Start over' })).toBeInTheDocument()   // always there
-    cleanup()
-    const job = vi.fn(async () => ({ id: 'job-1', state: 'running', total: 2, completed: 0, failed: 0 }))
-    render(<App api={api(state(null, { job_id: 'job-1' }), { job })} />)
-    await screen.findByLabelText('Current weather job')
-    expect(screen.getByRole('button', { name: 'Start over' })).toBeInTheDocument()
-  })
-
-  it('shows the running steps as tool lines instead of only Working', async () => {
-    let finish!: (value: SessionSnapshot) => void
-    const prepare = vi.fn(() => new Promise(resolve => { finish = resolve }))
-    const progress = vi.fn(async () => ({ steps: [
-      { id: 7, type: 'tool', text: 'Assessing catalog', data: { tool: 'availability', phase: 'call' } },
-      { id: 8, type: 'tool', text: 'Catalog assessment complete', data: { tool: 'availability', phase: 'result' } },
-      { id: 9, type: 'tool', text: 'Preparing weather plan', data: { tool: 'weather_plan', phase: 'call' } }] }))
-    const review = state({ id: 'r', revision: 3, kind: 'plan_review', prompt: 'Assess options and review a plan' })
-    render(<App api={api(review, { prepare, progress })} />)
-    fireEvent.click(await screen.findByRole('button', { name: 'Assess and review plan' }))
-    const log = screen.getByRole('log')
-    await waitFor(() => expect(log).toHaveTextContent('Preparing weather plan'))
-    const lines = [...log.querySelectorAll('.tool-line.live')].map(line => line.textContent)
-    expect(lines).toHaveLength(2)                                                  // a call and its result: one line
-    expect(lines[0]).toContain('Assessing catalog')
-    expect(lines[0]).toContain('Catalog assessment complete')
-    expect(screen.queryByRole('status', { name: 'Working' })).not.toBeInTheDocument()   // steps shown instead
-    finish({ ...review, revision: 4 })
-    await waitFor(() => expect(log.querySelectorAll('.tool-line.live')).toHaveLength(0))
+    expect(field.closest('form')!.contains(reset)).toBe(false)
+    expect(reset.closest('.dock-reset')!.parentElement).toHaveClass('chat-dock')
   })
 })

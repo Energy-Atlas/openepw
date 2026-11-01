@@ -176,7 +176,9 @@ that an uncached external source can never change.
 The guards in the agent chat reduce, but do not remove, misuse. The off-topic clamp and the
 model's own scope decisions can misjudge borderline weather-science questions; knowledge answers
 are general information, not checked against openepw data. Ending a session does not stop the
-same person from starting a new one until P4 adds per-user and per-IP limits and spend caps.
+same person from starting a new one in the CLI. The web chat (P4) limits new sessions, inputs and running
+jobs per person and caps model spend per session, per person per day and in total per day; without
+accounts a person is a client address, which a spoofed `X-Forwarded-For` header can change.
 Moderation sends message text to OpenAI's moderation endpoint (also in guided mode) when a
 profile enables it. Map-input values and choice ids in form answers are not moderated. Host
 small-talk replies match whole messages only; other conversation is left to the model, which

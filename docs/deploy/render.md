@@ -46,7 +46,7 @@ openepw --data-root .local/openepw catalog export --out ../open-data/datasets/we
    | `OPENEPW_SITE_PASSWORD` | the password everyone types once per browser |
    | `OPENEPW_NLR_API_KEY`, `OPENEPW_NLR_EMAIL` | NSRDB downloads |
    | `OPENEPW_CDS_KEY` | Copernicus CDS downloads |
-   | `OPENAI_API_KEY` | the chat model (without it the offline parser still reads coordinates, years and products) |
+   | `OPENAI_API_KEY` | the chat model and moderation; required, because the remote server uses the `hosted` security profile, which refuses to start without it (without a model the web chat would run in guided mode) |
    | `OPENEPW_CATALOG_URL`, `OPENEPW_CATALOG_SHA256` | the pinned package link and checksum from step 1 |
 
 4. **Apply**. The first build takes a few minutes. The log should show

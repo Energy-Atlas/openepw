@@ -15,7 +15,7 @@ detail lives in those documents and in git history.
 | Agent chat, guardrails, evals, request lookups | In `main` and on staging | [ADR 0005](docs/decisions/0005-mcp-agent-chat.md), [agent README](docs/agent/README.md) |
 | Availability catalog | Open-data 2026.10.27; staging pinned to it on 2026-10-30 | [ADR 0003](docs/decisions/0003-mcp-availability-and-batches.md), the records below |
 | Hosted deployment | Render staging from `deploy/staging`; production not promoted | [Render guide](docs/deploy/render.md) |
-| Outstanding work | Phase 1 done 2026-10-30; phase 2 deferred (no LangSmith for now); phase 3 approved 2026-10-31; phase 4 merged into `main` 2026-10-31; phases 5–7 not started | [outstanding work plan](docs/superpowers/plans/2026-10-30-outstanding-work.md) |
+| Outstanding work | Phase 1 done 2026-10-30; phase 2 deferred (no LangSmith for now); phase 3 approved 2026-10-31; phase 4 merged into `main` 2026-10-31; P4 (web chat on the agent core) added as a phase 2026-11-01 and built; phases 5–7 not started | [outstanding work plan](docs/superpowers/plans/2026-10-30-outstanding-work.md) |
 
 ## v0.1 implementation — complete
 
@@ -76,8 +76,10 @@ Weather equivalence between sources is not verified.
 - **Request lookups, slots phase (a)** (merged 2026-10-30): the agent answers availability
   questions with a host lookup. See the [lookups plan](docs/superpowers/plans/2026-10-13-agent-request-lookups.md).
   Slots phases (b)–(d) are phases 3 and 4: the [design](docs/superpowers/specs/2026-10-30-agent-request-slots-design.md)
-  was approved on 2026-10-31 and built on `feature/agent-request-slots` (request parts, the request
-  summary and per-part Change, CLI and evals only; the web chat needs P4).
+  was approved on 2026-10-31 and merged (request parts, the request summary and per-part Change).
+- **Web chat on the agent core, P4** (2026-11-01): the browser chat renders agent sessions through
+  `/v2/agent` with per-person limits and spend caps. See the [P4 plan](docs/superpowers/plans/2026-11-01-agent-web-chat.md).
+  P5 retires the legacy `/v1/chat` routes.
 - **Still planned:** downloading artifacts to the person's disk and richer analytical follow-ups
   ([post-retrieval plan](docs/plans/2026-09-26-post-download-conversations.md)). These are phase 5.
 

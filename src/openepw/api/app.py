@@ -90,7 +90,10 @@ class ChatView(ChatAction):
     prompt: str | None = None
 
 
-def create_app(service=None, *, remote=False, chat_parser=None, env_file=".env", security_policy=None):
+def create_app(service=None, *, remote=False, chat_parser=None, env_file=".env", security_policy=None,
+               agent_model="auto"):
+    """The REST server. ``agent_model`` is the web agent chat's model (see agent_routes.build_host):
+    "auto" uses OPENAI_API_KEY when set, None means guided mode only, a callable makes one per turn."""
     service = service or WeatherService()
     if remote and not (service.config.bearer_token or service.config.site_password):
         raise ValueError("Remote mode requires OPENEPW_BEARER_TOKEN or OPENEPW_SITE_PASSWORD")
@@ -124,7 +127,11 @@ def create_app(service=None, *, remote=False, chat_parser=None, env_file=".env",
             await asyncio.to_thread(service.warm_catalog)
         except Exception:
             logger.exception("Catalog warm-up failed; the first request builds it instead")
+        if app.state.agent_host is not None:
+            app.state.agent_host.start()
         yield
+        if app.state.agent_host is not None:
+            app.state.agent_host.close()
         runner.close()
         close = getattr(chat_parser, "close", None)
         if close is not None:
@@ -144,8 +151,8 @@ def create_app(service=None, *, remote=False, chat_parser=None, env_file=".env",
         title="OpenEPW", version="0.1.0", lifespan=lifespan, dependencies=[Depends(authenticate)]
     )
     app.state.service = service
-    # The security profile for the agent chat once P4 hosts it here; the legacy /v1 chat does
-    # not apply it (owner decision Q9).
+    # The security profile of the agent chat (/v2/agent); the legacy /v1 chat does not apply it
+    # (owner decision Q9).
     app.state.security_policy = security_policy
     if service.config.site_password:
         SiteGate(service.config.site_password.get_secret_value()).install(app)
@@ -153,10 +160,17 @@ def create_app(service=None, *, remote=False, chat_parser=None, env_file=".env",
     try:
         from ..mcp.server import create_server
     except ImportError:  # the mcp extra is optional for the REST server
-        app.state.mcp_server = None
+        logger.warning("The mcp extra is not installed: the web agent chat (/v2/agent) is off")
+        app.state.mcp_server = app.state.agent_host = None
     else:
-        # Agent sessions connect in-process (P4); it never runs a second job runner.
+        from . import agent_routes
+
+        # Agent sessions connect in-process; the server never runs a second job runner.
         app.state.mcp_server = create_server(service, runner=runner)
+        app.state.agent_host = agent_routes.build_host(service, runner, app.state.mcp_server,
+                                                       security=security_policy, env_file=env_file,
+                                                       model=agent_model)
+        agent_routes.install(app, app.state.agent_host)
     app.state.chat = chat
     diagnostics.install(app, service)
 

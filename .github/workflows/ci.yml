@@ -19,3 +19,19 @@ jobs:
       - run: python -m ruff check .
       - run: python -m mypy
       - run: python -m build
+  # The browser chat (web/chat-ui): its tests render the agent forms from the Python fixture.
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web/chat-ui
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: web/chat-ui/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
