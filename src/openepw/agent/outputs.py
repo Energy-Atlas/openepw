@@ -100,7 +100,7 @@ def show_outputs(s: AgentSession, rows: list[dict[str, Any]], *, heading: str = 
     if len(rows) > 50:
         lines.append(f"... and {len(rows) - 50} more")
     if any(row["status"] in FAILED for row in rows) and s.facts.retryable_jobs:
-        lines.append("Failed outputs can be retried.")
+        lines += ["", "Failed outputs can be retried."]    # a paragraph of its own, not part of the list
     s.emit("assistant", "\n".join([heading, *lines]), code="OUTPUTS_LISTED",
            numbers=[row["number"] for row in rows[:50]])
 

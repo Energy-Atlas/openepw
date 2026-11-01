@@ -186,9 +186,14 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
   const mergedJobs = mergeJobManifests(chain)
   const heads = chain.map(item => item.job)
   const running = heads.filter(item => ['queued', 'running'].includes(item.state))
+  // After a retry the merged manifest rows count each output once (a retry's success replaces the failure).
+  const settled = !running.length && heads.length > 1 && mergedJobs.complete
   const job = heads.length ? { state: running.length ? running[0].state : [...new Set(heads.map(item => item.state))].join(', '),
-    total: heads.reduce((sum, item) => sum + item.total, 0), completed: heads.reduce((sum, item) => sum + item.completed, 0),
-    failed: heads.reduce((sum, item) => sum + item.failed, 0) } : null
+    total: settled ? mergedJobs.rows.length : heads.reduce((sum, item) => sum + item.total, 0),
+    completed: settled ? mergedJobs.rows.filter(row => row.status === 'succeeded').length
+      : heads.reduce((sum, item) => sum + item.completed, 0),
+    failed: settled ? mergedJobs.rows.filter(row => ['failed', 'cancelled'].includes(row.status)).length
+      : heads.reduce((sum, item) => sum + item.failed, 0) } : null
   const processed = (job?.completed ?? 0) + (job?.failed ?? 0)
   const availableIds = session?.artifact_ids ?? []
   const viewIds = [...new Set(events.filter(event => event.type === 'view').map(event => String(event.data?.view_id ?? '')))]

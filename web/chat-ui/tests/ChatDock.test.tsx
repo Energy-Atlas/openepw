@@ -103,6 +103,25 @@ describe('chat dock and controls', () => {
     expect(card).toHaveTextContent('Finished outputs can be downloaded now')
   })
 
+  it('counts each output once after a retry replaced a failure', async () => {
+    const row = (status: string, artifact: string | null) => ({ output_id: 'out-boston', occurrence_index: 0,
+      period_start: '2016-01-01', status, artifact_id: artifact, dataset_selection: { provider: 'openmeteo', dataset: 'era5' } })
+    const jobs: Record<string, unknown> = {
+      first: { id: 'first', state: 'partially_completed', total: 2, completed: 1, failed: 1,
+        bundle: { weather: [{ id: 'denver', role: 'weather', path: 'd.epw' }], manifest: { id: 'm1' } } },
+      retry: { id: 'retry', state: 'completed', total: 1, completed: 1, failed: 0,
+        bundle: { weather: [{ id: 'boston', role: 'weather', path: 'b.epw' }], manifest: { id: 'm2' } } } }
+    const manifests: Record<string, unknown> = {
+      m1: { batch_rows: [row('failed', null), { ...row('succeeded', 'denver'), output_id: 'out-denver', occurrence_index: 1 }],
+        output_mapping: [] },
+      m2: { batch_rows: [row('succeeded', 'boston')], output_mapping: [] } }
+    const api = fakeApi(snapshot(null, { job_ids: ['first', 'retry'], finished_job_ids: ['first', 'retry'] }), {
+      job: vi.fn(async (id: string) => jobs[id]), manifest: vi.fn(async (id: string) => manifests[id]) })
+    render(<App api={api} />)
+    const card = await screen.findByLabelText('Current weather job')
+    await waitFor(() => expect(card).toHaveTextContent('2/2 outputs · 0 failed'))
+  })
+
   it('resumes the saved session and starts over only after asking', async () => {
     sessionStorage.setItem(sessionKey, 'session-1')
     const api = fakeApi(FIXTURES.text)

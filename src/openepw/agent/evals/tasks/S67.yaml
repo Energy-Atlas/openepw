@@ -1,7 +1,8 @@
 id: S67
 title: Asking for files before any run says there are none
-purpose: 'Before any weather was retrieved the person asks what they got. The host says there are no files yet
-  and how to ask; nothing is planned or submitted.'
+purpose: 'Before any weather was retrieved the person asks what they got. The reply says there are no files yet
+  (guided: the host''s NO_OUTPUTS reply; agent: from list_outputs or the session state, live check 2026-11-01);
+  nothing is planned or submitted and no request form opens.'
 covers: [followup.outputs]
 tags: [followup]
 user:
@@ -10,6 +11,11 @@ user:
 graders:
 - grader: codes_present
   value: [NO_OUTPUTS]
+  mode: guided
+- grader: reply_contains
+  value: ['yet']
+- grader: forms_absent
+  value: [location_review, product_choice, plan_review]
 - {grader: submitted, value: false}
 - grader: tool_counts
   value: {weather_plan: 0, weather_submit: 0}
