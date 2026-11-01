@@ -201,3 +201,27 @@ def test_an_agent_session_resumed_without_a_model_gets_a_guided_form(tmp_path):
                           write=output.append))
     text = "\n".join(output)
     assert "(guided mode)" in output[0] and "STALE_FORM" not in text and "Which weather products?" in text
+
+
+def test_outputs_and_download_commands_save_files_to_a_folder(tmp_path):
+    folder = tmp_path / "my weather"
+    lines = iter(["AMY 2018 for Ithaca NY", "a", "1", "run", "/outputs", "download the 2018 file",
+                  f'/download "{folder}"', "/download 1", str(folder), "/download 7 elsewhere", "/quit"])
+    output = []
+    code = asyncio.run(main_chat(scenario_service(tmp_path / "data"), read=lambda prompt: next(lines),
+                                 write=output.append, poll_seconds=0.05))
+    text = "\n".join(output)
+    assert code == 0
+    assert "Your files:\n1. Ithaca" in text and "[download] Ready to download:" in text
+    assert "Save with /download <folder>" in text
+    saved = list(folder.iterdir())
+    assert len(saved) == 1 and saved[0].suffix == ".epw" and saved[0].stat().st_size > 100_000
+    assert f"Saved {saved[0]}" in text and "1 of 1 file(s) saved." in text
+    assert "already exists in that folder; it was not overwritten." in text          # the second save
+    assert "Nothing to save" in text                                                  # number 7 does not exist
+    assert "/outputs lists your files" in render_help()
+
+
+def render_help():
+    from openepw.agent.cli import HELP
+    return HELP

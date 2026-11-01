@@ -33,7 +33,7 @@ SECRET = re.compile(r"\bsk[-_][A-Za-z0-9_-]{8,}\b|\blsv2_[A-Za-z0-9_]{8,}|\bgh[p
 ANY_LINK = re.compile(r"(?i)(?:\b[a-z][a-z0-9+.-]*:)?//[^\s)\]>\"'`]+|\bwww\.[^\s)\]>\"'`]+"
                       r"|\b[a-z0-9-]+(?:\.[a-z0-9-]+)+[/\\][^\s)\]>\"'`]*")
 GREETING_PREFIX = "Ask for weather in your own words"
-EVENT_TYPES = frozenset({"user", "assistant", "notice", "form", "tool", "error", "job", "view"})
+EVENT_TYPES = frozenset({"user", "assistant", "notice", "form", "tool", "error", "job", "view", "download"})
 
 
 @dataclass

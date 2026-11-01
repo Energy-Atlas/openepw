@@ -11,7 +11,7 @@ from ..models import Model
 
 FormKind = Literal["text", "choice", "location_review", "product_choice", "map_input", "upload",
                    "plan_review", "request_summary"]
-EventType = Literal["user", "assistant", "tool", "form", "job", "view", "notice", "error"]
+EventType = Literal["user", "assistant", "tool", "form", "job", "view", "download", "notice", "error"]
 
 
 class Option(Model):

@@ -29,7 +29,7 @@ def _reviewed(facts: Facts) -> bool:
 
 def next_need(facts: Facts) -> str:
     if facts.stage == "results":
-        return "next_steps"
+        return "jobs" if facts.running_jobs else "next_steps"     # a retry may be running
     if facts.place_set:
         return "place_set"
     if facts.candidates:

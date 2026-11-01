@@ -198,6 +198,12 @@ class AgentSession:
                                  "guard_codes": list(dict.fromkeys(codes)),
                                  "form": f"{form.kind} ({form.gate})" if form else None}, error_code)
 
+    async def host_step(self, work: Callable[[], Any], kind: str) -> None:
+        """Run a host step a command asks for (the CLI's /outputs), guarded like an input."""
+        if self._refuse_if_ended():
+            return
+        await self._guard(work(), kind)
+
     async def begin(self) -> None:
         if self.form is None and self.state.ended is None:
             await self._guard(self.policy.advance(self), "begin")
@@ -424,6 +430,8 @@ class AgentSession:
         # Back undoes choices, not results: uploaded and retrieved EPWs stay available.
         restored.facts.artifact_ids = list(self.facts.artifact_ids)
         restored.facts.finished_job_ids = list(self.facts.finished_job_ids)
+        restored.facts.failed_jobs = list(self.facts.failed_jobs)
+        restored.facts.retry_of = dict(self.facts.retry_of)
         # Back undoes choices, never strikes.
         restored.strikes, restored.ended = self.state.strikes, self.state.ended
         restored.ended_reopen, restored.downgraded = self.state.ended_reopen, self.state.downgraded
@@ -589,6 +597,8 @@ class AgentSession:
             codes.update(inspected.get("qc_issue_codes") or [])
         self.facts.finished_job_ids.append(job_id)
         self.facts.artifact_ids.extend(weather)
+        if job.get("failed") and job_id not in self.facts.failed_jobs:
+            self.facts.failed_jobs.append(job_id)
         message = (f"Job {job.get('state')}: {job.get('completed', 0)} of {job.get('total', 0)} outputs "
                    f"completed, {job.get('failed', 0)} failed; {len(weather)} EPW file(s).")
         message += " QC issue codes: " + ", ".join(sorted(codes)) + "." if codes else ""

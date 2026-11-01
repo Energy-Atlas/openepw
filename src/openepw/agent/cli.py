@@ -10,9 +10,10 @@ from typing import Any, Callable
 
 from ..jobs.worker import JobRunner
 from ..models import OpenEPWError
+from . import outputs
 from .guided import GuidedPolicy
 from .interactions import Answer, Event, Interaction
-from .mcp_port import ApprovalBook, InProcessMCP
+from .mcp_port import ApprovalBook, InProcessMCP, ToolFailure
 from .model_port import DEFAULT_MODEL, ModelPort, ModelUnavailable, OpenAIModel, load_openai_key
 from .moderation import ModerationPort, OpenAIModeration
 from .policy_config import SecurityPolicy, requires_moderation_key
@@ -23,6 +24,8 @@ from .tracing import NullTracer, make_tracer, tracing_settings
 
 HELP = ("Type a weather request, or answer the current form.\n"
         "/back  /new  /request  /upload <path to .epw>  /status  /mode [agent|guided]  /help  /quit\n"
+        "/outputs lists your files; /download [numbers|all] [folder] saves files to your disk (without "
+        "numbers, the files last offered).\n"
         "/request shows your request (place, preference, products, years); at it or at the plan review, "
         "'change years' (or place, products, preference) changes one part.\n"
         "EPW bytes stay out of the conversation; review QC before simulation.")
@@ -119,6 +122,96 @@ def _read_upload(argument: str, write: Callable[[str], Any]) -> tuple[bytes, str
         return None
 
 
+_SELECTION = re.compile(r"all|\d+(?:\s*,\s*\d+)*")
+_SAFE_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,119}")
+
+
+def offered_files(events: list[Event]) -> list[dict[str, Any]]:
+    """The files of the latest download offer."""
+    return next((list(event.data.get("files") or []) for event in reversed(events) if event.type == "download"), [])
+
+
+def file_name(item: dict[str, Any]) -> str:
+    """A safe file name: the output's planned name, else one made from the artifact id."""
+    name = Path(str(item.get("filename") or "")).name
+    if _SAFE_NAME.fullmatch(name):
+        return name
+    return f"openepw-{item['artifact_id'][:12]}.epw"
+
+
+async def save_files(port: Any, files: list[dict[str, Any]], folder: Path, write: Callable[[str], Any]) -> int:
+    """Save offered files into ``folder`` through the MCP artifact resource. Each file's sha256 is
+    checked, an existing file is never overwritten, and a partly written file is removed. Paths are
+    written to the console only, never to the conversation. Returns the number saved."""
+    import hashlib
+
+    try:
+        folder.mkdir(parents=True, exist_ok=True)
+    except OSError as error:
+        write(f"✗ Could not use that folder ({type(error).__name__}).")
+        return 0
+    saved = 0
+    for item in files:
+        name = file_name(item)
+        target = folder / name
+        try:
+            content = await port.read_artifact(item["artifact_id"])
+        except ToolFailure as failure:
+            write(f"✗ {name}: {failure.code}: {failure.message}")
+            continue
+        if item.get("sha256") and hashlib.sha256(content).hexdigest() != item["sha256"]:
+            write(f"✗ {name}: CHECKSUM_MISMATCH: the file was not saved.")
+            continue
+        try:
+            with open(target, "xb") as handle:      # never overwrite
+                try:
+                    handle.write(content)
+                except BaseException:
+                    handle.close()
+                    target.unlink(missing_ok=True)  # no partial file is left behind
+                    raise
+        except FileExistsError:
+            write(f"✗ {name} already exists in that folder; it was not overwritten.")
+            continue
+        except OSError as error:
+            write(f"✗ {name}: could not be written ({type(error).__name__}).")
+            continue
+        saved += 1
+        write(f"Saved {target}")
+    return saved
+
+
+async def download_command(session: AgentSession, port: Any, argument: str, read: Callable[[str], str],
+                           write: Callable[[str], Any]) -> None:
+    """/download [numbers|all] [folder]: numbers are those of the files listed or offered."""
+    selection, _, folder = argument.strip().partition(" ")
+    if not _SELECTION.fullmatch(selection.strip()):
+        selection, folder = "", argument.strip()
+    files: list[dict[str, Any]] = []
+
+    async def pick() -> None:
+        rows = await outputs.session_outputs(session)
+        chosen = rows if selection == "all" else outputs.pick_outputs(
+            rows, numbers=[int(item) for item in selection.split(",")])
+        files.extend(row for row in chosen if row["status"] == "succeeded" and row.get("artifact_id"))
+
+    if selection:
+        await session.host_step(pick, "download")
+        files = [{"artifact_id": row["artifact_id"], "filename": row.get("filename"),
+                  "sha256": row.get("sha256")} for row in files]
+    else:
+        files = offered_files(session.events())
+    if not files:
+        write("Nothing to save: ask for your files first, or give numbers from /outputs.")
+        return
+    folder = folder.strip().strip('"') or read("Folder to save into: ").strip().strip('"')
+    if not folder:
+        write("No folder given; nothing was saved.")
+        return
+    count = await save_files(port, files, Path(folder).expanduser(), write)
+    write(f"{count} of {len(files)} file(s) saved.")
+
+
 def render_form(form: Interaction) -> str:
     lines = ["? " + form.prompt]
     if form.summary:
@@ -149,6 +242,9 @@ def render_event(event: Event) -> str | None:
         return None
     if event.type == "tool":
         return None if event.data.get("phase") == "call" else "  · " + event.text.splitlines()[0]
+    if event.type == "download":
+        return (f"[download] {event.text}\nSave with /download <folder>, or /download <numbers> <folder> "
+                "for some of them.")
     prefix = {"assistant": "", "job": "[job] ", "view": "[view] ", "notice": "! ", "error": "✗ "}[event.type]
     return prefix + event.text
 
@@ -297,6 +393,16 @@ async def main_chat(service: Any, *, session_id: str | None = None,
                               f"({session.security.digest}). Strikes: {session.state.strikes} of {rules.limit}. "
                               "Jobs: " + (", ".join(f"{job} ({'finished' if job in finished else 'running'})"
                                                     for job in session.facts.job_ids) or "none"))
+                        continue
+                    if command == "/outputs":
+                        async def listing() -> None:
+                            outputs.show_outputs(session, await outputs.session_outputs(session))
+                        await session.host_step(listing, "outputs")
+                        flush()
+                        continue
+                    if command == "/download":
+                        await download_command(session, port, argument, read, write)
+                        flush()
                         continue
                     if command == "/back":
                         await session.back()

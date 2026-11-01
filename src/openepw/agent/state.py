@@ -60,6 +60,18 @@ class Facts(Model):
     proposed_years: list[int] = Field(default_factory=list)  # years written in a question; part of years
     origins: dict[str, dict[str, Any]] = Field(default_factory=dict)   # part -> {"by", "seq"}
     recheck: bool = False                            # the chosen products must be chosen again
+    failed_jobs: list[str] = Field(default_factory=list)     # finished jobs with failed outputs
+    retry_of: dict[str, str] = Field(default_factory=dict)   # retry job id -> the job it retried
+
+    @property
+    def running_jobs(self) -> list[str]:
+        return [job for job in self.job_ids if job not in self.finished_job_ids]
+
+    @property
+    def retryable_jobs(self) -> list[str]:
+        """Finished jobs with failed outputs that no retry has taken over yet."""
+        retried = set(self.retry_of.values())
+        return [job for job in self.failed_jobs if job not in retried]
 
     @property
     def confirmed_years(self) -> list[int]:
