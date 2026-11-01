@@ -3,7 +3,8 @@
 Date: 2026-10-05. Status: design agreed with the owner on 2026-10-04/05; P1
 (service moves and MCP contract) implemented on feature/mcp-agent-chat; P2
 (agent core, guided mode, CLI) implemented on feature/mcp-agent-core; P3
-(agent mode, model port, evals) implemented on feature/mcp-agent-mode; P4–P5
+(agent mode, model port, evals) implemented on feature/mcp-agent-mode; P4 (web
+renderer, `/v2/agent`, limits) implemented 2026-11-01 on feature/agent-web-chat; P5
 pending. In the openepw host's agent mode, `weather_locations_review` and
 `weather_product_offers` are reached only through the `review_location` and
 `choose_products` ask-tools, so every review shows the person a form; the MCP
@@ -94,3 +95,16 @@ approval reset and only that part's form opens. A change to one part resets only
 it (a new place leaves the chosen products to recheck; new years keep products still offered).
 Run still approves exactly the plans shown, and the other gates above are unchanged. See the
 [request slots design](../superpowers/specs/2026-10-30-agent-request-slots-design.md).
+
+## Note (2026-11-01): the web chat on the agent core (P4)
+
+The browser chat renders agent sessions through `/v2/agent`
+([plan](../superpowers/plans/2026-11-01-agent-web-chat.md)). Turns run in worker threads, each
+with its own event loop and in-memory MCP client, on the server's one service, job runner and MCP
+server; events stream as server-sent events. The design said web turns run in the existing
+background queue; worker threads replaced it so that a blocking tool never blocks the web
+server's loop. Parity tests run the same scenarios through the CLI loop and through `/v2` and
+compare form kinds and tool calls. The security profile's `limits` (per person: sessions per
+hour, inputs per minute, running jobs; spend per session, per person per day and in total per
+day) apply to web sessions. Sessions saved through `/v1/chat` are not migrated (owner,
+2026-11-01); P5 retires those routes.
