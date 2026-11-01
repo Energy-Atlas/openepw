@@ -12,7 +12,7 @@ from ..artifacts.store import ArtifactStore
 from ..dataset import WeatherDataset, local_interval_starts
 from ..epw import read_epw
 from ..models import OpenEPWError
-from .catalog import INITIAL_FAMILIES, VARIABLES
+from .catalog import AGGREGATED, INITIAL_FAMILIES, VARIABLES
 from .models import VisualizationRequest, VisualizationSpec
 
 
@@ -210,6 +210,50 @@ def _period_rows(source: Source, variable: str, family: str, operation: str,
     return rows
 
 
+def _profile_rows(sources: list[Source], variable: str, operation: str,
+                  allow_partial: bool) -> list[dict]:
+    """Month-of-year profile: each source's monthly aggregates per year, then, for each place and
+    source, the mean of each calendar month over the years, with the years that contributed.
+
+    By default a month is null when any of its year-months is incomplete; ``allow_partial``
+    averages the year-months that have values and marks the month partial.
+    """
+    kinds = {source.temporal_kind for source in sources}
+    if len(kinds) != 1:
+        raise OpenEPWError("INCOMPATIBLE_SOURCES",
+                           "A month-of-year profile cannot mix actual-year and reference sources")
+    groups: dict[tuple, list[Source]] = {}
+    for source in sources:
+        location = source.dataset.location
+        key = (round(location.lat, 4), round(location.lon, 4), source.provider, source.dataset_name)
+        groups.setdefault(key, []).append(source)
+    rows = []
+    for members in groups.values():
+        location = members[0].dataset.location
+        label = (location.name or f"{location.lat:.4f}, {location.lon:.4f}") + (
+            f" · {members[0].provider}/{members[0].dataset_name}" if members[0].provider else "")
+        monthly = [row for source in members for row in _period_rows(
+            source, variable, "monthly_series", operation, allow_partial)]
+        for month in range(1, 13):
+            cells = [row for row in monthly if row["month"] == month]
+            counted = [row for row in cells if row["value"] is not None]
+            complete = len(counted) == len(cells) and all(row["quality"] == "complete" for row in counted)
+            value = (float(np.mean([row["value"] for row in counted]))
+                     if counted and (complete or allow_partial) else None)
+            valid = sum(row["valid_hours"] for row in cells)
+            expected = sum(row["expected_hours"] for row in cells)
+            rows.append({
+                "series": label, "artifact_id": members[0].artifact_id,
+                "artifact_ids": [source.artifact_id for source in members],
+                "month": month, "period": f"month-{month:02d}", "value": value,
+                "years": sorted({row["year"] for row in counted if row["year"] is not None}),
+                "year_months": len(counted), "expected_year_months": len(cells),
+                "expected_hours": expected, "valid_hours": valid, "missing_hours": expected - valid,
+                "quality": ("incomplete" if value is None else "complete" if complete else "partial"),
+            })
+    return rows
+
+
 def _hourly_rows(source: Source, variable: str) -> list[dict]:
     local = source.local
     expected = _expected_local(source)
@@ -295,7 +339,7 @@ def build_view(store: ArtifactStore, request: VisualizationRequest) -> dict:
     variable = VARIABLES[request.variable]
     operation = request.aggregation or ("sum" if request.variable in ("ghi", "dni", "dhi")
                                         else "mean")
-    if request.family in ("annual_series", "monthly_series", "spatial") and (
+    if request.family in AGGREGATED and (
         operation not in variable["aggregations"]
     ):
         raise OpenEPWError("INVALID_AGGREGATION", "Aggregation is not valid for this variable")
@@ -323,6 +367,8 @@ def build_view(store: ArtifactStore, request: VisualizationRequest) -> dict:
                                 "variable": request.variable, "unit": variable["unit"],
                                 "bin_edges": edges},
                           "y": {"field": "count", "unit": "hours"}}
+    elif request.family == "month_of_year_profile":
+        rows = _profile_rows(sources, request.variable, operation, request.allow_partial)
     elif request.family == "spatial":
         rows, extra_encoding, shape = _spatial_rows(
             sources, request.variable, operation, request.allow_partial)
@@ -344,6 +390,10 @@ def build_view(store: ArtifactStore, request: VisualizationRequest) -> dict:
         encodings = {**extra_encoding,
                      "value": {"field": "value", "variable": request.variable,
                                "unit": variable["unit"]}}
+    elif request.family == "month_of_year_profile":
+        encodings = {"x": {"field": "month", "kind": "month_of_year"},
+                     "y": {"field": "value", "variable": request.variable,
+                           "unit": variable["unit"]}, "series": ["series"]}
     else:
         encodings = {"x": {"field": "period", "kind": "local_hour" if
                            request.family == "time_series" else "local_period"},
@@ -354,6 +404,11 @@ def build_view(store: ArtifactStore, request: VisualizationRequest) -> dict:
         transforms.extend([{"operation": "group", "by": ["artifact_id", "year"] +
                            (["month"] if request.family == "monthly_series" else [])},
                            {"operation": "aggregate", "method": operation}])
+    elif request.family == "month_of_year_profile":
+        transforms.extend([{"operation": "group", "by": ["artifact_id", "year", "month"]},
+                           {"operation": "aggregate", "method": operation},
+                           {"operation": "group", "by": ["series", "month"]},
+                           {"operation": "aggregate", "method": "mean", "over": "year"}])
     elif request.family == "histogram":
         transforms.append({"operation": "bin", "edges": encodings["x"]["bin_edges"]})
     spec = {

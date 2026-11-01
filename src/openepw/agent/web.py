@@ -264,9 +264,13 @@ class AgentHost:
         if not self.web.hit(owner, "input", 60, self.security.limits.inputs_per_minute):
             raise WebRefusal("RATE_LIMIT", "Too many messages in a minute; wait a moment and try again.")
         state = self.store.load(session_id)
-        if (item.type == "answer" and item.answer is not None and item.answer.approve and state.form
-                and state.form.gate == "review_plan"):
-            self._check_running_jobs(owner, state.facts.plans)
+        answer, form = item.answer if item.type == "answer" else None, state.form
+        if answer is not None and form is not None and answer.approve and form.gate == "review_plan":
+            self._check_running_jobs(owner, sum(1 for plan in state.facts.plans
+                                                if plan.get("output_count") and not plan.get("job_id")))
+        elif (answer is not None and form is not None and answer.choice_ids == ["retry"]
+              and form.gate == "review_retry"):
+            self._check_running_jobs(owner, len(form.data.get("jobs") or []))   # a retry starts jobs too
         return self._submit(session_id, owner, self._action(item))
 
     def upload(self, session_id: str, owner: str, content: bytes, filename: str | None) -> Future:
@@ -291,7 +295,7 @@ class AgentHost:
             return lambda s: s.set_mode(item.mode or "guided")
         return lambda s: s.show_request()
 
-    def _check_running_jobs(self, owner: str, plans: list[dict[str, Any]]) -> None:
+    def _check_running_jobs(self, owner: str, starting: int) -> None:
         limit = self.security.limits.running_jobs
         if limit is None:
             return
@@ -301,10 +305,9 @@ class AgentHost:
                 running += self.runner.store.get(job_id).state not in TERMINAL
             except Exception:                        # a job record that is gone is not running
                 continue
-        starting = sum(1 for plan in plans if plan.get("output_count") and not plan.get("job_id"))
         if running + starting > limit:
             raise WebRefusal("JOB_LIMIT", f"You already have {running} weather job(s) running (limit {limit}); "
-                                          "wait for them to finish before running another plan.")
+                                          "wait for them to finish before starting another.")
 
     def _submit(self, session_id: str, owner: str, action: Action) -> Future:
         with self._mutex:

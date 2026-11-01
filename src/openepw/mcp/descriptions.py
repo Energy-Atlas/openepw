@@ -71,6 +71,10 @@ DESCRIPTIONS: dict[str, str] = {
     "job_inspect": (
         "Inspect a job's state, counts, per-output rows, issue codes and artifact ids. Use to report "
         "progress or results. Do not poll it in a loop; hosts follow job progress themselves."),
+    "job_outputs": (
+        "List a weather job's outputs from its verified manifest: place, product, year, status, issue "
+        "codes and, for succeeded outputs, artifact id, file name, bytes and sha256. Use to say which "
+        "file is which year or place, or why an output failed. Do not guess outputs from artifact order."),
     "job_cancel": (
         "Host tool: request cancellation of a running job; completed artifacts remain. Use when the "
         "person asks to stop a job. Do not cancel on your own initiative."),

@@ -20,6 +20,19 @@ describe('prepared-data chart options', () => {
     expect((option.series as Array<{ data: unknown[] }>)[0].data).toEqual([8, null])
   })
 
+  it('draws a month-of-year profile with one line per place, months named', () => {
+    const option = chartOption({ ...base, family: 'month_of_year_profile' }, [
+      { series: 'Ithaca', artifact_id: 'a', period: 'month-01', value: -4 },
+      { series: 'Ithaca', artifact_id: 'a', period: 'month-02', value: null },
+      { series: 'Boston', artifact_id: 'b', period: 'month-01', value: -1 },
+      { series: 'Boston', artifact_id: 'b', period: 'month-02', value: 0 },
+    ])!
+    expect((option.xAxis as { data: string[] }).data).toEqual(['Jan', 'Feb'])
+    const series = option.series as Array<{ name: string; type: string; data: unknown[] }>
+    expect(series.map(item => [item.name, item.type, item.data])).toEqual([
+      ['Ithaca', 'line', [-4, null]], ['Boston', 'line', [-1, 0]]])
+  })
+
   it('uses a matrix only when the prepared spec declares one', () => {
     const option = chartOption({ ...base, family: 'spatial', data_ref: { ...base.data_ref, shape: 'matrix' },
       encodings: { latitudes: [1], longitudes: [2, 3], values: [[4, null]], value: { unit: '°C' } } }, [])!

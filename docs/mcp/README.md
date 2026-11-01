@@ -35,7 +35,7 @@ summary falls back to a key-only stub (field names plus identifier values) and l
 
 | Group | Tools |
 | --- | --- |
-| Model may call | `weather_places_interpret`, `weather_geocode`, `weather_places_preview`, `weather_place_set`, `weather_locations_review`, `weather_product_offers`, `weather_assess`, `weather_plan`, `plan_inspect`, `job_inspect`, `artifact_inspect`, `weather_data_describe`, `weather_visualization_capabilities`, `weather_visualize` |
+| Model may call | `weather_places_interpret`, `weather_geocode`, `weather_places_preview`, `weather_place_set`, `weather_locations_review`, `weather_product_offers`, `weather_assess`, `weather_plan`, `plan_inspect`, `job_inspect`, `job_outputs`, `artifact_inspect`, `weather_data_describe`, `weather_visualization_capabilities`, `weather_visualize` |
 | Host on a person's action | `weather_submit`, `job_cancel`, `job_retry_failed`, `weather_export_compact`, `epw_upload`, `epw_register_path`, `weather_data_page` |
 | Legacy | `weather_discover` (planning discovers internally), `weather_fetch`, `weather_inspect` |
 
@@ -105,7 +105,9 @@ only output QC describes retrieved-weather gaps. Every manifest currently record
    rows and warnings. After the person approves, call `weather_submit` with that hash and
    confirm when asked.
 3. Poll `job_inspect` by job ID. Inspect the emitted weather artifact and its
-   manifest/QC IDs. A partial job can retain successful outputs.
+   manifest/QC IDs. A partial job can retain successful outputs. `job_outputs` lists each
+   output's place, year, status, issue codes and, when it succeeded, artifact id, file name and
+   sha256 (from the verified manifest), so a client can say which file is which year.
 4. Call `weather_export_compact` explicitly for a completed weather job if
    a ZIP mapping is needed. Export does not grant redistribution rights.
 5. For an existing EPW artifact, call `weather_data_describe` with its ID,

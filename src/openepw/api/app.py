@@ -13,6 +13,7 @@ from pydantic import BaseModel, ValidationError, model_validator
 from ..availability import AvailabilityQuery
 from ..chat.coordinator import ChatActionError, ChatCoordinator, OfflineParser, StaleSession
 from ..epw import read_epw
+from ..jobs.outputs import job_outputs
 from ..jobs.worker import JobRunner
 from ..models import FutureRequest, OpenEPWError, WeatherPlan, WeatherRequest
 from ..service import WeatherService
@@ -447,6 +448,10 @@ def create_app(service=None, *, remote=False, chat_parser=None, mailer=None, env
     @app.post("/v1/jobs/{job_id}/cancel")
     def cancel(job_id: str):
         return runner.store.cancel(job_id)
+
+    @app.get("/v1/jobs/{job_id}/outputs")
+    def outputs(job_id: str):
+        return job_outputs(runner, job_id)
 
     @app.get("/v1/jobs/{job_id}/artifacts")
     def artifacts(job_id: str):

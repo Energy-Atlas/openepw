@@ -1,5 +1,9 @@
 # Post-retrieval conversations and data views — revised plan
 
+> **Superseded (2026-11-01):** phase 5 re-planned this work for the agent core and built it; see
+> the [phase 5 plan](../superpowers/plans/2026-11-01-post-download-conversations.md), §1 of which
+> lists what changed from this plan.
+
 **Status:** Download and broader chat follow-up behavior remains planned; basic
 visualization follow-ups now use completed EPW artifacts. The temporary
 future-weather MCP suspension was implemented in `fa94923`. The owner then

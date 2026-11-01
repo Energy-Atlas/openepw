@@ -185,6 +185,14 @@ small-talk replies match whole messages only; other conversation is left to the 
 may still misjudge it. The legacy `/v1/chat/*` and
 `openepw-chat` paths have none of these guards.
 
+After a run, guided mode reads follow-ups ("what did I get", "download the 2016 file", "retry")
+with fixed patterns; other wording falls back to the request rules. A CLI download reads files
+through the MCP artifact resource, so a file over 10 MB (a compact ZIP of many outputs) cannot be
+saved that way; download it from the browser or REST instead. A retry asks the same providers
+again and can fail again; a job chain allows three retries. Values the agent quotes from a
+prepared view are computed by the host, but its wording can still misquote them; the chart and
+the view's data are the reference.
+
 ## Map-first local browser client
 
 `feature/chat-ui` adds an optional local browser client. Its MapLibre scene uses

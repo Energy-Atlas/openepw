@@ -8,12 +8,15 @@ from typing import Any, Awaitable, Callable
 from .guard import clean_external
 from .interactions import Answer, Interaction, Option
 from .mcp_port import ToolFailure
+from .outputs import offer_export
 from .session import AgentSession
 from .slots import change_options, lines, parts, status
 from .state import PARTS, Facts, matches_preference
 
 VIEWS = (("view:monthly_series", "Monthly dry-bulb temperature chart"),
          ("view:histogram", "Dry-bulb temperature distribution"))
+# Follow-ups after results; the host answers them without a plan or a new job (phase 5).
+AFTER = (("outputs", "List my files"), ("download", "Download files"))
 Advance = Callable[[AgentSession], Awaitable[None]]
 PRODUCT_KINDS = {"historical": "actual year (AMY)", "tmy": "typical year (TMY)",
                  "tmyx": "typical year (TMYx)", "published": "published typical-year EPW"}
@@ -267,6 +270,10 @@ def plan_form(facts: Facts, max_chars: int = 120) -> Interaction:
 
 def next_steps_form(facts: Facts) -> Interaction:
     options = [Option(id=choice, label=label) for choice, label in VIEWS] if facts.artifact_ids else []
+    if facts.finished_job_ids or facts.artifact_ids:
+        options += [Option(id=choice, label=label) for choice, label in AFTER]
+    if facts.retryable_jobs:
+        options.append(Option(id="retry", label="Retry failed outputs"))
     if facts.finished_job_ids:
         options.append(Option(id="export", label="Compact ZIP of the outputs"))
     options.append(Option(id="new", label="Start a new weather request"))
@@ -392,5 +399,4 @@ async def export(s: AgentSession) -> None:
             s.emit("error", f"Job {job_id[:8]}: {failure.code}: {failure.message}",
                    code=failure.code, job_id=job_id)
             continue
-        s.emit("assistant", f"Compact ZIP ready: artifact {data['artifact_id']} ({data['bytes']} bytes).",
-               artifact_id=data["artifact_id"])
+        offer_export(s, data["artifact_id"], data["bytes"], data.get("sha256"))

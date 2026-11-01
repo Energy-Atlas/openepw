@@ -10,6 +10,8 @@ def test_capabilities_distinguish_callable_initial_families_from_planned_familie
     families = {item["family"]: item for item in capabilities()["families"]}
     assert families["monthly_series"]["status"] == "implemented"
     assert families["time_series"]["status"] == "implemented"
+    assert families["month_of_year_profile"]["status"] == "implemented"
+    assert families["month_of_year_profile"]["accepts_aggregation"] is True
     assert families["psychrometric"]["status"] == "planned"
     assert families["wind_rose"]["status"] == "planned"
     assert families["extreme_event_timeline"]["status"] == "planned"

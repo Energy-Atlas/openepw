@@ -10,7 +10,7 @@ import { ViewPanel } from './views/ViewPanel'
 import { transcriptItems } from './transcript'
 import { CopyLogIcon, DownloadIcon, RestartIcon, SignOutIcon, ToolIcon } from './icons'
 import { copyOrSave, debugLogText } from './debugLog'
-import type { AgentEvent, AgentInput, AgentSnapshot, CatalogMap, JobManifest, JobSnapshot } from './types'
+import type { AgentEvent, AgentInput, AgentSnapshot, CatalogMap, JobManifest, JobSnapshot, OfferedFile } from './types'
 
 // A new key: chats saved through the old /v1 routes are left as they are (owner, 2026-11-01).
 export const sessionKey = 'openepw-agent-session'
@@ -186,9 +186,14 @@ export function App({ api: suppliedApi, onSignOut }: { api?: ChatApi; onSignOut?
   const mergedJobs = mergeJobManifests(chain)
   const heads = chain.map(item => item.job)
   const running = heads.filter(item => ['queued', 'running'].includes(item.state))
+  // After a retry the merged manifest rows count each output once (a retry's success replaces the failure).
+  const settled = !running.length && heads.length > 1 && mergedJobs.complete
   const job = heads.length ? { state: running.length ? running[0].state : [...new Set(heads.map(item => item.state))].join(', '),
-    total: heads.reduce((sum, item) => sum + item.total, 0), completed: heads.reduce((sum, item) => sum + item.completed, 0),
-    failed: heads.reduce((sum, item) => sum + item.failed, 0) } : null
+    total: settled ? mergedJobs.rows.length : heads.reduce((sum, item) => sum + item.total, 0),
+    completed: settled ? mergedJobs.rows.filter(row => row.status === 'succeeded').length
+      : heads.reduce((sum, item) => sum + item.completed, 0),
+    failed: settled ? mergedJobs.rows.filter(row => ['failed', 'cancelled'].includes(row.status)).length
+      : heads.reduce((sum, item) => sum + item.failed, 0) } : null
   const processed = (job?.completed ?? 0) + (job?.failed ?? 0)
   const availableIds = session?.artifact_ids ?? []
   const viewIds = [...new Set(events.filter(event => event.type === 'view').map(event => String(event.data?.view_id ?? '')))]
@@ -253,6 +258,8 @@ export function App({ api: suppliedApi, onSignOut }: { api?: ChatApi; onSignOut?
           : <article key={item.event.seq} className={`chat-event ${eventClass(item.event)}`}>
             {item.event.type === 'user' ? <><span className="event-kind">You</span><p>{item.event.text}</p></>
               : item.event.type === 'job' ? <p className="job-line">{item.event.text}</p>
+              : item.event.type === 'download' ? <DownloadOffer files={(item.event.data?.files as OfferedFile[] | undefined) ?? []}
+                url={id => api.artifactUrl(id)} />
               : <>{item.event.type === 'assistant' && <span className="event-kind">{eventLabel(item.event)}</span>}
                 <ModelText text={item.event.text} /></>}
           </article>)}
@@ -284,7 +291,7 @@ export function App({ api: suppliedApi, onSignOut }: { api?: ChatApi; onSignOut?
           <label>View type <select value={viewFamily} onChange={event => setViewFamily(event.target.value)}>
             <option value="time_series">Hourly series</option><option value="annual_series">Annual series</option>
             <option value="monthly_series">Monthly series</option><option value="histogram">Distribution</option>
-            <option value="spatial">Spatial comparison</option>
+            <option value="month_of_year_profile">Month-of-year profile</option><option value="spatial">Spatial comparison</option>
           </select></label>
           <label>Variable <select value={viewVariable} onChange={event => setViewVariable(event.target.value)}>
             <option value="dry_bulb">Dry bulb temperature</option><option value="ghi">Global horizontal radiation</option>
@@ -336,6 +343,20 @@ export function App({ api: suppliedApi, onSignOut }: { api?: ChatApi; onSignOut?
     {openViews.map((id, index) => <ViewPanel key={id} id={id} index={index} api={api}
       onClose={() => setOpenViews(current => current.filter(item => item !== id))} />)}
   </main>
+}
+
+/** A download offer: one link per file; the browser saves it to the person's disk. */
+function DownloadOffer({ files, url }: { files: OfferedFile[]; url: (id: string) => string }) {
+  return <>
+    <span className="event-kind">Agent · download</span>
+    <p>{files.length === 1 ? 'Ready to download:' : `Ready to download (${files.length} files):`}</p>
+    <ul className="download-list">
+      {files.map(file => <li key={file.artifact_id}>
+        <a href={url(file.artifact_id)} download={file.filename ?? ''}>{file.number ? `${file.number}. ` : ''}{file.label}</a>
+        {file.bytes ? <span className="download-size"> · {(file.bytes / 1e6).toFixed(1)} MB</span> : null}
+      </li>)}
+    </ul>
+  </>
 }
 
 function eventClass(event: AgentEvent): string {

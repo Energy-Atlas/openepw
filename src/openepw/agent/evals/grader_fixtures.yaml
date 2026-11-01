@@ -171,6 +171,33 @@ fixtures:
   value: [weather_plan]
   expect: pass
   record: {trace: [{type: tool, data: {tool: weather_product_offers, phase: call, by: model}}]}
+- grader: tool_counts
+  value: {weather_plan: 1, weather_submit: 1}
+  expect: pass
+  record: {trace: [{type: tool, data: {tool: weather_plan, phase: call, by: model}},
+                   {type: tool, data: {tool: weather_submit, phase: call, by: host}},
+                   {type: tool, data: {tool: job_outputs, phase: call, by: host}}]}
+- grader: tool_counts
+  value: {weather_plan: 1, weather_submit: 1}
+  expect: fail
+  note: a follow-up submitted a second job
+  record: {trace: [{type: tool, data: {tool: weather_plan, phase: call, by: model}},
+                   {type: tool, data: {tool: weather_submit, phase: call, by: host}},
+                   {type: tool, data: {tool: weather_submit, phase: call, by: host}}]}
+- grader: download_files
+  value: 1
+  expect: pass
+  record: {trace: [{type: download, text: Ready to download, data: {files: [{artifact_id: a}]}}]}
+- grader: download_files
+  value: 1
+  expect: fail
+  note: every file was offered instead of the one asked for
+  record: {trace: [{type: download, text: Ready to download, data: {files: [{artifact_id: a}, {artifact_id: b}]}}]}
+- grader: download_files
+  value: 1
+  expect: fail
+  note: nothing was offered
+  record: {trace: [{type: assistant, text: Here are your files.}]}
 - grader: shown_contains
   value: ['1950']
   expect: pass

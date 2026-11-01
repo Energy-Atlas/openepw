@@ -18,6 +18,7 @@ from pydantic import TypeAdapter, ValidationError
 
 from ..availability import AvailabilityQuery
 from ..epw import read_epw
+from ..jobs.outputs import job_outputs as list_job_outputs
 from ..jobs.worker import JobRunner
 from ..models import OpenEPWError, WeatherPlan, WeatherRequest
 from ..places.models import MAX_PLACES, PlacePreview, PlaceSetQuery
@@ -370,6 +371,10 @@ def create_server(service=None, *, allowed_roots: list[str | Path] | None = None
                 ]
             return result
         return call("job_inspect", action)
+
+    @tool
+    def job_outputs(job_id: str) -> CallToolResult:
+        return call("job_outputs", list_job_outputs, runner, job_id)
 
     @tool
     def job_cancel(job_id: str) -> CallToolResult:

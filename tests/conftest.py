@@ -1,7 +1,9 @@
 import os
+from pathlib import Path
 
 import pytest
 
+SOURCE = str(Path(__file__).resolve().parents[1] / "src")
 _TRACING = ("LANGSMITH_TRACING", "LANGCHAIN_TRACING_V2", "LANGSMITH_API_KEY", "LANGCHAIN_API_KEY")
 
 
@@ -27,3 +29,5 @@ def offline_environment(request, monkeypatch, tmp_path_factory):
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test-offline-not-real")
     for name in _TRACING:
         monkeypatch.delenv(name, raising=False)
+    # Subprocesses (stdio MCP servers) import this checkout's source, not an installed copy.
+    monkeypatch.setenv("PYTHONPATH", os.pathsep.join(filter(None, [SOURCE, os.getenv("PYTHONPATH")])))

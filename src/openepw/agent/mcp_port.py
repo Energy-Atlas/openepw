@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import json
 from dataclasses import dataclass
 from typing import Any, Protocol
@@ -95,6 +96,20 @@ class InProcessMCP:
         listed = await self._session.list_tools()
         return [{"name": tool.name, "description": tool.description or "",
                  "parameters": tool.inputSchema} for tool in listed.tools]
+
+    async def read_artifact(self, artifact_id: str) -> bytes:
+        """An artifact's bytes from the server's ``weather://artifacts/`` resource (10 MB at most)."""
+        if self._session is None:
+            raise ToolFailure("CLIENT_CLOSED", "The MCP session is closed")
+        from pydantic import AnyUrl
+
+        try:
+            result = await self._session.read_resource(AnyUrl(f"weather://artifacts/{artifact_id}"))
+        except Exception as error:                  # the server says only "unavailable or too large"
+            raise ToolFailure("ARTIFACT_UNAVAILABLE", "The file is unavailable or larger than 10 MB") from error
+        content = result.contents[0]
+        blob = getattr(content, "blob", None)
+        return base64.b64decode(blob) if blob is not None else str(getattr(content, "text", "")).encode()
 
     async def call(self, name: str, /, **arguments: Any) -> ToolResult:
         if self._session is None:

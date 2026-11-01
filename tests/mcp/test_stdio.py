@@ -1,9 +1,10 @@
 import asyncio
 import base64
 import sys
+from pathlib import Path
 
 from mcp import ClientSession, StdioServerParameters
-from mcp.client.stdio import stdio_client
+from mcp.client.stdio import get_default_environment, stdio_client
 from mcp.types import LATEST_PROTOCOL_VERSION
 from pydantic import AnyUrl
 
@@ -17,6 +18,8 @@ def test_real_stdio_session_tools_errors_and_resource(tmp_path):
         command=sys.executable,
         args=["-c", "from openepw.cli.main import main; raise SystemExit(main())",
               "--data-root", str(tmp_path), "mcp"],
+        # This checkout's source, not an older installed copy (the default environment drops PYTHONPATH).
+        env={**get_default_environment(), "PYTHONPATH": str(Path(__file__).parents[2] / "src")},
     )
 
     async def session_check():
