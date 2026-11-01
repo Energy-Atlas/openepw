@@ -69,6 +69,11 @@ ASK_TOOLS: dict[str, dict[str, Any]] = {
             "Show the plans made with weather_plan to the person. Only the person can run them; "
             "you cannot submit. Call it after weather_plan succeeds."),
         "parameters": {"type": "object", "properties": {}}},
+    "review_retry": {
+        "description": (
+            "Show the person every failed output a retry would ask the providers for again, from "
+            "the plan they ran. Only their approval retries. Call it when the person asks to retry."),
+        "parameters": {"type": "object", "properties": {}}},
 }
 # The step each gate needs, named as the ask-tool or MCP tool the model should call.
 NEED_TOOL = {"review_location": "review_location", "choose_products": "choose_products",
@@ -94,6 +99,27 @@ LOOKUP_TOOLS: dict[str, dict[str, Any]] = {
             "provider": {"type": "string"}}}},
 }
 LOOKUP_LIMIT = 25           # points per lookup
+
+# Host tools for the session's files after a run: read-only, nothing planned or retrieved.
+OUTPUT_TOOLS: dict[str, dict[str, Any]] = {
+    "list_outputs": {
+        "description": (
+            "List the session's weather files from the jobs' verified manifests: number, place, "
+            "year, product, status, issue codes and artifact id. The host shows the list to the "
+            "person; do not repeat it. Filter by years, a place name or status. Opens no form."),
+        "parameters": {"type": "object", "properties": {
+            "years": {"type": "array", "items": {"type": "integer"}},
+            "place": {"type": "string"},
+            "status": {"type": "string", "enum": ["succeeded", "failed"]}}}},
+    "offer_download": {
+        "description": (
+            "Offer files for the person to save to their own disk (the host shows download links, "
+            "or the CLI's /download). Pass numbers from list_outputs, or all. Never retrieves "
+            "weather again."),
+        "parameters": {"type": "object", "properties": {
+            "numbers": {"type": "array", "items": {"type": "integer"}, "maxItems": 100},
+            "all": {"type": "boolean"}}}},
+}
 
 
 # Host tools for the scope classes: the host shows the text, so wording and limits are fixed.
@@ -132,6 +158,7 @@ async def model_tools(port: Any, *, knowledge_answers: bool = True) -> list[dict
     scope = [name for name in SCOPE_TOOLS if knowledge_answers or name != "knowledge_answer"]
     return (tools + [{"name": name, **spec} for name, spec in ASK_TOOLS.items()]
             + [{"name": name, **spec} for name, spec in LOOKUP_TOOLS.items()]
+            + [{"name": name, **spec} for name, spec in OUTPUT_TOOLS.items()]
             + [{"name": name, **SCOPE_TOOLS[name]} for name in scope])
 
 

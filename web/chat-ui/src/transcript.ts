@@ -29,6 +29,8 @@ const ACTIONS: Record<string, string> = {
   weather_assess: 'Checking availability', weather_plan: 'Planning the weather files', weather_submit: 'Starting retrieval',
   job_inspect: 'Checking the job', artifact_inspect: 'Checking the EPW', weather_visualize: 'Preparing a chart',
   weather_export_compact: 'Packing a ZIP', epw_upload: 'Registering the EPW',
+  job_outputs: 'Reading your files', list_outputs: 'Listing your files', offer_download: 'Offering downloads',
+  job_retry_failed: 'Retrying the failed outputs',
 }
 
 /** A tool step in words, for the transcript. */

@@ -1,0 +1,46 @@
+id: S64
+title: After a run, the files are listed and one year's file is offered for download
+purpose: 'After a two-place, two-year run the person asks what they got and for one file. The host lists every
+  output by place, year and status from the job manifests and offers only the Denver 2016 file; nothing is planned
+  or submitted again (phase 5 plan §2.2).'
+covers: [followup.outputs, followup.download]
+tags: [workflow, followup]
+user:
+  say: Boston, Denver 2016 2017
+  then: ['What did I get?', download the Denver 2016 file]
+  answers: {location_review: approve, product_choice: [era5-openmeteo], plan_review: run, choice: first,
+    map_input: 'Boston, Denver', text: '2016, 2017'}
+graders:
+- grader: forms_in_order
+  value: [location_review, product_choice, plan_review]
+- grader: tool_counts
+  value: {weather_plan: 1, weather_submit: 1}
+- grader: shown_contains
+  value: ['Your files:', 'Denver, Colorado']
+- {grader: download_files, value: 1}
+script:
+- call: weather_places_preview
+  args:
+    places: [Boston, Denver]
+- call: review_location
+  args:
+    locations:
+    - {lat: 42.36, lon: -71.06, name: 'Boston, Massachusetts, United States'}
+    - {lat: 39.74, lon: -104.98, name: 'Denver, Colorado, United States'}
+- call: choose_products
+  args: {}
+- call: weather_plan
+  args:
+    request:
+      product: historical
+      years: [2016, 2017]
+      dataset_selections: [{provider: openmeteo, dataset: era5}]
+- call: review_plan
+  args: {}
+- {say: Four EPWs completed. They are not certified simulation-ready (simulation_ready=false); check their QC.}
+- call: list_outputs
+  args: {}
+- {say: These are your four files.}
+- call: offer_download
+  args: {numbers: [3]}
+- {say: The Denver 2016 file is ready to download.}

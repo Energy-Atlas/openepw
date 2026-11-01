@@ -288,3 +288,63 @@ def test_nonfinite_epw_numeric_value_fails_with_typed_error(tmp_path):
     with pytest.raises(OpenEPWError, match="INVALID_ARTIFACT"):
         build_view(store, VisualizationRequest(
             artifact_ids=[ref.id], family="time_series", variable="dry_bulb"))
+
+
+def actual_year(store, year, bundle, *, value=20.0, location=None):
+    """An actual-year (historical) weather EPW whose dry-bulb is ``value`` all year."""
+    data = synthetic(year, 8784 if year % 4 == 0 else 8760)
+    data.data["dry_bulb"] = value
+    if location is not None:
+        data.location = location
+    ref = saved(store, data, bundle)
+    store.json(bundle, "plan.json", {"kind": "weather", "request": {"product": "historical"}}, "plan")
+    return ref
+
+
+def test_month_of_year_profile_averages_each_month_over_the_years(tmp_path):
+    store = ArtifactStore(tmp_path)
+    first, second = actual_year(store, 2022, "c" * 32, value=10.0), actual_year(store, 2023, "d" * 32, value=20.0)
+    result = build_view(store, VisualizationRequest(
+        artifact_ids=[first.id, second.id], family="month_of_year_profile", variable="dry_bulb"))
+    rows = result["rows"]
+    assert len(rows) == 12 and [row["month"] for row in rows] == list(range(1, 13))
+    january = rows[0]
+    assert january["value"] == 15.0 and january["years"] == [2022, 2023] and january["quality"] == "complete"
+    assert (january["year_months"], january["expected_year_months"], january["expected_hours"]) == (2, 2, 1488)
+    assert set(january["artifact_ids"]) == {first.id, second.id}
+    spec = result["specs"][0]
+    assert spec["encodings"]["x"] == {"field": "month", "kind": "month_of_year"}
+    assert spec["encodings"]["series"] == ["series"]
+
+
+def test_profile_month_with_an_incomplete_year_is_null_unless_partial(tmp_path):
+    store = ArtifactStore(tmp_path)
+    first = actual_year(store, 2022, "c" * 32, value=10.0)
+    data = synthetic(2023, 8760)
+    data.data.loc[data.data.index[0], "dry_bulb"] = float("nan")
+    second = saved(store, data, "d" * 32)
+    store.json("d" * 32, "plan.json", {"kind": "weather", "request": {"product": "historical"}}, "plan")
+    request = VisualizationRequest(artifact_ids=[first.id, second.id], family="month_of_year_profile",
+                                   variable="dry_bulb")
+    strict = build_view(store, request)["rows"]
+    assert strict[0]["value"] is None and strict[0]["quality"] == "incomplete" and strict[0]["missing_hours"] == 1
+    assert strict[1]["value"] == 15.0 and strict[1]["quality"] == "complete"
+    partial = build_view(store, request.model_copy(update={"allow_partial": True}))["rows"]
+    assert partial[0]["value"] == 15.0 and partial[0]["quality"] == "partial"
+
+
+def test_profile_keeps_places_apart_and_never_mixes_reference_with_actual(tmp_path):
+    from openepw.models import Location
+
+    store = ArtifactStore(tmp_path)
+    ithaca = actual_year(store, 2022, "c" * 32, location=Location(lat=42.44, lon=-76.5, name="Ithaca"))
+    boston = actual_year(store, 2022, "d" * 32, value=12.0, location=Location(lat=42.36, lon=-71.06, name="Boston"))
+    rows = build_view(store, VisualizationRequest(
+        artifact_ids=[ithaca.id, boston.id], family="month_of_year_profile", variable="dry_bulb"))["rows"]
+    assert {row["series"] for row in rows} == {"Ithaca", "Boston"} and len(rows) == 24
+    assert {row["value"] for row in rows if row["series"] == "Boston"} == {12.0}
+    reference = saved(store, synthetic(2001, 8760), "e" * 32)
+    store.json("e" * 32, "plan.json", {"kind": "weather", "request": {"product": "tmy"}}, "plan")
+    with pytest.raises(OpenEPWError, match="INCOMPATIBLE_SOURCES"):
+        build_view(store, VisualizationRequest(
+            artifact_ids=[ithaca.id, reference.id], family="month_of_year_profile", variable="dry_bulb"))

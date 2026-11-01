@@ -28,6 +28,7 @@ export function fakeApi(state: AgentSnapshot, extra: Record<string, unknown> = {
   const api = {
     create: vi.fn(async () => state), get: vi.fn(async () => state), input: vi.fn(async () => state),
     catalogMap: async () => ({ schema: 'catalog-map-1', snapshot: null, layers: [], unmapped: [] }),
+    artifactUrl: (id: string) => `/v1/artifacts/${id}`,
     calls: [], ...extra,
   }
   return api as typeof api & ChatApi

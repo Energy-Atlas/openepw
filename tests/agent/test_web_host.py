@@ -5,7 +5,7 @@ import time
 
 import pytest
 
-from openepw.agent.interactions import Answer
+from openepw.agent.interactions import Answer, Interaction, Option
 from openepw.agent.model_port import ModelReply, ModelUnavailable, ScriptedModel, call, say
 from openepw.agent.policy_config import LimitSettings, default_policy
 from openepw.agent.web import SpendGuard, WebInput, WebRefusal, WebStore
@@ -109,7 +109,7 @@ def test_session_and_input_rates_per_person(make_host):
     assert refused.value.code == "RATE_LIMIT"
 
 
-def test_running_jobs_limit_is_checked_at_run(make_host):
+def test_running_jobs_limit_is_checked_at_run_and_retry(make_host):
     host = make_host(limits={"running_jobs": 1})
 
     class Job:
@@ -118,10 +118,20 @@ def test_running_jobs_limit_is_checked_at_run(make_host):
     host.runner = type("Runner", (), {"store": type("Store", (), {"get": staticmethod(lambda job_id: Job())})()})()
     host.web.add_jobs(OWNER, "earlier", ["job-1"])
     with pytest.raises(WebRefusal) as refused:
-        host._check_running_jobs(OWNER, [{"plan_hash": "a", "output_count": 1}])
+        host._check_running_jobs(OWNER, 1)
     assert refused.value.code == "JOB_LIMIT"
     Job.state = "completed"
-    host._check_running_jobs(OWNER, [{"plan_hash": "a", "output_count": 1}])
+    host._check_running_jobs(OWNER, 1)
+    # Approving a retry form counts the jobs it would start, like Run.
+    session = host.create(OWNER)
+    state = host.store.load(session)
+    state.form = Interaction(kind="choice", gate="review_retry", prompt="Retry?", data={"jobs": ["j1", "j2"]},
+                             options=[Option(id="retry", label="Retry"), Option(id="cancel", label="Not now")])
+    host.store.save(state)
+    retry = WebInput(type="answer", answer=Answer(interaction_id=state.form.id, revision=0, choice_ids=["retry"]))
+    with pytest.raises(WebRefusal) as refused:
+        host.submit(session, OWNER, retry)
+    assert refused.value.code == "JOB_LIMIT"
 
 
 def test_web_input_needs_its_field():

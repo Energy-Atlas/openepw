@@ -40,6 +40,7 @@ class Upload(_Strict):
 class Setup(_Strict):
     upload: Upload | None = None
     fail_near: list[tuple[float, float]] = []      # stub provider outages near these points
+    fail_once_near: list[tuple[float, float]] = [] # outages a retry gets past (first fetch fails)
     unlisted: dict[str, list[int]] = {}            # offer ids the stub catalog does not list for these years
     # default: the real moderation endpoint in live runs and the stub offline
     moderation: Literal["default", "stub", "unavailable"] = "default"

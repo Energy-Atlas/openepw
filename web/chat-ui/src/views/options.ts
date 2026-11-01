@@ -19,6 +19,7 @@ function themed(option: Record<string, unknown>): Record<string, unknown> {
 }
 
 type Row = Record<string, unknown>
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 export function chartOption(spec: ViewSpec, rows: Row[]): Record<string, unknown> | null {
   const option = baseOption(spec, rows)
@@ -30,16 +31,20 @@ function baseOption(spec: ViewSpec, rows: Row[]): Record<string, unknown> | null
   const family = spec.family
   const unit = String((spec.encodings.y as Record<string, unknown> | undefined)?.unit ??
     (spec.encodings.value as Record<string, unknown> | undefined)?.unit ?? '')
-  if (['time_series', 'annual_series', 'monthly_series'].includes(family)) {
+  if (['time_series', 'annual_series', 'monthly_series', 'month_of_year_profile'].includes(family)) {
+    const profile = family === 'month_of_year_profile'
+    // A profile has one series per place and source (``series``), months on the x axis.
+    const key = (row: Row) => String(profile ? row.series : row.artifact_id)
     const periods = [...new Set(rows.map(row => String(row.period)))]
-    const ids = [...new Set(rows.map(row => String(row.artifact_id)))]
+    const ids = [...new Set(rows.map(key))]
     return { tooltip: { trigger: 'axis' }, legend: { type: 'scroll', bottom: 0 },
       grid: { left: 62, right: 18, top: 35, bottom: 64 },
-      xAxis: { type: 'category', data: periods, axisLabel: { hideOverlap: true } },
+      xAxis: { type: 'category', data: profile ? periods.map(period => MONTHS[Number(period.slice(-2)) - 1] ?? period) : periods,
+        axisLabel: { hideOverlap: true } },
       yAxis: { type: 'value', name: unit }, dataZoom: family === 'time_series' ? [{ type: 'inside' }, { type: 'slider', bottom: 28 }] : undefined,
       series: ids.map(id => {
-        const values = new Map(rows.filter(row => row.artifact_id === id).map(row => [String(row.period), row.value]))
-        return { name: id.slice(0, 8), type: family === 'monthly_series' ? 'bar' : 'line',
+        const values = new Map(rows.filter(row => key(row) === id).map(row => [String(row.period), row.value]))
+        return { name: profile ? id : id.slice(0, 8), type: family === 'monthly_series' ? 'bar' : 'line',
           connectNulls: false, showSymbol: family !== 'time_series',
           data: periods.map(period => values.get(period) ?? null) }
       }) }

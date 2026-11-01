@@ -11,7 +11,8 @@ prerequisites listed for it.
 | 3 | Done: spec and plan approved by the owner on 2026-10-31 with the §14 defaults |
 | 4 | Done 2026-10-31: built on `feature/agent-request-slots` (live check about $0.22 of the $1 cap) and merged into `main` on the owner's go-ahead |
 | P4 | Added 2026-11-01 (web chat on the agent core); built on `feature/agent-web-chat`, see its [plan](2026-11-01-agent-web-chat.md) §4 |
-| 5–7 | Not started |
+| 5 | Approved 2026-11-01 (retry added, small live check, merge when done); built on `feature/post-download-conversations`, see its [plan](2026-11-01-post-download-conversations.md) §5 |
+| 6–7 | Not started |
 
 This list replaces the scattered open items in the older plans. Each item names its source so that
 detail stays where it was first written.
@@ -148,6 +149,9 @@ compatibility"; "deploy after this fix" (merge into `main` and `deploy/staging` 
 | P4.5 | Docs; merge and staging deploy | Updated; deployed |
 
 ## Phase 5 — Conversations after a download (about 3–4 days)
+
+Status: approved by the owner on 2026-11-01 ("add retry"; a small live check; merge into `main`
+and `deploy/staging` when done). See the [phase 5 plan](2026-11-01-post-download-conversations.md).
 
 Branch: `feature/post-download-conversations`. Source: the
 [post-retrieval conversations plan](../../plans/2026-09-26-post-download-conversations.md), whose

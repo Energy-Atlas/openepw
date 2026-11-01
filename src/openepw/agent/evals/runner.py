@@ -48,7 +48,7 @@ def scripted_model(task: Task) -> ScriptedModel | None:
             steps.append(ModelReply(text=step.say))
             continue
         arguments = json.dumps(step.args)
-        if "$artifact" in arguments:
+        if "$artifact" in arguments:                  # also "$artifacts" (every id, as a list)
             steps.append(_reading_step(f"call_{index}", str(step.call), arguments))
         else:
             steps.append(ModelReply(text=step.say, tool_calls=[ToolCall(f"call_{index}", str(step.call), arguments)]))
@@ -57,8 +57,11 @@ def scripted_model(task: Task) -> ScriptedModel | None:
 
 def _reading_step(call_id: str, name: str, arguments: str) -> Step:
     def step(system: str, items: list[dict[str, Any]], tools: list[dict[str, Any]]) -> ModelReply:
-        found = re.findall(r"artifact ([0-9a-f]{32})", json.dumps(items))
-        filled = arguments.replace("$artifact", found[-1] if found else "")
+        sent = json.dumps(items)
+        found = re.findall(r"artifact ([0-9a-f]{32})", sent)
+        every = list(dict.fromkeys(re.findall(r'artifact_id\\?": \\?"([0-9a-f]{32})', sent)))
+        filled = arguments.replace('"$artifacts"', json.dumps(every)).replace(
+            "$artifact", found[-1] if found else "")
         return ModelReply(tool_calls=[ToolCall(call_id, name, filled)])
     return step
 
@@ -173,7 +176,8 @@ async def run_trial(task: Task, *, mode: str, model: ModelPort | None, data_root
 
     security = security or load_policy("local")
     service = (WeatherService(RuntimeConfig(data_root=data_root)) if live_providers
-               else stub_service(data_root, fail_near=task.setup.fail_near, unlisted=task.setup.unlisted))
+               else stub_service(data_root, fail_near=task.setup.fail_near, unlisted=task.setup.unlisted,
+                                 fail_once_near=task.setup.fail_once_near))
     runner = JobRunner(service)
     runner.recover()
     approvals = ApprovalBook()

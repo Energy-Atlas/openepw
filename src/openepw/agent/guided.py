@@ -7,7 +7,7 @@ from typing import Any
 
 from ..models import OpenEPWError
 from ..places.parse import apply_edit, describe_place_set
-from . import host
+from . import host, outputs
 from .gates import build_requests, needs_years, next_need
 from .guard import clean_external
 from .interactions import Answer, Interaction, Option
@@ -49,6 +49,10 @@ class GuidedPolicy:
             return
         if SHOW_REQUEST.fullmatch(text.strip(" ?.!")):
             s.open_request_summary()
+            return
+        asked = outputs.read_follow_up(text)
+        if asked is not None:                      # about files or jobs: no plan, no new job
+            await outputs.follow_up(s, asked)
             return
         if gate == "review_location" and APPROVE.fullmatch(text):
             await self._approve_location(s)
@@ -251,6 +255,11 @@ class GuidedPolicy:
         elif gate == "next_steps":
             await self._next_step(s, choice)
             return
+        elif gate == "review_retry":
+            if choice == "retry":
+                await outputs.run_retry(s, form)   # the host follows the retry jobs, then results
+                return
+            s.close_form()
         await self.advance(s)
 
     async def _approve_location(self, s: AgentSession) -> None:
@@ -272,6 +281,17 @@ class GuidedPolicy:
             await host.visualize(s, choice.split(":", 1)[1])
         elif choice == "export":
             await host.export(s)
+        elif choice in ("outputs", "download"):
+            rows = await outputs.session_outputs(s)
+            if choice == "outputs":
+                outputs.show_outputs(s, rows)
+            else:
+                outputs.offer_downloads(s, rows)
+        elif choice == "retry":
+            form = await outputs.retry_form(s)
+            if form is not None:
+                s.open_form(form)
+                return
         await self.advance(s)
 
     # Forms ------------------------------------------------------------------------------

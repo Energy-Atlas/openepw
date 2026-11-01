@@ -1,0 +1,46 @@
+id: S65
+title: A failed output is retried only after the person approves the retry form
+purpose: 'One place fails during the run. Asked to retry, the host shows a retry form listing the failed output;
+  only the approval submits job_retry_failed, once, and the retry fills the gap (phase 5 plan §2.2).'
+covers: [followup.retry, gate.host-tools]
+tags: [workflow, followup]
+setup:
+  fail_once_near: [[42.36, -71.06]]
+user:
+  say: Boston, Denver 2016
+  then: [retry the failed outputs, 'What did I get?']
+  answers: {location_review: approve, product_choice: [era5-openmeteo], plan_review: run, choice: first,
+    map_input: 'Boston, Denver', text: '2016'}
+graders:
+- grader: forms_in_order
+  value: [location_review, product_choice, plan_review, choice]
+- grader: tool_counts
+  value: {weather_plan: 1, weather_submit: 1, job_retry_failed: 1}
+- grader: shown_contains
+  value: ['Retry 1 failed output(s)', 'PROVIDER_ERROR', 'Your files:']
+script:
+- call: weather_places_preview
+  args:
+    places: [Boston, Denver]
+- call: review_location
+  args:
+    locations:
+    - {lat: 42.36, lon: -71.06, name: 'Boston, Massachusetts, United States'}
+    - {lat: 39.74, lon: -104.98, name: 'Denver, Colorado, United States'}
+- call: choose_products
+  args: {}
+- call: weather_plan
+  args:
+    request:
+      product: historical
+      years: [2016]
+      dataset_selections: [{provider: openmeteo, dataset: era5}]
+- call: review_plan
+  args: {}
+- {say: One EPW completed and one failed (PROVIDER_ERROR). It is not certified simulation-ready (simulation_ready=false).}
+- call: review_retry
+  args: {}
+- {say: The retry completed the Boston file. It is not certified simulation-ready (simulation_ready=false).}
+- call: list_outputs
+  args: {}
+- {say: Both files are ready.}

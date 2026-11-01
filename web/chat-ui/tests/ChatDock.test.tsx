@@ -67,6 +67,16 @@ describe('chat dock and controls', () => {
     expect(screen.getByRole('textbox', { name: 'Message' })).toBeInTheDocument()
   })
 
+  it('shows a download offer as links the browser saves', async () => {
+    const files = [{ number: 2, label: 'Denver, Colorado · 2016 · openmeteo/era5', artifact_id: 'a'.repeat(32),
+      filename: 'openepw-denver-2016.epw', bytes: 1_650_000 }]
+    render(<App api={fakeApi(snapshot(null, { events: [event(5, 'download', 'Ready to download:', { files })], cursor: 5 }))} />)
+    const link = await screen.findByRole('link', { name: /Denver, Colorado · 2016/ })
+    expect(link).toHaveAttribute('href', expect.stringContaining('a'.repeat(32)))
+    expect(link).toHaveAttribute('download', 'openepw-denver-2016.epw')
+    expect(screen.getByText(/1\.6 MB/)).toBeInTheDocument()
+  })
+
   it('hides the reply area of an ended session', async () => {
     render(<App api={fakeApi({ ...snapshot(null), ended: true })} />)
     expect(await screen.findByText(/This session has ended/)).toBeInTheDocument()
@@ -91,6 +101,25 @@ describe('chat dock and controls', () => {
     await waitFor(() => expect(card).toHaveTextContent('running · 2/3 outputs · 0 failed'))
     expect(card).toHaveTextContent('Weather jobs (2)')
     expect(card).toHaveTextContent('Finished outputs can be downloaded now')
+  })
+
+  it('counts each output once after a retry replaced a failure', async () => {
+    const row = (status: string, artifact: string | null) => ({ output_id: 'out-boston', occurrence_index: 0,
+      period_start: '2016-01-01', status, artifact_id: artifact, dataset_selection: { provider: 'openmeteo', dataset: 'era5' } })
+    const jobs: Record<string, unknown> = {
+      first: { id: 'first', state: 'partially_completed', total: 2, completed: 1, failed: 1,
+        bundle: { weather: [{ id: 'denver', role: 'weather', path: 'd.epw' }], manifest: { id: 'm1' } } },
+      retry: { id: 'retry', state: 'completed', total: 1, completed: 1, failed: 0,
+        bundle: { weather: [{ id: 'boston', role: 'weather', path: 'b.epw' }], manifest: { id: 'm2' } } } }
+    const manifests: Record<string, unknown> = {
+      m1: { batch_rows: [row('failed', null), { ...row('succeeded', 'denver'), output_id: 'out-denver', occurrence_index: 1 }],
+        output_mapping: [] },
+      m2: { batch_rows: [row('succeeded', 'boston')], output_mapping: [] } }
+    const api = fakeApi(snapshot(null, { job_ids: ['first', 'retry'], finished_job_ids: ['first', 'retry'] }), {
+      job: vi.fn(async (id: string) => jobs[id]), manifest: vi.fn(async (id: string) => manifests[id]) })
+    render(<App api={api} />)
+    const card = await screen.findByLabelText('Current weather job')
+    await waitFor(() => expect(card).toHaveTextContent('2/2 outputs · 0 failed'))
   })
 
   it('resumes the saved session and starts over only after asking', async () => {
