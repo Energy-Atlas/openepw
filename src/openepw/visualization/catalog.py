@@ -4,9 +4,10 @@ from ..dataset import UNITS
 
 INITIAL_FAMILIES = (
     "time_series", "annual_series", "monthly_series", "histogram", "spatial",
+    "month_of_year_profile",
 )
 PLANNED_FAMILIES = (
-    "month_of_year_profile", "diurnal_profile", "seasonal_summary",
+    "diurnal_profile", "seasonal_summary",
     "calendar_heatmap", "month_hour_heatmap", "cumulative_distribution",
     "duration_curve", "box_plot", "scatter", "correlation_matrix",
     "wind_rose", "psychrometric", "threshold_timeline",
@@ -14,6 +15,8 @@ PLANNED_FAMILIES = (
     "summary_table",
 )
 FAMILIES = INITIAL_FAMILIES + PLANNED_FAMILIES
+# Families that aggregate hours into periods (they take an aggregation).
+AGGREGATED = ("annual_series", "monthly_series", "spatial", "month_of_year_profile")
 
 VARIABLES = {
     "dry_bulb": {"unit": UNITS["dry_bulb"], "aggregations": ["mean", "min", "max"]},
@@ -35,7 +38,7 @@ def capabilities() -> dict:
         "families": [
             {"family": family, "status": "implemented" if family in INITIAL_FAMILIES
              else "planned", "supported_options": ["bins"] if family == "histogram" else [],
-             "accepts_aggregation": family in ("annual_series", "monthly_series", "spatial")}
+             "accepts_aggregation": family in AGGREGATED}
             for family in FAMILIES
         ],
         "variables": VARIABLES,

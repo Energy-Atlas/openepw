@@ -284,7 +284,7 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
           <label>View type <select value={viewFamily} onChange={event => setViewFamily(event.target.value)}>
             <option value="time_series">Hourly series</option><option value="annual_series">Annual series</option>
             <option value="monthly_series">Monthly series</option><option value="histogram">Distribution</option>
-            <option value="spatial">Spatial comparison</option>
+            <option value="month_of_year_profile">Month-of-year profile</option><option value="spatial">Spatial comparison</option>
           </select></label>
           <label>Variable <select value={viewVariable} onChange={event => setViewVariable(event.target.value)}>
             <option value="dry_bulb">Dry bulb temperature</option><option value="ghi">Global horizontal radiation</option>
