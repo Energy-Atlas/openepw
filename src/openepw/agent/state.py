@@ -11,10 +11,33 @@ from .interactions import Interaction
 
 SEEN_LIMIT = 2000
 SEEN_TOLERANCE = 0.05          # degrees: a geocoder's point rounded to two decimals still matches
+# The parts of a request the person sets (design 2026-10-30 §3); the plan is derived from them.
+Part = Literal["place", "preference", "products", "years"]
+PARTS: tuple[Part, ...] = ("place", "preference", "products", "years")
+# Who last set a part: the person's own message, a form answer, the host from the person's input,
+# or the model (a filter it passed without the person's words).
+By = Literal["text", "form", "host", "model"]
+
+
+def matches_preference(offer: dict[str, Any], product: str | None, provider: str | None) -> bool:
+    """True when a chosen offer fits a product preference (the same rules as the offers filter)."""
+    kind = offer["request"]["product"]
+    if product in ("historical", "amy") and kind != "historical":
+        return False
+    if product in ("tmy", "published") and kind == "historical":
+        return False
+    if product == "tmyx" and kind != "tmyx":
+        return False
+    return not provider or any(item.get("provider") == str(provider).lower()
+                               for item in offer["request"]["dataset_selections"])
 
 
 class Facts(Model):
-    """Pending and approved choices. Only approved facts reach a plan (see gates.build_requests)."""
+    """Pending and approved choices. Only approved facts reach a plan (see gates.build_requests).
+
+    Sessions saved before the request parts existed load with the defaults of the last three
+    fields, which keep their meaning: every year and every chosen product confirmed.
+    """
 
     stage: Literal["request", "results"] = "request"
     place_set: dict[str, Any] | None = None          # {"draft": ..., "questions": [...]}
@@ -34,16 +57,59 @@ class Facts(Model):
     finished_job_ids: list[str] = Field(default_factory=list)
     artifact_ids: list[str] = Field(default_factory=list)
     started_plans: list[str] = Field(default_factory=list)   # every plan hash submitted; only grows
+    proposed_years: list[int] = Field(default_factory=list)  # years written in a question; part of years
+    origins: dict[str, dict[str, Any]] = Field(default_factory=dict)   # part -> {"by", "seq"}
+    recheck: bool = False                            # the chosen products must be chosen again
+
+    @property
+    def confirmed_years(self) -> list[int]:
+        """The years a plan may use: written plainly, or confirmed on a form."""
+        return [year for year in self.years if year not in self.proposed_years]
 
     def set_geography(self, value: Any) -> None:
-        """A new geography needs a new review, approval, product choice and plan."""
+        """A new geography needs a new review, approval and plan. Chosen products are kept to
+        recheck: the product form shows them again, preselected where still offered."""
         self.geography = value
         self.review = None
         self.approved_key = None
         self.offers = []
         self.offer_availability = None
-        self.chosen = []
+        self.recheck = bool(self.chosen)
         self.plans = []
+
+    def change(self, part: Part, value: Any, *, by: By, seq: int = 0, proposed: Any = ()) -> None:
+        """Set one part and reset only what depends on it (design §4). The plan always resets.
+
+        ``value`` is the geography (place), a (product, provider) pair (preference), the chosen
+        offers (products) or the years (years, with ``proposed`` naming those asked about).
+        """
+        self.plans = []
+        if part == "place":
+            self.set_geography(value)
+        elif part == "preference":
+            self.product_type, self.provider = value
+            self.offers, self.offer_availability = [], None
+            if not all(matches_preference(offer, *value) for offer in self.chosen):
+                self.recheck = True
+        elif part == "products":
+            self.chosen, self.recheck = list(value), False
+        else:
+            years = sorted(set(value))
+            if years != self.years:
+                self.offers, self.offer_availability = [], None   # their availability is per year
+            self.years = years
+            self.proposed_years = sorted(set(proposed) & set(years))
+        self.origins[part] = {"by": by, "seq": seq}
+
+    def confirm_years(self, years: Any, *, by: By = "form", seq: int = 0) -> bool:
+        """Confirm proposed years shown on a form; True when any was proposed."""
+        confirmed = set(years) & set(self.proposed_years)
+        if not confirmed:
+            return False
+        self.proposed_years = [year for year in self.proposed_years if year not in confirmed]
+        self.plans = []
+        self.origins["years"] = {"by": by, "seq": seq}
+        return True
 
     def reset_place(self) -> None:
         self.place_set = None
@@ -57,7 +123,9 @@ class Facts(Model):
         self.set_geography(None)
         self.product_type = None
         self.provider = None
-        self.years = []
+        self.chosen, self.recheck = [], False
+        self.years, self.proposed_years = [], []
+        self.origins = {}
         self.job_ids = []
 
 

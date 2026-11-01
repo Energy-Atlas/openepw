@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AuthApi, type AuthSession } from '../src/auth'
 import { Root } from '../src/Root'
+import { sessionKey } from '../src/App'
 
 type Call = { path: string; body?: Record<string, string> }
 
@@ -64,11 +65,11 @@ describe('landing page', () => {
       { email: 'ada@cornell.edu', password: 'a long enough passphrase' })
     const signOut = screen.getByRole('button', { name: 'Sign out' })
     expect(screen.getByRole('button', { name: 'Start over' })).toBeInTheDocument()
-    sessionStorage.setItem('openepw-chat-session', 'someone-elses')
+    sessionStorage.setItem(sessionKey, 'someone-elses')
     fireEvent.click(signOut)
     await waitFor(() => expect(screen.queryByRole('textbox', { name: 'Message' })).not.toBeInTheDocument())
     expect(calls.some(call => call.path === '/auth/logout')).toBe(true)
-    expect(sessionStorage.getItem('openepw-chat-session')).toBeNull()
+    expect(sessionStorage.getItem(sessionKey)).toBeNull()
     expect(screen.getByRole('button', { name: /Sign in or create an account/ })).toBeInTheDocument()
   })
 

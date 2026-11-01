@@ -12,7 +12,8 @@ from .gates import build_requests, needs_years, next_need
 from .guard import clean_external
 from .interactions import Answer, Interaction, Option
 from .session import AgentSession
-from .text import FUTURE, place_part, read_product, written_years
+from .slots import request_form
+from .text import FUTURE, place_part, read_product, reads_as_question, written_years
 
 SUSPENDED = ("Future-weather planning is temporarily unavailable; ask for actual-year (historical) "
              "or typical-year weather instead.")
@@ -29,6 +30,9 @@ def not_a_place(place: str) -> bool:
     return bool(place) and one_line and (len(place.split()) > 6 or bool(_NOT_A_PLACE.search(place)))
 APPROVE = re.compile(r"a|approve|approved|yes|y|ok|okay|correct|looks good", re.I)
 RUN = re.compile(r"run|r|yes|go|start|approve", re.I)
+# Asking to see the request summary (the CLI's /request does the same).
+SHOW_REQUEST = re.compile(r"(?:show|see|review)(?: me)? (?:my|the) request|what (?:have i|did i) (?:chosen|choose)"
+                          r"|my request", re.I)
 PLACE_GATES = {None, "where", "choose_location", "review_location", "place_set", "review_plan",
                "next_steps"}
 REFERENCE_LABELS = {"tmy": "TMY", "tmyx": "TMYx", "published": "A published EPW"}
@@ -43,8 +47,16 @@ class GuidedPolicy:
         if FUTURE.search(text):
             s.emit("assistant", SUSPENDED)
             return
+        if SHOW_REQUEST.fullmatch(text.strip(" ?.!")):
+            s.open_request_summary()
+            return
         if gate == "review_location" and APPROVE.fullmatch(text):
             await self._approve_location(s)
+            return
+        if gate == "review_request" and APPROVE.fullmatch(text):
+            assert s.form is not None
+            await host.answer_summary(s, s.form, Answer(interaction_id=s.form.id, revision=s.form.revision,
+                                                        approve=True), self.advance)
             return
         if gate == "review_plan" and RUN.fullmatch(text):
             await self._run(s)
@@ -72,12 +84,13 @@ class GuidedPolicy:
         await self.advance(s)
 
     def _read_time_and_product(self, s: AgentSession, text: str) -> bool:
+        """A product word changes the preference (chosen products that no longer fit are
+        rechecked); years replace the years, proposed when written in a question."""
         facts = s.facts
         changed = False
         product = read_product(text)
         if product and product != facts.product_type:
-            facts.product_type = product
-            facts.offers, facts.offer_availability, facts.chosen, facts.plans = [], None, [], []
+            facts.change("preference", (product, facts.provider), by="text", seq=s.seq)
             changed = True
         # "over 2000 people" and "top 1900" describe a place set, not a weather year.
         years = sorted(written_years(text))
@@ -90,14 +103,13 @@ class GuidedPolicy:
             s.emit("assistant", f"{label} is a reference product, not actual-year weather for {written}. "
                                 f"Ask for actual-year weather for {written}, or for it without a year.")
             return True
-        if years != facts.years:
-            facts.years = years
-            facts.plans = []
-            if not facts.chosen:                 # the offers' availability is per year
-                facts.offers, facts.offer_availability = [], None
+        proposed = [year for year in years if year not in facts.confirmed_years] if reads_as_question(text) else []
+        if years != facts.years or proposed != facts.proposed_years:
+            facts.change("years", years, by="text", seq=s.seq, proposed=proposed)
             changed = True
         if facts.product_type is None:
             facts.product_type = "historical"
+            facts.origins["preference"] = {"by": "text", "seq": s.seq}
         return changed
 
     async def _read_place(self, s: AgentSession, text: str, place: str) -> None:
@@ -114,7 +126,7 @@ class GuidedPolicy:
         elif kind == "coordinates" and len(result.get("points", [])) == 1:
             lat, lon = result["points"][0]
             s.facts.reset_place()
-            s.facts.set_geography({"lat": lat, "lon": lon})
+            s.facts.change("place", {"lat": lat, "lon": lon}, by="text", seq=s.seq)
         elif kind == "single":
             await self._geocode(s, result["items"][0])
         else:
@@ -133,9 +145,9 @@ class GuidedPolicy:
         if not candidates:
             s.emit("assistant", f"No location matched '{name}'. Give coordinates or a more specific place.")
         elif len(candidates) == 1:
-            s.facts.set_geography(host.point(candidates[0]))
+            s.facts.change("place", host.point(candidates[0]), by="host", seq=s.seq)
         else:
-            s.facts.set_geography(None)
+            s.facts.change("place", None, by="host", seq=s.seq)
             s.facts.candidates = candidates[:10]
 
     async def _preview(self, s: AgentSession, items: list[Any]) -> None:
@@ -147,7 +159,7 @@ class GuidedPolicy:
         s.facts.place_rows = rows
         points = [{"lat": row["lat"], "lon": row["lon"], "name": row.get("name")}
                   for row in rows if row.get("status") == "resolved"]
-        s.facts.set_geography(points or None)
+        s.facts.change("place", points or None, by="host", seq=s.seq)
         lines = [f"Previewed {data.get('resolved', len(points))} of {len(rows)} places. Fix anything by text, "
                  "for example 'remove 3' or 'add Reno'."]
         for row in rows[:25]:
@@ -175,7 +187,7 @@ class GuidedPolicy:
             return False
         if not edited:
             s.facts.reset_place()
-            s.facts.set_geography(None)
+            s.facts.change("place", None, by="text", seq=s.seq)
             s.emit("assistant", "The place list is now empty; give places or coordinates.")
             return True
         by_label = dict(zip(labels, rows))
@@ -208,9 +220,12 @@ class GuidedPolicy:
         if gate == "review_plan" and answer.approve:
             await self._run(s)
             return
+        if gate == "review_request" and answer.approve:
+            await host.answer_summary(s, form, answer, self.advance)
+            return
         if gate == "where" and answer.value is not None:
             s.facts.reset_place()
-            s.facts.set_geography(answer.value)
+            s.facts.change("place", answer.value, by="form", seq=s.seq)
             await self.advance(s)
             return
         known = {option.id for option in form.options}
@@ -219,18 +234,20 @@ class GuidedPolicy:
             s.emit("error", "Choose one of the listed options.", code="UNKNOWN_CHOICE")
             return
         choice = answer.choice_ids[0]
+        if choice.startswith("change:"):                 # plan review or request summary
+            await host.change_part(s, choice.split(":", 1)[1], self.advance)
+            return
         if gate == "choose_location":
             candidate = next(item for index, item in enumerate(s.facts.candidates)
                              if str(item.get("id", index)) == choice)
             s.facts.candidates = []
-            s.facts.set_geography(host.point(candidate))
+            s.facts.change("place", host.point(candidate), by="form", seq=s.seq)
         elif gate == "place_set":
             await self._continue_place_set(s, form.data["answers"][choice])
         elif gate == "choose_products":
-            s.facts.chosen = [offer for offer in s.facts.offers if offer["id"] in answer.choice_ids]
-            s.facts.plans = []
+            host.choose(s, answer.choice_ids)
             if not needs_years(s.facts):
-                s.facts.years = []
+                s.facts.years, s.facts.proposed_years = [], []
         elif gate == "next_steps":
             await self._next_step(s, choice)
             return
@@ -241,6 +258,7 @@ class GuidedPolicy:
             s.emit("error", "There is no location review to approve.", code="GATE_REQUIRED")
             return
         s.facts.approved_key = s.facts.review["key"]
+        s.facts.origins["place"] = {"by": "form", "seq": s.seq}
         s.emit("assistant", "Location approved.")
         await self.advance(s)
 
@@ -271,31 +289,25 @@ class GuidedPolicy:
                                 detail=f"{item['lat']:.4f}, {item['lon']:.4f}")
                          for index, item in enumerate(facts.candidates)]))
         elif need == "where":
-            s.open_form(Interaction(
-                kind="map_input", gate="where", prompt="Where do you need weather?",
-                summary="Give a place name, a list of places, or coordinates such as 42.44, -76.50.",
-                data={"hint": "e.g. Ithaca, NY · Boston; Denver · 42.44, -76.50"}))
+            s.open_form(host.place_form())
         elif need == "review_location":
             if facts.review is None:
                 facts.review = (await s.tool("weather_locations_review", locations=facts.geography)).data
             s.open_form(host.review_form(facts, s.security.external_text.max_chars))
         elif need == "choose_products":
-            assert facts.review is not None               # next_need guarantees an approved review
-            if not facts.offers:
-                data = (await s.tool("weather_product_offers", locations=facts.review["geography"],
-                                     product=facts.product_type, provider=facts.provider,
-                                     years=facts.years or None)).data
-                facts.offers = data.get("options", [])
-                facts.offer_availability = data.get("availability")
+            if not facts.offers:                          # next_need guarantees an approved review
+                await host.fetch_offers(s, product=facts.product_type, provider=facts.provider)
             s.open_form(host.product_form(facts))
         elif need == "years":
-            s.open_form(host.years_form())
+            s.open_form(host.years_form(facts))
+        elif need == "confirm_request":
+            s.open_form(request_form(facts, max_chars=s.security.external_text.max_chars))
         elif need == "plan":
             await self._plan(s)
         elif need == "review_plan":
             # The open review must show exactly the plans that "run" submits.
             if not (s.form and s.form.gate == "review_plan" and s.form.data.get("plans") == facts.plans):
-                s.open_form(host.plan_form(facts))
+                s.open_form(host.plan_form(facts, s.security.external_text.max_chars))
         elif need == "next_steps":
             s.open_form(host.next_steps_form(facts))
         else:                                              # "jobs": retrieval is running
@@ -303,6 +315,10 @@ class GuidedPolicy:
 
     async def _plan(self, s: AgentSession) -> None:
         facts = s.facts
+        await host.refresh_offers(s)                     # after new years or a new preference
+        if facts.recheck:
+            await self.advance(s)                        # the product form, still-offered ones selected
+            return
         plans = []
         for request in build_requests(facts):
             result = await s.tool("weather_plan", request=request)

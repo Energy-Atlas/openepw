@@ -6,7 +6,19 @@ rendered or embedded in its payload. Their accepted Stage 1 records and the
 point-to-grid source cross-check remain intact. The original proposed service
 semantics below have not received Stage 2 implementation approval.
 
-Status: proposed amendment to the [MCP Stage 2 availability design](2026-09-24-mcp-stage-2-availability-design.md). Owner review is required before implementation. This work uses the validated, ignored Stage 1 snapshots; it does not restart Stage 1 collection.
+Status (updated 2026-10-30): **superseded; kept as a historical record.** The local map part was
+done on 2026-09-24 (the display revision above). The service semantics were never approved as
+written. They were replaced by owner decisions:
+- **2026-10-12:** the reviewed coverage mask gates NSRDB GOES eligibility ([ADR 0003](../../decisions/0003-mcp-availability-and-batches.md)
+  and the section "Superseded in part" below).
+- **2026-10-13:** per-product coverage masks with manifests and documented years
+  ([coverage plan](../plans/2026-10-13-availability-coverage.md) and its
+  [record](../../validation/availability-coverage-2026-10-13/README.md)).
+- **2026-10-27:** the Himawari mask also gates Himawari-8.
+
+Use those documents for current behaviour.
+
+Original status: proposed amendment to the [MCP Stage 2 availability design](2026-09-24-mcp-stage-2-availability-design.md). Owner review is required before implementation. This work uses the validated, ignored Stage 1 snapshots; it does not restart Stage 1 collection.
 
 ## Purpose and present evidence
 

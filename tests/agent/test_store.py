@@ -40,11 +40,12 @@ def test_snapshots_are_a_stack_per_session(tmp_path):
     assert [item.facts.years for item in store.snapshots(state.id, 5)] == [[2019], [2018]]
 
 
-def test_new_geography_drops_the_review_and_everything_after_it():
+def test_new_geography_drops_the_review_and_plan_and_rechecks_the_products():
     facts = Facts(review={"key": "k"}, approved_key="k", offers=[{"id": "x"}], chosen=[{"id": "x"}],
                   plans=[{"plan_hash": "h"}], years=[2018], product_type="historical")
     facts.set_geography({"lat": 1, "lon": 2})
-    assert (facts.review, facts.approved_key, facts.offers, facts.chosen, facts.plans) == (None, None, [], [], [])
+    assert (facts.review, facts.approved_key, facts.offers, facts.plans) == (None, None, [], [])
+    assert facts.chosen == [{"id": "x"}] and facts.recheck
     assert facts.years == [2018] and facts.product_type == "historical"
 
 

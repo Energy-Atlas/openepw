@@ -115,6 +115,23 @@ def synthetic_epw(city: str = "Ithaca", year: int = 2023) -> bytes:
     return epw_bytes(WeatherDataset(data=frame, location=Location(lat=42.44, lon=-76.5, name=city)))
 
 
-def stub_service(data_root: str | Path, fail_near: Iterable[tuple[float, float]] = ()) -> WeatherService:
+class StubService(WeatherService):
+    """The service with offers the stub catalog does not list for some years (``unlisted``)."""
+
+    def __init__(self, *args: Any, unlisted: dict[str, list[int]] | None = None, **kwargs: Any):
+        super().__init__(*args, **kwargs)
+        self.unlisted = dict(unlisted or {})
+
+    def product_offers(self, locations: Any, *, product: str | None = None,
+                       provider: str | None = None, years: list[int] | None = None) -> dict:
+        data = super().product_offers(locations, product=product, provider=provider, years=years)
+        asked = set(years or [])
+        data["options"] = [option for option in data["options"]
+                           if not asked & set(self.unlisted.get(option["id"], []))]
+        return data
+
+
+def stub_service(data_root: str | Path, fail_near: Iterable[tuple[float, float]] = (),
+                 unlisted: dict[str, list[int]] | None = None) -> WeatherService:
     config = RuntimeConfig(data_root=Path(data_root))
-    return WeatherService(config, http=StubHttp(config), providers=[StubERA5(fail_near)])
+    return StubService(config, http=StubHttp(config), providers=[StubERA5(fail_near)], unlisted=unlisted)

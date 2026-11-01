@@ -185,7 +185,7 @@ def test_disabled_guards_are_caught_by_their_tasks():
 def test_duplicate_keys_and_bad_answers_are_refused(tmp_path):
     with pytest.raises(TaskError, match=r"S1.yaml:5: duplicate key 'user'"):
         load_task(write(tmp_path, GOOD + "user: {say: again}\n"))
-    with pytest.raises(TaskError, match="answers.location_review must be approve"):
+    with pytest.raises(TaskError, match="answers.location_review must be one of approve"):
         load_task(write(tmp_path, GOOD.replace("user: {say: hi}", "user: {say: hi, answers: {location_review: aprove}}")))
     with pytest.raises(TaskError, match="no such task file or folder"):
         load_tasks(tmp_path / "missing")

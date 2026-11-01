@@ -72,6 +72,18 @@ class LinkSettings(_Section):
     allowlist: list[str] = []
 
 
+class LimitSettings(_Section):
+    """Web sessions only (P4): per person (account, else client address) and spend caps in USD.
+    None turns a limit off."""
+
+    sessions_per_hour: int | None = Field(None, ge=1, le=10_000)
+    inputs_per_minute: int | None = Field(None, ge=1, le=1_000)
+    running_jobs: int | None = Field(None, ge=1, le=100)
+    session_usd: float | None = Field(None, ge=0, le=100)
+    person_usd_per_day: float | None = Field(None, ge=0, le=1_000)
+    total_usd_per_day: float | None = Field(None, ge=0, le=10_000)
+
+
 class SecurityPolicy(_Section):
     version: Literal[1] = 1
     profile: str = Field(min_length=1, max_length=40)
@@ -80,7 +92,7 @@ class SecurityPolicy(_Section):
     moderation: ModerationSettings = ModerationSettings()
     external_text: ExternalTextSettings = ExternalTextSettings()
     links: LinkSettings = LinkSettings()
-    limits: dict[str, Any] = {}
+    limits: LimitSettings = LimitSettings()
     # Where the policy came from and a short hash of its effective settings (not settings).
     source: str = Field("", exclude=True)
     digest: str = Field("", exclude=True)
@@ -269,6 +281,10 @@ def weakened(policy: SecurityPolicy) -> list[str]:
         extra = [domain for domain in policy.links.allowlist if domain not in strict.links.allowlist]
         if extra:
             notes.append("links allowed to " + ", ".join(extra))
+    for name, strict_limit in strict.limits.model_dump().items():
+        limit = getattr(policy.limits, name)
+        if strict_limit is not None and (limit is None or limit > strict_limit):
+            notes.append(f"limits.{name} is {'off' if limit is None else limit}")
     return notes
 
 

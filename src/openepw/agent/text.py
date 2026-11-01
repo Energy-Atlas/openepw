@@ -76,6 +76,16 @@ def written_points(text: str) -> list[tuple[float, float]]:
     return [(lat, lon) for lat, lon in points if -90 <= lat <= 90 and -180 <= lon <= 180]
 
 
+_QUESTION = re.compile(r"\s*(?:what(?:'s|s)?|which|is|are|does|do|can|could|would|will|how|when|where|any"
+                       r"|is there|are there|do you have)\b", re.I)
+
+
+def reads_as_question(text: str) -> bool:
+    """True for a question ("2018?", "what about 2018", "is 2018 available"), false for an
+    answer ("2018", "2016-2018", "2018 please"). Years in a question are only proposed."""
+    return text.rstrip().endswith("?") or bool(_QUESTION.match(text))
+
+
 def read_product(text: str) -> str | None:
     """The weather product a message names, if any; TMYx wins over TMY."""
     for product, pattern in _PRODUCTS:

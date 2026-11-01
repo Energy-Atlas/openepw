@@ -41,13 +41,15 @@ src/openepw/
 ```
 
 The optional `web/chat-ui` build uses the REST adapter and does not enter the
-Python package dependency graph. It keeps a server-side SQLite session with
-confirmed request facts, revisions, idempotent actions, a bounded durable
-turn queue, and a redacted event
-transcript. A read-only assessment and stored weather plan precede an explicit
-Run action. Browser view requests reference artifacts from the current job or
-registered user upload and call the shared visualization service; chart and
-map rendering contain no weather aggregation. See the
+Python package dependency graph. Since P4 (2026-11-01) it is a renderer of the agent core: it
+calls `/v2/agent` (`api/agent_routes.py` over `agent/web.py`), shows the open form by kind and
+follows the session's events as server-sent events. Turns run in worker threads on the same
+service, job runner and in-process MCP server; forms, gates, approvals and Run are the agent
+core's, so the browser enforces nothing itself. The security profile's `limits` bound sessions,
+inputs, running jobs and model spend per person. Browser chart requests reference artifacts of
+the session and call the shared visualization service; chart and map rendering contain no
+weather aggregation. The legacy `/v1/chat/*` routes (`chat/coordinator.py`) remain until P5 but
+the browser no longer uses them. See the
 [scene decision](docs/decisions/0004-map-first-chat-scene.md) and
 [local setup](web/chat-ui/README.md).
 
@@ -292,7 +294,12 @@ which answers availability questions in words, opens no form and records nothing
 the same forms as guided mode; a
 gatekeeper refuses host-only tools, rewrites plan requests to approved facts and answers
 `GATE_REQUIRED` with the next step. An unavailable model switches the session to guided mode with
-its facts. `openepw eval` runs packaged scenarios through the same session in guided mode, with
+its facts. Request parts (2026-10-31, [design](docs/superpowers/specs/2026-10-30-agent-request-slots-design.md)):
+`openepw.agent.slots` derives each part's status (place, preference, products, years: empty,
+proposed, confirmed, recheck) from the facts; `Facts.change` applies the targeted resets; plans
+use confirmed parts only. The request summary form and per-part Change actions are host paths
+shared by both policies (`openepw.agent.host`), so a Change never calls the model.
+`openepw eval` runs packaged scenarios through the same session in guided mode, with
 scripted models or with a live model, against offline stubs by default. Optional LangSmith
 tracing for the agent chat and the web chat is decided by `LANGSMITH_TRACING` in the env file
 (`openepw.agent.tracing`); traces hold only redacted text and summaries.
@@ -306,8 +313,9 @@ clamp, the link allowlist and the readiness check); `openepw.agent.moderation` i
 OpenAI moderation endpoint with an offline stub. The session applies them and counts strikes for
 the whole session (`end_session`, `guided` or `warn` at the limit); the model declines or answers
 briefly only through the host tools `out_of_scope` and `knowledge_answer`. Guard codes, the
-profile and its digest go into session events and trace metadata. The legacy `/v1/chat/*` and
-`openepw-chat` paths do not use the profiles.
+profile and its digest go into session events and trace metadata. The web chat (`/v2/agent`)
+applies the profile of `openepw serve`; the legacy `/v1/chat/*` and `openepw-chat` paths do not
+use the profiles.
 
 Agent evals (2026-10-10, [spec](docs/superpowers/specs/2026-10-10-agent-evals-design.md)) live in
 `openepw.agent.evals`. Tasks are validated YAML files (`schema.py`, `tasks/`, `coverage.yaml`).

@@ -3,7 +3,9 @@
 **Status:** **approved by the owner on 2026-10-10** ("plan approved"). The owner asked for E1, E2
 and E4 (tasks 1–7 and their docs) first, built autonomously without supervision, with findings,
 issues and assumptions logged in the execution notes and presented for review on completion.
-E3 (task 8), E5 (task 9, which waits for human calibration labels) and task 10 wait. Design and
+E3 (task 8), E5 (task 9, which waits for human calibration labels) and task 10 wait. They are
+phase 2 of the [outstanding work plan](2026-10-30-outstanding-work.md), deferred on 2026-10-30
+while LangSmith is not available. Design and
 owner answers: [spec](../specs/2026-10-10-agent-evals-design.md) (§8).
 
 **Branch:** `feature/agent-evals`, created from

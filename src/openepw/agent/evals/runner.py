@@ -97,18 +97,30 @@ class RecordingModel:
         return reply
 
 
-def _answer(form: Interaction, answers: Mapping[Any, Any]) -> Answer | str | None:
-    """The task's answer to the open form: an Answer, text to type, or None to stop."""
+REVIEWS = ("location_review", "plan_review", "request_summary")
+
+
+def _answer(form: Interaction, answers: Mapping[Any, Any], seen: int = 0) -> Answer | str | None:
+    """The task's answer to the open form: an Answer, text to type, or None to stop.
+
+    ``seen`` counts earlier forms of this kind; a list of review answers is used in turn.
+    """
     base = {"interaction_id": form.id, "revision": form.revision}
     policy = answers.get(form.kind)
+    if form.kind in REVIEWS and isinstance(policy, list):
+        policy = policy[min(seen, len(policy) - 1)] if policy else None
     if policy is None:
         return None
     if isinstance(policy, str) and policy.startswith("say:"):
         return policy[4:].strip()                         # the person types this instead
-    if form.kind in ("location_review", "plan_review"):
+    if form.kind in REVIEWS:
+        if policy.startswith("change:"):
+            return Answer(**base, choice_ids=[policy]) if policy in {option.id for option in form.options} else None
         return Answer(**base, approve=True) if policy in ("approve", "run") else None
     if form.kind in ("product_choice", "choice"):
         ids = [option.id for option in form.options]
+        if policy == "selected":
+            policy = [item for item in form.data.get("selected") or [] if item in ids]
         wanted = [item for item in (policy if isinstance(policy, list) else []) if item in ids]
         chosen = wanted or ids[:1]
         return Answer(**base, choice_ids=chosen if form.multi else chosen[:1]) if chosen else None
@@ -127,6 +139,7 @@ def _moderation_for(task: Task, moderation: ModerationPort | None) -> Moderation
 
 async def _answer_forms(session: AgentSession, task: Task, follow_seconds: float) -> None:
     """Answer the forms that follow one message, as the task's person would."""
+    seen: dict[str, int] = {}
     for _ in range(task.user.max_interactions):
         if session.state.ended is not None:
             return
@@ -139,7 +152,8 @@ async def _answer_forms(session: AgentSession, task: Task, follow_seconds: float
         form = session.form
         if form is None or form.gate == "next_steps":
             return
-        reply = _answer(form, task.user.answers)
+        reply = _answer(form, task.user.answers, seen.get(form.kind, 0))
+        seen[form.kind] = seen.get(form.kind, 0) + 1
         if reply is None:
             return
         if isinstance(reply, Answer):
@@ -159,7 +173,7 @@ async def run_trial(task: Task, *, mode: str, model: ModelPort | None, data_root
 
     security = security or load_policy("local")
     service = (WeatherService(RuntimeConfig(data_root=data_root)) if live_providers
-               else stub_service(data_root, fail_near=task.setup.fail_near))
+               else stub_service(data_root, fail_near=task.setup.fail_near, unlisted=task.setup.unlisted))
     runner = JobRunner(service)
     runner.recover()
     approvals = ApprovalBook()

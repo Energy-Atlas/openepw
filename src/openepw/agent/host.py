@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any, Awaitable, Callable
 
 from .guard import clean_external
-from .interactions import Interaction, Option
+from .interactions import Answer, Interaction, Option
 from .mcp_port import ToolFailure
 from .session import AgentSession
-from .state import Facts
+from .slots import change_options, lines, parts, status
+from .state import PARTS, Facts, matches_preference
 
 VIEWS = (("view:monthly_series", "Monthly dry-bulb temperature chart"),
          ("view:histogram", "Dry-bulb temperature distribution"))
@@ -96,6 +98,8 @@ def availability_line(facts: Facts) -> str:
 
 
 def product_form(facts: Facts) -> Interaction:
+    """The product choice. Chosen products still offered are preselected (``data.selected``);
+    ``data.recheck`` says a change elsewhere means they must be chosen again."""
     summary = "Listed means eligible to try retrieval, not quality assured."
     line = availability_line(facts)
     if line:
@@ -103,12 +107,69 @@ def product_form(facts: Facts) -> Interaction:
     if (facts.offer_availability or {}).get("catalog_loaded") is False:
         summary += (" The local availability catalog is not loaded (openepw catalog import), so most "
                     "products are not verified here; planning checks each one.")
+    offered = {offer["id"] for offer in facts.offers}
+    selected = [offer["id"] for offer in facts.chosen if offer["id"] in offered]
+    if facts.recheck:
+        summary = ("Your change affects the products: choose them again"
+                   + (" (those still offered are selected)" if selected else "") + ". " + summary)
     return Interaction(
         kind="product_choice", gate="choose_products", multi=True, prompt="Which weather products?",
         summary=summary,
         options=[Option(id=offer["id"], label=offer["label"], detail=offer.get("detail"))
                  for offer in facts.offers],
-        data={"availability": facts.offer_availability})
+        data={"availability": facts.offer_availability, "selected": selected, "recheck": facts.recheck})
+
+
+async def fetch_offers(s: AgentSession, *, product: str | None, provider: str | None, by: str = "host") -> None:
+    """The offers for the approved locations and every written year (asked-about years included,
+    so the product form shows them and choosing on it confirms them)."""
+    facts = s.facts
+    assert facts.review is not None
+    data = (await s.tool("weather_product_offers", by=by, locations=facts.review["geography"],
+                         product=product, provider=provider, years=facts.years or None)).data
+    facts.offers, facts.offer_availability = data.get("options", []), data.get("availability")
+
+
+async def refresh_offers(s: AgentSession) -> None:
+    """After new years or a new preference, fetch the offers again before planning (design §4).
+
+    Chosen products still offered stay confirmed and take the new availability; a product no
+    longer offered makes the products part ``recheck``, so the product form is shown again.
+    """
+    facts = s.facts
+    if facts.offers or not facts.chosen or facts.recheck or status(facts, "place") != "confirmed":
+        return
+    filtered = all(matches_preference(offer, facts.product_type, facts.provider) for offer in facts.chosen)
+    await fetch_offers(s, product=facts.product_type if filtered else None,
+                       provider=facts.provider if filtered else None)
+    offered = {offer["id"]: offer for offer in facts.offers}
+    dropped = [offer for offer in facts.chosen if offer["id"] not in offered]
+    facts.chosen = [offered[offer["id"]] for offer in facts.chosen if offer["id"] in offered]
+    if dropped:
+        facts.recheck = True
+        s.emit("assistant", "Not offered for these years and places: "
+               + "; ".join(clean_external(str(offer.get("label") or offer["id"]), 120) for offer in dropped)
+               + ". Choose the products again.", code="PRODUCTS_RECHECK")
+
+
+def choose(s: AgentSession, ids: list[str]) -> None:
+    """The person chose products on the product form; it also confirms the years it showed."""
+    facts = s.facts
+    facts.change("products", [offer for offer in facts.offers if offer["id"] in ids], by="form", seq=s.seq)
+    availability = facts.offer_availability or {}
+    if not availability.get("years_assumed"):
+        facts.confirm_years(availability.get("years") or [], seq=s.seq)
+
+
+def confirm_request(s: AgentSession) -> bool:
+    """Approve on the request summary: years asked about and a suggested preference become
+    confirmed. True when anything was only proposed."""
+    facts = s.facts
+    changed = facts.confirm_years(facts.proposed_years, seq=s.seq)
+    if (facts.origins.get("preference") or {}).get("by") == "model":
+        facts.origins["preference"] = {"by": "form", "seq": s.seq}
+        changed = True
+    return changed
 
 
 def _status(option: dict[str, Any]) -> str:
@@ -169,26 +230,39 @@ def lookup_label(points: list[dict[str, Any]], max_chars: int = 120) -> str:
             + ("them" if several else "it") + " before choosing products.")
 
 
-def years_form() -> Interaction:
+def years_form(facts: Facts | None = None) -> Interaction:
+    current = ", ".join(map(str, facts.years)) if facts and facts.years else ""
     return Interaction(kind="text", gate="years", prompt="Which actual year or years?",
                        summary="Actual-year products need calendar years.",
-                       data={"hint": "e.g. 2018 or 2016-2018"})
+                       data={"hint": "e.g. 2018 or 2016-2018" + (f" (now {current})" if current else "")})
 
 
-def plan_form(facts: Facts) -> Interaction:
-    lines = []
+def place_form(facts: Facts | None = None, max_chars: int = 120) -> Interaction:
+    summary = "Give a place name, a list of places, or coordinates such as 42.44, -76.50."
+    if facts is not None and status(facts, "place") != "empty":
+        summary = f"Now: {parts(facts, max_chars=max_chars)[0]['value']}. {summary}"
+    return Interaction(kind="map_input", gate="where", prompt="Where do you need weather?", summary=summary,
+                       data={"hint": "e.g. Ithaca, NY · Boston; Denver · 42.44, -76.50"})
+
+
+def plan_form(facts: Facts, max_chars: int = 120) -> Interaction:
+    """The plan review: Run approves exactly these plans; each part has a Change action."""
+    shown = []
     for plan in facts.plans:
         heading = "Actual year" if plan["product"] == "historical" else "Typical year"
         started = f" (already started as job {plan['job_id'][:8]})" if plan.get("job_id") else ""
-        lines.append(f"{heading}{started}: {plan['summary']}")
-        lines.extend(f"Warning: {warning}" for warning in plan.get("warnings", [])[:5])
+        shown.append(f"{heading}{started}: {plan['summary']}")
+        shown.extend(f"Warning: {warning}" for warning in plan.get("warnings", [])[:5])
     if any(plan["product"] == "historical" for plan in facts.plans) and facts.review:
-        lines.append(facts.review["standard_time"])
-    lines.append("Listed sources are eligible to try; retrieved weather is checked by QC afterwards.")
+        shown.append(facts.review["standard_time"])
+    shown.append("Listed sources are eligible to try; retrieved weather is checked by QC afterwards.")
+    shown.extend(["Your request:", *lines(facts, max_chars=max_chars)])
     return Interaction(kind="plan_review", gate="review_plan",
                        prompt="Review the plan, then run it to start retrieval.",
+                       summary="\n".join(shown), options=change_options(facts),
                        # A copy: the run guard compares what was shown with the current plans.
-                       summary="\n".join(lines), data={"plans": [dict(plan) for plan in facts.plans]})
+                       data={"plans": [dict(plan) for plan in facts.plans],
+                             "parts": parts(facts, max_chars=max_chars)})
 
 
 def next_steps_form(facts: Facts) -> Interaction:
@@ -197,6 +271,60 @@ def next_steps_form(facts: Facts) -> Interaction:
         options.append(Option(id="export", label="Compact ZIP of the outputs"))
     options.append(Option(id="new", label="Start a new weather request"))
     return Interaction(kind="choice", gate="next_steps", prompt="What next?", options=options)
+
+
+async def change_part(s: AgentSession, part: str, advance: Advance) -> None:
+    """Change one part of the request (design §6.3): the host's path in both modes, no model call.
+
+    The plan and its approval reset, a model question still open is closed as
+    ``person_changed``, and only that part's form opens, with the current value shown or
+    preselected. Opening it takes a snapshot, so Back undoes the Change.
+    """
+    facts = s.facts
+    if part not in PARTS:
+        s.emit("error", "Choose one of the listed options.", code="UNKNOWN_CHOICE")
+        return
+    if any(plan.get("job_id") for plan in facts.plans):
+        s.emit("error", "A weather job already started from this plan; start a new request instead.",
+               code="JOB_STARTED")
+        return
+    facts.plans = []
+    pending = s.state.pending_call
+    if pending:
+        s.state.turn.append({"type": "tool_result", "call_id": pending["id"], "name": pending["name"],
+                             "output": json.dumps({"status": "person_changed", "part": part})})
+        s.state.pending_call = None
+    s.close_form()
+    max_chars = s.security.external_text.max_chars
+    if part == "place":
+        form = place_form(facts, max_chars)
+    elif part == "years":
+        form = years_form(facts)
+    else:
+        if part == "preference":
+            facts.change("preference", (None, None), by="form", seq=s.seq)
+        if status(facts, "place") != "confirmed":
+            await advance(s)                         # products come after the location review
+            return
+        await fetch_offers(s, product=facts.product_type, provider=facts.provider)
+        form = product_form(facts)
+    s.open_form(form.model_copy(update={"data": {**form.data, "change": part}}))
+
+
+async def answer_summary(s: AgentSession, form: Interaction, answer: Answer, advance: Advance) -> None:
+    """Approve on a request summary the host opened. One opened on request (``/request``) returns
+    to the form that was open in agent mode; otherwise the host goes on in guided order."""
+    confirm_request(s)
+    if "return_to" in form.data and s.state.mode == "agent":
+        back = form.data["return_to"]
+        stale = back and back.get("gate") == "review_plan" and not s.facts.plans
+        if back and not stale:
+            s.open_form(Interaction.model_validate(back))
+        else:
+            s.close_form()
+            s.emit("assistant", "Your request is confirmed.")
+        return
+    await advance(s)
 
 
 def shows_current_plans(s: AgentSession) -> bool:

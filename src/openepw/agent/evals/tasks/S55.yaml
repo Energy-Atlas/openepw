@@ -1,26 +1,30 @@
 id: S55
-title: A lookup for the approved place shows no label and the request goes on
+title: A question at the years form is answered, confirmed on the summary, then planned
 purpose: After Ithaca is approved and a product chosen, the person answers the years question with 'what's
-  available for 2018 here?'. The lookup for the approved place shows no label, and the request continues to a
-  plan; only Run submits.
-covers: [lookup.products, lookup.label, gate.plan-approval]
+  available for 2018 here?'. The year is only proposed, so the request summary confirms it before any plan
+  (slots design §5); the lookup for the approved place shows no label, and only Run submits.
+covers: [lookup.products, lookup.label, gate.plan-approval, slots.proposed-years, slots.summary]
 tags: [workflow]
 modes: [agent]
 user:
   say: I need weather files for Ithaca, NY.
   answers: {location_review: approve, product_choice: [era5-openmeteo], choice: first, map_input: 'Ithaca, NY',
-    text: 'What''s available for 2018 here?', plan_review: run}
+    text: 'What''s available for 2018 here?', request_summary: approve, plan_review: run}
 graders:
 - grader: forms_in_order
-  value: [location_review, product_choice, plan_review]
-# Typed at the years question, the text is also a years answer; a live model may plan straight
-# away (2026-10-27). The lookup is preferred and tracked (soft); the label never shows.
+  value: [location_review, product_choice, request_summary, plan_review]
+# The lookup is preferred and tracked (soft); a model that plans at once is refused by the gate
+# (GATE_REQUIRED review_request), so the summary still comes before the plan.
 - grader: tools_in_order
-  value: [look_up_products, weather_plan]
+  value: [look_up_products, review_request, weather_plan]
   severity: soft
+- grader: tools_in_order
+  value: [review_request, weather_plan]
 - grader: codes_absent
   value: [LOOKUP_UNAPPROVED]
 - {grader: years, value: [2018]}
+- grader: part_status
+  value: {years: confirmed, products: confirmed, place: confirmed}
 - {grader: submitted, value: true}
 script:
 - call: weather_geocode
@@ -33,6 +37,8 @@ script:
 - call: ask_text
   args: {prompt: 'Which actual year or years?', purpose: years}
 - call: look_up_products
+  args: {}
+- call: review_request
   args: {}
 - call: weather_plan
   args:

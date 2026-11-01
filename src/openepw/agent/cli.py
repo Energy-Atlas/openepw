@@ -22,9 +22,13 @@ from .store import SessionStore
 from .tracing import NullTracer, make_tracer, tracing_settings
 
 HELP = ("Type a weather request, or answer the current form.\n"
-        "/back  /new  /upload <path to .epw>  /status  /mode [agent|guided]  /help  /quit\n"
+        "/back  /new  /request  /upload <path to .epw>  /status  /mode [agent|guided]  /help  /quit\n"
+        "/request shows your request (place, preference, products, years); at it or at the plan review, "
+        "'change years' (or place, products, preference) changes one part.\n"
         "EPW bytes stay out of the conversation; review QC before simulation.")
 _NUMBERS = re.compile(r"\d+(?:\s*,\s*\d+)*")
+_CHANGE = re.compile(r"change\s+(?:the\s+|my\s+)?(place|preference|product preference|products|years?)", re.I)
+_OK = ("a", "approve", "yes", "y", "ok", "okay")
 
 
 def prepare_console(stream: Any = None) -> None:
@@ -120,13 +124,19 @@ def render_form(form: Interaction) -> str:
     if form.summary:
         lines.append(form.summary)
     if form.kind in ("choice", "product_choice"):
+        selected = set(form.data.get("selected") or [])
         lines.extend(f"  {index}. {option.label}" + (f" — {option.detail}" if option.detail else "")
+                     + (" [selected]" if option.id in selected else "")
                      for index, option in enumerate(form.options, start=1))
-        lines.append("Reply with numbers separated by commas." if form.multi else "Reply with a number.")
+        lines.append(("Reply with numbers separated by commas" + (", or 'ok' to keep the selected ones."
+                                                                  if selected else "."))
+                     if form.multi else "Reply with a number.")
     elif form.kind == "location_review":
         lines.append("Type 'a' to approve, or describe a change (e.g. 'remove 2' or another place).")
     elif form.kind == "plan_review":
-        lines.append("Type 'run' to start retrieval, or describe a change.")
+        lines.append("Type 'run' to start retrieval, or 'change years' (or place, products, preference).")
+    elif form.kind == "request_summary":
+        lines.append("Type 'ok' to confirm, or 'change years' (or place, products, preference).")
     elif form.kind == "upload":
         lines.append("Use /upload <path to .epw>.")
     elif form.data.get("hint"):
@@ -154,10 +164,18 @@ def parse_reply(form: Interaction, line: str) -> Answer | None:
         if not all(1 <= index <= len(form.options) for index in indices):
             return None
         return Answer(**base, choice_ids=[form.options[index - 1].id for index in indices])
-    if form.kind == "location_review" and reply.casefold() in ("a", "approve", "yes", "y", "ok"):
+    if form.kind == "product_choice" and reply.casefold() in _OK and form.data.get("selected"):
+        return Answer(**base, choice_ids=list(form.data["selected"]))
+    if form.kind in ("location_review", "request_summary") and reply.casefold() in _OK:
         return Answer(**base, approve=True)
     if form.kind == "plan_review" and reply.casefold() in ("run", "r", "yes", "go"):
         return Answer(**base, approve=True)
+    change = _CHANGE.fullmatch(reply.rstrip(" .!"))
+    if change and form.kind in ("plan_review", "request_summary"):
+        word = change.group(1).casefold()
+        part = {"year": "years", "product preference": "preference"}.get(word, word)
+        if f"change:{part}" in {option.id for option in form.options}:
+            return Answer(**base, choice_ids=[f"change:{part}"])
     return None
 
 
@@ -284,6 +302,8 @@ async def main_chat(service: Any, *, session_id: str | None = None,
                         await session.back()
                     elif command == "/new":
                         await session.new_request()
+                    elif command == "/request":
+                        await session.show_request()
                     elif command == "/upload":
                         content = _read_upload(argument, write)
                         if content is None:

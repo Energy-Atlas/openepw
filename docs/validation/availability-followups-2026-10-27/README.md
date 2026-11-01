@@ -55,8 +55,8 @@ ledger was never edited.
 - **Memory** (`scripts/measure_catalog_runtime.py memory`, Windows working set, two rounds):
   529 → 562 MB after browsing, peak 545 → 577 MB (+6%), from the PVGIS `refine` layer (97,000
   runs) and the new products.
-- **Package 2026.10.27:** local open-data branch `data/weather-availability-catalog-2026.10.27`,
-  commit `b3885a8`, **not pushed**. 39 data files, 92.9 MB; `datapackage.json` SHA-256
+- **Package 2026.10.27:** open-data branch `data/weather-availability-catalog-2026.10.27`,
+  commit `b3885a8`, pushed 2026-10-30 and pinned on staging the same day. 39 data files, 92.9 MB; `datapackage.json` SHA-256
   `6aab7111fd6c94ae6e3d60c371c31247ed5fee3ea75fe415f6b699233ed847d6`. Lossless: re-imported
   records are identical by type and the 12 footprint files are byte-identical; every committed
   blob matches the export; no source URL has a query string.

@@ -1,0 +1,38 @@
+id: S60
+title: Years and preference given before the place
+purpose: 'The person gives the product kind and years first and the place afterwards. No product form opens before
+  the location is approved, and the product form then shows the years given (slots design §1, owner answer 1).'
+covers: [slots.order, gate.location-review, gate.years]
+tags: [workflow]
+user:
+  say: I need actual-year weather for 2016-2017
+  answers: {location_review: approve, product_choice: [era5-openmeteo], choice: first, map_input: 'Ithaca, NY',
+    text: 'Ithaca, NY', plan_review: run}
+graders:
+- grader: forms_in_order
+  value: [location_review, product_choice, plan_review]
+- grader: form_contains
+  value: ['For 2016, 2017']
+- {grader: years, value: [2016, 2017]}
+- grader: part_status
+  value: {place: confirmed, preference: confirmed, years: confirmed}
+- {grader: submitted, value: true}
+script:
+- call: request_map_input
+  args: {prompt: 'Where do you need weather?'}
+- call: weather_geocode
+  args: {query: 'Ithaca, NY'}
+- call: review_location
+  args:
+    locations: {lat: 42.44, lon: -76.5, name: 'Ithaca, New York, United States'}
+- call: choose_products
+  args: {}
+- call: weather_plan
+  args:
+    request:
+      product: historical
+      years: [2016, 2017]
+      dataset_selections: [{provider: openmeteo, dataset: era5}]
+- call: review_plan
+  args: {}
+- say: The job finished with two EPWs; they are not certified simulation-ready (simulation_ready=false), see QC.

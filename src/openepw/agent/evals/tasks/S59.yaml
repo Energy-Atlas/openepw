@@ -1,0 +1,41 @@
+id: S59
+title: New years that drop a chosen product leave it to recheck and keep the other
+purpose: 'Two products are chosen for 2018; the person changes the years to 2019, for which one of them is not
+  listed. The host says so, reopens the product form with the one still offered preselected, and plans only after
+  the person chooses again (slots design §4).'
+covers: [slots.recheck, slots.change, gate.product-choice]
+tags: [workflow]
+setup:
+  unlisted: {era5land-openmeteo: [2019]}
+user:
+  say: AMY 2018 for Ithaca, NY
+  answers: {location_review: approve, product_choice: [era5-openmeteo, era5land-openmeteo], choice: first,
+    map_input: 'Ithaca, NY', text: '2019', plan_review: ['change:years', run]}
+graders:
+- grader: forms_in_order
+  value: [product_choice, plan_review, text, product_choice, plan_review]
+- grader: codes_present
+  value: [PRODUCTS_RECHECK]
+- grader: form_contains
+  value: [those still offered are selected]
+- {grader: years, value: [2019]}
+- grader: part_status
+  value: {products: confirmed, years: confirmed}
+- {grader: submitted, value: true}
+script:
+- call: weather_geocode
+  args: {query: 'Ithaca, NY'}
+- call: review_location
+  args:
+    locations: {lat: 42.44, lon: -76.5, name: 'Ithaca, New York, United States'}
+- call: choose_products
+  args: {}
+- call: weather_plan
+  args:
+    request:
+      product: historical
+      years: [2018]
+      dataset_selections: [{provider: openmeteo, dataset: era5}, {provider: openmeteo, dataset: era5_land}]
+- call: review_plan
+  args: {}
+- say: The job finished for 2019; the EPW is not certified simulation-ready (simulation_ready=false), see its QC.

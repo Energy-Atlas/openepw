@@ -1,0 +1,41 @@
+id: S63
+title: Showing the request summary with nothing proposed changes nothing
+purpose: 'At the plan review the person asks to see the request. The summary lists every part as confirmed;
+  approving it keeps the plan, and the same plan review is shown again (slots design §6.1). Nothing runs without
+  Run.'
+covers: [slots.summary]
+tags: [workflow]
+user:
+  say: AMY 2018 for Ithaca, NY
+  then: [show my request]
+  answers: {location_review: approve, product_choice: [era5-openmeteo], choice: first, map_input: 'Ithaca, NY',
+    text: '2018', request_summary: approve, plan_review: null}
+graders:
+- grader: forms_in_order
+  value: [plan_review, request_summary, plan_review]
+- grader: form_contains
+  value: ['Years: 2018 (confirmed']
+- grader: part_status
+  value: {place: confirmed, preference: confirmed, products: confirmed, years: confirmed}
+- {grader: years, value: [2018]}
+- {grader: submitted, value: false}
+script:
+- call: weather_geocode
+  args: {query: 'Ithaca, NY'}
+- call: review_location
+  args:
+    locations: {lat: 42.44, lon: -76.5, name: 'Ithaca, New York, United States'}
+- call: choose_products
+  args: {}
+- call: weather_plan
+  args:
+    request:
+      product: historical
+      years: [2018]
+      dataset_selections: [{provider: openmeteo, dataset: era5}]
+- call: review_plan
+  args: {}
+- call: review_request
+  args: {}
+- call: review_plan
+  args: {}

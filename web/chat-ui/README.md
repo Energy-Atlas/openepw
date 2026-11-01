@@ -23,7 +23,7 @@ npm run dev
 
 Open `http://127.0.0.1:5173`. For a local production-build check, run
 `npm run build` followed by `npm run preview`. Both Vite modes proxy `/v1` and
-`/auth` to the loopback API on port 8000. The package can be installed and used without
+`/v2` and `/auth` to the loopback API on port 8000. The package can be installed and used without
 Node or this UI.
 
 ## Accounts and the landing page
@@ -41,14 +41,24 @@ account links are printed in its console.
 
 ## Use
 
+- Since P4 (2026-11-01) the chat is a renderer of the agent core: it calls
+  `/v2/agent` and follows the session's events as server-sent events, so tool
+  steps appear as they run (see the [agent README](../../docs/agent/README.md#web-chat-p4)).
+  Chats saved through the old `/v1/chat` routes are not resumed.
 - The chat floats over the right side of the map as separate message bubbles.
-  The reply area follows the current question: the message field appears only
-  when free text is expected. A choice shows its options with `Other — type an
-  answer`; a plan review shows `Assess and review plan` or `Run reviewed plan`
-  with `Type a correction`; a map question shows `Choose on map`, GeoJSON
-  attachment and `Type coordinates`. A plan with no outputs (no chosen product
-  has data for the place and period) says so, offers no Run and shows
-  `Choose other products`, which returns to the product choice.
+  The header switches between agent and guided mode (agent mode needs a model on
+  the server), opens `Your request` (the request summary) and goes `Back` one
+  step. The reply area follows the open form: the message field appears when
+  text is expected. A choice shows its options with `Other — type an answer`;
+  a location review shows `Approve location` with the message field open for
+  corrections; the product question shows the product dialog; a plan review
+  shows `Run reviewed plan`, one Change button per part (place, product
+  preference, products, years) and `Type a correction`; the request summary
+  lists the parts with their status (confirmed, to confirm, choose again) and
+  offers `Confirm request` and the same Change buttons. Run, approvals and
+  choices are always sent as answers to the open form, and the server checks
+  them. Refusals (too many messages, a job limit, a busy session) show under
+  the form, which stays open.
 - On a testing deployment (`debug_log` in the runtime config, `OPENEPW_DEBUG_LOG`
   on Render staging) a clipboard button beside `Start over` copies a log for a bug
   report: the page's recent API calls with their errors, the server's recent
@@ -119,14 +129,16 @@ account links are printed in its console.
   expands with today's date. The dialog and options have no height limit. While the
   question is open only the looked-up stations keep their name pills, and every
   station name carries a `NOAA` or `One` prefix pill.
-- Select a geocoder candidate or type an alternative. `Assess and review plan`
-  reads catalog and planning evidence. `Run reviewed plan` starts provider work.
+- Select a geocoder candidate or type an alternative. `Run reviewed plan`
+  starts provider work; the server follows the job and then asks what next
+  (charts, a compact ZIP or a new request).
 - The job card shows processed outputs. Download one successful EPW or a compact
-  ZIP of successful outputs from the local server to your browser's download
-  folder. The ZIP includes the output mapping; failures remain in the job card.
-- An attached user EPW is a separate analysis input. View prompts or the `Open chart`
-  controls prepare JSON from existing artifacts. Charts float over the map;
-  `Earlier views` reopens a closed panel.
+  ZIP per job of successful outputs from the local server to your browser's
+  download folder. The ZIP includes the output mapping; failures remain in the
+  job card. Retrying failed outputs from the browser is not available yet.
+- An EPW the model asks for (an upload form) is a separate analysis input. Chart
+  answers and the `Open chart` controls prepare JSON from the session's EPWs.
+  Charts float over the map; `Earlier charts` reopens a closed panel.
 - There is no scene control panel. Zooming to 14 or closer tilts the map into
   3D with decorative buildings and approximate geometric cast shadows; zooming
   out below 13 returns to the flat globe. The scene uses the light appearance,
@@ -147,7 +159,8 @@ account links are printed in its console.
   masks; without it, NSRDB is listed as unmapped.
 
 The UI resumes its session and current job after refresh in the same browser
-session. Browser storage holds only the session ID. Server-side SQLite and
+session. Browser storage holds only the session ID; a session belongs to the
+account (or client address) that started it. Server-side SQLite and
 artifact files live below the configured data root. Future-weather planning is
 temporarily unavailable in this UI.
 

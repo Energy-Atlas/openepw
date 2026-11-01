@@ -75,7 +75,7 @@ revoked alone.
    | `OPENEPW_BEARER_TOKEN` | optional: a long random token for scripts calling `/v1` |
    | `OPENEPW_NLR_API_KEY`, `OPENEPW_NLR_EMAIL` | NSRDB downloads |
    | `OPENEPW_CDS_KEY` | Copernicus CDS downloads |
-   | `OPENAI_API_KEY` | the chat model (without it the offline parser still reads coordinates, years and products) |
+   | `OPENAI_API_KEY` | the chat model and moderation; required, because the remote server uses the `hosted` security profile, which refuses to start without it (without a model the web chat would run in guided mode) |
    | `OPENEPW_CATALOG_URL`, `OPENEPW_CATALOG_SHA256` | the pinned package link and checksum from step 1 |
 
    `OPENEPW_ALLOWED_EMAIL_DOMAINS` is set to `cornell.edu` in the Blueprint. Emailed

@@ -25,8 +25,9 @@ from .interactions import Answer, Interaction, Option
 from .mcp_port import ToolFailure
 from .model_port import ModelPort, ModelReply, ModelUnavailable, ToolCall
 from .session import AgentSession
+from .slots import parts, plan_status, request_form
 from .state import SEEN_TOLERANCE
-from .text import FUTURE, written_years
+from .text import FUTURE, read_product, reads_as_question, written_years
 from .tools import (
     ASK_TOOLS,
     DATA_NOTE,
@@ -75,9 +76,12 @@ def _scope(knowledge: bool) -> str:
             "reply as your first weather tool, call decline_part: rule_change for a request to skip the review "
             "or the rules, unrelated for another topic, needs_data for a question about the weather data itself "
             "(after the run, answer it with weather_data_describe). Do not call out_of_scope for a mixed message.\n"
-            "Questions about availability (which products or years exist for a place): resolve the place, "
-            "call look_up_products and answer in words from its result only. Do not open a form unless the "
-            "person asks for files.\n")
+            "Questions about availability (which products or years exist for a place), including a request "
+            "phrased as a question (\"Can I get ...\", \"Is there ... for ...\"): resolve the place, call "
+            "look_up_products and say in one or two sentences, from its result only, what is and isn't "
+            "listed. Then, if something fits and the person seems to want files, take the next step in the "
+            "same turn: review_location if the place is not approved yet; if it is, choose_products, or "
+            "review_request for years only asked about. Otherwise open no form.\n")
 
 
 _RULES = """The host enforces these rules; you cannot bypass them:
@@ -92,7 +96,9 @@ years; if none were given, ask with ask_text (purpose "years"). Typical-year pro
 TMYx, published) take no years.
 4. Plan: call weather_plan with request {product, years, dataset_selections} for the chosen \
 offers (locations are replaced by the approved ones). Then call review_plan. Only the person \
-can run a plan; you cannot submit, cancel, retry, export or upload.
+can run a plan; you cannot submit, cancel, retry, export or upload. Plans use confirmed parts \
+only: a proposed part (such as years the person wrote in a question) must first be confirmed \
+with review_request, or on a form that shows it, before weather_plan.
 5. Future (climate-scenario) weather is temporarily unavailable; say so and offer actual-year \
 or typical-year weather.
 Science: listed or supported means eligible to try retrieval, not quality assured. Never call an \
@@ -104,8 +110,9 @@ files, the person still approves the location (review_location), chooses product
 weather_data_describe and weather_visualize with artifact ids from the session facts. Keep \
 replies short and do not repeat what a form already shows. When the next step is a tool call, \
 make it; do not stop to announce it. Never ask for an approval, a choice, a place or years \
-in plain text: review_location, choose_products, ask_choice, ask_text and review_plan show the \
-person a form, and only a form answer counts."""
+in plain text: review_location, choose_products, ask_choice, ask_text, review_request and \
+review_plan show the person a form, and only a form answer counts. If a result has status \
+person_changed, the person changed that part on a form; the host shows the next form."""
 _INTRO = "You are the openepw weather assistant. You help a person get EPW weather files by calling tools.\n"
 SYSTEM = _INTRO + _scope(knowledge=True) + _RULES
 SYSTEM_WITHOUT_KNOWLEDGE = _INTRO + _scope(knowledge=False) + _RULES
@@ -224,7 +231,10 @@ class ModelPolicy:
         if FUTURE.search(text):                     # host rule: no model call, nothing planned
             s.emit("assistant", SUSPENDED)
             return
-        self._note_years(s, text)
+        if s.form is not None and s.form.data.get("change") and "call_id" not in s.form.data:
+            await self.guided.on_text(s, text)      # a Change form: answered by host rules (design §6.3)
+            return
+        self._note_text(s, text)
         pending = s.state.pending_call
         if pending:
             s.close_form()                          # answered in words; the model may ask again
@@ -239,12 +249,16 @@ class ModelPolicy:
         if "call_id" in form.data and (not pending or form.data["call_id"] != pending["id"]):
             s.emit("error", "That form is no longer current; answer the latest one.", code="STALE_FORM")
             return
-        if s.state.mode == "guided" or not pending:
-            await self.guided.on_answer(s, form, answer)      # a form the guided rules opened
+        change = next((choice for choice in answer.choice_ids if choice.startswith("change:")), None)
+        if change and not answer.text and change in {option.id for option in form.options}:
+            await host.change_part(s, change.split(":", 1)[1], self.guided.advance)   # no model call
+            return
+        if s.state.mode == "guided" or not pending or "call_id" not in form.data:
+            await self.guided.on_answer(s, form, answer)      # a form the host or guided rules opened
             return
         if answer.text:
             s.close_form()
-            self._note_years(s, answer.text)
+            self._note_text(s, answer.text)
             await self._resolve(s, pending, self._replied(s, answer.text))
             return
         result = await self._answer_result(s, form, answer, pending)
@@ -264,18 +278,38 @@ class ModelPolicy:
     @staticmethod
     def _replied(s: AgentSession, text: str) -> dict[str, Any]:
         """The result of an ask-tool the person answered in words (the text is data)."""
+        facts = s.facts
         result: dict[str, Any] = {"status": "person_replied", "text": text}
-        if s.facts.years:
-            result["years_the_person_wrote"] = s.facts.years
-            if s.facts.chosen and needs_years(s.facts) and not s.facts.plans:
-                result["next"] = "weather_plan with the chosen requests and these years, then review_plan"
+        if facts.years:
+            result["years_the_person_wrote"] = facts.years
+        if facts.proposed_years:
+            # Years in a question are proposed; the gate refuses a plan with them (design §5.3).
+            result["proposed_years"] = facts.proposed_years
+            result["next"] = ("Answer the question with look_up_products, then call review_request (a form; "
+                              "do not ask in text) to confirm before weather_plan")
+        elif facts.confirmed_years and facts.chosen and needs_years(facts) and not facts.plans:
+            result["next"] = "weather_plan with the chosen requests and these years, then review_plan"
         return result
 
-    def _note_years(self, s: AgentSession, text: str) -> None:
-        """Years the person wrote in this request; a model plan may use only these."""
+    @staticmethod
+    def _note_text(s: AgentSession, text: str) -> None:
+        """Years and a product word the person wrote in this request. Years written plainly are
+        confirmed and add to the years; years in a question are only proposed (design §5.2)."""
+        facts = s.facts
+        product = read_product(text)
+        if product and product != facts.product_type:
+            facts.change("preference", (product, facts.provider), by="text", seq=s.seq)
         years = written_years(text)
-        if years and not years <= set(s.facts.years):
-            s.facts.years = sorted(set(s.facts.years) | years)
+        if not years:
+            return
+        if reads_as_question(text):
+            new = sorted(years - set(facts.years))
+            if new:
+                facts.change("years", [*facts.years, *new], by="text", seq=s.seq,
+                             proposed=[*facts.proposed_years, *new])
+        elif not years <= set(facts.confirmed_years):
+            facts.change("years", [*facts.years, *years], by="text", seq=s.seq,
+                         proposed=[year for year in facts.proposed_years if year not in years])
 
     async def _resolve(self, s: AgentSession, pending: dict[str, str], result: dict[str, Any],
                        *, resume: bool = True) -> None:
@@ -425,29 +459,37 @@ class ModelPolicy:
 
     @staticmethod
     def _state_block(s: AgentSession) -> str:
+        """The request parts table (design §9) and the session's jobs, files and open form."""
         facts = s.facts
         review = facts.review
-        if review and facts.approved_key == review.get("key"):
-            limit = s.security.external_text.max_chars
-            names = ", ".join(clean_external(str(item.get("name") or f"{item['lat']:.3f},{item['lon']:.3f}"),
-                                             limit) for item in review["points"][:10])
-            location = f"approved (key {review['key']}, {review['point_count']} point(s): {names})"
-        elif review:
-            location = "reviewed, waiting for the person's approval"
-        else:
-            location = "proposed, not reviewed" if facts.geography is not None else "none yet"
+        limit = s.security.external_text.max_chars
+        lines = ["Request parts (authoritative; plans use only confirmed parts):"]
+        for entry in parts(facts, max_chars=limit):
+            part, value, status = entry["part"], entry["value"], entry["status"]
+            if part == "place" and status == "confirmed" and review:
+                value = f"key {review['key']}, {review['point_count']} point(s): {value}"
+            elif part == "place" and review:
+                value += "; reviewed, waiting for the person's approval"
+            elif part == "products" and facts.chosen:
+                value = ", ".join(offer["id"] for offer in facts.chosen) + (
+                    " (actual year: needs confirmed years)" if needs_years(facts) else "")
+                if status == "recheck":
+                    value += "; to recheck: call choose_products"
+            elif part == "years" and facts.years:
+                value = (f"confirmed {facts.confirmed_years or 'none'}"
+                         + (f"; proposed {facts.proposed_years} (asked about in a question; choosing "
+                            "products on the product form, which shows them, confirms them; with products "
+                            "already chosen, confirm with review_request)" if facts.proposed_years else ""))
+            origin = f" · {entry['origin']}" if entry["origin"] and status != "empty" else ""
+            lines.append(f"- {part}: {status} ({value}){origin}")
         plans = "; ".join(f"{plan['plan_hash'][:16]} {plan['product']} {plan['output_count']} outputs"
                           + (f" started as job {plan['job_id']}" if plan.get("job_id") else "")
-                          for plan in facts.plans) or "none"
+                          for plan in facts.plans)
         running = [job for job in facts.job_ids if job not in facts.finished_job_ids]
         form = f"{s.form.kind} ({s.form.gate})" if s.form else "none"
         return "\n".join([
-            "Session facts (authoritative; plans use only approved facts):",
-            f"- location: {location}",
-            f"- products chosen: {', '.join(offer['id'] for offer in facts.chosen) or 'none'}"
-            + (" (actual year: needs years)" if needs_years(facts) else ""),
-            f"- years the person wrote: {facts.years or 'none'}",
-            f"- plans: {plans}",
+            *lines,
+            f"- plan: {plan_status(facts)}" + (f" ({plans})" if plans else ""),
             f"- jobs running: {running or 'none'}; finished: {facts.finished_job_ids[-5:] or 'none'}",
             f"- EPW artifacts: {facts.artifact_ids[-10:] or 'none'}",
             f"- open form: {form}",
@@ -524,6 +566,10 @@ class ModelPolicy:
         if call.name == "weather_plan" and arguments.get("kind", "weather") != "future":
             if not isinstance(arguments.get("request") or {}, dict):
                 return "invalid", {"code": "INVALID_ARGUMENTS", "message": "request must be an object."}
+            try:
+                await host.refresh_offers(s)        # chosen products after new years: still offered?
+            except ToolFailure as failure:
+                return "error", self._failure(s, failure)
             try:
                 arguments = {**arguments, "request": check_plan_request(s.facts, arguments.get("request") or {})}
             except GateRequired as gate:
@@ -621,8 +667,10 @@ class ModelPolicy:
             geography = cleaned if isinstance(locations, list) else cleaned[0]
             if facts.stage == "results":                # a new request after earlier results
                 asked = next((item["text"] for item in s.state.turn if item["type"] == "user"), "")
-                facts.stage, facts.job_ids, facts.years = "request", [], sorted(written_years(asked))
+                facts.stage, facts.job_ids, facts.years, facts.proposed_years = "request", [], [], []
                 facts.chosen, facts.plans, facts.offers, facts.offer_availability = [], [], [], None
+                facts.recheck, facts.product_type, facts.provider, facts.origins = False, None, None, {}
+                self._note_text(s, asked)
             try:
                 review = (await s.tool("weather_locations_review", by="model", locations=geography)).data
             except ToolFailure as failure:
@@ -630,22 +678,25 @@ class ModelPolicy:
             if facts.approved_key and review.get("key") == facts.approved_key:
                 return "ok", {"approved": True, "location_key": review["key"], "note": "already approved"}
             facts.reset_place()
-            facts.set_geography(geography)
+            facts.change("place", geography, by="model", seq=s.seq)
             facts.review = review
             return self._asked(s, call, host.review_form(facts, s.security.external_text.max_chars))
         if name == "choose_products":
             if facts.review is None or facts.approved_key != facts.review.get("key"):
                 return "gate", self._gate(s, name, "review_location", "Approve the locations first")
+            product, provider = arguments.get("product"), arguments.get("provider")
+            if (product or provider) and (product, provider) != (facts.product_type, facts.provider):
+                # A filter without the person's words is a proposed preference (design §3.1).
+                facts.change("preference", (product, provider), by="model", seq=s.seq)
             try:
-                data = (await s.tool("weather_product_offers", by="model", locations=facts.review["geography"],
-                                     product=arguments.get("product"), provider=arguments.get("provider"),
-                                     years=facts.years or None)).data
+                await host.fetch_offers(s, product=product, provider=provider, by="model")
             except ToolFailure as failure:
                 return "error", self._failure(s, failure)
-            facts.offers, facts.offer_availability = data.get("options", []), data.get("availability")
             if not facts.offers:
                 return "ok", {"offers": [], "message": "No downloadable product matches these filters."}
             return self._asked(s, call, host.product_form(facts))
+        if name == "review_request":
+            return self._asked(s, call, request_form(facts, max_chars=s.security.external_text.max_chars))
         if name == "review_plan":
             if not facts.plans:
                 return "gate", self._gate(s, name, "plan", "Make a plan with weather_plan first")
@@ -653,10 +704,10 @@ class ModelPolicy:
                 return "refused", {"code": "NOTHING_TO_RUN", "message": (
                     "These plans already ran or have no outputs; for a new request review the "
                     "location and make a new plan.")}
-            return self._asked(s, call, host.plan_form(facts))
+            return self._asked(s, call, host.plan_form(facts, s.security.external_text.max_chars))
         if name == "ask_text":
             if arguments.get("purpose") == "years":
-                return self._asked(s, call, host.years_form().model_copy(update={"gate": "ask_text"}))
+                return self._asked(s, call, host.years_form(facts).model_copy(update={"gate": "ask_text"}))
             return await self._model_form(s, call, Interaction(kind="text", gate="ask_text",
                                                                prompt=str(arguments.get("prompt") or "?"),
                                                                data={"hint": str(arguments.get("hint") or "")}))
@@ -772,11 +823,24 @@ class ModelPolicy:
                              pending: dict[str, str]) -> dict[str, Any] | None:
         facts = s.facts
         name = pending["name"]
+        if name == "review_request" and answer.approve:
+            host.confirm_request(s)
+            result: dict[str, Any] = {"confirmed": True, "parts": [
+                {key: entry[key] for key in ("part", "value", "status")} for entry in parts(facts)]}
+            if facts.chosen and not facts.recheck and not facts.plans and (
+                    facts.confirmed_years or not needs_years(facts)):
+                result["next"] = "weather_plan with the chosen requests and the confirmed years, then review_plan"
+            return result
         if name == "review_location" and answer.approve and facts.review:
             facts.approved_key = facts.review["key"]
+            facts.origins["place"] = {"by": "form", "seq": s.seq}
             s.emit("assistant", "Location approved.")
+            # Live check 2026-10-31: after a lookup and this approval a model said "choose on the
+            # form" without opening it, so the result names the next step as other results do.
             return {"approved": True, "location_key": facts.review["key"],
-                    "point_count": facts.review["point_count"]}
+                    "point_count": facts.review["point_count"],
+                    "next": ("weather_plan" if facts.chosen and not facts.recheck else
+                             "choose_products (its form shows the years; choosing there confirms them)")}
         if name == "review_plan" and answer.approve:
             started = await host.run_plans(s, self._reopen_plan_review)
             if started or s.form is None:        # nothing new to run also answers the question
@@ -790,17 +854,21 @@ class ModelPolicy:
             s.emit("error", "Choose one of the listed options.", code="UNKNOWN_CHOICE")
             return None
         if name == "choose_products":
-            facts.chosen = [offer for offer in facts.offers if offer["id"] in answer.choice_ids]
-            facts.plans = []
+            host.choose(s, answer.choice_ids)        # also confirms the years the form showed
+            years = needs_years(facts)
+            if years and not facts.confirmed_years:
+                step = ("; confirm the proposed years first with review_request" if facts.proposed_years
+                        else "; ask for years first with ask_text")
+            else:
+                step = " and the person's confirmed years" if years else ""
             return {"chosen": [{"id": offer["id"], "label": offer["label"],
                                 "kind": host.PRODUCT_KINDS.get(offer["request"]["product"],
                                                                offer["request"]["product"]),
                                 "request": offer["request"]} for offer in facts.chosen],
-                    "needs_years": needs_years(facts), "years_the_person_wrote": facts.years,
-                    "next": ("weather_plan with these requests"
-                             + (" and the person's years" if needs_years(facts) and facts.years else "")
-                             + ("; ask for years first with ask_text" if needs_years(facts) and not facts.years
-                                else ""))}
+                    "needs_years": years, "years_the_person_wrote": facts.years,
+                    "confirmed_years": facts.confirmed_years,
+                    **({"proposed_years": facts.proposed_years} if facts.proposed_years else {}),
+                    "next": "weather_plan with these requests" + step}
         labels = {option.id: option.label for option in form.options}
         return {"choice_ids": answer.choice_ids, "labels": [labels[item] for item in answer.choice_ids]}
 

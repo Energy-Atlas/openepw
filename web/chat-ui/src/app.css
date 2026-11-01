@@ -164,7 +164,7 @@ button { cursor: var(--oe-cursor-pointer); }
 .view-table td, .view-table th { border: 1px solid var(--oe-l2); padding: .2rem; white-space: nowrap; }
 .view-content pre { max-height: 170px; overflow: auto; font-size: .63rem; }
 :focus-visible { outline: 3px solid var(--oe-ink); outline-offset: 2px; }
-@media (max-width: 650px) { .chat-rail { top: auto; left: .6rem; right: .6rem; bottom: .6rem; width: auto; height: min(42dvh, 340px); } .pick-toolbar { left: .6rem; top: .6rem; } .evidence-legend { left: .6rem; bottom: calc(min(42dvh, 340px) + 6.4rem); max-width: 45vw; max-height: 100px; } .map-status { left: .6rem; bottom: calc(min(42dvh, 340px) + 2.6rem); } .shadow-status { left: .6rem; bottom: calc(min(42dvh, 340px) + 4.4rem); } .scene-attribution { left: .6rem; bottom: calc(min(42dvh, 340px) + 1rem); } .view-panel { max-width: calc(100vw - 1.2rem); max-height: 45dvh; } }
+@media (max-width: 650px) { .chat-rail { top: auto; left: .6rem; right: .6rem; bottom: .6rem; width: auto; height: min(56dvh, 460px); } .pick-toolbar { left: .6rem; top: .6rem; } .evidence-legend { left: .6rem; bottom: calc(min(56dvh, 460px) + 6.4rem); max-width: 45vw; max-height: 100px; } .map-status { left: .6rem; bottom: calc(min(56dvh, 460px) + 2.6rem); } .shadow-status { left: .6rem; bottom: calc(min(56dvh, 460px) + 4.4rem); } .scene-attribution { left: .6rem; bottom: calc(min(56dvh, 460px) + 1rem); } .view-panel { max-width: calc(100vw - 1.2rem); max-height: 45dvh; } }
 /* Rollback appears beside an earlier agent message on hover or keyboard focus. */
 .chat-event { position: relative; }
 .chat-event .rollback { position: absolute; top: 50%; right: -1.9rem; transform: translateY(-50%); display: grid; place-items: center; width: 1.6rem; height: 1.6rem; padding: 0; border: 0; border-radius: 50%; background: var(--oe-paper); color: var(--oe-ink); box-shadow: var(--oe-shadow); opacity: 0; pointer-events: none; transition: opacity .15s ease; }
@@ -288,3 +288,28 @@ button:disabled, input:disabled { cursor: var(--oe-cursor); }
 .auth-notice.error { font-weight: 600; }
 .auth-links { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .3rem; }
 .auth-links button { padding: .2rem 0; border: 0; background: transparent; color: var(--oe-ink); text-decoration: underline; font-size: .78rem; }
+
+/* Agent chat (P4): mode and request controls, request parts, Change actions, notices. */
+.chat-header { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: .35rem; margin-bottom: .45rem; }
+.chat-header button { min-height: 2rem; padding: .35rem .7rem; border: 0; border-radius: 999px; background: color-mix(in srgb, var(--oe-paper) 94%, transparent); color: var(--oe-ink); font-size: .76rem; font-weight: 500; box-shadow: var(--oe-shadow); }
+.chat-header button:disabled { color: var(--oe-l5); cursor: default; }
+.chat-header .mode-toggle { margin-right: auto; }
+.chat-header .mode-toggle[aria-pressed="true"] { background: var(--oe-ink); color: var(--oe-paper); }
+.form-summary p, .form-summary .md p { margin: .15rem 0; font-size: .82rem; line-height: 1.4; }
+.request-parts { display: grid; gap: .3rem; margin: .4rem 0 0; font-size: .82rem; }
+.request-part { display: grid; grid-template-columns: 7.5rem 1fr; gap: .4rem; }
+.request-part dt { color: var(--oe-muted); }
+.request-part dd { margin: 0; }
+.request-part .part-status { display: block; color: var(--oe-muted); font-size: .72rem; }
+.request-part.status-proposed .part-status, .request-part.status-recheck .part-status { color: var(--oe-ink); font-weight: 600; }
+.change-actions { display: contents; }
+.notice-event { border-left: 2px solid var(--oe-amber); }
+.error-event { border-left: 2px solid var(--oe-weak); }
+.job-line { margin: 0; font: .74rem 'IBM Plex Mono', monospace; color: var(--oe-muted); }
+.upload-control { display: flex; align-items: center; gap: .5rem; margin-bottom: .4rem; font-size: .8rem; }
+@media (max-width: 650px) {
+  /* The header and a form with several actions need room; the transcript keeps a few lines. */
+  .chat-header { margin-bottom: .3rem; gap: .25rem; }
+  .chat-header button { min-height: 1.75rem; padding: .2rem .55rem; font-size: .7rem; }
+  .chat-transcript { min-height: 4.5rem; }
+}

@@ -1,0 +1,36 @@
+id: S61
+title: '"Can I get actual-year weather for Phoenix?" is looked up, then the location review opens'
+purpose: 'A request phrased as a question is answered from a lookup and, since a product fits, the location review
+  opens in the same turn (slots design §7). The lookup is preferred (soft); the review before any product form and
+  no plan are hard checks. The typed product kind is a confirmed preference. (The offline stub lists actual-year
+  products only, so a TMYx question would correctly open no form.)'
+covers: [lookup.products, lookup.label, gate.location-review]
+tags: [workflow]
+modes: [agent]
+user:
+  say: Can I get actual-year weather for Phoenix?
+  answers: {location_review: approve, product_choice: null, choice: first, map_input: Phoenix}
+graders:
+- grader: tools_in_order
+  value: [weather_geocode, look_up_products, review_location]
+  severity: soft
+- grader: forms_in_order
+  value: [location_review]
+- grader: tools_absent
+  value: [weather_plan]
+- grader: part_status
+  value: {preference: confirmed}
+- {grader: submitted, value: false}
+script:
+- call: weather_geocode
+  args: {query: Phoenix}
+- call: look_up_products
+  args:
+    locations: {lat: 33.45, lon: -112.07, name: Phoenix}
+    product: historical
+- call: review_location
+  args:
+    locations: {lat: 33.45, lon: -112.07, name: 'Phoenix, Arizona, United States'}
+  say: The catalog lists actual-year products for Phoenix (above). To get files, please confirm the location first.
+- call: choose_products
+  args: {product: historical}

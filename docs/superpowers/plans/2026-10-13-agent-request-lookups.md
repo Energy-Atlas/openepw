@@ -1,7 +1,8 @@
 # Agent request lookups (slots phase a) — Plan
 
 **Status:** **approved by the owner on 2026-10-26** (decision 1 of the branch review, in
-conversation). Implemented and verified on 2026-10-27 (tasks 1–6; results in §4). Not merged: waiting for the owner. The owner also asked for this plan and its spec to be
+conversation). Implemented and verified on 2026-10-27 (tasks 1–6; results in §4). Merged into `main` (`0483872`)
+and `deploy/staging` (`3ac7e3d`) on 2026-10-30 with the owner's go-ahead. The owner also asked for this plan and its spec to be
 merged into `main` before implementation. Design and owner answers:
 [spec](../specs/2026-10-13-agent-request-lookups-design.md) (§1).
 

@@ -65,6 +65,11 @@ class SessionStore:
                        (session_id, seq, event.model_dump_json()))
         return event
 
+    def last_seq(self, session_id: str) -> int:
+        with self._connect() as db:
+            return int(db.execute("SELECT COALESCE(MAX(seq), 0) FROM events WHERE session_id=?",
+                                  (session_id,)).fetchone()[0])
+
     def events(self, session_id: str, after: int = 0) -> list[Event]:
         with self._connect() as db:
             rows = db.execute("SELECT event FROM events WHERE session_id=? AND seq>? ORDER BY seq",

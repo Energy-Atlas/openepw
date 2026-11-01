@@ -38,4 +38,4 @@ links:
   allowlist: [nrel.gov, open-meteo.com, cds.climate.copernicus.eu, ncei.noaa.gov,
               joint-research-centre.ec.europa.eu, climate.onebuilding.org]
 
-limits: {}
+limits: {}                         # no per-person or spend limits for web sessions (hosted sets them)
