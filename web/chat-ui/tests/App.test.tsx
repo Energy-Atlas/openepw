@@ -1,53 +1,39 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { afterEach, describe, expect, it } from 'vitest'
 import { App } from '../src/App'
-import type { ChatApi } from '../src/api'
-import type { SessionSnapshot } from '../src/types'
+import type { FormKind } from '../src/types'
+import { FIXTURES, event, fakeApi, form, snapshot } from './agentFixtures'
 
-function cardState(card: NonNullable<SessionSnapshot['active_card']>): SessionSnapshot {
-  return { id: 'test', revision: card.revision, facts: {}, events: [
-    { id: 1, type: 'question', text: card.prompt }], active_card: card, view_ids: [] }
-}
-
-function apiFor(state: SessionSnapshot): ChatApi {
-  return { create: async () => state, get: async () => state,
-    catalogMap: async () => ({ schema: 'catalog-map-1', snapshot: null, layers: [], unmapped: [] }) } as unknown as ChatApi
-}
+afterEach(() => { cleanup(); sessionStorage.clear() })
 
 describe('map-first shell', () => {
-  it('opens one chat over a full-canvas map without a mode choice', () => {
-    render(<App />)
+  it('opens one chat over a full-canvas map', async () => {
+    render(<App api={fakeApi(snapshot(null))} />)
     expect(screen.getByLabelText('Weather map')).toBeInTheDocument()
     expect(screen.getByRole('complementary', { name: 'Weather chat' })).toBeInTheDocument()
-    expect(screen.getByRole('textbox', { name: 'Message' })).toBeInTheDocument()
-    expect(screen.queryByText('Guided workflow')).not.toBeInTheDocument()
+    expect(await screen.findByRole('textbox', { name: 'Message' })).toBeInTheDocument()
   })
 
   it('has no scene panel or brand box over the map', () => {
-    render(<App />)
+    render(<App api={fakeApi(snapshot(null))} />)
     expect(screen.queryByRole('region', { name: 'Map scene controls' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '3D view' })).not.toBeInTheDocument()
-    expect(screen.queryByText('Weather across places and years')).not.toBeInTheDocument()
   })
 
-  it('hides attachment and map input for now', () => {
-    render(<App />)
-    expect(screen.getByRole('textbox', { name: 'Message' })).toBeInTheDocument()
+  it('hides attachment and map input for now', async () => {
+    render(<App api={fakeApi(FIXTURES.map_input)} />)
+    expect(await screen.findByRole('textbox', { name: 'Message' })).toBeInTheDocument()
     expect(screen.queryByLabelText('Attach EPW or GeoJSON')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Pick geography on map' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('toolbar', { name: 'Pick geography' })).not.toBeInTheDocument()
   })
 
   it('lists every Stage 1 catalog layer with a toggle before a request is assessed', async () => {
-    const state: SessionSnapshot = { id: 'test', revision: 0, facts: {}, events: [],
-      active_card: null, view_ids: [] }
     const layer = (id: string, kind: string, label: string) => ({ id, kind, label, caveat: `${label} caveat`,
       count: 3, evidence_dates: ['2026-09-23'], points: [], rects: [], bounds: [-180, -89, 180, 89] })
-    const api = { create: async () => state, get: async () => state,
-      catalogMap: async () => ({ schema: 'catalog-map-1', snapshot: null,
-        layers: [layer('noaa', 'stations', 'NOAA ISD stations'), layer('onebuilding', 'sites', 'OneBuilding published EPWs'),
-          layer('era5', 'extent', 'ERA5 global reanalysis')],
-        unmapped: [{ provider: 'nsrdb', dataset: 'aggregate', reason: 'none' }] }) } as unknown as ChatApi
+    const api = fakeApi(snapshot(null), { catalogMap: async () => ({ schema: 'catalog-map-1', snapshot: null,
+      layers: [layer('noaa', 'stations', 'NOAA ISD stations'), layer('onebuilding', 'sites', 'OneBuilding published EPWs'),
+        layer('era5', 'extent', 'ERA5 global reanalysis')],
+      unmapped: [{ provider: 'nsrdb', dataset: 'aggregate', reason: 'none' }] }) })
     render(<App api={api} />)
     const legend = await screen.findByLabelText('Data availability scope')
     for (const name of ['NOAA ISD stations', 'OneBuilding published EPWs', 'ERA5 global reanalysis'])
@@ -56,123 +42,164 @@ describe('map-first shell', () => {
     expect(screen.getByRole('tooltip')).toHaveTextContent('No reviewed geometry: nsrdb/aggregate')
   })
 
-  it('renders a tool call as one outlined line with an icon, not a message bubble', async () => {
-    const state: SessionSnapshot = { id: 'test', revision: 1, facts: {}, active_card: null, view_ids: [], events: [
-      { id: 1, type: 'tool', text: 'Geocoding place', data: { tool: 'geocode', phase: 'call' } },
-      { id: 2, type: 'tool', text: 'Found 2 location candidates', data: { tool: 'geocode', phase: 'result' } }] }
-    const { container } = render(<App api={apiFor(state)} />)
-    await screen.findByText('Geocoding place')
+  it('renders a tool call and its result as one outlined line in words', async () => {
+    const state = snapshot(null, { events: [
+      event(1, 'tool', 'weather_geocode', { tool: 'weather_geocode', phase: 'call', by: 'host' }),
+      event(2, 'tool', 'Found 2 places\nmore detail', { tool: 'weather_geocode', phase: 'result', by: 'host' })] })
+    const { container } = render(<App api={fakeApi(state)} />)
+    await screen.findByText('Finding the place')
     const lines = container.querySelectorAll('.tool-line')
     expect(lines).toHaveLength(1)
     expect(lines[0].closest('.chat-event')).toBeNull()
-    expect(lines[0].querySelector('.tool-icon svg')).not.toBeNull()
-    expect(lines[0]).toHaveTextContent('Geocoding place · Found 2 location candidates')
+    expect(lines[0]).toHaveTextContent('Finding the place · Found 2 places')
+    expect(lines[0]).not.toHaveTextContent('more detail')
   })
 
-  it('numbers geocoder options and waits for Confirm before answering', async () => {
-    const card = { id: 'where', revision: 3, kind: 'choice' as const, prompt: 'Choose a location',
-      options: [{ id: 'ma', label: 'Cambridge, Massachusetts' }, { id: 'uk', label: 'Cambridge, England' }] }
-    const state: SessionSnapshot = { ...cardState(card), facts: { candidates: [
-      { id: 'ma', name: 'Cambridge, Massachusetts', lat: 42.37, lon: -71.11 },
-      { id: 'uk', name: 'Cambridge, England', lat: 52.2, lon: 0.12 }] } }
-    const answer = vi.fn().mockResolvedValue({ ...state, active_card: null, revision: 4 })
-    render(<App api={{ ...apiFor(state), answer } as unknown as ChatApi} />)
-    const option = await screen.findByRole('button', { name: /Cambridge, England/ })
+  it('shows the person, the agent, notices and errors, but not form events', async () => {
+    const state = snapshot(null, { events: [
+      event(1, 'form', 'Where do you need weather?', { form: {} }),
+      event(2, 'user', 'AMY 2018 for Ithaca'),
+      event(3, 'assistant', 'Checking **Ithaca**.'),
+      event(4, 'notice', 'Switched to guided mode (budget).', { code: 'MODEL_UNAVAILABLE' }),
+      event(5, 'error', 'GATE_REQUIRED: review the location first', { code: 'GATE_REQUIRED' })] })
+    render(<App api={fakeApi(state)} />)
+    const log = await screen.findByRole('log')
+    await waitFor(() => expect(log).toHaveTextContent('AMY 2018 for Ithaca'))
+    expect(within(log).getByText('Ithaca').tagName).toBe('STRONG')
+    expect(log.querySelector('.notice-event')).toHaveTextContent('Switched to guided mode')
+    expect(log.querySelector('.error-event')).toHaveTextContent('GATE_REQUIRED')
+    expect(log).not.toHaveTextContent('Where do you need weather?Where')
+  })
+
+  it('never renders raw HTML or unsafe links from model text', async () => {
+    const state = snapshot(null, { events: [event(1, 'assistant',
+      '<img src=x onerror="alert(1)"> [docs](https://nrel.gov) [bad](javascript:alert(1))')] })
+    const { container } = render(<App api={fakeApi(state)} />)
+    const link = await screen.findByRole('link', { name: 'docs' })
+    expect(link).toHaveAttribute('target', '_blank')
+    expect(link).toHaveAttribute('rel', 'noopener noreferrer')
+    expect(container.querySelector('img')).toBeNull()
+    expect(screen.queryByRole('link', { name: 'bad' })?.getAttribute('href') ?? '').not.toContain('javascript')
+  })
+})
+
+describe('every form kind from the server fixture', () => {
+  const controls: Record<FormKind, () => HTMLElement> = {
+    map_input: () => screen.getByRole('textbox', { name: 'Message' }),
+    text: () => screen.getByRole('textbox', { name: 'Message' }),
+    choice: () => screen.getByRole('group', { name: 'Reply options' }),
+    location_review: () => screen.getByRole('button', { name: /Approve location/ }),
+    product_choice: () => screen.getByRole('region', { name: 'Choose weather products' }),
+    plan_review: () => screen.getByRole('button', { name: 'Run reviewed plan' }),
+    request_summary: () => screen.getByRole('button', { name: 'Confirm request' }),
+    upload: () => screen.getByLabelText('EPW file'),
+  }
+  for (const kind of Object.keys(controls) as FormKind[]) {
+    it(`renders ${kind}`, async () => {
+      const state = FIXTURES[kind]
+      expect(state.form?.kind).toBe(kind)
+      render(<App api={fakeApi(state)} />)
+      const card = await screen.findByLabelText('Current question')
+      expect(within(card).getByRole('heading', { name: state.form!.prompt })).toBeInTheDocument()
+      expect(controls[kind]()).toBeInTheDocument()
+    })
+  }
+})
+
+describe('answers', () => {
+  it('numbers place candidates and waits for Confirm before answering', async () => {
+    const state = FIXTURES.choice
+    const api = fakeApi(state)
+    render(<App api={api} />)
+    const second = state.form!.options[1]
+    const option = await screen.findByRole('button', { name: new RegExp(second.label) })
     expect(option.querySelector('.option-number')).toHaveTextContent('2')
-    expect(screen.queryByRole('button', { name: 'Confirm' })).not.toBeInTheDocument()
     fireEvent.click(option)
-    expect(answer).not.toHaveBeenCalled()
-    expect(option).toHaveAttribute('aria-pressed', 'true')
-    expect(option.closest('.option-row')).not.toBeNull()
-    expect(screen.getByRole('button', { name: 'Confirm' }).closest('.option-row')).toBe(option.closest('.option-row'))
+    expect(api.input).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: 'Confirm' }))
-    await waitFor(() => expect(answer).toHaveBeenCalledWith('test', 3, 'uk', expect.any(String)))
+    await waitFor(() => expect(api.input).toHaveBeenCalledWith('session-1', { type: 'answer', answer: {
+      interaction_id: state.form!.id, revision: state.form!.revision, choice_ids: [second.id] } }))
   })
 
-  it('reopens the text field with a Confirm button for Other', async () => {
-    render(<App api={apiFor(cardState({ id: 'choice', revision: 1, kind: 'choice', prompt: 'Which weather product?',
-      options: [{ id: 'historical', label: 'Actual-year weather' }] }))} />)
+  it('answers other choices at once, and Other opens the text field', async () => {
+    const state = snapshot(form('choice', 'What next?', { options: [{ id: 'new', label: 'Start a new weather request' }] }))
+    const api = fakeApi(state)
+    render(<App api={api} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Start a new weather request' }))
+    await waitFor(() => expect(api.input).toHaveBeenCalledWith('session-1', expect.objectContaining({
+      answer: expect.objectContaining({ choice_ids: ['new'] }) })))
+    cleanup()
+    render(<App api={fakeApi(state)} />)
     fireEvent.click(await screen.findByRole('button', { name: 'Other — type an answer' }))
-    expect(screen.getByRole('textbox', { name: 'Message' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Confirm' })).toHaveAttribute('type', 'submit')
-    expect(screen.queryByRole('button', { name: 'Send' })).not.toBeInTheDocument()
-  })
-
-  it('answers the product question only when the ticked products are confirmed', async () => {
-    const state = cardState({ id: 'product', revision: 2, kind: 'choice', prompt: 'Which weather product?',
-      options: [{ id: 'era5-openmeteo', label: 'ERA5 actual year · Open-Meteo', group: 'actual' },
-        { id: 'noaa-isd', label: 'NOAA ISD station observations', group: 'actual' }],
-      data: { field: 'product' } })
-    const chooseProducts = vi.fn().mockResolvedValue({ ...state, active_card: null })
-    render(<App api={{ ...apiFor(state), chooseProducts } as unknown as ChatApi} />)
-    fireEvent.click(await screen.findByRole('checkbox', { name: 'NOAA ISD station observations' }))
-    expect(chooseProducts).not.toHaveBeenCalled()
-    fireEvent.click(screen.getByRole('button', { name: 'Confirm product' }))
-    await waitFor(() => expect(chooseProducts).toHaveBeenCalledWith('test', 2, ['noaa-isd'], expect.any(String)))
-  })
-
-  it('still answers other choices immediately', async () => {
-    const state = cardState({ id: 'limit', revision: 2, kind: 'choice', prompt: 'How many at most?',
-      options: [{ id: 'place:1', label: '10' }], data: { field: 'limit', place_answers: { 'place:1': 'top 10' } } })
-    const answer = vi.fn().mockResolvedValue({ ...state, active_card: null })
-    render(<App api={{ ...apiFor(state), answer } as unknown as ChatApi} />)
-    fireEvent.click(await screen.findByRole('button', { name: '10' }))
-    await waitFor(() => expect(answer).toHaveBeenCalledWith('test', 2, 'place:1', expect.any(String)))
-  })
-
-  it('shows the current choice once as an agent turn', async () => {
-    render(<App api={apiFor(cardState({ id: 'choice', revision: 1, kind: 'choice', prompt: 'Which weather product?',
-      options: [{ id: 'historical', label: 'Actual-year weather' }] }))} />)
-    await screen.findByRole('heading', { name: 'Which weather product?' })
-    expect(screen.getAllByText('Which weather product?')).toHaveLength(1)
-    expect(screen.getByRole('group', { name: 'Reply options' })).toHaveTextContent('Actual-year weather')
-  })
-
-  it('replaces the text field with the options of a choice card until Other is chosen', async () => {
-    render(<App api={apiFor(cardState({ id: 'choice', revision: 1, kind: 'choice', prompt: 'Which weather product?',
-      options: [{ id: 'historical', label: 'Actual-year weather' }] }))} />)
-    await screen.findByRole('button', { name: 'Actual-year weather' })
-    expect(screen.queryByRole('textbox', { name: 'Message' })).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Other — type an answer' }))
     expect(screen.getByRole('textbox', { name: 'Message' })).toHaveFocus()
     fireEvent.click(screen.getByRole('button', { name: 'Back to options' }))
     expect(screen.queryByRole('textbox', { name: 'Message' })).not.toBeInTheDocument()
   })
 
-  it('offers review actions instead of text while a plan is under review', async () => {
-    render(<App api={apiFor(cardState({ id: 'review', revision: 2, kind: 'plan_review', prompt: 'Review the plan' }))} />)
-    await screen.findByRole('button', { name: 'Assess and review plan' })
-    expect(screen.queryByRole('textbox', { name: 'Message' })).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Type a correction' }))
-    expect(screen.getByRole('textbox', { name: 'Message' })).toBeInTheDocument()
-  })
-
-  it('answers a map card with typed text while map input is disabled', async () => {
-    render(<App api={apiFor(cardState({ id: 'where', revision: 1, kind: 'map', prompt: 'Where?' }))} />)
-    expect(await screen.findByRole('textbox', { name: 'Message' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Choose on map' })).not.toBeInTheDocument()
-    expect(screen.queryByLabelText('Attach EPW or GeoJSON')).not.toBeInTheDocument()
-  })
-
-  it('queues and withdraws a second message while a turn is running', async () => {
-    const state: SessionSnapshot = { id: 'test', revision: 0, facts: {}, events: [],
-      active_card: null, view_ids: [] }
-    let finish!: (value: SessionSnapshot) => void
-    const first = new Promise<SessionSnapshot>(resolve => { finish = resolve })
-    const sendTurn = vi.fn().mockReturnValue(first)
-    const api = { create: async () => state, get: async () => state, sendTurn,
-      catalogMap: async () => ({ schema: 'catalog-map-1', snapshot: null, layers: [], unmapped: [] }) } as unknown as ChatApi
+  it('approves a location review, or sends a typed correction as text', async () => {
+    const state = FIXTURES.location_review
+    const api = fakeApi(state)
     render(<App api={api} />)
-    const input = await screen.findByRole('textbox', { name: 'Message' })
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Send' })).toBeEnabled())
-    fireEvent.change(input, { target: { value: 'Cambridge 2018' } })
+    const message = await screen.findByRole('textbox', { name: 'Message' })
+    expect(message).toHaveAttribute('placeholder', 'Or describe a correction')
+    expect(screen.getByLabelText('Current question')).toHaveTextContent('Springfield')
+    fireEvent.change(message, { target: { value: 'use Boston instead' } })
     fireEvent.click(screen.getByRole('button', { name: 'Send' }))
-    fireEvent.change(input, { target: { value: 'Actually 2019' } })
+    await waitFor(() => expect(api.input).toHaveBeenCalledWith('session-1', { type: 'text', text: 'use Boston instead' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Approve location' }))
+    await waitFor(() => expect(api.input).toHaveBeenLastCalledWith('session-1', expect.objectContaining({
+      answer: expect.objectContaining({ approve: true }) })))
+  })
+
+  it('confirms the ticked products, starting from the preselection', async () => {
+    const base = FIXTURES.product_choice
+    const preselected = base.form!.options[0].id
+    const state = { ...base, form: { ...base.form!, data: { ...base.form!.data, selected: [preselected] } } }
+    const api = fakeApi(state)
+    render(<App api={api} />)
+    const dialog = await screen.findByRole('region', { name: 'Choose weather products' })
+    expect(within(dialog).getByText('Actual year')).toBeInTheDocument()
+    const first = within(dialog).getByRole('checkbox', { name: base.offers[0].label })
+    expect(first).toBeChecked()
+    fireEvent.click(within(dialog).getByRole('checkbox', { name: base.offers[1].label }))
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Confirm 2 products' }))
+    await waitFor(() => expect(api.input).toHaveBeenCalledWith('session-1', expect.objectContaining({
+      answer: expect.objectContaining({ choice_ids: [preselected, base.offers[1].id] }) })))
+  })
+
+  it('runs a reviewed plan or changes one part of the request', async () => {
+    const state = FIXTURES.plan_review
+    const api = fakeApi(state)
+    render(<App api={api} />)
+    const card = await screen.findByLabelText('Current question')
+    expect(within(card).queryByText('Your request:')).toBeNull()          // the parts list replaces the text copy
+    expect(within(card).getAllByText('Years')).toHaveLength(1)
+    fireEvent.click(screen.getByRole('button', { name: 'Change years' }))
+    await waitFor(() => expect(api.input).toHaveBeenCalledWith('session-1', expect.objectContaining({
+      answer: expect.objectContaining({ choice_ids: ['change:years'] }) })))
+    fireEvent.click(screen.getByRole('button', { name: 'Run reviewed plan' }))
+    await waitFor(() => expect(api.input).toHaveBeenLastCalledWith('session-1', expect.objectContaining({
+      answer: expect.objectContaining({ approve: true }) })))
+  })
+
+  it('shows each part of the request with its status on the summary', async () => {
+    const state = FIXTURES.request_summary
+    render(<App api={fakeApi(state)} />)
+    const card = await screen.findByLabelText('Current question')
+    for (const part of state.parts) expect(card).toHaveTextContent(part.label)
+    expect(card).toHaveTextContent('confirmed')
+    expect(within(screen.getByRole('group', { name: 'Change one part' })).getAllByRole('button').length)
+      .toBe(state.form!.options.length)
+  })
+
+  it('sends free text as a message and hints the years form', async () => {
+    const state = FIXTURES.text
+    const api = fakeApi(state)
+    render(<App api={api} />)
+    const message = await screen.findByRole('textbox', { name: 'Message' })
+    expect(message.getAttribute('placeholder')).toContain('2018')
+    fireEvent.change(message, { target: { value: '2019' } })
     fireEvent.click(screen.getByRole('button', { name: 'Send' }))
-    expect(screen.getByLabelText('Waiting messages')).toHaveTextContent('Actually 2019')
-    fireEvent.click(screen.getByRole('button', { name: 'Withdraw' }))
-    finish({ ...state, revision: 1 })
-    await waitFor(() => expect(screen.queryByLabelText('Waiting messages')).not.toBeInTheDocument())
-    expect(sendTurn).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(api.input).toHaveBeenCalledWith('session-1', { type: 'text', text: '2019' }))
   })
 })

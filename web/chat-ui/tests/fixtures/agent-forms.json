@@ -1,0 +1,927 @@
+{
+ "choice": {
+  "artifact_ids": [],
+  "busy": false,
+  "candidates": [
+   {
+    "id": "1",
+    "lat": 39.8,
+    "lon": -89.64,
+    "name": "Springfield, Illinois, United States"
+   },
+   {
+    "id": "2",
+    "lat": 42.1,
+    "lon": -72.59,
+    "name": "Springfield, Massachusetts, United States"
+   },
+   {
+    "id": "3",
+    "lat": 37.21,
+    "lon": -93.29,
+    "name": "Springfield, Missouri, United States"
+   }
+  ],
+  "cursor": 0,
+  "downgraded": false,
+  "ended": false,
+  "events": [],
+  "finished_job_ids": [],
+  "form": {
+   "allow_text": true,
+   "data": {},
+   "gate": "choose_location",
+   "id": "form-choice",
+   "kind": "choice",
+   "multi": false,
+   "options": [
+    {
+     "detail": "39.8000, -89.6400",
+     "id": "1",
+     "label": "Springfield, Illinois, United States"
+    },
+    {
+     "detail": "42.1000, -72.5900",
+     "id": "2",
+     "label": "Springfield, Massachusetts, United States"
+    },
+    {
+     "detail": "37.2100, -93.2900",
+     "id": "3",
+     "label": "Springfield, Missouri, United States"
+    }
+   ],
+   "prompt": "Which location do you mean?",
+   "revision": 2,
+   "summary": ""
+  },
+  "id": "session-1",
+  "job_ids": [],
+  "mode": "guided",
+  "model_available": false,
+  "offers": [],
+  "parts": [
+   {
+    "label": "Place",
+    "origin": "found from your message",
+    "part": "place",
+    "status": "proposed",
+    "value": "being chosen"
+   },
+   {
+    "label": "Product preference",
+    "origin": "",
+    "part": "preference",
+    "status": "empty",
+    "value": "any product"
+   },
+   {
+    "label": "Products",
+    "origin": "",
+    "part": "products",
+    "status": "empty",
+    "value": "none"
+   },
+   {
+    "label": "Years",
+    "origin": "",
+    "part": "years",
+    "status": "empty",
+    "value": "none"
+   }
+  ],
+  "places": [],
+  "profile": "local",
+  "revision": 2,
+  "strike_limit": 3,
+  "strikes": 0,
+  "years": []
+ },
+ "location_review": {
+  "artifact_ids": [],
+  "busy": false,
+  "candidates": [],
+  "cursor": 0,
+  "downgraded": false,
+  "ended": false,
+  "events": [],
+  "finished_job_ids": [],
+  "form": {
+   "allow_text": true,
+   "data": {
+    "geography": {
+     "elevation": null,
+     "id": "1",
+     "lat": 39.8,
+     "lon": -89.64,
+     "name": "Springfield, Illinois, United States",
+     "standard_offset_minutes": -360
+    },
+    "key": "6181298fd985bbf8",
+    "offset_estimated": true,
+    "point_count": 1,
+    "points": [
+     {
+      "elevation": null,
+      "id": "1",
+      "lat": 39.8,
+      "lon": -89.64,
+      "name": "Springfield, Illinois, United States",
+      "standard_offset_minutes": -360
+     }
+    ],
+    "rows": [],
+    "sampling": null,
+    "several": false,
+    "standard_time": "<time>"
+   },
+   "gate": "review_location",
+   "id": "form-location_review",
+   "kind": "location_review",
+   "multi": false,
+   "options": [],
+   "prompt": "Is this the right location?",
+   "revision": 3,
+   "summary": "1. Springfield, Illinois, United States (39.8000, -89.6400) UTC-06:00\nFixed standard time: UTC-06:00 (America/Chicago); no daylight-saving shift. Offsets not given come from each place's time zone (standard time all year, as EPW files use); a typed offset replaces it."
+  },
+  "id": "session-1",
+  "job_ids": [],
+  "mode": "guided",
+  "model_available": false,
+  "offers": [],
+  "parts": [
+   {
+    "label": "Place",
+    "origin": "on a form",
+    "part": "place",
+    "status": "proposed",
+    "value": "Springfield, Illinois, United States"
+   },
+   {
+    "label": "Product preference",
+    "origin": "",
+    "part": "preference",
+    "status": "empty",
+    "value": "any product"
+   },
+   {
+    "label": "Products",
+    "origin": "",
+    "part": "products",
+    "status": "empty",
+    "value": "none"
+   },
+   {
+    "label": "Years",
+    "origin": "",
+    "part": "years",
+    "status": "empty",
+    "value": "none"
+   }
+  ],
+  "places": [
+   {
+    "lat": 39.8,
+    "lon": -89.64,
+    "name": "Springfield, Illinois, United States",
+    "standard_offset_minutes": -360
+   }
+  ],
+  "profile": "local",
+  "revision": 3,
+  "strike_limit": 3,
+  "strikes": 0,
+  "years": []
+ },
+ "map_input": {
+  "artifact_ids": [],
+  "busy": false,
+  "candidates": [],
+  "cursor": 0,
+  "downgraded": false,
+  "ended": false,
+  "events": [],
+  "finished_job_ids": [],
+  "form": {
+   "allow_text": true,
+   "data": {
+    "hint": "e.g. Ithaca, NY \u00b7 Boston; Denver \u00b7 42.44, -76.50"
+   },
+   "gate": "where",
+   "id": "form-map_input",
+   "kind": "map_input",
+   "multi": false,
+   "options": [],
+   "prompt": "Where do you need weather?",
+   "revision": 1,
+   "summary": "Give a place name, a list of places, or coordinates such as 42.44, -76.50."
+  },
+  "id": "session-1",
+  "job_ids": [],
+  "mode": "guided",
+  "model_available": false,
+  "offers": [],
+  "parts": [
+   {
+    "label": "Place",
+    "origin": "",
+    "part": "place",
+    "status": "empty",
+    "value": "none"
+   },
+   {
+    "label": "Product preference",
+    "origin": "",
+    "part": "preference",
+    "status": "empty",
+    "value": "any product"
+   },
+   {
+    "label": "Products",
+    "origin": "",
+    "part": "products",
+    "status": "empty",
+    "value": "none"
+   },
+   {
+    "label": "Years",
+    "origin": "",
+    "part": "years",
+    "status": "empty",
+    "value": "none"
+   }
+  ],
+  "places": [],
+  "profile": "local",
+  "revision": 1,
+  "strike_limit": 3,
+  "strikes": 0,
+  "years": []
+ },
+ "plan_review": {
+  "artifact_ids": [],
+  "busy": false,
+  "candidates": [],
+  "cursor": 0,
+  "downgraded": false,
+  "ended": false,
+  "events": [],
+  "finished_job_ids": [],
+  "form": {
+   "allow_text": true,
+   "data": {
+    "parts": [
+     {
+      "label": "Place",
+      "origin": "on a form",
+      "part": "place",
+      "status": "confirmed",
+      "value": "Springfield, Illinois, United States"
+     },
+     {
+      "label": "Product preference",
+      "origin": "from your message",
+      "part": "preference",
+      "status": "confirmed",
+      "value": "actual year (AMY)"
+     },
+     {
+      "label": "Products",
+      "origin": "on a form",
+      "part": "products",
+      "status": "confirmed",
+      "value": "ERA5 actual year \u00b7 Open-Meteo"
+     },
+     {
+      "label": "Years",
+      "origin": "from your message",
+      "part": "years",
+      "status": "confirmed",
+      "value": "2018"
+     }
+    ],
+    "plans": [
+     {
+      "dataset_selections": [
+       {
+        "dataset": "era5",
+        "product_id": null,
+        "provider": "openmeteo"
+       }
+      ],
+      "output_count": 1,
+      "plan_hash": "dfb010f1b63c5e4f94e2aeb6d2b86abfcacb3f7f42a37734a8679ca57cd9de58",
+      "product": "historical",
+      "summary": "plan_hash dfb010f1b63c5e4f94e2aeb6d2b86abfcacb3f7f42a37734a8679ca57cd9de58 (weather): 1 outputs, 1 batch rows, 1 estimated source calls, 0 warnings, issue codes none.",
+      "warnings": [],
+      "years": [
+       2018
+      ]
+     }
+    ]
+   },
+   "gate": "review_plan",
+   "id": "form-plan_review",
+   "kind": "plan_review",
+   "multi": false,
+   "options": [
+    {
+     "detail": null,
+     "id": "change:place",
+     "label": "Change place"
+    },
+    {
+     "detail": null,
+     "id": "change:preference",
+     "label": "Change product preference"
+    },
+    {
+     "detail": null,
+     "id": "change:products",
+     "label": "Change products"
+    },
+    {
+     "detail": null,
+     "id": "change:years",
+     "label": "Change years"
+    }
+   ],
+   "prompt": "Review the plan, then run it to start retrieval.",
+   "revision": 6,
+   "summary": "Actual year: plan_hash dfb010f1b63c5e4f94e2aeb6d2b86abfcacb3f7f42a37734a8679ca57cd9de58 (weather): 1 outputs, 1 batch rows, 1 estimated source calls, 0 warnings, issue codes none.\nFixed standard time: UTC-06:00 (America/Chicago); no daylight-saving shift. Offsets not given come from each place's time zone (standard time all year, as EPW files use); a typed offset replaces it.\nListed sources are eligible to try; retrieved weather is checked by QC afterwards.\nYour request:\nPlace: Springfield, Illinois, United States (confirmed, on a form)\nProduct preference: actual year (AMY) (confirmed, from your message)\nProducts: ERA5 actual year \u00b7 Open-Meteo (confirmed, on a form)\nYears: 2018 (confirmed, from your message)"
+  },
+  "id": "session-1",
+  "job_ids": [],
+  "mode": "guided",
+  "model_available": false,
+  "offers": [],
+  "parts": [
+   {
+    "label": "Place",
+    "origin": "on a form",
+    "part": "place",
+    "status": "confirmed",
+    "value": "Springfield, Illinois, United States"
+   },
+   {
+    "label": "Product preference",
+    "origin": "from your message",
+    "part": "preference",
+    "status": "confirmed",
+    "value": "actual year (AMY)"
+   },
+   {
+    "label": "Products",
+    "origin": "on a form",
+    "part": "products",
+    "status": "confirmed",
+    "value": "ERA5 actual year \u00b7 Open-Meteo"
+   },
+   {
+    "label": "Years",
+    "origin": "from your message",
+    "part": "years",
+    "status": "confirmed",
+    "value": "2018"
+   }
+  ],
+  "places": [
+   {
+    "lat": 39.8,
+    "lon": -89.64,
+    "name": "Springfield, Illinois, United States",
+    "standard_offset_minutes": -360
+   }
+  ],
+  "profile": "local",
+  "revision": 6,
+  "strike_limit": 3,
+  "strikes": 0,
+  "years": [
+   2018
+  ]
+ },
+ "product_choice": {
+  "artifact_ids": [],
+  "busy": false,
+  "candidates": [],
+  "cursor": 0,
+  "downgraded": false,
+  "ended": false,
+  "events": [],
+  "finished_job_ids": [],
+  "form": {
+   "allow_text": true,
+   "data": {
+    "availability": {
+     "catalog_loaded": false,
+     "locations": [
+      {
+       "index": 0,
+       "lat": 39.8,
+       "lon": -89.64,
+       "name": "Springfield, Illinois, United States",
+       "products": [
+        {
+         "layer": "era5",
+         "option": "era5-openmeteo",
+         "status": "supported",
+         "tag": "ERA5 \u00b7 Open-Meteo"
+        },
+        {
+         "layer": "era5",
+         "option": "era5-cds",
+         "status": "supported",
+         "tag": "ERA5 \u00b7 CDS"
+        },
+        {
+         "layer": "era5-land",
+         "option": "era5land-openmeteo",
+         "status": "unknown",
+         "tag": "ERA5-Land \u00b7 Open-Meteo"
+        },
+        {
+         "layer": "era5-land",
+         "option": "era5land-cds",
+         "status": "unknown",
+         "tag": "ERA5-Land \u00b7 CDS"
+        }
+       ]
+      }
+     ],
+     "omitted_locations": 0,
+     "years": [
+      2025
+     ],
+     "years_assumed": true
+    },
+    "recheck": false,
+    "selected": []
+   },
+   "gate": "choose_products",
+   "id": "form-product_choice",
+   "kind": "product_choice",
+   "multi": true,
+   "options": [
+    {
+     "detail": "25 km reanalysis grid, all EPW weather fields \u00b7 listed in the catalog",
+     "id": "era5-openmeteo",
+     "label": "ERA5 actual year \u00b7 Open-Meteo"
+    },
+    {
+     "detail": "Reanalysis grid from Copernicus; needs CDS terms; no DNI or DHI; requests queue at Copernicus one month at a time, so several years can take hours \u00b7 listed in the catalog",
+     "id": "era5-cds",
+     "label": "ERA5 actual year \u00b7 Copernicus CDS"
+    },
+    {
+     "detail": "11 km land grid; temperature, humidity and pressure only \u00b7 not verified in the catalog; checked when planning",
+     "id": "era5land-openmeteo",
+     "label": "ERA5-Land actual year \u00b7 Open-Meteo"
+    },
+    {
+     "detail": "Land grid from Copernicus; needs CDS terms; no DNI or DHI; requests queue at Copernicus one month at a time, so several years can take hours \u00b7 not verified in the catalog; checked when planning",
+     "id": "era5land-cds",
+     "label": "ERA5-Land actual year \u00b7 Copernicus CDS"
+    }
+   ],
+   "prompt": "Which weather products?",
+   "revision": 4,
+   "summary": "For 2025. Listed: ERA5 actual year \u00b7 Open-Meteo; ERA5 actual year \u00b7 Copernicus CDS. Not verified: ERA5-Land actual year \u00b7 Open-Meteo; ERA5-Land actual year \u00b7 Copernicus CDS. Products not shown are not offered for these places and years. Listed means eligible to try retrieval, not quality assured. The local availability catalog is not loaded (openepw catalog import), so most products are not verified here; planning checks each one."
+  },
+  "id": "session-1",
+  "job_ids": [],
+  "mode": "guided",
+  "model_available": false,
+  "offers": [
+   {
+    "available": 1,
+    "detail": "25 km reanalysis grid, all EPW weather fields \u00b7 listed in the catalog",
+    "group": "actual",
+    "id": "era5-openmeteo",
+    "label": "ERA5 actual year \u00b7 Open-Meteo",
+    "sites": 1
+   },
+   {
+    "available": 1,
+    "detail": "Reanalysis grid from Copernicus; needs CDS terms; no DNI or DHI; requests queue at Copernicus one month at a time, so several years can take hours \u00b7 listed in the catalog",
+    "group": "actual",
+    "id": "era5-cds",
+    "label": "ERA5 actual year \u00b7 Copernicus CDS",
+    "sites": 1
+   },
+   {
+    "available": 0,
+    "detail": "11 km land grid; temperature, humidity and pressure only \u00b7 not verified in the catalog; checked when planning",
+    "group": "actual",
+    "id": "era5land-openmeteo",
+    "label": "ERA5-Land actual year \u00b7 Open-Meteo",
+    "sites": 1
+   },
+   {
+    "available": 0,
+    "detail": "Land grid from Copernicus; needs CDS terms; no DNI or DHI; requests queue at Copernicus one month at a time, so several years can take hours \u00b7 not verified in the catalog; checked when planning",
+    "group": "actual",
+    "id": "era5land-cds",
+    "label": "ERA5-Land actual year \u00b7 Copernicus CDS",
+    "sites": 1
+   }
+  ],
+  "parts": [
+   {
+    "label": "Place",
+    "origin": "on a form",
+    "part": "place",
+    "status": "confirmed",
+    "value": "Springfield, Illinois, United States"
+   },
+   {
+    "label": "Product preference",
+    "origin": "",
+    "part": "preference",
+    "status": "empty",
+    "value": "any product"
+   },
+   {
+    "label": "Products",
+    "origin": "",
+    "part": "products",
+    "status": "empty",
+    "value": "none"
+   },
+   {
+    "label": "Years",
+    "origin": "",
+    "part": "years",
+    "status": "empty",
+    "value": "none"
+   }
+  ],
+  "places": [
+   {
+    "lat": 39.8,
+    "lon": -89.64,
+    "name": "Springfield, Illinois, United States",
+    "standard_offset_minutes": -360
+   }
+  ],
+  "profile": "local",
+  "revision": 4,
+  "strike_limit": 3,
+  "strikes": 0,
+  "years": []
+ },
+ "request_summary": {
+  "artifact_ids": [],
+  "busy": false,
+  "candidates": [],
+  "cursor": 0,
+  "downgraded": false,
+  "ended": false,
+  "events": [],
+  "finished_job_ids": [],
+  "form": {
+   "allow_text": true,
+   "data": {
+    "parts": [
+     {
+      "label": "Place",
+      "origin": "on a form",
+      "part": "place",
+      "status": "confirmed",
+      "value": "Springfield, Illinois, United States"
+     },
+     {
+      "label": "Product preference",
+      "origin": "from your message",
+      "part": "preference",
+      "status": "confirmed",
+      "value": "actual year (AMY)"
+     },
+     {
+      "label": "Products",
+      "origin": "on a form",
+      "part": "products",
+      "status": "confirmed",
+      "value": "ERA5 actual year \u00b7 Open-Meteo"
+     },
+     {
+      "label": "Years",
+      "origin": "from your message",
+      "part": "years",
+      "status": "confirmed",
+      "value": "2018"
+     }
+    ],
+    "plan": "1 plan(s) waiting for Run",
+    "return_to": {
+     "allow_text": true,
+     "data": {
+      "parts": [
+       {
+        "label": "Place",
+        "origin": "on a form",
+        "part": "place",
+        "status": "confirmed",
+        "value": "Springfield, Illinois, United States"
+       },
+       {
+        "label": "Product preference",
+        "origin": "from your message",
+        "part": "preference",
+        "status": "confirmed",
+        "value": "actual year (AMY)"
+       },
+       {
+        "label": "Products",
+        "origin": "on a form",
+        "part": "products",
+        "status": "confirmed",
+        "value": "ERA5 actual year \u00b7 Open-Meteo"
+       },
+       {
+        "label": "Years",
+        "origin": "from your message",
+        "part": "years",
+        "status": "confirmed",
+        "value": "2018"
+       }
+      ],
+      "plans": [
+       {
+        "dataset_selections": [
+         {
+          "dataset": "era5",
+          "product_id": null,
+          "provider": "openmeteo"
+         }
+        ],
+        "output_count": 1,
+        "plan_hash": "dfb010f1b63c5e4f94e2aeb6d2b86abfcacb3f7f42a37734a8679ca57cd9de58",
+        "product": "historical",
+        "summary": "plan_hash dfb010f1b63c5e4f94e2aeb6d2b86abfcacb3f7f42a37734a8679ca57cd9de58 (weather): 1 outputs, 1 batch rows, 1 estimated source calls, 0 warnings, issue codes none.",
+        "warnings": [],
+        "years": [
+         2018
+        ]
+       }
+      ]
+     },
+     "gate": "review_plan",
+     "id": "form-plan_review",
+     "kind": "plan_review",
+     "multi": false,
+     "options": [
+      {
+       "detail": null,
+       "id": "change:place",
+       "label": "Change place"
+      },
+      {
+       "detail": null,
+       "id": "change:preference",
+       "label": "Change product preference"
+      },
+      {
+       "detail": null,
+       "id": "change:products",
+       "label": "Change products"
+      },
+      {
+       "detail": null,
+       "id": "change:years",
+       "label": "Change years"
+      }
+     ],
+     "prompt": "Review the plan, then run it to start retrieval.",
+     "revision": 6,
+     "summary": "Actual year: plan_hash dfb010f1b63c5e4f94e2aeb6d2b86abfcacb3f7f42a37734a8679ca57cd9de58 (weather): 1 outputs, 1 batch rows, 1 estimated source calls, 0 warnings, issue codes none.\nFixed standard time: UTC-06:00 (America/Chicago); no daylight-saving shift. Offsets not given come from each place's time zone (standard time all year, as EPW files use); a typed offset replaces it.\nListed sources are eligible to try; retrieved weather is checked by QC afterwards.\nYour request:\nPlace: Springfield, Illinois, United States (confirmed, on a form)\nProduct preference: actual year (AMY) (confirmed, from your message)\nProducts: ERA5 actual year \u00b7 Open-Meteo (confirmed, on a form)\nYears: 2018 (confirmed, from your message)"
+    }
+   },
+   "gate": "review_request",
+   "id": "form-request_summary",
+   "kind": "request_summary",
+   "multi": false,
+   "options": [
+    {
+     "detail": null,
+     "id": "change:place",
+     "label": "Change place"
+    },
+    {
+     "detail": null,
+     "id": "change:preference",
+     "label": "Change product preference"
+    },
+    {
+     "detail": null,
+     "id": "change:products",
+     "label": "Change products"
+    },
+    {
+     "detail": null,
+     "id": "change:years",
+     "label": "Change years"
+    }
+   ],
+   "prompt": "Is this your request?",
+   "revision": 7,
+   "summary": "Place: Springfield, Illinois, United States (confirmed, on a form)\nProduct preference: actual year (AMY) (confirmed, from your message)\nProducts: ERA5 actual year \u00b7 Open-Meteo (confirmed, on a form)\nYears: 2018 (confirmed, from your message)\nPlan: 1 plan(s) waiting for Run\nApprove to keep it as it is, or change a part."
+  },
+  "id": "session-1",
+  "job_ids": [],
+  "mode": "guided",
+  "model_available": false,
+  "offers": [],
+  "parts": [
+   {
+    "label": "Place",
+    "origin": "on a form",
+    "part": "place",
+    "status": "confirmed",
+    "value": "Springfield, Illinois, United States"
+   },
+   {
+    "label": "Product preference",
+    "origin": "from your message",
+    "part": "preference",
+    "status": "confirmed",
+    "value": "actual year (AMY)"
+   },
+   {
+    "label": "Products",
+    "origin": "on a form",
+    "part": "products",
+    "status": "confirmed",
+    "value": "ERA5 actual year \u00b7 Open-Meteo"
+   },
+   {
+    "label": "Years",
+    "origin": "from your message",
+    "part": "years",
+    "status": "confirmed",
+    "value": "2018"
+   }
+  ],
+  "places": [
+   {
+    "lat": 39.8,
+    "lon": -89.64,
+    "name": "Springfield, Illinois, United States",
+    "standard_offset_minutes": -360
+   }
+  ],
+  "profile": "local",
+  "revision": 7,
+  "strike_limit": 3,
+  "strikes": 0,
+  "years": [
+   2018
+  ]
+ },
+ "text": {
+  "artifact_ids": [],
+  "busy": false,
+  "candidates": [],
+  "cursor": 0,
+  "downgraded": false,
+  "ended": false,
+  "events": [],
+  "finished_job_ids": [],
+  "form": {
+   "allow_text": true,
+   "data": {
+    "hint": "e.g. 2018 or 2016-2018"
+   },
+   "gate": "years",
+   "id": "form-text",
+   "kind": "text",
+   "multi": false,
+   "options": [],
+   "prompt": "Which actual year or years?",
+   "revision": 5,
+   "summary": "Actual-year products need calendar years."
+  },
+  "id": "session-1",
+  "job_ids": [],
+  "mode": "guided",
+  "model_available": false,
+  "offers": [],
+  "parts": [
+   {
+    "label": "Place",
+    "origin": "on a form",
+    "part": "place",
+    "status": "confirmed",
+    "value": "Springfield, Illinois, United States"
+   },
+   {
+    "label": "Product preference",
+    "origin": "",
+    "part": "preference",
+    "status": "empty",
+    "value": "any product"
+   },
+   {
+    "label": "Products",
+    "origin": "on a form",
+    "part": "products",
+    "status": "confirmed",
+    "value": "ERA5 actual year \u00b7 Open-Meteo"
+   },
+   {
+    "label": "Years",
+    "origin": "",
+    "part": "years",
+    "status": "empty",
+    "value": "none"
+   }
+  ],
+  "places": [
+   {
+    "lat": 39.8,
+    "lon": -89.64,
+    "name": "Springfield, Illinois, United States",
+    "standard_offset_minutes": -360
+   }
+  ],
+  "profile": "local",
+  "revision": 5,
+  "strike_limit": 3,
+  "strikes": 0,
+  "years": []
+ },
+ "upload": {
+  "artifact_ids": [],
+  "busy": false,
+  "candidates": [],
+  "cursor": 0,
+  "downgraded": false,
+  "ended": false,
+  "events": [],
+  "finished_job_ids": [],
+  "form": {
+   "allow_text": true,
+   "data": {
+    "call_id": "call_upload"
+   },
+   "gate": "ask_upload",
+   "id": "form-upload",
+   "kind": "upload",
+   "multi": false,
+   "options": [],
+   "prompt": "Attach the EPW you want to compare.",
+   "revision": 0,
+   "summary": ""
+  },
+  "id": "session-1",
+  "job_ids": [],
+  "mode": "agent",
+  "model_available": true,
+  "offers": [],
+  "parts": [
+   {
+    "label": "Place",
+    "origin": "on a form",
+    "part": "place",
+    "status": "confirmed",
+    "value": "Springfield, Illinois, United States"
+   },
+   {
+    "label": "Product preference",
+    "origin": "from your message",
+    "part": "preference",
+    "status": "confirmed",
+    "value": "actual year (AMY)"
+   },
+   {
+    "label": "Products",
+    "origin": "on a form",
+    "part": "products",
+    "status": "confirmed",
+    "value": "ERA5 actual year \u00b7 Open-Meteo"
+   },
+   {
+    "label": "Years",
+    "origin": "from your message",
+    "part": "years",
+    "status": "confirmed",
+    "value": "2018"
+   }
+  ],
+  "places": [
+   {
+    "lat": 39.8,
+    "lon": -89.64,
+    "name": "Springfield, Illinois, United States",
+    "standard_offset_minutes": -360
+   }
+  ],
+  "profile": "local",
+  "revision": 7,
+  "strike_limit": 3,
+  "strikes": 0,
+  "years": [
+   2018
+  ]
+ }
+}

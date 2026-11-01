@@ -3,10 +3,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { App } from '../src/App'
 import { ChatApi } from '../src/api'
 import { debugLogText } from '../src/debugLog'
-import type { Diagnostics, SessionSnapshot } from '../src/types'
+import type { Diagnostics } from '../src/types'
+import { FIXTURES, fakeApi } from './agentFixtures'
 
-const session: SessionSnapshot = { id: 'abcdef123456', revision: 4, facts: { years: [2018] }, events: [],
-  active_card: { id: 'q', revision: 4, kind: 'text', prompt: 'Where do you need weather?' }, view_ids: [] }
+const session = { ...FIXTURES.text, id: 'abcdef123456', revision: 4 }
 const server: Diagnostics = { version: '0.1.0', server_time: '2026-10-12T20:00:00+00:00',
   security_profile: 'hosted (abc)', catalog_generation: 'gen-1',
   server_log: [{ time: '2026-10-12T19:59:00+00:00', level: 'ERROR', logger: 'uvicorn.error', message: 'Exception in ASGI application' }] }
@@ -19,43 +19,40 @@ afterEach(() => { cleanup(); sessionStorage.clear(); vi.restoreAllMocks() })
 
 describe('debug log', () => {
   it('records calls with the error code and message of failures', async () => {
-    const fetcher = vi.fn(async (input: RequestInfo | URL) => String(input).endsWith('/run')
-      ? json(400, { code: 'INVALID_REQUEST', message: 'This plan has no outputs to run' }) : json(200, session))
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => String(input).endsWith('/inputs')
+      ? json(409, { code: 'SESSION_BUSY', message: 'The previous input is still being handled.' }) : json(200, session))
     const api = new ChatApi('https://example.test', fetcher as unknown as typeof fetch)
     await api.get('abcdef123456')
-    await expect(api.run('abcdef123456', 4, 'key')).rejects.toThrow('no outputs')
+    await expect(api.input('abcdef123456', { type: 'back' })).rejects.toThrow('still being handled')
     expect(api.calls.map(call => [call.method, call.path, call.status])).toEqual([
-      ['GET', '/v1/chat/sessions/abcdef123456', 200], ['POST', '/v1/chat/sessions/abcdef123456/run', 400]])
-    expect(api.calls[1]).toMatchObject({ code: 'INVALID_REQUEST', message: 'This plan has no outputs to run' })
+      ['GET', '/v2/agent/sessions/abcdef123456', 200], ['POST', '/v2/agent/sessions/abcdef123456/inputs', 409]])
+    expect(api.calls[1]).toMatchObject({ code: 'SESSION_BUSY' })
     const text = debugLogText(session, api.calls, server)
-    expect(text).toContain('POST /v1/chat/sessions/abcdef123456/run → 400')
-    expect(text).toContain('INVALID_REQUEST: This plan has no outputs to run')
-    expect(text).toContain('body: {"revision":4,"idempotency_key":"key"}')
+    expect(text).toContain('POST /v2/agent/sessions/abcdef123456/inputs → 409')
+    expect(text).toContain('body: {"type":"back"}')
     expect(text).toContain('ERROR uvicorn.error: Exception in ASGI application')
-    expect(text).toContain('Session: abcdef123456 · revision 4')
+    expect(text).toContain('Session: abcdef123456 · guided mode · revision 4')
   })
 
   it('keeps failures when the list is full of polling', async () => {
     let fail = true
     const fetcher = vi.fn(async () => fail ? json(500, { code: 'X', message: 'boom' }) : json(200, {}))
     const api = new ChatApi('', fetcher as unknown as typeof fetch)
-    await api.progress('s').catch(() => undefined)
+    await api.job('j').catch(() => undefined)
     fail = false
-    for (let index = 0; index < 120; index++) await api.progress('s')
+    for (let index = 0; index < 120; index++) await api.job('j')
     expect(api.calls).toHaveLength(100)
     expect(api.calls[0]).toMatchObject({ status: 500, code: 'X' })
   })
 
   it('shows Copy log only when the server has diagnostics on', async () => {
-    const base = { create: vi.fn(async () => session), get: async () => session,
-      catalogMap: async () => ({ schema: 'catalog-map-1', snapshot: null, layers: [], unmapped: [] }), calls: [] }
-    const { unmount } = render(<App api={{ ...base, diagnostics: async () => { throw new Error('404') } } as unknown as ChatApi} />)
+    const { unmount } = render(<App api={fakeApi(session, { diagnostics: async () => { throw new Error('404') } })} />)
     await screen.findByLabelText('Current question')
     expect(screen.queryByRole('button', { name: 'Copy log' })).toBeNull()
     unmount()
     const writeText = vi.fn(async () => undefined)
     Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
-    render(<App api={{ ...base, diagnostics: async () => server } as unknown as ChatApi} />)
+    render(<App api={fakeApi(session, { diagnostics: async () => server })} />)
     fireEvent.click(await screen.findByRole('button', { name: 'Copy log' }))
     await waitFor(() => expect(writeText).toHaveBeenCalled())
     expect(String((writeText.mock.calls[0] as unknown[])[0])).toContain('Exception in ASGI application')

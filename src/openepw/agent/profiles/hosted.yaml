@@ -40,4 +40,10 @@ links:
   allowlist: [nrel.gov, open-meteo.com, cds.climate.copernicus.eu, ncei.noaa.gov,
               joint-research-centre.ec.europa.eu, climate.onebuilding.org]
 
-limits: {}                         # P4: per-session spend, rate, jobs, places, CDS access
+limits:                            # web sessions (P4); per person = account, else client address
+  sessions_per_hour: 10            # new chat sessions a person may start in an hour
+  inputs_per_minute: 12            # messages, form answers and other inputs per person
+  running_jobs: 3                  # weather jobs running at once per person (checked at Run)
+  session_usd: 0.25                # model spend per session; then guided mode
+  person_usd_per_day: 1.00         # model spend per person per UTC day; then guided mode
+  total_usd_per_day: 10.00         # model spend of all web sessions per UTC day; then guided mode

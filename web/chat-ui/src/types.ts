@@ -1,31 +1,67 @@
-export type ChatEvent = {
-  id: number
-  type: 'message' | 'question' | 'tool' | 'plan' | 'job' | 'artifacts' | 'view' | 'error'
-  text?: string
-  data?: Record<string, unknown>
+/** One event of an agent session (`openepw.agent.interactions.Event`). */
+export type AgentEvent = {
+  seq: number
+  type: 'user' | 'assistant' | 'tool' | 'form' | 'job' | 'view' | 'notice' | 'error'
+  text: string
+  data: Record<string, unknown>
 }
 
-export type ChatCard = {
+export type FormKind = 'text' | 'choice' | 'location_review' | 'product_choice' | 'map_input' | 'upload'
+  | 'plan_review' | 'request_summary'
+
+/** The open form (`Interaction`); `gate` names the step it answers. */
+export type AgentForm = {
   id: string
   revision: number
-  kind: 'choice' | 'text' | 'map' | 'plan_review' | 'location_review'
+  kind: FormKind
+  gate?: string | null
   prompt: string
-  options?: Array<{ id: string; label: string; detail?: string; group?: 'actual' | 'typical'
-    available?: number; unverified?: number; sites?: number }>
-  data?: Record<string, unknown>
+  summary: string
+  options: Array<{ id: string; label: string; detail?: string | null }>
+  multi: boolean
+  data: Record<string, unknown>
+  allow_text: boolean
 }
 
-export type SessionSnapshot = {
-  id: string
+export type AgentAnswer = {
+  interaction_id: string
   revision: number
-  facts: Record<string, unknown>
-  events: ChatEvent[]
-  active_card: ChatCard | null
-  job_id?: string | null
-  job_ids?: string[]
-  job_groups?: string[][]
-  plan_hash?: string | null
-  view_ids?: string[]
+  choice_ids?: string[]
+  approve?: boolean
+  text?: string
+  value?: unknown
+}
+
+export type AgentInput = { type: 'text'; text: string } | { type: 'answer'; answer: AgentAnswer }
+  | { type: 'back' } | { type: 'new' } | { type: 'mode'; mode: 'agent' | 'guided' } | { type: 'request' }
+
+export type RequestPart = { part: 'place' | 'preference' | 'products' | 'years'; label: string; value: string
+  status: 'empty' | 'proposed' | 'confirmed' | 'recheck'; origin: string }
+
+/** GET /v2/agent/sessions/{id}: the session for the web renderer. */
+export type AgentSnapshot = {
+  id: string
+  mode: 'agent' | 'guided'
+  revision: number
+  form: AgentForm | null
+  busy: boolean
+  ended: boolean
+  downgraded: boolean
+  model_available: boolean
+  profile: string
+  strikes: number
+  strike_limit: number
+  events: AgentEvent[]
+  cursor: number
+  parts: RequestPart[]
+  places: Array<{ name?: string | null; lat: number; lon: number; standard_offset_minutes?: number }>
+  years: number[]
+  job_ids: string[]
+  finished_job_ids: string[]
+  artifact_ids: string[]
+  candidates: Array<{ id: string; name?: string | null; lat: number; lon: number }>
+  offers: Array<{ id: string; label: string; detail?: string | null; group: 'actual' | 'typical'
+    available?: number | null; sites?: number | null }>
 }
 
 export type JobSnapshot = {

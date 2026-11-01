@@ -520,6 +520,25 @@ class AgentSession:
         """Follow submitted jobs until they finish (the host polls; a model never does)."""
         await self._guard(self._follow(timeout, on_update), "follow_jobs")
 
+    async def check_jobs(self, seen: dict[str, tuple] | None = None) -> bool:
+        """One pass over running jobs (the web host follows jobs this way between inputs); when
+        the last one finishes, the results step runs as after follow_jobs. True while any runs.
+        ``seen`` keeps the last progress reported per job across passes."""
+        running = False
+
+        async def work() -> None:
+            nonlocal running
+            pending = [job_id for job_id in self.facts.job_ids if job_id not in self.facts.finished_job_ids]
+            if not pending:
+                return
+            pending = await self._inspect(pending, {} if seen is None else seen)
+            running = bool(pending)
+            if not pending:
+                await self._jobs_done()
+
+        await self._guard(work(), "follow_jobs")
+        return running
+
     async def _follow(self, timeout: float, on_update: Callable[[], None] | None) -> None:
         loop = asyncio.get_running_loop()
         deadline = loop.time() + timeout
@@ -528,18 +547,7 @@ class AgentSession:
         if not pending:
             return
         while pending:
-            for job_id in list(pending):
-                job = (await self.port.call("job_inspect", job_id=job_id)).data
-                snapshot = (job.get("state"), job.get("completed", 0), job.get("failed", 0))
-                if seen.get(job_id) != snapshot:
-                    seen[job_id] = snapshot
-                    self.emit("job", f"Job {job_id[:8]} {job.get('state')}: {job.get('completed', 0)} of "
-                                     f"{job.get('total', 0)} outputs done, {job.get('failed', 0)} failed",
-                              job_id=job_id, state=job.get("state"), completed=job.get("completed", 0),
-                              total=job.get("total", 0), failed=job.get("failed", 0))
-                if job.get("state") in TERMINAL:
-                    pending.remove(job_id)
-                    await self._finished(job_id, job)
+            pending = await self._inspect(pending, seen)
             if on_update is not None:
                 on_update()
             if pending:
@@ -547,6 +555,26 @@ class AgentSession:
                     self.emit("notice", "Jobs are still running; check again later.", job_ids=pending)
                     return
                 await asyncio.sleep(self.poll_seconds)
+        await self._jobs_done()
+
+    async def _inspect(self, pending: list[str], seen: dict[str, tuple]) -> list[str]:
+        """Inspect each job once, report changed progress and finish terminal ones; returns the rest."""
+        pending = list(pending)
+        for job_id in list(pending):
+            job = (await self.port.call("job_inspect", job_id=job_id)).data
+            snapshot = (job.get("state"), job.get("completed", 0), job.get("failed", 0))
+            if seen.get(job_id) != snapshot:
+                seen[job_id] = snapshot
+                self.emit("job", f"Job {job_id[:8]} {job.get('state')}: {job.get('completed', 0)} of "
+                                 f"{job.get('total', 0)} outputs done, {job.get('failed', 0)} failed",
+                          job_id=job_id, state=job.get("state"), completed=job.get("completed", 0),
+                          total=job.get("total", 0), failed=job.get("failed", 0))
+            if job.get("state") in TERMINAL:
+                pending.remove(job_id)
+                await self._finished(job_id, job)
+        return pending
+
+    async def _jobs_done(self) -> None:
         self.facts.stage = "results"
         if self.state.ended is not None:            # jobs finish, but an ended session asks nothing
             return

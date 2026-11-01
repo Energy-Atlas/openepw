@@ -1,10 +1,10 @@
 // The "Copy log" text of a testing deployment: what a tester pastes into a bug report.
 import type { ApiCall } from './api'
-import type { Diagnostics, SessionSnapshot } from './types'
+import type { AgentSnapshot, Diagnostics } from './types'
 
 const MAX_SESSION_CHARS = 300_000
 
-export function debugLogText(session: SessionSnapshot | null, calls: readonly ApiCall[],
+export function debugLogText(session: AgentSnapshot | null, calls: readonly ApiCall[],
   server: Diagnostics | null, now = new Date()): string {
   const lines = [`OpenEPW log · copied ${now.toISOString()}`,
     `Page: ${window.location.origin}${window.location.pathname}`,
@@ -13,7 +13,7 @@ export function debugLogText(session: SessionSnapshot | null, calls: readonly Ap
       + ` · catalog ${server.catalog_generation ?? 'none'}`
       + (server.memory ? ` · memory ${server.memory.resident_mb ?? '?'} MB (peak ${server.memory.peak_resident_mb ?? '?'} MB)` : '')
       : 'Server: diagnostics unavailable',
-    `Session: ${session ? `${session.id} · revision ${session.revision}` : 'none'}`,
+    `Session: ${session ? `${session.id} · ${session.mode} mode · revision ${session.revision}` : 'none'}`,
     '', '== Requests (this page, oldest first) ==']
   for (const call of calls) {
     lines.push(`${call.time} ${call.method} ${call.path} → ${call.status ?? 'no response'} (${call.ms} ms)`
