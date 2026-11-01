@@ -150,4 +150,16 @@ for the transcript (taller rail, compact header, map overlays above it). Agent m
 in the browser (no live model run without the owner's word; agent sessions are covered by the
 scripted parity tests).
 
-**Checks.** (Filled in below when the final run completes.)
+**Checks.** ruff and mypy clean; pytest 1151 passed, 20 skipped, 3 failed, all timing under heavy
+load from other work on the machine: `test_b_published_batch_exact_product_occurrences_and_export`
+counts tool calls including job polls (39 of 30) and fails the same way on `main` (`87edbdd`) on
+the same machine at the same time; the two `test_future` failures passed on two reruns. vitest
+105 passed (stable over repeated runs), `tsc` clean, `npm run build` passes. Eval lint 51 tasks, 0
+errors; offline evals guided 31/31, scripted agent 51/51 under `local` and `hosted`; mutations 18
+of 18 caught. No live model run (no spend).
+
+**Staging merge.** `deploy/staging` adds accounts (Cornell email sign-in). The merge keeps them:
+`create_app` keeps the account gate and its `mailer` parameter and gains `agent_model`; the
+account id (`request.state.user_id`) is the person for ownership and limits; the browser keeps
+the sign-out button; the Vite proxy lists `/v1`, `/v2` and `/auth`. One fix came from staging's
+landing test: the message field now shows (disabled) until a session is open.
