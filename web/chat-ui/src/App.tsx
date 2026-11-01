@@ -10,7 +10,7 @@ import { ViewPanel } from './views/ViewPanel'
 import { transcriptItems } from './transcript'
 import { CopyLogIcon, DownloadIcon, RestartIcon, ToolIcon } from './icons'
 import { copyOrSave, debugLogText } from './debugLog'
-import type { AgentEvent, AgentInput, AgentSnapshot, CatalogMap, JobManifest, JobSnapshot } from './types'
+import type { AgentEvent, AgentInput, AgentSnapshot, CatalogMap, JobManifest, JobSnapshot, OfferedFile } from './types'
 
 // A new key: chats saved through the old /v1 routes are left as they are (owner, 2026-11-01).
 export const sessionKey = 'openepw-agent-session'
@@ -253,6 +253,8 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
           : <article key={item.event.seq} className={`chat-event ${eventClass(item.event)}`}>
             {item.event.type === 'user' ? <><span className="event-kind">You</span><p>{item.event.text}</p></>
               : item.event.type === 'job' ? <p className="job-line">{item.event.text}</p>
+              : item.event.type === 'download' ? <DownloadOffer files={(item.event.data?.files as OfferedFile[] | undefined) ?? []}
+                url={id => api.artifactUrl(id)} />
               : <>{item.event.type === 'assistant' && <span className="event-kind">{eventLabel(item.event)}</span>}
                 <ModelText text={item.event.text} /></>}
           </article>)}
@@ -334,6 +336,20 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
     {openViews.map((id, index) => <ViewPanel key={id} id={id} index={index} api={api}
       onClose={() => setOpenViews(current => current.filter(item => item !== id))} />)}
   </main>
+}
+
+/** A download offer: one link per file; the browser saves it to the person's disk. */
+function DownloadOffer({ files, url }: { files: OfferedFile[]; url: (id: string) => string }) {
+  return <>
+    <span className="event-kind">Agent · download</span>
+    <p>{files.length === 1 ? 'Ready to download:' : `Ready to download (${files.length} files):`}</p>
+    <ul className="download-list">
+      {files.map(file => <li key={file.artifact_id}>
+        <a href={url(file.artifact_id)} download={file.filename ?? ''}>{file.number ? `${file.number}. ` : ''}{file.label}</a>
+        {file.bytes ? <span className="download-size"> · {(file.bytes / 1e6).toFixed(1)} MB</span> : null}
+      </li>)}
+    </ul>
+  </>
 }
 
 function eventClass(event: AgentEvent): string {

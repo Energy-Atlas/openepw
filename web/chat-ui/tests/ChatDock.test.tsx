@@ -67,6 +67,16 @@ describe('chat dock and controls', () => {
     expect(screen.getByRole('textbox', { name: 'Message' })).toBeInTheDocument()
   })
 
+  it('shows a download offer as links the browser saves', async () => {
+    const files = [{ number: 2, label: 'Denver, Colorado · 2016 · openmeteo/era5', artifact_id: 'a'.repeat(32),
+      filename: 'openepw-denver-2016.epw', bytes: 1_650_000 }]
+    render(<App api={fakeApi(snapshot(null, { events: [event(5, 'download', 'Ready to download:', { files })], cursor: 5 }))} />)
+    const link = await screen.findByRole('link', { name: /Denver, Colorado · 2016/ })
+    expect(link).toHaveAttribute('href', expect.stringContaining('a'.repeat(32)))
+    expect(link).toHaveAttribute('download', 'openepw-denver-2016.epw')
+    expect(screen.getByText(/1\.6 MB/)).toBeInTheDocument()
+  })
+
   it('hides the reply area of an ended session', async () => {
     render(<App api={fakeApi({ ...snapshot(null), ended: true })} />)
     expect(await screen.findByText(/This session has ended/)).toBeInTheDocument()

@@ -1,7 +1,11 @@
 /** One event of an agent session (`openepw.agent.interactions.Event`). */
+/** One file a download offer names (``download`` events). */
+export type OfferedFile = { number: number | null; label: string; artifact_id: string;
+  filename?: string | null; bytes?: number | null }
+
 export type AgentEvent = {
   seq: number
-  type: 'user' | 'assistant' | 'tool' | 'form' | 'job' | 'view' | 'notice' | 'error'
+  type: 'user' | 'assistant' | 'tool' | 'form' | 'job' | 'view' | 'download' | 'notice' | 'error'
   text: string
   data: Record<string, unknown>
 }
