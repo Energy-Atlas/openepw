@@ -3,7 +3,7 @@
 MODEL_TOOLS = frozenset({
     "weather_places_interpret", "weather_geocode", "weather_places_preview", "weather_place_set",
     "weather_locations_review", "weather_product_offers", "weather_assess", "weather_plan",
-    "plan_inspect", "job_inspect", "artifact_inspect", "weather_data_describe",
+    "plan_inspect", "job_inspect", "job_outputs", "artifact_inspect", "weather_data_describe",
     "weather_visualization_capabilities", "weather_visualize",
 })
 HOST_TOOLS = frozenset({

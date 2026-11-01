@@ -120,6 +120,24 @@ def _job(data: dict) -> str:
     return text
 
 
+def _outputs(data: dict) -> str:
+    rows = data.get("outputs") or []
+    lines = []
+    for row in rows[:ROWS]:
+        place = (row.get("place") or {}).get("name") or "point"
+        when = row.get("year") or row.get("period_start") or "typical year"
+        line = f"{place} {when} {row.get('provider')}/{row.get('dataset')}: {row.get('status')}"
+        if row.get("artifact_id"):
+            line += f" (artifact {row['artifact_id']})"
+        if row.get("issue_codes"):
+            line += f" codes {', '.join(row['issue_codes'][:5])}"
+        lines.append(line)
+    counts = ", ".join(f"{count} {status}" for status, count in sorted((data.get("counts") or {}).items()))
+    head = f"job {data.get('job_id')} {data.get('state')}: {data.get('total', len(rows))} outputs ({counts})."
+    more = f" ... {len(rows) - ROWS} more." if len(rows) > ROWS else ""
+    return head + ("\n" + "\n".join(lines) if lines else "") + more
+
+
 def _artifact(data: dict) -> str:
     text = (f"artifact {data.get('artifact_id')} role={data.get('role')} {data.get('bytes')} bytes "
             f"sha256={str(data.get('sha256', ''))[:12]}")
@@ -176,7 +194,7 @@ SUMMARIES: dict[str, Callable[[dict], str]] = {
     "weather_assess": _assess, "weather_discover": _discover,
     "weather_plan": _plan, "plan_inspect": _plan,
     "weather_submit": _job, "weather_fetch": _job, "job_inspect": _job, "job_cancel": _job,
-    "job_retry_failed": _job, "artifact_inspect": _artifact,
+    "job_retry_failed": _job, "job_outputs": _outputs, "artifact_inspect": _artifact,
     "epw_upload": _upload, "epw_register_path": _upload,
     "weather_visualization_capabilities": _capabilities, "weather_data_describe": _describe,
     "weather_visualize": _view, "weather_data_page": _page, "weather_export_compact": _export,
