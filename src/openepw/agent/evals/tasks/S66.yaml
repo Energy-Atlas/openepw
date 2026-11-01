@@ -1,0 +1,43 @@
+id: S66
+title: A question about the retrieved data is answered from a prepared view
+purpose: 'After a two-year run the person asks for the average January temperature over those years. The agent
+  finds the files with list_outputs, prepares a month-of-year profile and answers from its values; nothing is
+  planned or submitted again (phase 5 plan §2.2).'
+covers: [followup.data, followup.outputs]
+tags: [workflow, followup]
+modes: [agent]
+user:
+  say: AMY 2016 2017 for Denver
+  then: ['What was the average January dry-bulb temperature over those years?']
+  answers: {location_review: approve, product_choice: [era5-openmeteo], plan_review: run, choice: first,
+    map_input: Denver, text: '2016, 2017'}
+graders:
+- grader: tools_in_order
+  value: [weather_submit, weather_visualize]
+- grader: tool_counts
+  value: {weather_plan: 1, weather_submit: 1}
+- grader: reply_contains
+  value: ['10']
+script:
+- call: weather_geocode
+  args: {query: Denver}
+- call: review_location
+  args:
+    locations: {lat: 39.74, lon: -104.98, name: 'Denver, Colorado, United States'}
+- call: choose_products
+  args: {}
+- call: weather_plan
+  args:
+    request:
+      product: historical
+      years: [2016, 2017]
+      dataset_selections: [{provider: openmeteo, dataset: era5}]
+- call: review_plan
+  args: {}
+- {say: Two EPWs completed. They are not certified simulation-ready (simulation_ready=false); check their QC.}
+- call: list_outputs
+  args: {}
+- call: weather_visualize
+  args:
+    request: {artifact_ids: $artifacts, family: month_of_year_profile, variable: dry_bulb}
+- {say: 'The average January dry-bulb temperature over 2016 and 2017 is 10.0 °C, with every hour present.'}

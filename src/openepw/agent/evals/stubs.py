@@ -79,9 +79,12 @@ class StubERA5:
 
     name = "openmeteo"
 
-    def __init__(self, fail_near: Iterable[tuple[float, float]] = ()):
+    def __init__(self, fail_near: Iterable[tuple[float, float]] = (),
+                 fail_once_near: Iterable[tuple[float, float]] = ()):
         self.calls = 0
         self.fail_near = list(fail_near)      # (lat, lon) points whose fetch fails
+        self.fail_once_near = list(fail_once_near)   # points whose first fetch of each period fails
+        self.failed_once: set[tuple[float, float, str]] = set()
 
     def discover(self, request: Any, location: Any, http: Any) -> list[Candidate]:
         source = SourceRef(provider=self.name, dataset="era5",
@@ -96,6 +99,11 @@ class StubERA5:
         if any(abs(location.lat - lat) < 0.5 and abs(location.lon - lon) < 0.5 for lat, lon in self.fail_near):
             raise OpenEPWError("PROVIDER_ERROR", "Stub provider outage for this point", retryable=True)
         start, end = interval_bounds(task.parameters)
+        once = (round(location.lat, 2), round(location.lon, 2), str(start))
+        if once not in self.failed_once and any(abs(location.lat - lat) < 0.5 and abs(location.lon - lon) < 0.5
+                                                for lat, lon in self.fail_once_near):
+            self.failed_once.add(once)
+            raise OpenEPWError("PROVIDER_ERROR", "Stub provider outage for this point (once)", retryable=True)
         index = pd.date_range(start + pd.Timedelta(hours=1), end, freq="h")
         frame = pd.DataFrame({name: [value] * len(index) for name, value in VALUES.items()}, index=index)
         lineage = {variable: VariableLineage(variable=variable, source=task.source,
@@ -132,6 +140,8 @@ class StubService(WeatherService):
 
 
 def stub_service(data_root: str | Path, fail_near: Iterable[tuple[float, float]] = (),
-                 unlisted: dict[str, list[int]] | None = None) -> WeatherService:
+                 unlisted: dict[str, list[int]] | None = None,
+                 fail_once_near: Iterable[tuple[float, float]] = ()) -> WeatherService:
     config = RuntimeConfig(data_root=Path(data_root))
-    return StubService(config, http=StubHttp(config), providers=[StubERA5(fail_near)], unlisted=unlisted)
+    return StubService(config, http=StubHttp(config), providers=[StubERA5(fail_near, fail_once_near)],
+                       unlisted=unlisted)

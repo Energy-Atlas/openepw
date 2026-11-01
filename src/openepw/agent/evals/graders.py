@@ -325,6 +325,28 @@ def _tools_absent(view: View, value: list[str], ctx: Context) -> tuple[bool, lis
     return _found([index for index, _ in bad], "ran " + ", ".join(tool for _, tool in bad))
 
 
+@grader("tool_counts", "TOOL_COUNT", "These tools ran exactly this many times",
+        "Follow-ups after a run read files; they never plan or submit again.", value=dict[str, int])
+def _tool_counts(view: View, value: dict[str, int], ctx: Context) -> tuple[bool, list[int], str]:
+    calls = view.tool_calls()
+    counts = {name: sum(tool == name for _, tool in calls) for name in value}
+    wrong = {name: count for name, count in counts.items() if count != value[name]}
+    if not wrong:
+        return True, [], ""
+    return False, [index for index, tool in calls if tool in wrong], f"counts were {counts}, expected {value}"
+
+
+@grader("download_files", "DOWNLOAD_FILES", "The last download offer names exactly this many files",
+        "A download offers the files that exist, and only those asked for.", value=int)
+def _download_files(view: View, value: int, ctx: Context) -> tuple[bool, list[int], str]:
+    offers = view.of("download")
+    if not offers:
+        return False, [], "no download was offered"
+    index, entry = offers[-1]
+    count = len(view.data(entry).get("files") or [])
+    return count == value, [] if count == value else [index], "" if count == value else f"offered {count} file(s)"
+
+
 @grader("forms_absent", "UNEXPECTED_FORM", "None of these form kinds was shown",
         "An availability question is answered in words; it opens no form.", value=list[str])
 def _forms_absent(view: View, value: list[str], ctx: Context) -> tuple[bool, list[int], str]:

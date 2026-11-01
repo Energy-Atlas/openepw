@@ -142,6 +142,20 @@ def _change_off() -> list[Any]:
     return [mock.patch("openepw.agent.host.change_part", refused)]
 
 
+def _retry_form_off() -> list[Any]:
+    from .. import outputs
+    from ..interactions import Interaction
+
+    async def at_once(s: Any) -> None:
+        form = Interaction(kind="choice", gate="review_retry", prompt="", data={"jobs": outputs._retry_jobs(s.facts)})
+        await outputs.run_retry(s, form)
+    return [mock.patch("openepw.agent.outputs.retry_form", at_once)]
+
+
+def _download_filter_off() -> list[Any]:
+    return [mock.patch("openepw.agent.outputs.pick_outputs", lambda rows, **filters: list(rows))]
+
+
 def _has(module: str, name: str) -> bool:
     import importlib
 
@@ -174,6 +188,9 @@ MUTATIONS = [
              _confirmation_off),
     Mutation("recheck-off", "Chosen products are not rechecked after new years", ("slots.recheck",), _recheck_off),
     Mutation("change-off", "Change actions are refused", ("slots.change",), _change_off),
+    Mutation("retry-form-off", "A retry runs without the retry form", ("followup.retry",), _retry_form_off),
+    Mutation("download-filter-off", "A download offers every file, not the ones asked for", ("followup.download",),
+             _download_filter_off),
 ]
 
 

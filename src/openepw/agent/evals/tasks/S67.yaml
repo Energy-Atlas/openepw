@@ -1,0 +1,19 @@
+id: S67
+title: Asking for files before any run says there are none
+purpose: 'Before any weather was retrieved the person asks what they got. The host says there are no files yet
+  and how to ask; nothing is planned or submitted.'
+covers: [followup.outputs]
+tags: [followup]
+user:
+  say: 'What did I get?'
+  answers: {choice: first, location_review: null, map_input: null, text: null}
+graders:
+- grader: codes_present
+  value: [NO_OUTPUTS]
+- {grader: submitted, value: false}
+- grader: tool_counts
+  value: {weather_plan: 0, weather_submit: 0}
+script:
+- call: list_outputs
+  args: {}
+- {say: You have no files yet.}
