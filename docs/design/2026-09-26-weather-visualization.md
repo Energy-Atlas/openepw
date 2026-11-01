@@ -138,7 +138,7 @@ a fabricated spec. Families can become active without changing the tool list.
 | `monthly_series` | One aggregated point per year-month/source/location | Initial |
 | `histogram` | Counts and shared numeric bin edges | Initial |
 | `spatial` | Point values or a complete rectilinear matrix | Initial |
-| `month_of_year_profile` | Cross-year monthly profile with contributing-year counts | Planned |
+| `month_of_year_profile` | Cross-year monthly profile with contributing-year counts | Implemented 2026-11-01 (phase 5): monthly aggregates per year, then the mean per month for each place and source; a month with an incomplete year is null unless `allow_partial` |
 | `diurnal_profile` | Hour-of-day values and optional percentile band | Planned |
 | `seasonal_summary` | Explicit season definitions and aggregate values | Planned |
 | `calendar_heatmap` | Day-by-day values and calendar labels | Planned |

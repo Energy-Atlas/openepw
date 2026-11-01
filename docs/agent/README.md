@@ -35,7 +35,8 @@ the catalog to see per-location availability (see [usage](../usage.md)):
 
 One process runs jobs for a data root: stop `openepw serve` or use another data root
 (`DATA_ROOT_BUSY` otherwise). Commands: `/back`, `/new`, `/request` (the request summary),
-`/upload <path>`, `/status`, `/mode [agent|guided]`, `/help`, `/quit`. At the request summary
+`/upload <path>`, `/status`, `/mode [agent|guided]`, `/outputs`, `/download [numbers|all] [folder]`,
+`/help`, `/quit` (see [After a run](#after-a-run-phase-5)). At the request summary
 or the plan review, `ok` confirms (`run` runs the plan) and `change years` (or `place`,
 `products`, `preference`) changes one part; at a product form with products preselected, `ok`
 keeps them. Sessions are saved in
@@ -132,6 +133,36 @@ Sessions saved now carry three new fields that older code rejects, so rolling a 
 would make newer sessions unreadable. The web chat shows the same parts, summary and Change
 actions (see [Web chat](#web-chat-p4)).
 
+## After a run (phase 5)
+
+Once jobs finish, both modes answer follow-ups about the session's files without a plan or a new
+job ([plan](../superpowers/plans/2026-11-01-post-download-conversations.md)). The files come from
+each job's checksum-verified manifest through the shared service (`openepw.jobs.outputs`: REST
+`GET /v1/jobs/{id}/outputs`, MCP `job_outputs`), never from artifact order or file names; a retry's
+files replace the outputs it retried.
+
+| Person | Host |
+| --- | --- |
+| "What did I get?", "which one is 2016?" | Numbered files: place, year (or typical year), source, status and issue codes |
+| "Download the Denver 2016 file", "download all" | A download offer naming only matching files that exist (`download` event); nothing is retrieved again |
+| "What happened to 2017?" | The failed outputs with their recorded issue codes |
+| "Retry" | The retry form (`review_retry`, a choice form) lists every failed output it covers; only "Retry" submits `job_retry_failed`, with a one-shot approval of the job's original plan |
+| "Average January temperature over those years?" (agent mode) | `weather_visualize` (for example `month_of_year_profile`) on the right files; the model answers from the view's values and coverage |
+
+Guided mode reads these follow-ups with fixed patterns before places and years, so they never
+change a request in progress; an open form stays open. "What next?" offers "List my files",
+"Download files" and, when outputs failed, "Retry failed outputs". Agent mode has the host tools
+`list_outputs` and `offer_download` and the ask-tool `review_retry`; `job_retry_failed` stays a
+host tool. A retry is offered only after the request's jobs finished, a job chain allows three
+retries, and in the web chat a retry counts against the person's running-job limit.
+
+In the CLI `/outputs` lists the files and `/download [numbers|all] [folder]` saves them (without
+numbers, the files last offered; without a folder it asks). Files come through the MCP artifact
+resource (10 MB at most, which a compact ZIP of many outputs can exceed), each sha256 is checked,
+an existing file is never overwritten and a partial file is removed. The folder and the saved
+paths are printed to the console only, never to the conversation. The browser shows a download
+offer as links that the browser saves. Exports ("Compact ZIP") are offered the same way.
+
 ## Web chat (P4)
 
 `openepw serve` hosts the same sessions for the browser chat (`web/chat-ui`) under `/v2/agent`
@@ -176,7 +207,7 @@ A spend cap stops the model before its next call and the session continues in gu
 estimated cost is recorded atomically, so concurrent turns cannot lose spend; one call may exceed
 a cap by its own cost. The web chat does not record LangSmith traces yet. Not built (guardrails
 plan §7): a lower place cap per approval, Copernicus products for admins only, alerts on
-guard-code spikes; retrying failed outputs from the browser (the CLI has no retry either).
+guard-code spikes. Retrying failed outputs works in both (phase 5).
 
 ## Agent mode
 
@@ -356,14 +387,14 @@ execution notes: [agent evals plan](../superpowers/plans/2026-10-10-agent-evals.
 `--output-dir` and `--baseline`. Evals are advisory and offline in automated checks; live runs
 are manual (there is no GitHub CI).
 
-**Tasks.** One YAML file per task in `openepw/agent/evals/tasks/` (51 tasks, S1–S63), validated on load:
+**Tasks.** One YAML file per task in `openepw/agent/evals/tasks/` (55 tasks, S1–S67), validated on load:
 an unknown key, grader, grader value or coverage id is an error naming the file and line. A task
 has:
 
 - `purpose`, `covers` (ids from `coverage.yaml`: the rule from ADR 0005, the spec or the
   guardrail plan that the task protects), `suite` (`regression` or `capability`) and `tags`;
 - `modes` and `profiles` it runs under, and `setup`: an uploaded synthetic EPW with planted text,
-  provider outages near points, and moderation (`default`: the real endpoint in live runs and the
+  provider outages near points (`fail_near`, or `fail_once_near` for outages a retry gets past), and moderation (`default`: the real endpoint in live runs and the
   stub offline; `stub`; `unavailable`), and offers the stub catalog does not list for some years (`unlisted`);
 - `user`: what the person says (`say`, then `then`) and how they answer each form kind
   (`approve`, `run` or `change:<part>`, a list of them used in turn at a review, option ids, `first` or`n  `selected`, `say:<text>` to type instead, other text, or null to stop);
@@ -418,8 +449,8 @@ out of pass rates. Budget, client (other HTTP) and reply failures still fail the
 - `openepw eval mutate` switches off one guard at a time inside the process (links, outside-text
   cleaning, input normalisation, redaction, moderation, the strike limit, strike counting, the
   short-message rule, small talk, the off-topic clamp, readiness correction, the years gate, the
-  host-tool gate, the plan-approval gate, proposed years, summary confirmation, product recheck
-  and Change) and runs the tasks that cover it offline; each must
+  host-tool gate, the plan-approval gate, proposed years, summary confirmation, product recheck,
+  Change, the retry form and the download filter) and runs the tasks that cover it offline; each must
   make at least one task fail;
 - `openepw eval lint` reports agent tasks without a script, tasks without coverage, graders
   without fixtures, code checks for codes the agent never records or that the profile cannot

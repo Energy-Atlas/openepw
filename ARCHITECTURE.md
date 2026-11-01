@@ -49,7 +49,10 @@ core's, so the browser enforces nothing itself. The security profile's `limits` 
 inputs, running jobs and model spend per person. Browser chart requests reference artifacts of
 the session and call the shared visualization service; chart and map rendering contain no
 weather aggregation. The legacy `/v1/chat/*` routes (`chat/coordinator.py`) remain until P5 but
-the browser no longer uses them. See the
+the browser no longer uses them. After a run (phase 5), `jobs/outputs.py` reads each job's
+verified manifest into rows (place, year, status, artifact) for REST, MCP and the agent host
+(`agent/outputs.py`), which lists files, offers downloads and runs approved retries in both modes.
+See the
 [scene decision](docs/decisions/0004-map-first-chat-scene.md) and
 [local setup](web/chat-ui/README.md).
 
