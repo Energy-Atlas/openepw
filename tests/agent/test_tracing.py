@@ -1,4 +1,4 @@
-"""LangSmith tracing follows the env file, for the agent chat and the web chat; nothing is sent."""
+"""LangSmith tracing of the agent chat follows the env file; nothing is sent."""
 
 import asyncio
 import json
@@ -14,7 +14,6 @@ from openepw.agent.tracing import (
     LangSmithTracer,
     NullTracer,
     TracingSettings,
-    langchain_tracing,
     summarize_arguments,
     tracing_settings,
 )
@@ -156,53 +155,6 @@ def test_the_cli_says_whether_tracing_is_on(tmp_path):
         assert tracer.enabled and "openepw-agent" in notice and KEY not in notice
     finally:
         tracer.close()
-
-
-def test_the_web_chat_parser_follows_the_settings_not_langchains_environment(monkeypatch):
-    from langchain_core.runnables import RunnableLambda
-    from langsmith.utils import tracing_is_enabled
-
-    from openepw.harness.graph_model import LangChainTurnParser
-
-    seen = []
-
-    def fake(messages):
-        seen.append(tracing_is_enabled())
-        return {"raw": None, "parsed": {"requests": []}, "parsing_error": None}
-
-    monkeypatch.setenv("LANGSMITH_TRACING", "true")              # LangChain alone would trace
-    monkeypatch.setenv("LANGSMITH_API_KEY", KEY)
-    off = TracingSettings(False, "p", "LANGSMITH_TRACING is not true")
-    LangChainTurnParser("", structured_model=RunnableLambda(fake), tracing=off).parse_many("Ithaca")
-    client = Recording()
-    on = LangChainTurnParser("", structured_model=RunnableLambda(fake), tracing=ON, trace_client=client)
-    on.parse_many("Ithaca")
-    assert seen == [False, True] and client.created
-    assert (client.created[0].get("session_name") or client.created[0].get("project_name")) == "openepw-test"
-
-
-def test_create_app_reads_tracing_from_its_env_file(tmp_path, monkeypatch):
-    import openepw.harness.graph_model as graph_model
-    from openepw.api.app import create_app
-    from openepw.config import RuntimeConfig
-    from openepw.service import WeatherService
-
-    captured = {}
-
-    class Parser:
-        def __init__(self, key, **options):
-            captured.update(options, key=key)
-
-    monkeypatch.setattr(graph_model, "LangChainTurnParser", Parser)
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-    path = env(tmp_path, f"OPENAI_API_KEY=sk-test-not-real\nLANGSMITH_TRACING=true\nLANGSMITH_API_KEY={KEY}\n")
-    create_app(WeatherService(RuntimeConfig(data_root=tmp_path / "data")), env_file=path)
-    assert captured["tracing"].enabled and captured["tracing"].project == "openepw-web-chat"
-
-
-def test_no_settings_leaves_langchain_alone():
-    with langchain_tracing(None):
-        pass                                                      # no langsmith import needed
 
 
 def test_traces_record_the_profile_and_guard_codes(tmp_path):

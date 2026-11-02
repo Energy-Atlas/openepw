@@ -20,9 +20,9 @@ ENV MALLOC_ARENA_MAX=2
 WORKDIR /app
 COPY pyproject.toml README.md LICENSE* ./
 COPY src ./src
-# api: the web server; mcp: the agent web chat (/v2/agent); harness: the legacy chat parser;
+# api: the web server; mcp: the agent web chat (/v2/agent);
 # cds: Copernicus downloads.
-RUN pip install ".[api,mcp,harness,cds]" && useradd --system --create-home --uid 10001 app
+RUN pip install ".[api,mcp,cds]" && useradd --system --create-home --uid 10001 app
 COPY --from=web /web/dist /app/web
 COPY docker/entrypoint.sh /app/entrypoint.sh
 RUN chmod 0755 /app/entrypoint.sh

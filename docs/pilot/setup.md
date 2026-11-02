@@ -1,23 +1,24 @@
 # Local pilot setup
 
 The target setup is Windows, Python 3.13.9 and MCP Python SDK 1.30.0.
-Install the optional local client and agent in a fresh environment:
+Install the MCP server and client in a fresh environment:
 
 ```powershell
 python -m venv .local/pilot-venv
-.local/pilot-venv/Scripts/python.exe -m pip install -e ".[harness]"
+.local/pilot-venv/Scripts/python.exe -m pip install -e ".[mcp]"
 .local/pilot-venv/Scripts/openepw.exe --data-root .local/pilot-data mcp
 ```
 
 The stdio process waits for an MCP client on stdin. In a client host,
 configure the full executable path and the `--data-root <private-root> mcp`
-arguments instead of starting it in an interactive terminal. The standalone
-`openepw-agent` command is installed by the same extra; see
-[harness instructions](../harness/README.md). The real SDK session in
+arguments instead of starting it in an interactive terminal. The pilot journeys drive the
+server with a scripted client (`tests/pilot/reference_client.py`), which replaced the
+`openepw-agent` command in P5 (2026-11-01). The real SDK session in
 `tests/pilot/test_install_smoke.py` lists tools/templates, calls a tool,
 reads an artifact and closes cleanly. The fresh local environment actually
 reported 18 tools, one resource template and protocol 2025-11-25;
-`openepw-agent --help` also passed. One process per data root is supported.
+`openepw-agent --help` also passed (2026-09; that command was retired in P5). One process per
+data root is supported.
 
 Future climate sources may additionally require `openepw[climate]` or
 `openepw[cds]` depending on method/provider. The synthetic morph fixture

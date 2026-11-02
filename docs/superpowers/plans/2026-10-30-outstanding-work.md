@@ -12,6 +12,7 @@ prerequisites listed for it.
 | 4 | Done 2026-10-31: built on `feature/agent-request-slots` (live check about $0.22 of the $1 cap) and merged into `main` on the owner's go-ahead |
 | P4 | Added 2026-11-01 (web chat on the agent core); built on `feature/agent-web-chat`, see its [plan](2026-11-01-agent-web-chat.md) §4; merged into `main` and `deploy/staging` |
 | 5 | Approved 2026-11-01 (retry added, small live check, merge when done); built on `feature/post-download-conversations`, see its [plan](2026-11-01-post-download-conversations.md) §5; merged into `main` and `deploy/staging` |
+| P5 | Added 2026-11-01 (retire the legacy chat); built on `feature/retire-v1-chat`, see its [plan](2026-11-01-retire-v1-chat.md) |
 | 6–7 | Not started |
 
 This list replaces the scattered open items in the older plans. Each item names its source so that
@@ -148,6 +149,20 @@ compatibility"; "deploy after this fix" (merge into `main` and `deploy/staging` 
 | P4.4 | CLI and web parity; CI web job; browser check | Parity tests pass; check recorded |
 | P4.5 | Docs; merge and staging deploy | Updated; deployed |
 
+## Phase P5 — Retire the legacy chat (added 2026-11-01)
+
+Branch: `feature/retire-v1-chat`. Source: ADR 0005's P5 and the [P5 plan](2026-11-01-retire-v1-chat.md).
+Owner (2026-11-01): "Let's do phase 5 first" (read as P5, the recommended next step; phase 5
+itself was finished the same day), "ok to merge to both main and staging", "may delete" (the
+merged branches).
+
+| # | Item | Done when |
+|---|---|---|
+| P5.1 | Remove `/v1/chat/*`, `openepw.chat`, the LangGraph console (`openepw-chat`) and the reference agent (`openepw-agent`) | Nothing imports them; ruff, mypy, pytest and the offline evals pass |
+| P5.2 | Keep the stdio MCP client and the pilot journeys | The pilot tests pass with a scripted client |
+| P5.3 | Fix the pilot test that counted job polls | It no longer depends on machine speed |
+| P5.4 | Docs; merge and staging deploy | Updated; deployed |
+
 ## Phase 5 — Conversations after a download (about 3–4 days)
 
 Status: approved by the owner on 2026-11-01 ("add retry"; a small live check; merge into `main`
@@ -212,7 +227,8 @@ Branch: `feature/platform-backlog` (7.1–7.2) and `feature/science-backlog` (7.
 
 ## Order and total
 
-1 → 2 → 3 → 4 → P4 (added 2026-11-01), then 5 and 6 in either order, with 7 last. Phases 1–5 take about 14 days of
+1 → 2 → 3 → 4 → P4 (added 2026-11-01), then 5 and 6 in either order, with 7 last; P5 (added
+2026-11-01) after phase 5. Phases 1–5 take about 14 days of
 agent work; all seven take about 21. With phase 2 deferred, the order is 1 → 3 → 4, then 5 and 6,
 then 7; phase 2 can be picked up whenever LangSmith is available or its use is waived.
 

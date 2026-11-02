@@ -1,15 +1,15 @@
-"""Installed client and agent entry points keep the local stdio contract usable."""
+"""The installed entry point and stdio client keep the local MCP contract usable."""
 
 import asyncio
 from importlib.metadata import distribution
 
 from openepw.artifacts.store import ArtifactStore
-from openepw.harness.mcp_client import StdioMCPPort
+from openepw.mcp.client import StdioMCPPort
 
 
 def test_installed_entrypoint_and_real_stdio_resource(tmp_path):
     scripts = {entry.name for entry in distribution("openepw").entry_points}
-    assert {"openepw", "openepw-agent"} <= scripts
+    assert "openepw" in scripts
     artifact = ArtifactStore(tmp_path).write(
         "pilot", "check.json", b'{"pilot":true}', "manifest")
 

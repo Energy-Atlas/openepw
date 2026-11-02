@@ -1,4 +1,4 @@
-"""Real local stdio MCP transport for the reference agent."""
+"""A stdio MCP client: starts `openepw mcp` (or a given server) and calls its tools and resources."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 from pydantic import AnyUrl
 
-from ..mcp.approval import approval_callback
+from .approval import approval_callback
 
 
 class MCPToolFailure(Exception):

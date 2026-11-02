@@ -54,9 +54,9 @@ prompt back (press Enter to keep following; `/status` lists the jobs). Jobs run 
 file: `LANGSMITH_TRACING=true` and `LANGSMITH_API_KEY` turn it on. An exported environment
 variable overrides the file, and anything else leaves tracing off, even if LangChain's own
 environment variables say otherwise. `LANGSMITH_PROJECT` overrides the default projects
-(`openepw-agent`, `openepw-web-chat`), and `LANGSMITH_ENDPOINT` selects another LangSmith
-endpoint. Tracing needs the `harness` extra; `openepw chat` says when it is on, or why a
-requested trace cannot start, and the web server logs the same at start-up.
+(`openepw-agent`), and `LANGSMITH_ENDPOINT` selects another LangSmith endpoint. Tracing needs
+the `agent` extra (`harness` is its old name); `openepw chat` says when it is on, or why a
+requested trace cannot start. The web chat (`/v2/agent`) is not traced.
 
 - **Agent chat:** one run per input (message, form answer, upload, mode switch, job
   following), with a child run per model call and per tool call.
@@ -189,7 +189,8 @@ results step runs as in the CLI. The browser follows the session's events and sh
 form by kind (the product dialog with map tags, the location review, the plan review with Run and
 Change, the request summary), an agent/guided switch, "Your request" and Back. Model text is
 rendered as Markdown without raw HTML or images; links open in a new tab without access to the
-page. Chats saved through the old `/v1/chat` routes are left as they are (owner, 2026-11-01).
+page. P5 (2026-11-01) removed the old `/v1/chat` routes; chats saved through them stay on disk
+but cannot be opened (owner, 2026-11-01: no backward compatibility).
 
 The security profile's `limits` apply to web sessions only (all off in `local`):
 
@@ -477,7 +478,7 @@ that a hosted session withholds the flagged message and records a strike (free; 
 
 Run these from the repository root on the guardrail branch. If the virtual environment predates
 the guards, reinstall it so it has `pyyaml`:
-`.venv/Scripts/python.exe -m pip install -e ".[api,mcp,harness]"`. A data root under your temp
+`.venv/Scripts/python.exe -m pip install -e ".[api,mcp,agent]"`. A data root under your temp
 folder keeps test sessions apart from real ones.
 
 **Automated (offline, free)**

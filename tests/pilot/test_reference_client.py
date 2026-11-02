@@ -1,8 +1,9 @@
 import asyncio
 from pathlib import Path
 
-from openepw.harness.agent import AgentIntent, ReferenceAgent
-from openepw.harness.mcp_client import StdioMCPPort
+from reference_client import AgentIntent, ReferenceAgent
+
+from openepw.mcp.client import StdioMCPPort
 
 
 class StubModel:
