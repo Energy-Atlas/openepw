@@ -99,6 +99,7 @@ def spreadsheet_rows(raw, evidence_id):
             or urlsplit(url).hostname != "climate.onebuilding.org"
             or urlsplit(url).scheme != "https"
             or parsed["country"] != values["Country"]
+            or (parsed.get("irregular") and not _same_station(parsed["station_id"], values.get("WMO")))
         ):
             invalid += 1
             continue
@@ -113,6 +114,7 @@ def spreadsheet_rows(raw, evidence_id):
                 lon=lon,
                 elevation_m=number(values.get("Elevation (m)")),
                 evidence_id=evidence_id,
+                **({"file_name_shape": parsed["shape"]} if parsed.get("irregular") else {}),
             )
         )
     return {
@@ -124,15 +126,27 @@ def spreadsheet_rows(raw, evidence_id):
     }
 
 
+def _same_station(station, wmo):
+    """A workbook's WMO cell confirms a station; numeric cells may have lost leading zeros."""
+    text = str(wmo or "").strip()
+    if text.endswith(".0"):
+        text = text[:-2]
+    return text.isdigit() and text.zfill(6) == station
+
+
 def product_identity(url):
     name = unquote(urlsplit(url).path.rsplit("/", 1)[-1])
     # Most files put a dot before the station code; some national families use an underscore
     # (TUR_AA_Adana_173510_TurTMY.zip).
     match = re.fullmatch(r"([A-Z]{3})_([A-Z0-9]+)_(.+)(?:\.([A-Z0-9]{6})|_(\d{6}))_(.+)\.zip", name)
     if not match:
-        return None
+        return irregular_identity(url)
     country, state, name, dotted, underscored, product = match.groups()
     station = dotted or underscored
+    return _identity(country, state, name, station, product)
+
+
+def _identity(country, state, name, station, product, **extra):
     period = re.search(r"(?<!\d)(\d{4}-\d{4})(?!\d)", product)
     return dict(
         country=country,
@@ -141,7 +155,48 @@ def product_identity(url):
         station_id=station,
         product=product,
         period=period.group(1) if period else None,
+        **extra,
     )
+
+
+def irregular_identity(url):
+    """Four rarer file-name shapes (phase 6.1, 2026-11-01), read only when the usual one fails.
+
+    No country and state prefix (``Fort.St.John-North.Peace.Rgnl.AP.719430_CWEC.zip``), a country
+    without a state (``MHL_Kwajalein-Bucholz.AAF.913660_TMY.zip``), no separator before the station
+    (``POL_SL_Katowice.Intl.AP125600_IMGW.zip``) and a dot after the state
+    (``IRN_YA.Shahid.Sadooghi.AP.408210_ITMY.zip``). The country comes from the URL's country folder
+    and must agree with any prefix; the result is marked ``irregular`` so a workbook row is kept
+    only when its WMO column confirms the station. ``shape`` names which of the four it is.
+    """
+    folders = unquote(urlsplit(url).path).strip("/").split("/")
+    name = folders.pop()
+    countries = [(i, f[:3]) for i, f in enumerate(folders)
+                 if re.match(r"[A-Z]{3}_", f) and not f.startswith("WMO_")]
+    if len(countries) != 1:
+        return None
+    index, country = countries[0]
+    if not name.startswith(country + "_") and re.match(r"[A-Z]{3}_", name):
+        return None                                   # another country's prefix
+    below = folders[index + 1] if index + 1 < len(folders) else ""
+    folder_state = re.match(r"([A-Z0-9]{2,3})_", below)
+    match = re.fullmatch(rf"(?:{country}_(?:([A-Z0-9]{{2,3}})([_.]))?)?(.+?)(\.?)(\d{{6}})_([A-Za-z][^/]*)\.zip",
+                         name)
+    if not match:
+        return None
+    state, separator, place, dot, station, product = match.groups()
+    if not dot and not place[-1:].isalpha():          # "AP125600": the station follows a letter
+        return None
+    if not name.startswith(country + "_"):
+        shape = "no_prefix"
+        state = folder_state.group(1) if folder_state else ""
+    elif state is None:
+        shape = "no_state"
+    elif separator == ".":
+        shape = "dot_after_state"
+    else:
+        shape = "no_separator"
+    return _identity(country, state or "", place, station, product, irregular=True, shape=shape)
 
 
 GENERIC_NAMES = {

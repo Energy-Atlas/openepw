@@ -797,6 +797,24 @@ def test_followup_requests_extend_only_their_own_ceilings(tmp_path):
                                                             headers={"If-Modified-Since": "x"}))
 
 
+def test_phase_6_requests_use_their_own_round_and_no_other():
+    m = research()
+    page = m.Request("onebuilding-ctz-page", "onebuilding", "https://climate.onebuilding.org/"
+                     "WMO_Region_4_North_and_Central_America/California_Climate_Zones/index.html", "documentation", "t")
+    shore = m.Request("pvgis-shore-3", "pvgis", "https://re.jrc.ec.europa.eu/api/v5_3/tmy?lat=52.10&lon=4.08",
+                      "probe", "t")
+    assert m.Collector.round_limits(page) is m.ROUND3_LIMITS and m.Collector.onebuilding_request_limit(page) == 70
+    assert m.Collector.round_limits(shore) is m.ROUND3_LIMITS and m.Collector.pvgis_probe_limit(shore) == 19
+    workbook = m.Request("onebuilding-jgmy-xlsx", "onebuilding", "https://climate.onebuilding.org/sources/"
+                         "JGMY_EPW_Processing_locations.xlsx", "inventory", "t")
+    assert m.Collector.round_limits(workbook) is m.FOLLOWUP_LIMITS                 # still the 2026-10-27 round
+    for other in (m.Request("onebuilding-ctz-page", "onebuilding", "https://climate.onebuilding.org/default.html",
+                            "documentation", "t"),                                  # another URL
+                  m.Request("pvgis-shore-10", "pvgis", "https://re.jrc.ec.europa.eu/api/v5_3/tmy?lat=1&lon=2",
+                            "probe", "t")):                                         # not listed
+        assert m.Collector.round_limits(other) is None and not m.Collector.followup(other)
+
+
 def test_followup_ceilings_admit_only_listed_ids_once_stage_1_is_spent(tmp_path):
     m = research()
     land = "https://naciscdn.org/naturalearth/10m/physical/ne_10m_land.zip"
@@ -857,6 +875,35 @@ def test_family_workbooks_accept_underscore_stations_and_tab_joined_rows():
     assert a.product_identity(tur)["product"] == "TurTMY"
     # A dotted station still parses as before.
     assert a.product_identity("https://x/GBR_ENG_London.037720_TMYx.2009-2023.zip")["period"] == "2009-2023"
+
+
+def test_irregular_file_names_need_the_country_folder_and_the_wmo_column():
+    a = importlib.import_module("mcp_research.coordinates")
+    root = "https://climate.onebuilding.org/"
+    cwec = root + "WMO_Region_4_North_and_Central_America/CAN_Canada/BC_British_Columbia/Fort.St.John-North.Peace.Rgnl.AP.719430_CWEC.zip"
+    tmy = root + "WMO_Region_5_Southwest_Pacific/MHL_Marshall_Islands/MHL_Kwajalein-Bucholz.AAF.913660_TMY.zip"
+    imgw = root + "WMO_Region_6_Europe/POL_Poland/SL_Slaskie/POL_SL_Katowice.Intl.AP125600_IMGW.zip"
+    itmy = root + "WMO_Region_2_Asia/IRN_Iran/YA_Yazd/IRN_YA.Shahid.Sadooghi.AP.408210_ITMY.zip"
+    shapes = {url: a.product_identity(url) for url in (cwec, tmy, imgw, itmy)}
+    assert [(p["country"], p["state"], p["name"], p["station_id"], p["product"]) for p in shapes.values()] == [
+        ("CAN", "BC", "Fort.St.John-North.Peace.Rgnl.AP", "719430", "CWEC"),
+        ("MHL", "", "Kwajalein-Bucholz.AAF", "913660", "TMY"),
+        ("POL", "SL", "Katowice.Intl.AP", "125600", "IMGW"),
+        ("IRN", "YA", "Shahid.Sadooghi.AP", "408210", "ITMY"),
+    ]
+    assert all(p["irregular"] for p in shapes.values())
+    # Usual names keep their result and are not marked; a prefix must agree with the folder.
+    assert "irregular" not in a.product_identity(root + "X/GBR_ENG_London.037720_TMYx.2009-2023.zip")
+    assert a.product_identity(root + "WMO_Region_6_Europe/POL_Poland/DEU_Berlin.103840_TMY.zip") is None
+    assert a.product_identity(root + "WMO_Region_6_Europe/POL_Poland/SL_Slaskie/POL_SL_Area51.125600_X.zip")
+    assert a.product_identity(root + "WMO_Region_6_Europe/POL_Poland/POL_SL_Area5125600_X.zip") is None
+    header = ["Country", "City/Station", "WMO", "Latitude (N+/S-)", "Longitude (E+/W-)", "URL"]
+    rows = a.spreadsheet_rows(_sheet([
+        header, ["CAN", "Fort St John", "719430", "56.23", "-120.73", cwec],
+        ["MHL", "Kwajalein", "913660", "8.73", "167.73", tmy],
+        ["POL", "Katowice", "125601", "50.23", "19.03", imgw],              # WMO disagrees: left out
+    ]), "synthetic")
+    assert [r["station_id"] for r in rows["rows"]] == ["719430", "913660"] and rows["invalid_rows"] == 1
 
 
 def test_family_variants_and_future_files():

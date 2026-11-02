@@ -43,8 +43,7 @@ def test_named_datasets_are_discovered():
     assert [c.source.dataset for c in found("himawari7")] == ["himawari7"]
     assert [c.source.dataset for c in found("msg-iodc", years=(2018,))] == ["msg-iodc"]
     assert found("himawari7", years=(2018,)) == []                       # not a listed year
-    [himawari8] = found("himawari", years=(2018,))
-    assert "re-binned" in himawari8.warnings[0]
+    assert found("himawari", years=(2018,)) == []                        # Himawari-8 withdrawn 2026-11-01
     [typical] = found("himawari-tmy", product="tmy", years=())
     assert typical.product_id == "tmy-2020"
     assert found(None, years=(2015,)) == []                              # GOES stays the default
@@ -60,7 +59,7 @@ def test_hourly_labels_must_be_interval_centres():
 
 def test_the_catalog_and_the_adapter_agree_on_supported_datasets():
     assert NSRDB_ADAPTED == set(DATASETS)
-    assert "himawari" in DATASETS
+    assert "himawari" not in DATASETS                                    # catalogued, not downloaded
 
 
 def test_himawari_8_samples_keep_their_instants_and_irradiance_is_re_binned():

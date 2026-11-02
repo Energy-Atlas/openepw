@@ -1,5 +1,15 @@
 # NSRDB / NLR
 
+## Himawari-8 withdrawn — 2026-11-01 (phase 6.4)
+
+- **Re-binning checked at three more places** against 10-minute years: Sapporo 2019 (hourly RMSE
+  9.86%) and Honolulu 2020 (8.25%) pass; **Auckland 2017 fails** (12.64% of mean daylight GHI,
+  above the fixed 10%). Annual GHI stays within 0.5% everywhere.
+- **Withdrawn from downloads** by the owner's 2026-10-27 rule: the catalog lists Himawari-8 as an
+  upstream product with its probe entries; the adapter does not request it. The owner confirmed
+  the withdrawal on 2026-11-02 (rather than a warning, or hours built from 10-minute data). See the
+  [record](../validation/availability-round-3-2026-11-01/README.md).
+
 ## Himawari-8 — 2026-10-27
 
 - **Downloaded, hourly only** (owner decisions Q1, Q2). Its hourly rows are instantaneous samples

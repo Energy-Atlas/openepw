@@ -20,8 +20,11 @@ fetches anything.
         [--land ne_10m_land.zip]
 
 With ``--land`` (availability follow-ups 2026-10-27, item 6d), the mask gains ``refine``: fine
-cells of the edge band that are at least one fine cell inland on Natural Earth's 1:10m land
-(``coast.py``). A point there is inside; other edge points stay unknown.
+cells of the edge band near Natural Earth's 1:10m land (``coast.py``). A point there is inside;
+other edge points stay unknown. Phase 6.3 (2026-11-01): PVGIS served every near-shore probe from
+1.4 to 12.8 km off Natural Earth land on four coasts (SARAH3 and ERA5 radiation) and refused the
+North Sea 16.4 km out, so a fine cell counts when its centre is within ``SHORE_KM`` of a land
+cell's centre, on land or at sea. Until then it had to be one fine cell inland.
 """
 
 from __future__ import annotations
@@ -35,7 +38,7 @@ from pathlib import Path
 
 import numpy as np
 
-from scripts.mcp_availability_map.coast import FINE, inland, land_rows, polygon_edges
+from scripts.mcp_availability_map.coast import FINE, land_rows, polygon_edges
 from scripts.mcp_availability_map.era5land_mask import SOURCE_URL, decode
 
 LAND_URL = "https://naciscdn.org/naturalearth/10m/physical/ne_10m_land.zip"
@@ -43,6 +46,7 @@ LAND_URL = "https://naciscdn.org/naturalearth/10m/physical/ne_10m_land.zip"
 GATES = ("pvgis:PVGIS TMY",)
 LAND = 0.5
 SEA_KM = 50.0
+SHORE_KM = 6.0                   # within every probed coast's served distance (phase 6.3)
 EARTH_KM_PER_DEGREE = 111.195
 INNER = (-59.9, 74.9)            # cell centres inside the PVGIS grid (60 S to 75 N)
 OUTER = (-60.5, 75.5)            # beyond these, nothing is served
@@ -54,9 +58,12 @@ CHECKS = {
     "North Sea": (52.30, 4.20, "edge"), "Svalbard": (78.22, 15.65, "outside"),
     "Antarctica": (-75.0, 0.0, "outside"), "Mid-Pacific": (0.0, -150.0, "outside"),
 }
-# The refinement's probes (2026-10-27, item 6d): both returned a TMY; only the land point is
-# inside through the refinement, the near-shore sea point stays in the edge band.
-REFINE_CHECKS = {"Cape Town": (-33.925, 18.424, True), "Table Bay": (-33.89, 18.45, False)}
+# The refinement's probes: Cape Town and Table Bay (2026-10-27, item 6d) and the phase 6.3 sea
+# probes within SHORE_KM (served) are inside; the North Sea point 16.4 km out (refused) and the
+# Dutch probe 12.8 km out (served, beyond the rule) stay in the edge band.
+REFINE_CHECKS = {"Cape Town": (-33.925, 18.424, True), "Table Bay": (-33.89, 18.45, True),
+                 "Dutch coast 3.6 km": (52.10, 4.20, True), "Honolulu 4.0 km": (21.25, -157.86, True),
+                 "North Sea 16.4 km": (52.30, 4.20, False), "Dutch coast 12.8 km": (52.10, 3.95, False)}
 # Checked only when station positions are given: atolls ERA5-Land does not resolve.
 ATOLLS = {"Male": (4.175, 73.509), "Funafuti": (-8.52, 179.2)}
 
@@ -167,8 +174,8 @@ def runs_of(cells: np.ndarray) -> list[list[int]]:
 
 
 def refine(edge: np.ndarray, step: float, land_zip: bytes, chunk: int = 512) -> list[list[int]]:
-    """Fine-cell runs (corner origin, ``FINE`` degrees) inside the edge band that are inland on
-    Natural Earth land, within the PVGIS latitudes."""
+    """Fine-cell runs (corner origin, ``FINE`` degrees) inside the edge band whose centre is within
+    ``SHORE_KM`` of a Natural Earth land cell's centre, within the PVGIS latitudes."""
     per = round(step / FINE)
     if abs(per * FINE - step) > 1e-9 or per % 2:
         raise ValueError("the fine grid must split each cell evenly")
@@ -179,11 +186,13 @@ def refine(edge: np.ndarray, step: float, land_zip: bytes, chunk: int = 512) -> 
     coarse_columns = np.round((centres_x + 180) / step).astype(np.int64) % edge.shape[1]
     first = int(math.floor((INNER[0] - step / 2 + 90) / FINE))
     last = int(math.ceil((INNER[1] + step / 2 + 90) / FINE))
+    pad = int(math.ceil(SHORE_KM / (EARTH_KM_PER_DEGREE * FINE)))
     runs: list[list[int]] = []
     for start in range(first, last, chunk):
         stop = min(start + chunk, last)
-        rows = range(max(start - 1, 0), min(stop + 1, total))
-        core = inland(land_rows(edges, rows))
+        rows = range(max(start - pad, 0), min(stop + pad, total))
+        fine_lats = -90 + (np.arange(rows.start, rows.stop) + 0.5) * FINE
+        core = near(land_rows(edges, rows), fine_lats, FINE, SHORE_KM)
         for index, row in enumerate(rows):
             if not start <= row < stop:
                 continue
@@ -238,7 +247,8 @@ def build(grib: Path, footprints: Path, analysis: Path | None = None, land: Path
                              "analysis_sha256": hashlib.sha256(analysis.read_bytes()).hexdigest() if analysis else None},
         "documentation": "JRC139355, PVGIS 5.3 Dataset Update (2024), Table 1 and sections 3.1-3.2",
         "checked_by": ["pvgis-london", "pvgis-ithaca", "pvgis-atlantic", "pvgis-northsea-r1",
-                       "pvgis-svalbard", "pvgis-lake-victoria", "pvgis-coast-land", "pvgis-coast-sea"],
+                       "pvgis-svalbard", "pvgis-lake-victoria", "pvgis-coast-land", "pvgis-coast-sea",
+                       *(f"pvgis-shore-{n}" for n in range(1, 10))],
         "built_at": datetime.now(timezone.utc).isoformat(), "native_crs": "EPSG:4326",
         "native_longitude_convention": "0_to_360", "grid_points": int(field.size),
         "inside_points": int(inside.sum()), "edge_points": int(edge.sum()),
@@ -246,7 +256,8 @@ def build(grib: Path, footprints: Path, analysis: Path | None = None, land: Path
         "mask_sha256": hashlib.sha256(raw).hexdigest(), "stale": False, "gates": list(GATES),
         **({"refine": {"source_file_id": LAND_URL, "source_sha256": hashlib.sha256(land_bytes).hexdigest(),
                        "evidence_id": "naturalearth-10m-land", "license": "Natural Earth: public domain",
-                       "basis": "Natural Earth 1:10m land, fine cell and its eight neighbours on land",
+                       "basis": (f"Natural Earth 1:10m land: fine cells whose centre is within {SHORE_KM:g} km of "
+                                 "a land cell's centre (phase 6.3 probes)"),
                        "step_degrees": FINE, "runs": len(mask["refine"]["runs"]),
                        "cells": sum(b - a for _, a, b in mask["refine"]["runs"])}} if land_bytes else {})}]}
     (folder / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")

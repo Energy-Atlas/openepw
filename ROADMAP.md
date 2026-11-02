@@ -96,9 +96,11 @@ SHA-256 ([Render guide](docs/deploy/render.md), section 1).
 | 2026.10.13 | All OneBuilding TMYx regions; NSRDB satellite masks; ERA5 masks; catalog auto-upgrade | [coverage plan](docs/superpowers/plans/2026-10-13-availability-coverage.md), [record](docs/validation/availability-coverage-2026-10-13/README.md) |
 | 2026.10.13.2 | PVGIS 5.3 domain mask; NSRDB years per mask; ERA5-Land points with values. Pushed, never pinned | [gaps plan](docs/superpowers/plans/2026-10-13-availability-gaps.md), [record](docs/validation/availability-gaps-2026-10-13/README.md) |
 | 2026.10.27 | 17 OneBuilding national and special families; NSRDB Himawari-8 (re-binned); PVGIS coastal refinement; ERA5 poles. Pinned on staging 2026-10-30 | [record](docs/validation/availability-followups-2026-10-27/README.md) |
+| 2026.11.01 | Phase 6: CTZ2016/2022/2025 and LuxTMY, rarer OneBuilding file names, PVGIS near-shore sea, Himawari-8 upstream only. Local branch, not pushed | [record](docs/validation/availability-round-3-2026-11-01/README.md) |
 
 Serving memory work: [catalog memory record](docs/validation/2026-10-13-catalog-memory.md).
-Remaining gaps are phase 6.
+Still open: GHCNh (deferred), Himawari-8's method (owner decision), and OneBuilding files whose
+published paths fail.
 
 ## Hosted deployment
 
