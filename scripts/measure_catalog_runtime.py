@@ -68,7 +68,6 @@ def measure_memory(data_root: Path, rounds: int) -> None:
     from fastapi.testclient import TestClient
 
     from openepw.api.app import create_app
-    from openepw.chat.coordinator import OfflineParser
     from openepw.config import RuntimeConfig
     from openepw.service import WeatherService
 
@@ -78,7 +77,7 @@ def measure_memory(data_root: Path, rounds: int) -> None:
     service.catalog_store.active()
     report("catalog index loaded", started)
     random.seed(1)
-    with TestClient(create_app(service, chat_parser=OfflineParser())) as client:
+    with TestClient(create_app(service)) as client:
         report("app started (warm-up included)", started)
         for round_ in range(rounds):
             for _ in range(5):
@@ -120,7 +119,7 @@ def measure_http(port: int, data_root: Path) -> None:
                       f"{len(response.content) / 1e6:6.2f} MB  {response.headers.get('content-encoding', '-')}")
                 return response
 
-            timed("POST /v1/chat/sessions", "POST", "/v1/chat/sessions")
+            timed("POST /v2/agent/sessions", "POST", "/v2/agent/sessions")
             first = timed("GET /v1/catalog/map (first)", "GET", "/v1/catalog/map")
             timed("GET /v1/catalog/map (second)", "GET", "/v1/catalog/map")
             etag = first.headers.get("etag")
