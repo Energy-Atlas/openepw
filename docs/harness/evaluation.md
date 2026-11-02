@@ -1,5 +1,11 @@
 # Reference agent evaluation rubric (frozen before harness tuning)
 
+> **Retired (2026-11-01, P5):** the `openepw-agent` reference agent and the `openepw-chat`
+> console described here were removed. The chat is `openepw chat` and the browser, both on the
+> agent core ([agent README](../agent/README.md)); see the [P5 plan](../superpowers/plans/2026-11-01-retire-v1-chat.md).
+> This page is kept as history.
+
+
 Date: 2026-09-25. Tests under `tests/harness/` define the fixed deterministic
 rubric. Every critical rule must pass; the remaining tool-order/explanation
 checks must pass at least 9 of 10 points for local acceptance. The score

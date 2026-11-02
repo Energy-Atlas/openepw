@@ -39,7 +39,7 @@ Visualization currently prepares hourly time series, annual and monthly
 series, histograms and spatial views. Other families appear as `planned` in
 capabilities and return `VISUALIZATION_UNSUPPORTED`. Result pages are JSON,
 not plotted graphics. The standard CLI accepts an explicit JSON request.
-`openepw-chat` routes simple hourly, annual, monthly, histogram and spatial
+The chat's guided mode routes simple hourly, annual, monthly, histogram and spatial
 requests using the current completed EPWs; source filtering, advanced options
 and multi-action analytical turns still require explicit MCP or CLI requests.
 Uploaded EPWs retain unverified year/provider identity, and multi-artifact
@@ -182,8 +182,8 @@ accounts a person is a client address, which a spoofed `X-Forwarded-For` header 
 Moderation sends message text to OpenAI's moderation endpoint (also in guided mode) when a
 profile enables it. Map-input values and choice ids in form answers are not moderated. Host
 small-talk replies match whole messages only; other conversation is left to the model, which
-may still misjudge it. The legacy `/v1/chat/*` and
-`openepw-chat` paths have none of these guards.
+may still misjudge it. The web agent chat (`/v2/agent`) is not traced to LangSmith; only
+`openepw chat` is.
 
 After a run, guided mode reads follow-ups ("what did I get", "download the 2016 file", "retry")
 with fixed patterns; other wording falls back to the request rules. A CLI download reads files

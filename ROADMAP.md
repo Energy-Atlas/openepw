@@ -79,7 +79,8 @@ Weather equivalence between sources is not verified.
   was approved on 2026-10-31 and merged (request parts, the request summary and per-part Change).
 - **Web chat on the agent core, P4** (2026-11-01): the browser chat renders agent sessions through
   `/v2/agent` with per-person limits and spend caps. See the [P4 plan](docs/superpowers/plans/2026-11-01-agent-web-chat.md).
-  P5 retires the legacy `/v1/chat` routes.
+  P5 (2026-11-01) removed the legacy `/v1/chat` routes, the `openepw-chat` console and the
+  `openepw-agent` reference agent ([P5 plan](docs/superpowers/plans/2026-11-01-retire-v1-chat.md)).
 - **Conversations after a download, phase 5** (2026-11-01): files listed from verified manifests,
   download offers, retry through a form, data questions from prepared views and the month-of-year
   profile. See the [phase 5 plan](docs/superpowers/plans/2026-11-01-post-download-conversations.md).

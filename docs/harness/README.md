@@ -1,5 +1,11 @@
 # Local reference agent
 
+> **Retired (2026-11-01, P5):** the `openepw-agent` reference agent and the `openepw-chat`
+> console described here were removed. The chat is `openepw chat` and the browser, both on the
+> agent core ([agent README](../agent/README.md)); see the [P5 plan](../superpowers/plans/2026-11-01-retire-v1-chat.md).
+> This page is kept as history.
+
+
 ## Interactive console chat
 
 From the repository root, install the optional harness and start a local chat:

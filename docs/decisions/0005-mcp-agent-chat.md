@@ -5,7 +5,7 @@ Date: 2026-10-05. Status: design agreed with the owner on 2026-10-04/05; P1
 (agent core, guided mode, CLI) implemented on feature/mcp-agent-core; P3
 (agent mode, model port, evals) implemented on feature/mcp-agent-mode; P4 (web
 renderer, `/v2/agent`, limits) implemented 2026-11-01 on feature/agent-web-chat; P5
-pending. In the openepw host's agent mode, `weather_locations_review` and
+(legacy chat retired) implemented 2026-11-01 on feature/retire-v1-chat. In the openepw host's agent mode, `weather_locations_review` and
 `weather_product_offers` are reached only through the `review_location` and
 `choose_products` ask-tools, so every review shows the person a form; the MCP
 access classes for external clients are unchanged. Full design:
@@ -107,4 +107,4 @@ server's loop. Parity tests run the same scenarios through the CLI loop and thro
 compare form kinds and tool calls. The security profile's `limits` (per person: sessions per
 hour, inputs per minute, running jobs; spend per session, per person per day and in total per
 day) apply to web sessions. Sessions saved through `/v1/chat` are not migrated (owner,
-2026-11-01); P5 retires those routes.
+2026-11-01); P5 removed those routes (2026-11-01).
