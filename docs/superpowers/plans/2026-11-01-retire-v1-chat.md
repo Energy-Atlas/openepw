@@ -70,3 +70,9 @@ with the legacy parser and timed `POST /v1/chat/sessions`, failed lint on the me
 `fix/measure-script-after-p5` (it now times `POST /v2/agent/sessions`). Before P5 the Ubuntu and
 Windows test jobs on `main` had been failing on the pilot call budget (`assert 40 <= 30` on
 `4d79309`), the test section 2 fixes; on the P5 merge all 1,047 tests passed on Ubuntu 3.11.
+
+**Staging CI.** One Ubuntu 3.11 job on the staging merge (`568b00b`) failed
+`test_running_jobs_limit_is_checked_at_run_and_retry` (phase 5): `host.create` starts the session's
+first step in a worker thread, which can open its own form after the test has set the retry form.
+The test now waits until the session is idle (`fix/web-host-test-race`). The other jobs passed;
+`main` (`217e4fb`) passed all seven.
