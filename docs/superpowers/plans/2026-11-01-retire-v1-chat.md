@@ -63,3 +63,10 @@ skipped, 0 failed in 15 minutes, run alongside the evals; the pilot journey that
 its budget under load passed. Offline evals: lint 55 tasks, 0 errors; guided 34/34 and scripted
 agent 55/55 under `local` and `hosted`; mutations 20 of 20 caught. No live model run. The web
 client is unchanged, so vitest and the build were not rerun on this branch.
+
+**CI after the merge.** GitHub CI lints the whole repository (`ruff check .`); the local checks
+covered `src` and `tests` only, so `scripts/measure_catalog_runtime.py`, which still built the app
+with the legacy parser and timed `POST /v1/chat/sessions`, failed lint on the merge. Fixed on
+`fix/measure-script-after-p5` (it now times `POST /v2/agent/sessions`). Before P5 the Ubuntu and
+Windows test jobs on `main` had been failing on the pilot call budget (`assert 40 <= 30` on
+`4d79309`), the test section 2 fixes; on the P5 merge all 1,047 tests passed on Ubuntu 3.11.
