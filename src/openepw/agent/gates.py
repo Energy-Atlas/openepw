@@ -111,3 +111,23 @@ def check_plan_request(facts: Facts, request: dict[str, Any]) -> dict[str, Any]:
                                               "confirmed them; show the request summary")
     return {**match, "dataset_selections": proposed or match["dataset_selections"],
             "years": (years or match["years"]) if historical else []}
+
+
+def check_plan_requests(facts: Facts, request: dict[str, Any]) -> list[dict[str, Any]]:
+    """check_plan_request for a proposal that spans the host's request groups.
+
+    Copernicus CDS selections plan apart from the others (see build_requests), so one proposal
+    with both is split into one checked request per group instead of being refused as a product
+    the person did not choose (staging, 2026-11-02: ERA5 on Open-Meteo and CDS together).
+    """
+    approved = build_requests(facts)
+    historical = request.get("product", "historical") == "historical"
+    proposed = [_selection(item) for item in request.get("dataset_selections") or []]
+    groups = [item for item in approved if (item["product"] == "historical") == historical
+              and any(selection in item["dataset_selections"] for selection in proposed)]
+    if len(groups) < 2:
+        return [check_plan_request(facts, request)]
+    if not all(any(selection in group["dataset_selections"] for group in groups) for selection in proposed):
+        raise GateRequired("choose_products", "The plan's product or datasets differ from the person's choice")
+    return [check_plan_request(facts, {**request, "product": group["product"], "dataset_selections": [
+        selection for selection in proposed if selection in group["dataset_selections"]]}) for group in groups]

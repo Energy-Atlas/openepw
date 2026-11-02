@@ -63,7 +63,10 @@ export function FormDock({ snapshot, busy, checked, pendingChoice, onPendingChoi
     </section>}
     {busy && <p className="dock-status" role="status" aria-label="Working">Working…</p>}
     {snapshot.ended ? null : <form className="composer" onSubmit={send} aria-label="Reply">
-      {!textReply && !busy && <div className="reply-options" role="group" aria-label="Reply options">
+      {/* The product dialog is its own panel: reply-options pill styles would reach its info buttons. */}
+      {!textReply && !busy && kind === 'product_choice' && <ProductDialog options={offers} selected={checked} busy={busy}
+        onToggle={onToggleProduct} onType={() => setTyping(true)} onConfirm={() => onAnswer({ choice_ids: checked })} />}
+      {!textReply && !busy && kind !== 'product_choice' && <div className="reply-options" role="group" aria-label="Reply options">
         {kind === 'choice' && <>
           {form!.options.map((option, index) => places
             ? <span className="option-row" key={option.id}>
@@ -85,8 +88,6 @@ export function FormDock({ snapshot, busy, checked, pendingChoice, onPendingChoi
             onClick={() => onAnswer({ choice_ids: picked })}><TickIcon />Confirm</button>}
           {form!.allow_text && <button className="reply-alt" type="button" onClick={() => setTyping(true)}>Other — type an answer</button>}
         </>}
-        {kind === 'product_choice' && <ProductDialog options={offers} selected={checked} busy={busy}
-          onToggle={onToggleProduct} onType={() => setTyping(true)} onConfirm={() => onAnswer({ choice_ids: checked })} />}
         {kind === 'plan_review' && <>
           <button className="reply-primary" type="button" onClick={() => onAnswer({ approve: true })}>
             <TickIcon />Run reviewed plan</button>

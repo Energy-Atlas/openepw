@@ -29,6 +29,15 @@ function styleParsed(map: MapLibreMap | null): map is MapLibreMap {
   return Boolean(map?.getStyle())
 }
 
+/** True on or within `margin` pixels of the chat's header, messages or dock. */
+export function nearChat(x: number, y: number, margin = 16): boolean {
+  return [...document.querySelectorAll('.chat-header, .chat-transcript, .chat-dock')].some(element => {
+    const box = element.getBoundingClientRect()
+    return box.width > 0 && box.height > 0 && x >= box.left - margin && x <= box.right + margin
+      && y >= box.top - margin && y <= box.bottom + margin
+  })
+}
+
 export function MapCanvas({ location, candidates = [], geography, resolvedPoints = [], availability, catalogMap, years = [],
   pickMode = false, onExitPickMode, onPickPoint, onPickCandidate, onPickGeometry,
   pendingCandidate = null, onConfirmCandidate, productAvailability = null, selectedProducts = [], onToggleProduct,
@@ -190,6 +199,13 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
       const hideHover = () => { window.clearTimeout(hoverTimer); setHover(null) }
       sceneMap.on('mousemove', event => {
         const canvas = sceneMap.getCanvas()
+        const pointer = event.originalEvent as MouseEvent | undefined
+        if (pointer && nearChat(pointer.clientX, pointer.clientY)) {
+          // The chat's gaps let the map through; next to it the cursor is for the chat, not a query.
+          canvas.style.cursor = 'var(--oe-cursor)'
+          hideHover()
+          return
+        }
         const overCandidate = sceneMap.getLayer('openepw-candidates')
           && sceneMap.queryRenderedFeatures(event.point, { layers: ['openepw-candidates'] }).length > 0
         canvas.style.cursor = overCandidate ? 'var(--oe-cursor-pointer)' : ''

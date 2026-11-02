@@ -167,6 +167,8 @@ describe('answers', () => {
     const api = fakeApi(state)
     render(<App api={api} />)
     const dialog = await screen.findByRole('region', { name: 'Choose weather products' })
+    // Its own panel, not inside the reply pills (staging, 2026-11-02: pill styles reached the info icons).
+    expect(dialog.closest('.reply-options')).toBeNull()
     expect(within(dialog).getByText('Actual year')).toBeInTheDocument()
     const first = within(dialog).getByRole('checkbox', { name: base.offers[0].label })
     expect(first).toBeChecked()

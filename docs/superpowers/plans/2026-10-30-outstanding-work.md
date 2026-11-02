@@ -360,3 +360,20 @@ next phase once it is on staging. Until then:
   a run, a partial result, listing files, a download link, the retry form and a retry, and a data
   question in agent mode. All of these passed offline and in a local browser check.
 - The next phase's report lists these checks again with the new phase's, so they are not lost.
+
+### Signed-in staging check (owner, 2026-11-02)
+
+After phase 6 and the 2026.11.01 catalog pin reached staging, the owner ran the deferred check in
+agent mode ("singapore 2018", then Syracuse, NY, choosing ERA5 on Open-Meteo, ERA5 on CDS and
+ERA5-Land on Open-Meteo) and reported five problems. Fixed on `fix/agent-chat-staging-test`:
+
+| Report | Cause | Fix |
+|---|---|---|
+| Asked twice for the products, then a dead end | The host plans Copernicus CDS apart from the other products; the model's single plan with both was refused as a product the person had not chosen, so the model asked again, then stopped with "choose in the product form" and no form open | `gates.check_plan_requests` splits such a plan by group and the model loop plans each part; a turn the model ends in words when every choice is made gets the plan review from the host (guided mode's step) |
+| The place choice had no map preview or tick | The model's `ask_choice` form carried no coordinates, so the browser drew plain buttons | The host keeps the model's latest geocoder candidates; a choice whose options are all among them carries their coordinates (`form.data.places`), and the snapshot lists them, so the numbered preview, the fly-to and the confirm tick return |
+| Product form looked broken | P4 put the product dialog inside the reply-pill group, whose button styles reached the info icons | The dialog renders on its own again |
+| Agent mode, Your request and Back not clickable | The chat rail lets clicks through to the map; its header never took them back | `.chat-header > *` takes pointer events, as the dock does |
+| Map availability queries next to the chat | The rail's gaps pass the pointer to the map | No hover query (and the normal cursor) on or within 16 px of the chat's header, messages or dock |
+
+Still untested signed in on staging after the fix: the rest of the list above (a run, a partial
+result, files, a download link, a retry and a data question in agent mode).
