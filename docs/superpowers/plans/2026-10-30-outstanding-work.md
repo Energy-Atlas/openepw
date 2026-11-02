@@ -13,7 +13,8 @@ prerequisites listed for it.
 | P4 | Added 2026-11-01 (web chat on the agent core); built on `feature/agent-web-chat`, see its [plan](2026-11-01-agent-web-chat.md) §4; merged into `main` and `deploy/staging` |
 | 5 | Approved 2026-11-01 (retry added, small live check, merge when done); built on `feature/post-download-conversations`, see its [plan](2026-11-01-post-download-conversations.md) §5; merged into `main` and `deploy/staging` |
 | P5 | Added 2026-11-01 (retire the legacy chat); built on `feature/retire-v1-chat`, see its [plan](2026-11-01-retire-v1-chat.md) |
-| 6–7 | Not started |
+| 6 | Started 2026-11-01 ("Do phase 6 now"; suggested budget, GHCNh still deferred); built on `feature/availability-round-3`, see its [plan](2026-11-01-availability-round-3.md) |
+| 7 | Not started |
 
 This list replaces the scattered open items in the older plans. Each item names its source so that
 detail stays where it was first written.

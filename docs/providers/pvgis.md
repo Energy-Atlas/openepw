@@ -1,5 +1,17 @@
 # PVGIS
 
+## Near-shore sea — 2026-11-01 (phase 6.3)
+
+- **Probes.** Nine sea points 3.6 to 12.8 km off Natural Earth land (the Netherlands, Cape Town,
+  Honolulu, Marseille) all returned a TMY, SARAH3 or ERA5 by location. The North Sea point refused
+  in 2026-10 is 16.4 km out by the same measure.
+- **Rule.** Inside the mask's unknown band, a fine cell (0.0125°) is inside when its centre is
+  within 6 km of a Natural Earth land cell's centre, on land or at sea. Every probed coast was
+  served at 6.2 km or more. It replaces the 2026-10-27 rule (at least one fine cell inland).
+- **Effect.** Unknown published station positions inside 60° S–75° N: 13.7% → 3.5%. Lisbon,
+  Venice, Auckland and Kwajalein become supported. The mask grows to 5.2 MB (1.2 MB gzipped).
+  See the [record](../validation/availability-round-3-2026-11-01/README.md).
+
 ## Coasts — 2026-10-27
 
 - **Refinement.** Inside the mask's unknown band, a point is inside when Natural Earth's 1:10m land
