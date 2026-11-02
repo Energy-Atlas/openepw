@@ -2,7 +2,9 @@
 
 `openepw.agent` is one conversation core for the CLI and the web chat (P4). It is a real
 MCP client of the local openepw server over the SDK's in-memory transport and never calls the
-weather service directly. It has two modes with the same forms and host guard-rails:
+weather service directly. For how the MCP server, the agent's state, context, memory, guards,
+tool calls and evals fit together, see the [architecture guide](architecture-guide.md). It has
+two modes with the same forms and host guard-rails:
 
 - **Agent mode** (P3): a tool-calling model reads the conversation, calls the server's model
   tools and the host's ask-tools, and answers in words.
