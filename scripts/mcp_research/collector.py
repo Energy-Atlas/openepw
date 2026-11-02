@@ -101,6 +101,30 @@ FOLLOWUP_2026_10_27 = {
 FOLLOWUP_LIMITS = {"metadata": 100, "probe": 25, "total_bytes": 240_000_000, "onebuilding": 55,
                    "pvgis": 10, "naturalearth_bytes": 10_000_000}
 
+# Phase 6 (availability round 3, started 2026-11-01 with the outstanding-work plan's suggested
+# budget): these exact IDs, URLs and kinds, and one justified -r1 revision each, may use metadata
+# 133, probes 34, 344 MB in total, OneBuilding attempts 70 and PVGIS probes 19. Navigation pages
+# are added here, and in the phase 6 plan, before each is requested.
+_PVGIS_TMY = "https://re.jrc.ec.europa.eu/api/v5_3/tmy"
+ROUND3_WORKBOOKS = ("CTZ2016", "CTZ2022", "CTZ2025", "LuxTMY", "ITMY")
+ROUND3_2026_11_01 = {
+    "onebuilding-sources-r20261101": ("documentation", _OB + "default.html"),
+    **{f"onebuilding-{name.lower()}-xlsx-r20261101":
+       ("inventory", f"{_OB}{name}_EPW_Processing_locations.xlsx") for name in ROUND3_WORKBOOKS},
+    "onebuilding-home": ("documentation", "https://climate.onebuilding.org/default.html"),
+    # Pages linked from the home page, recorded before each request (phase 6.2).
+    "onebuilding-region4-page": ("documentation", "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/default.html"),
+    "onebuilding-region6-page": ("documentation", "https://climate.onebuilding.org/WMO_Region_6_Europe/default.html"),
+    "onebuilding-region2-page": ("documentation", "https://climate.onebuilding.org/WMO_Region_2_Asia/default.html"),
+    "onebuilding-ctz-page": ("documentation", "https://climate.onebuilding.org/WMO_Region_4_North_and_Central_America/California_Climate_Zones/index.html"),
+    "onebuilding-lux-page": ("documentation", "https://climate.onebuilding.org/WMO_Region_6_Europe/LUX_Luxembourg/index.html"),
+    "onebuilding-irn-page": ("documentation", "https://climate.onebuilding.org/WMO_Region_2_Asia/IRN_Iran/index.html"),
+    # 6.3: sea points at measured distances from Natural Earth 1:10m land (phase 6 plan).
+    **{f"pvgis-shore-{n}": ("probe", _PVGIS_TMY) for n in range(1, 10)},
+}
+ROUND3_LIMITS = {"metadata": 133, "probe": 34, "total_bytes": 344_000_000, "onebuilding": 70,
+                 "pvgis": 19}
+
 
 @dataclass(frozen=True)
 class Limits:
@@ -305,22 +329,32 @@ class Collector:
         return record
 
     @staticmethod
-    def followup(request):
-        """True for an exact 2026-10-27 follow-up request (or its one -r1 revision)."""
+    def round_limits(request):
+        """The approved limits of the round an exact request (or its one -r1 revision) belongs to:
+        phase 6 (2026-11-01) or the 2026-10-27 follow-ups; None for other requests."""
         base = request.revision_of if request.id.endswith("-r1") and request.revision_of else request.id
-        if request.id not in (base, base + "-r1") or base not in FOLLOWUP_2026_10_27:
-            return False
-        kind, url = FOLLOWUP_2026_10_27[base]
-        address = request.url if kind != "probe" else public_url(request.url)
-        return request.kind == kind and address == url
+        if request.id not in (base, base + "-r1"):
+            return None
+        for allowed, limits in ((ROUND3_2026_11_01, ROUND3_LIMITS), (FOLLOWUP_2026_10_27, FOLLOWUP_LIMITS)):
+            if base in allowed:
+                kind, url = allowed[base]
+                address = request.url if kind != "probe" else public_url(request.url)
+                return limits if request.kind == kind and address == url else None
+        return None
+
+    @classmethod
+    def followup(cls, request):
+        """True for an exact request of an approved follow-up round (2026-10-27 or phase 6)."""
+        return cls.round_limits(request) is not None
 
     def total_bytes(self, request):
-        return FOLLOWUP_LIMITS["total_bytes"] if self.followup(request) else self.limits.total_bytes
+        limits = self.round_limits(request)
+        return limits["total_bytes"] if limits else self.limits.total_bytes
 
     @classmethod
     def onebuilding_request_limit(cls, request):
         if cls.followup(request) and request.provider == "onebuilding":
-            return FOLLOWUP_LIMITS["onebuilding"]
+            return cls.round_limits(request)["onebuilding"]
         return cls._onebuilding_request_limit(request)
 
     @staticmethod
@@ -376,7 +410,7 @@ class Collector:
     def pvgis_probe_limit(cls, request):
         """Stage 1 allowed 2; the 2026-10-13 gaps plan (P1) allows 7 for its exact probes."""
         if cls.followup(request):
-            return FOLLOWUP_LIMITS["pvgis"]
+            return cls.round_limits(request)["pvgis"]
         return 7 if cls.pvgis_gap_probe(request) else 2
 
     @staticmethod
@@ -432,7 +466,7 @@ class Collector:
         if self.nsrdb_edge_probe(request):
             ceiling = 23                                   # owner-approved N1 extension
         if self.followup(request):
-            ceiling = FOLLOWUP_LIMITS[category]            # owner-approved 2026-10-27 budget
+            ceiling = self.round_limits(request)[category]  # the round's approved budget
 
         context = truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
         for _ in range(4):
@@ -536,7 +570,9 @@ class Collector:
                                     outcome = "redirect"
                             elif not response.is_success:
                                 outcome = "http_error"
-                                if self.pvgis_gap_probe(request) and 400 <= response.status_code < 500:
+                                pvgis_probe = self.pvgis_gap_probe(request) or (
+                                    self.followup(request) and request.provider == "pvgis")
+                                if pvgis_probe and 400 <= response.status_code < 500:
                                     async for chunk in response.aiter_bytes(chunk_size=4096):
                                         hop["bytes_read"] += len(chunk)
                                         body.extend(chunk)

@@ -12,7 +12,7 @@ from urllib.parse import urljoin, urlsplit
 
 from .archives import directory_location, member_names, membership_summary, site_years
 from .collector import atomic_json
-from .coordinates import coordinate_matches, spreadsheet_rows
+from .coordinates import coordinate_matches, product_identity, spreadsheet_rows
 from .reviews import annotate, load_registry
 from .sources import LOCATIONS, PROVIDERS, VARIABLES
 
@@ -28,11 +28,24 @@ TMYX_WORKBOOKS = (
 # bare .epw files, which the adapter does not fetch, so its workbook adds no product. Families whose
 # live check (O4) failed stay out, since file paths are never guessed: CTZ2016, CTZ2022 and CTZ2025
 # and LuxTMY (their workbook URLs return 404) and ITMY (its file is not a valid EPW).
+# Phase 6.2 (2026-11-01): CTZ2016, CTZ2022, CTZ2025 and LuxTMY join through the file links their
+# current OneBuilding pages publish (PAGE_PATHS); ITMY's file is still not a valid EPW.
 FAMILY_WORKBOOKS = tuple(f"onebuilding-{name}-xlsx" for name in (
     "norcerra", "region4-canada-cwec", "inmet-try", "ctz", "ctzrv2", "ctz2010", "jgmy", "turtmy", "imgw",
-    "phiko", "niwa", "argtmy", "tmy", "amtues", "ims", "cityuhk", "niwa2024", "meteireann", "bbsr"))
-FAMILY_CHECK_FAILED = ("onebuilding-ctz2016-xlsx", "onebuilding-ctz2022-xlsx", "onebuilding-ctz2025-xlsx",
-                       "onebuilding-luxtmy-xlsx", "onebuilding-itmy-xlsx")
+    "phiko", "niwa", "argtmy", "tmy", "amtues", "ims", "cityuhk", "niwa2024", "meteireann", "bbsr",
+    "ctz2016", "ctz2022", "ctz2025", "luxtmy"))
+FAMILY_CHECK_FAILED = ("onebuilding-itmy-xlsx",)
+# Workbooks whose file URLs return 404 while a current OneBuilding page links the same files at
+# another published path (phase 6.2): the page's link replaces the workbook's, keeping the
+# workbook's coordinates. Family suffix of the files on that page.
+PAGE_PATHS = {
+    "onebuilding-ctz2016-xlsx": ("onebuilding-ctz-page", "_CTZ2016.zip"),
+    "onebuilding-ctz2022-xlsx": ("onebuilding-ctz-page", "_CTZ2022.zip"),
+    "onebuilding-ctz2025-xlsx": ("onebuilding-ctz-page", "_CTZ2025.zip"),
+    "onebuilding-luxtmy-xlsx": ("onebuilding-lux-page", "_LuxTMY.zip"),
+}
+# Irregular file-name shapes (phase 6.1) whose live download passed; rows of other shapes stay out.
+VERIFIED_SHAPES = frozenset({"no_state"})
 # Future-climate files of mixed families: NIWA2024's SSP years and BBSR's 2035 test reference years.
 FUTURE_FILE = re.compile(r"SSP\d|RCP|rcp|_20[3-9]\d_|TRY20[3-9]\d")
 
@@ -335,6 +348,54 @@ def nsrdb_documented_names(raw):
             "caveat": "Documented request values; the data query may list newer typical-year files"}
 
 
+def _zone_key(url):
+    """(station, climate zone) of a CTZ-style name, or (station, None)."""
+    product = product_identity(url)
+    if not product:
+        return None
+    zone = re.match(r"CZ\d+", product["name"])
+    return product["station_id"], zone.group(0) if zone else None
+
+
+def page_paths(result):
+    """Rewrite PAGE_PATHS workbooks to their page links and drop unverified irregular rows.
+
+    A workbook row takes the page link with the same file name, or else the one page link with
+    the same station and climate zone; a row without exactly one such link is left out, and so is
+    a page link no row claims (it has no published coordinates). Counts go in the inventory.
+    """
+    for inventory in result["inventories"].values():
+        if "rows" in inventory:
+            kept = [row for row in inventory["rows"]
+                    if row.get("file_name_shape") in (None, *VERIFIED_SHAPES)]
+            inventory["unverified_shape_rows"] = len(inventory["rows"]) - len(kept)
+            inventory["rows"] = kept
+    for key, (page_id, suffix) in PAGE_PATHS.items():
+        inventory, page = result["inventories"].get(key), result["inventories"].get(page_id)
+        if not inventory or not page:
+            continue
+        links = [u for u in page.get("links", []) if u.endswith(suffix)]
+        by_name = defaultdict(list)
+        by_zone = defaultdict(list)
+        for link in links:
+            by_name[link.rsplit("/", 1)[-1]].append(link)
+            by_zone[_zone_key(link)].append(link)
+        rows, counts = [], Counter()
+        for row in inventory["rows"]:
+            named = by_name.get(row["url"].rsplit("/", 1)[-1], [])
+            zoned = by_zone.get(_zone_key(row["url"]), [])
+            link = named[0] if len(named) == 1 else zoned[0] if len(zoned) == 1 and not named else None
+            counts["by_name" if len(named) == 1 else "by_station_and_zone" if link else "unmatched_rows"] += 1
+            if link:
+                rows.append({**row, "url": link, "workbook_url": row["url"], "page_evidence_id": page_id})
+        claimed = Counter(row["url"] for row in rows)
+        rows = [row for row in rows if claimed[row["url"]] == 1]        # two rows on one link: neither
+        counts["shared_links_dropped"] = sum(n for n in claimed.values() if n > 1)
+        counts["unclaimed_page_links"] = len(set(links) - set(claimed))
+        inventory["rows"], inventory["count"] = rows, len(rows)
+        inventory["page_paths"] = {"page": page_id, **counts}
+
+
 def read_snapshot(root, record):
     if record["outcome"] != "saved":
         return None
@@ -566,6 +627,7 @@ def analyze(root):
                     for m in result.get("batch_example", {}).get("mappings", [])
                     if m["source_id"]
                 }
+    page_paths(result)
     published = [row for inv in result["inventories"].values() for row in inv.get("rows", [])]
     baseline, baseline_sha = {}, None
     baseline_path = root / "coordinate-baseline.json"

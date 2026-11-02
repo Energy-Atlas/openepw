@@ -227,11 +227,12 @@ points. Inside a mask, each adapted dataset's years and files are the list that 
 page documents and every probe repeats (15 probes, ten at grid edges). NLR's pages can lag the
 data query, as the GOES TMY page did for the -2025 files. The years are not checked at every
 grid site. OneBuilding and NOAA ISD stations beyond 100 km are not offered. OneBuilding
-files come from every TMYx regional workbook (all WMO regions); national typical-year
-families (CWEC, ISHRAE and others) are not catalogued. NSRDB Himawari-7 and Himawari TMY,
-Meteosat (with its typical years) and Meteosat IODC are gated by their own grids' masks,
-like GOES; NSRDB Himawari-8 (2016-2020) is not downloaded
-because its hourly values are centred on the hour. ERA5-Land is gated by the points where
+files come from every TMYx regional workbook (all WMO regions) and 21 national and special
+families (restricted ones such as ISHRAE, CSWD and RMY are left out; ITMY's files do not parse).
+NSRDB Himawari-7 and Himawari TMY, Meteosat (with its typical years) and Meteosat IODC are gated
+by their own grids' masks, like GOES; NSRDB Himawari-8 (2016-2020) is catalogued but not
+downloaded: re-binning its instantaneous hourly samples failed the hourly check at Auckland
+(phase 6.4). ERA5-Land is gated by the points where
 ERA5-Land has a value (one CDS field), which includes lakes. Points next to the mask's edge stay
 unverified, and open sea is not offered. Before
 years are given, actual-year availability is shown for the last complete

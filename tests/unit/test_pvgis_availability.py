@@ -199,3 +199,37 @@ def test_coast_rasterises_polygons_and_keeps_an_inland_margin():
     assert land[first, columns].tolist() == [True, True, False]
     core = inland(land)
     assert core[first + 1, int(180.375 / step)] and not core[first, int(180.125 / step)]
+
+
+def test_refinement_counts_near_shore_sea_within_the_shore_distance():
+    import io
+    import struct
+    import zipfile
+
+    import numpy as np
+
+    from scripts.mcp_availability_map.coast import FINE
+    from scripts.mcp_availability_map.pvgis_mask import SHORE_KM, refine
+
+    ring = [(0.0, 0.0), (0.0, 1.0), (1.0, 1.0), (1.0, 0.0), (0.0, 0.0)]       # land: a 1-degree square
+    content = struct.pack("<i", 5) + struct.pack("<4d", 0, 0, 1, 1) + struct.pack("<ii", 1, len(ring))
+    content += struct.pack("<i", 0) + b"".join(struct.pack("<2d", *point) for point in ring)
+    record = struct.pack(">ii", 1, len(content) // 2) + content
+    header = struct.pack(">i", 9994) + b"\0" * 20 + struct.pack(">i", (100 + len(record)) // 2)
+    header += struct.pack("<ii", 1000, 5) + struct.pack("<8d", 0, 0, 1, 1, 0, 0, 0, 0)
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        z.writestr("ne_10m_land.shp", header + record)
+    step = 0.1
+    edge = np.zeros((1801, 3600), dtype=bool)
+    edge[895:915, 1795:1815] = True                                         # band: 0.5 S-1.5 N, 0.5 W-1.5 E
+    fine = {(row, column) for row, first, end in refine(edge, step, buf.getvalue())
+            for column in range(first, end)}
+
+    def inside(lat, lon):
+        return (int((lat + 90) // FINE), int((lon + 180) // FINE)) in fine
+
+    km = 1 / 111.195                                                        # degrees per km at the equator
+    assert inside(0.5, 0.5) and inside(0.5, 1.0 + (SHORE_KM - 2) * km)       # land, and sea 4 km east
+    assert not inside(0.5, 1.0 + (SHORE_KM + 2) * km)                        # sea 8 km east
+    assert not inside(0.5, -0.45 - 0.2)                                     # outside the band
