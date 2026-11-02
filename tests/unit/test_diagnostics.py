@@ -6,14 +6,13 @@ pytest.importorskip("fastapi")
 from fastapi.testclient import TestClient
 
 from openepw.api.app import create_app
-from openepw.chat.coordinator import OfflineParser
 from openepw.config import RuntimeConfig
 from openepw.service import WeatherService
 
 
 def _client(tmp_path, **config):
     service = WeatherService(RuntimeConfig(data_root=tmp_path, **config))
-    return TestClient(create_app(service, chat_parser=OfflineParser()))
+    return TestClient(create_app(service))
 
 
 def test_diagnostics_are_off_by_default(tmp_path):

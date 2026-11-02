@@ -124,14 +124,6 @@ def test_service_offers_delegate_with_named_filters(tmp_path):
     assert point["years"] == [2018] and {row["id"] for row in point["products"]} >= {"nsrdb-actual"}
 
 
-def test_chat_module_still_reexports_the_moved_functions():
-    from openepw.availability import products as moved
-    from openepw.chat import products as legacy
-
-    assert legacy.product_offers is moved.product_offers
-    assert legacy.product_for is moved.product_for
-
-
 def test_each_option_carries_the_request_fields_that_select_it():
     offers = product_offers(Catalog(), ITHACA, today=date(2026, 9, 27))
     for option in offers["options"]:

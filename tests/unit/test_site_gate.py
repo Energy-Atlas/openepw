@@ -5,6 +5,7 @@ import time
 import pytest
 
 pytest.importorskip("fastapi")
+pytest.importorskip("mcp")                # the agent chat routes
 from fastapi.testclient import TestClient
 from test_batch import StationProvider
 
@@ -29,7 +30,7 @@ def test_everything_but_health_and_login_needs_the_password(tmp_path):
         page = client.get("/", headers={"accept": "text/html"})
         assert page.status_code == 303 and page.headers["location"] == "/login?next=/"
         assert client.get("/v1/catalog/map").status_code == 401
-        assert client.post("/v1/chat/sessions").status_code == 401
+        assert client.post("/v2/agent/sessions").status_code == 401
         login = client.get("/login")
         assert login.status_code == 200 and 'type="password"' in login.text
 
@@ -48,19 +49,19 @@ def test_the_right_password_is_remembered_for_thirty_days(tmp_path):
         client.cookies.clear()
         client.cookies.set(COOKIE, value)
         assert client.get("/").status_code == 200                             # the built UI
-        assert client.post("/v1/chat/sessions").status_code == 201            # and the API
+        assert client.post("/v2/agent/sessions").status_code == 201            # and the API
         client.cookies.clear()
         client.cookies.set(COOKIE, value[:-2] + ("00" if not value.endswith("00") else "11"))
-        assert client.post("/v1/chat/sessions").status_code == 401            # tampered
+        assert client.post("/v2/agent/sessions").status_code == 401            # tampered
 
 
 def test_expired_cookies_and_changed_passwords_are_refused(tmp_path):
     with _client(tmp_path) as client:
         client.cookies.set(COOKIE, sign("correct horse", int(time.time()) - 5))
-        assert client.post("/v1/chat/sessions").status_code == 401
+        assert client.post("/v2/agent/sessions").status_code == 401
         client.cookies.clear()
         client.cookies.set(COOKIE, sign("an older password", int(time.time()) + 3600))
-        assert client.post("/v1/chat/sessions").status_code == 401
+        assert client.post("/v2/agent/sessions").status_code == 401
 
 
 def test_login_only_returns_to_this_site_and_throttles_guessing(tmp_path):

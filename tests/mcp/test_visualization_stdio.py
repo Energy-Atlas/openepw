@@ -9,7 +9,7 @@ from test_epw import synthetic
 
 from openepw.artifacts.store import ArtifactStore
 from openepw.epw.writer import epw_bytes
-from openepw.harness.mcp_client import StdioMCPPort
+from openepw.mcp.client import StdioMCPPort
 
 
 def test_visualization_json_survives_real_stdio_roundtrip(tmp_path):
