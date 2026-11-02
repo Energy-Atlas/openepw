@@ -10,8 +10,8 @@ prerequisites listed for it.
 | 2 | Deferred, not worked (owner, 2026-10-30): LangSmith is not available for now |
 | 3 | Done: spec and plan approved by the owner on 2026-10-31 with the §14 defaults |
 | 4 | Done 2026-10-31: built on `feature/agent-request-slots` (live check about $0.22 of the $1 cap) and merged into `main` on the owner's go-ahead |
-| P4 | Added 2026-11-01 (web chat on the agent core); built on `feature/agent-web-chat`, see its [plan](2026-11-01-agent-web-chat.md) §4 |
-| 5 | Approved 2026-11-01 (retry added, small live check, merge when done); built on `feature/post-download-conversations`, see its [plan](2026-11-01-post-download-conversations.md) §5 |
+| P4 | Added 2026-11-01 (web chat on the agent core); built on `feature/agent-web-chat`, see its [plan](2026-11-01-agent-web-chat.md) §4; merged into `main` and `deploy/staging` |
+| 5 | Approved 2026-11-01 (retry added, small live check, merge when done); built on `feature/post-download-conversations`, see its [plan](2026-11-01-post-download-conversations.md) §5; merged into `main` and `deploy/staging` |
 | 6–7 | Not started |
 
 This list replaces the scattered open items in the older plans. Each item names its source so that
@@ -208,6 +208,7 @@ Branch: `feature/platform-backlog` (7.1–7.2) and `feature/science-backlog` (7.
 | `feature/webui` (49 unique UI commits) and `feature/account-login` | Owner's branches |
 | Deleting merged branches | Deletion needs explicit approval; the three merged branches were approved on 2026-10-30 (phase 1.4), and `docs/outstanding-work-plan` after phase 1 the same day |
 | Merging, deploying, open-data pushes and Render pins after each phase | Release go-ahead |
+| The signed-in staging check of P4 and phase 5 | Deferred by the owner on 2026-11-01 until the next phase ships (see the execution notes) |
 
 ## Order and total
 
@@ -326,3 +327,19 @@ Details, routine choices, deviations and the live check are in the
   `docs/defer-phase-2` and `docs/agent-request-slots` were deleted locally and on `origin`.
 - Still open: whether P4 (the web chat on the agent core) becomes a phase. The owner asked for an
   explanation of P4 first.
+
+### P4 and phase 5 (2026-11-01)
+
+Both were merged into `main` and `deploy/staging` on the owner's go-ahead; their plans' execution
+notes hold the details ([P4](2026-11-01-agent-web-chat.md), [phase 5](2026-11-01-post-download-conversations.md) §5).
+
+**Signed-in staging check deferred (owner, 2026-11-01):** "we may want to move on without testing
+… and test after the next stage is shipped." The agent cannot sign in to staging, so the signed-in
+checks of P4 and phase 5 were not run there; only the deploy (new build served, `/health` ok,
+signed-out API requests refused with 401) was confirmed. The owner tests both together with the
+next phase once it is on staging. Until then:
+
+- What is untested on staging: the agent chat signed in (guided and agent mode), a plan review and
+  a run, a partial result, listing files, a download link, the retry form and a retry, and a data
+  question in agent mode. All of these passed offline and in a local browser check.
+- The next phase's report lists these checks again with the new phase's, so they are not lost.
