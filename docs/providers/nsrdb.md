@@ -6,8 +6,8 @@
   9.86%) and Honolulu 2020 (8.25%) pass; **Auckland 2017 fails** (12.64% of mean daylight GHI,
   above the fixed 10%). Annual GHI stays within 0.5% everywhere.
 - **Withdrawn from downloads** by the owner's 2026-10-27 rule: the catalog lists Himawari-8 as an
-  upstream product with its probe entries; the adapter does not request it. Whether to keep it
-  (with a warning, or built from 10-minute data) is for the owner. See the
+  upstream product with its probe entries; the adapter does not request it. The owner confirmed
+  the withdrawal on 2026-11-02 (rather than a warning, or hours built from 10-minute data). See the
   [record](../validation/availability-round-3-2026-11-01/README.md).
 
 ## Himawari-8 — 2026-10-27

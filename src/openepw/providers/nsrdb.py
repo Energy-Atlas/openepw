@@ -35,7 +35,8 @@ NAMES = {
 # of mean daylight GHI against 10-minute hour means).
 # Withdrawn 2026-11-01 (phase 6.4): Auckland 2017 fails the fixed hourly threshold (RMSE 12.6% of
 # mean daylight GHI; Sapporo 2019 and Honolulu 2020 pass), so by the owner's 2026-10-27 rule
-# Himawari-8 stays catalogued but is not downloaded. The re-binning stays for research; adding
+# Himawari-8 stays catalogued but is not downloaded (confirmed by the owner, 2026-11-02). The
+# re-binning stays for research; adding
 # "himawari" back here, to NSRDB_ADAPTED and to the product list restores it.
 ACTUAL_DATASETS = ("nsrdb-GOES-aggregated-v4-0-0", "himawari7", "nsrdb-msg-v1-0-0", "msg-iodc")
 INSTANT_DATASETS = ("himawari",)

@@ -9,6 +9,10 @@ its defaults, recorded here:
 | Research budget | The plan's suggestion: 40 metadata requests, 10 probes, 150 MB and 10 OneBuilding file downloads on top of what earlier rounds used |
 | 6.5 GHCNh | Out: the owner's 2026-10-27 deferral (Q6) stands, since it was not lifted |
 
+**Owner review (2026-11-02):** "A; ok; ok; skip": Himawari-8 stays withdrawn; merge into `main`
+and `deploy/staging`, push the open-data package and give the staging pin; delete the three merged
+P5 branches; no message to OneBuilding.
+
 **Branch:** `feature/availability-round-3` from `main` (`5d59a9f`). Merging, the open-data push
 and the Render pin stay with the owner. Production (`feature/render-deploy`) is not touched.
 

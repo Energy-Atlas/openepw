@@ -68,7 +68,7 @@ edited.
   often. By the owner's 2026-10-27 rule (Q1/Q2: "stays catalogued but not downloaded" when the
   error is large), Himawari-8 is withdrawn from downloads: the catalog lists it as an upstream
   product (`nsrdb:upstream:himawari`) with its probe entries, and the adapter no longer requests it.
-  The re-binning code stays for research. This is a decision for the owner to confirm (below).
+  The re-binning code stays for research. The owner confirmed the withdrawal on 2026-11-02.
 - **6.5 GHCNh:** not done; the 2026-10-27 deferral stands.
 
 ## Catalog and package
@@ -90,18 +90,21 @@ edited.
   records are identical by type and the 12 footprint files are byte-identical; no source URL has a
   query string.
 
-## For the owner
+## Owner decisions (2026-11-02)
 
-- **Himawari-8:** confirm the withdrawal, or keep it downloadable with a warning, or have the
-  adapter build each hour from the 10-minute data (exact hour means; six times the download, a
-  method change to ADR 0002). The package matches the withdrawal; keeping Himawari-8 needs a new
-  export.
+| Point | Answer |
+| --- | --- |
+| Himawari-8 | "A": the withdrawal stands; Himawari-8 stays catalogued, not downloaded |
+| Release | "ok": merge into `main` and `deploy/staging`, push the open-data package and give the staging pin |
+| Merged P5 branches | "ok": delete `feature/retire-v1-chat`, `fix/measure-script-after-p5`, `fix/web-host-test-race` |
+| Telling OneBuilding about the broken workbook paths | "skip": no message |
+
 - **Release order:** the package and the code ship together. Code that still offers Himawari-8 with
   this package would offer it without a catalog product, and this code with the 2026.10.27 package
-  keeps the old PVGIS coasts.
-- **OneBuilding:** the CTZ2016/2022/2025 and LuxTMY workbook URLs return 404 while the pages link
-  working paths; CWEC's Fort St John and Quebec-Lesage and IMGW's Katowice files return 404; ITMY's
-  files do not parse. OneBuilding could be told (an external message, so not sent).
+  keeps the old PVGIS coasts. The pin is set after the staging deploy.
+- **OneBuilding (not reported, owner 2026-11-02):** the CTZ2016/2022/2025 and LuxTMY workbook URLs
+  return 404 while the pages link working paths; CWEC's Fort St John and Quebec-Lesage and IMGW's
+  Katowice files return 404; ITMY's files do not parse.
 
 ## What this does not establish
 

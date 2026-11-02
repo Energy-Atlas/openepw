@@ -30,7 +30,7 @@ The approved scope is implemented with the following bounded refinements:
   0.1%, hourly RMSE 9.5% of mean daylight GHI) and is recorded in each output's lineage.
 - Amendment 2026-11-01 (phase 6.4): the same check at Auckland 2017 fails the hourly threshold
   (RMSE 12.6% of mean daylight GHI; Sapporo 2019 9.9% and Honolulu 2020 8.3% pass), so by the
-  2026-10-27 rule Himawari-8 is catalogued but not downloaded, pending the owner's confirmation.
+  2026-10-27 rule Himawari-8 is catalogued but not downloaded (confirmed by the owner, 2026-11-02).
   The re-binning code is kept.
 - NSRDB native TMY/TDY/TGY support supplements the planned actual-year adapter.
   Preserve the native timezone and mixed source years.
