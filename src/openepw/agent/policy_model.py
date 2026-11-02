@@ -18,7 +18,7 @@ from typing import Any
 
 from ..mcp.access import HOST_TOOLS, LEGACY_TOOLS, MODEL_TOOLS
 from . import host, outputs
-from .gates import GateRequired, check_plan_request, needs_years
+from .gates import GateRequired, check_plan_requests, needs_years, next_need
 from .guard import clean_external, clean_tool_data, off_topic
 from .guided import SUSPENDED, GuidedPolicy
 from .interactions import Answer, Interaction, Option
@@ -398,6 +398,7 @@ class ModelPolicy:
                     return
                 await s.model_says(reply.text)
             if not reply.tool_calls:
+                await self._no_dead_end(s)
                 return
             stop: str | None = None
             finished = False
@@ -438,6 +439,15 @@ class ModelPolicy:
                 return
             if finished or s.state.pending_call:
                 return                                          # ended, or waiting for the person
+
+    async def _no_dead_end(self, s: AgentSession) -> None:
+        """A turn the model ended in words while every choice is made: the host plans and shows
+        the plan review, as guided mode does. Staging, 2026-11-02: after the products were
+        chosen a model said "choose in the product form" with no form open, leaving nothing to
+        answer."""
+        if (s.form is None and not s.state.pending_call and s.state.ended is None
+                and s.state.mode == "agent" and next_need(s.facts) in ("plan", "review_plan")):
+            await self.guided.advance(s)
 
     async def _respond(self, s: AgentSession, tools: list[dict[str, Any]]) -> ModelReply:
         """One model call, traced as an llm run (without the provider's encrypted reasoning)."""
@@ -617,25 +627,31 @@ class ModelPolicy:
             except ToolFailure as failure:
                 return "error", self._failure(s, failure)
             try:
-                arguments = {**arguments, "request": check_plan_request(s.facts, arguments.get("request") or {})}
+                requests = check_plan_requests(s.facts, arguments.get("request") or {})
             except GateRequired as gate:
                 return "gate", self._gate(s, call.name, gate.need, str(gate))
+            if len(requests) > 1:
+                return await self._plans(s, arguments, requests)
+            arguments = {**arguments, "request": requests[0]}
         try:
             result = await s.tool(call.name, by="model", **arguments)
         except ToolFailure as failure:
             return "error", self._failure(s, failure)
         limit = s.security.external_text.max_chars
         if call.name == "weather_plan":
-            entry = host.plan_entry(arguments["request"], result.data, result.text)
-            same = (entry["product"], entry["dataset_selections"])
-            s.facts.plans = [plan for plan in s.facts.plans
-                             if (plan["product"], plan.get("dataset_selections")) != same] + [entry]
+            self._keep_plan(s, arguments["request"], result)
         elif call.name == "weather_visualize" and result.data.get("view_id"):
             request = arguments.get("request")
             request = request if isinstance(request, dict) else {}
             s.emit("view", result.text, view_id=result.data["view_id"],
                    family=request.get("family"), variable=request.get("variable"))
             return "ok", view_values(result.text, result.data, max_chars=limit)
+        if call.name == "weather_geocode":
+            # Kept so a place question built from these candidates can show them on the map.
+            s.state.geocoded = [{"id": str(item.get("id", index)), "lat": item["lat"], "lon": item["lon"],
+                                 "name": clean_external(str(item.get("name") or ""), limit)}
+                                for index, item in enumerate(result.data.get("candidates") or [])
+                                if isinstance(item, dict) and "lat" in item and "lon" in item][:20]
         if call.name == "weather_geocode" and not result.data.get("candidates"):
             # The geocoder needs a comma before a region ("Ithaca, NY"); say so rather than
             # leave the model to ask the person in plain text.
@@ -643,6 +659,29 @@ class ModelPolicy:
                 "No match. Retry once as 'Name, Region' (for example 'Ithaca, NY') or with just the "
                 "name; if that also fails, ask the person with request_map_input.")})
         return "ok", shape(result, max_chars=limit)
+
+    @staticmethod
+    def _keep_plan(s: AgentSession, request: dict[str, Any], result: Any) -> None:
+        """Record a plan, replacing an earlier one for the same product and datasets."""
+        entry = host.plan_entry(request, result.data, result.text)
+        same = (entry["product"], entry["dataset_selections"])
+        s.facts.plans = [plan for plan in s.facts.plans
+                         if (plan["product"], plan.get("dataset_selections")) != same] + [entry]
+
+    async def _plans(self, s: AgentSession, arguments: dict[str, Any],
+                     requests: list[dict[str, Any]]) -> tuple[str, dict[str, Any] | str]:
+        """One weather_plan call the host split by request group: each part is planned and kept."""
+        results = []
+        for request in requests:
+            try:
+                result = await s.tool("weather_plan", by="model", **{**arguments, "request": request})
+            except ToolFailure as failure:
+                return "error", self._failure(s, failure)
+            self._keep_plan(s, request, result)
+            results.append(json.loads(shape(result, max_chars=s.security.external_text.max_chars))["tool_data"])
+        return "ok", {"plans": results, "note": DATA_NOTE, "split": (
+            f"The host split this request into {len(requests)} plans: Copernicus CDS requests queue at "
+            "Copernicus and run as their own job. review_plan shows all of them together.")}
 
     @staticmethod
     def _off_topic(s: AgentSession, text: str) -> bool:
@@ -772,9 +811,16 @@ class ModelPolicy:
                 options = []
             if not options:
                 return "invalid", {"code": "INVALID_ARGUMENTS", "message": "options need id and label."}
+            # Options that are all geocoder candidates are places: the browser previews them on the
+            # map with the geocoder's coordinates, never coordinates the model wrote.
+            found = {item["id"]: item for item in s.state.geocoded}
+            multi = bool(arguments.get("multi"))
+            places = ([found[option.id] for option in options[:20]]
+                      if not multi and all(option.id in found for option in options[:20]) else [])
             return await self._model_form(s, call, Interaction(
                 kind="choice", gate="ask_choice", options=options[:20],
-                prompt=str(arguments.get("prompt") or "Choose one"), multi=bool(arguments.get("multi"))))
+                prompt=str(arguments.get("prompt") or "Choose one"), multi=multi,
+                data={"places": places} if places else {}))
         if name == "request_map_input":
             return await self._model_form(s, call, Interaction(kind="map_input", gate="ask_map",
                                                                prompt=str(arguments.get("prompt") or "Where?")))

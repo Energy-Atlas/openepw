@@ -534,3 +534,63 @@ def test_an_empty_geocode_result_tells_the_model_how_to_retry(tmp_path):
             hint = results(model, "weather_geocode")[0]["hint"]
             assert "'Name, Region'" in hint and "request_map_input" in hint
     run(main)
+
+
+ERA5_CDS = [{"provider": "cds", "dataset": "reanalysis-era5-single-levels"}]
+
+
+def test_one_plan_for_open_meteo_and_cds_is_split_not_refused(tmp_path):
+    # Staging, 2026-11-02: the host plans CDS apart, so one plan with both was refused as an
+    # unchosen product and the person was asked for the products again.
+    h, model = agent(tmp_path, [
+        call("review_location", {"locations": ITHACA}), call("choose_products", {}),
+        call("weather_plan", {"request": {"product": "historical", "years": [2018],
+                                          "dataset_selections": ERA5 + ERA5_CDS}}),
+        call("review_plan")])
+
+    async def main():
+        async with h:
+            await h.say("AMY 2018 for Ithaca NY")
+            await h.approve()
+            await h.choose("era5-openmeteo", "era5-cds")
+            assert not refused(h)
+            assert h.form.gate == "review_plan" and len(h.form.data["plans"]) == 2
+            assert sorted(plan["dataset_selections"][0]["provider"] for plan in h.session.facts.plans) == [
+                "cds", "openmeteo"]
+            assert len(results(model, "weather_plan")[0]["plans"]) == 2 and paired(model)
+    run(main)
+
+
+def test_a_turn_ended_in_words_after_the_choice_still_shows_the_plan(tmp_path):
+    # Staging, 2026-11-02: the model said "choose in the product form" with no form open.
+    h, model = agent(tmp_path, [
+        call("review_location", {"locations": ITHACA}), call("choose_products", {}),
+        say("Please choose which source you want for 2018 in the product form.")])
+
+    async def main():
+        async with h:
+            await h.say("AMY 2018 for Ithaca NY")
+            await h.approve()
+            await h.choose("era5-openmeteo")
+            assert h.form.gate == "review_plan" and len(h.session.facts.plans) == 1
+            await h.approve()
+            assert h.session.facts.job_ids
+    run(main)
+
+
+def test_a_place_question_from_geocoder_candidates_carries_their_points(tmp_path):
+    springfields = [{"id": "1", "label": "Springfield, Illinois"}, {"id": "2", "label": "Springfield, Massachusetts"}]
+    h, model = agent(tmp_path, [
+        call("weather_geocode", {"query": "Springfield"}),
+        call("ask_choice", {"prompt": "Which Springfield?", "options": springfields}),
+        call("ask_choice", {"prompt": "Which one?", "options": [{"id": "1", "label": "A"}, {"id": "9", "label": "B"}]})])
+
+    async def main():
+        async with h:
+            await h.say("AMY 2018 for Springfield")
+            # The geocoder's coordinates, not any the model wrote.
+            assert [(item["id"], item["lat"], item["lon"]) for item in h.form.data["places"]] == [
+                ("1", 39.80, -89.64), ("2", 42.10, -72.59)]
+            await h.choose("1")
+            assert "places" not in h.form.data            # an option the geocoder did not return
+    run(main)

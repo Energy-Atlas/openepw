@@ -1,6 +1,12 @@
 import pytest
 
-from openepw.agent.gates import GateRequired, build_requests, check_plan_request, next_need
+from openepw.agent.gates import (
+    GateRequired,
+    build_requests,
+    check_plan_request,
+    check_plan_requests,
+    next_need,
+)
 from openepw.agent.state import Facts
 
 POINT = {"lat": 42.44, "lon": -76.5, "standard_offset_minutes": -300, "name": "Ithaca"}
@@ -101,3 +107,20 @@ def test_a_model_request_keeps_its_own_subset_of_stated_years():
                 "dataset_selections": [{"provider": "openmeteo", "dataset": "era5"}]}
     assert check_plan_request(facts, proposed)["years"] == [2018]
     assert check_plan_request(facts, {**proposed, "years": []})["years"] == [2018, 2019]
+
+
+def test_one_proposal_with_open_meteo_and_cds_is_split_by_group():
+    facts = approved(chosen=[ERA5, ERA5_CDS])
+    both = {"product": "historical", "years": [2018], "dataset_selections": [
+        *ERA5["request"]["dataset_selections"], *ERA5_CDS["request"]["dataset_selections"]]}
+    with pytest.raises(GateRequired):
+        check_plan_request(facts, both)
+    split = check_plan_requests(facts, both)
+    assert [[item["provider"] for item in request["dataset_selections"]] for request in split] == [
+        ["openmeteo"], ["cds"]]
+    assert all(request["locations"] == POINT and request["years"] == [2018] for request in split)
+    assert len(check_plan_requests(facts, {**both, "dataset_selections": ERA5["request"]["dataset_selections"]})) == 1
+    with pytest.raises(GateRequired) as error:
+        check_plan_requests(facts, {**both, "dataset_selections": [
+            *both["dataset_selections"], {"provider": "nsrdb", "dataset": "x"}]})
+    assert error.value.need == "choose_products"

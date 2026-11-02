@@ -133,7 +133,8 @@ model writes.
 Plans are built from approved facts only (`build_requests`, `check_plan_request`). When the model
 proposes a plan, the host replaces its locations with the approved ones, accepts only datasets the
 person chose and years the person confirmed, and otherwise answers `GATE_REQUIRED` naming the
-missing step.
+missing step. Copernicus CDS requests queue at Copernicus and plan apart from the others, so a
+proposal with both is split into one plan per group (`check_plan_requests`), not refused.
 
 ### 3.2 Reasoning loop (agent mode)
 
@@ -151,6 +152,7 @@ missing step.
 | Time per turn | 60 s | The turn stops with `TURN_TIMEOUT` |
 | Failures of one tool per turn | 2 retries | The turn stops with the tool's message |
 | Invalid tool calls | 1 repair | The guided form for this step is shown instead |
+| A reply in words with every choice made and no form open | — | The host plans and shows the plan review, as guided mode does |
 | Model unavailable (no key, budget, provider error) | — | The session switches to guided mode and keeps the request |
 
 When the model calls an **ask-tool** (for example `review_location`), the host opens a form and the

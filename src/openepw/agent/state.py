@@ -165,6 +165,9 @@ class SessionState(Model):
     # Points the session has seen (place-tool results, reviews, typed coordinates); a lookup may
     # use only points near these. Back restores the earlier list.
     seen_points: list[tuple[float, float]] = Field(default_factory=list)
+    # The model's latest geocoder candidates (id, name, lat, lon), so a place question built from
+    # them carries the geocoder's coordinates for the map preview.
+    geocoded: list[dict[str, Any]] = Field(default_factory=list)
 
     def see(self, points: list[tuple[float, float]]) -> None:
         """Remember points, once each (to four decimals), keeping the newest SEEN_LIMIT."""

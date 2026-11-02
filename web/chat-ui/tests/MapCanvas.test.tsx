@@ -289,4 +289,30 @@ describe('map canvas overlays', () => {
     map.emit('mouseout')
     await waitFor(() => expect(screen.queryByRole('status', { name: 'Weather products here' })).not.toBeInTheDocument())
   })
+
+  it('asks nothing while the pointer is on or beside the chat', async () => {
+    // Staging, 2026-11-02: the chat's gaps let the map through, so moving to its buttons queried the catalog.
+    const { MapCanvas, nearChat } = await import('../src/map/MapCanvas')
+    const pointAvailability = vi.fn(async () => ({ lat: 1, lon: 1, years: [], years_assumed: true, products: [] }))
+    const dock = document.createElement('div')
+    dock.className = 'chat-dock'
+    dock.getBoundingClientRect = () => ({ left: 600, right: 990, top: 500, bottom: 700, width: 390, height: 200,
+      x: 600, y: 500, toJSON: () => ({}) })
+    document.body.append(dock)
+    try {
+      expect(nearChat(590, 520)).toBe(true)                                   // within the margin
+      expect(nearChat(400, 520)).toBe(false)
+      render(<MapCanvas catalogMap={catalog} pointAvailability={pointAvailability} />)
+      await waitFor(() => expect(fake.maps).toHaveLength(1))
+      const map = fake.maps[0] as unknown as { parsed: boolean; emit(event: string, payload?: unknown): void }
+      map.parsed = true
+      map.emit('style.load')
+      const move = (x: number, y: number) => map.emit('mousemove',
+        { point: { x, y }, lngLat: { lng: 10, lat: 10 }, originalEvent: { buttons: 0, clientX: x, clientY: y } })
+      move(610, 520)
+      await new Promise(resolve => setTimeout(resolve, 150))
+      expect(pointAvailability).not.toHaveBeenCalled()
+      expect(screen.queryByRole('status', { name: 'Weather products here' })).not.toBeInTheDocument()
+    } finally { dock.remove() }
+  })
 })
