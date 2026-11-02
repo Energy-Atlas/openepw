@@ -124,6 +124,9 @@ def test_running_jobs_limit_is_checked_at_run_and_retry(make_host):
     host._check_running_jobs(OWNER, 1)
     # Approving a retry form counts the jobs it would start, like Run.
     session = host.create(OWNER)
+    deadline = time.monotonic() + 10
+    while host.busy(session) and time.monotonic() < deadline:     # the first step opens its own form
+        time.sleep(0.01)
     state = host.store.load(session)
     state.form = Interaction(kind="choice", gate="review_retry", prompt="Retry?", data={"jobs": ["j1", "j2"]},
                              options=[Option(id="retry", label="Retry"), Option(id="cancel", label="Not now")])
