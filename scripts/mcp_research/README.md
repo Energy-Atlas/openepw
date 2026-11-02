@@ -139,3 +139,12 @@ inventory conditional requests (`If-None-Match`; a 304 is recorded as `not_modif
 OneBuilding family workbooks, ECMWF's ERA5 and ERA5-Land documentation, NLR's Himawari-8 page,
 two terms pages, Natural Earth 1:10m land (10 MB) and two PVGIS coastal probes. See the
 [record](../../docs/validation/availability-followups-2026-10-27/README.md).
+
+Phase 6 (availability round 3, 2026-11-01, the outstanding-work plan's suggested budget) admits
+exactly the IDs in `ROUND3_2026_11_01` (collector.py) and one justified `-r1` revision each, with
+metadata 133, probes 34, 344 MB in total, OneBuilding attempts 70 and PVGIS probes 19 for them
+only: the sources page and five workbooks again (conditional), OneBuilding's home page and the
+region and file-list pages recorded in the plan before each request, and nine PVGIS near-shore
+probes. `scripts/onebuilding_live_check.py`, `scripts/himawari_rebin_check.py` and
+`scripts/availability_matrix.py` are this round's live checks and comparison. See the
+[record](../../docs/validation/availability-round-3-2026-11-01/README.md).
