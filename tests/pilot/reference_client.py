@@ -1,4 +1,7 @@
-"""A small reference agent driven only by the public MCP tool contract."""
+"""A scripted MCP client for the pilot tests, driven only by the public MCP tool contract.
+
+It was the `openepw-agent` reference agent until P5 (2026-11-01) retired that command; the tests
+keep it as an external stdio client of `openepw mcp`."""
 
 from __future__ import annotations
 
@@ -12,8 +15,8 @@ from typing import Any, Callable, Literal, Protocol
 
 from pydantic import BaseModel, Field, field_validator
 
-from ..agent.text import safe_prompt  # noqa: F401 (shared redaction; re-exported)
-from .mcp_client import MCPToolFailure
+from openepw.agent.text import safe_prompt
+from openepw.mcp.client import MCPToolFailure
 
 
 class AgentIntent(BaseModel):

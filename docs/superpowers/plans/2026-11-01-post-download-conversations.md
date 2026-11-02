@@ -164,3 +164,9 @@ two were this branch's (the MCP support tests list every tool and summary; `job_
 passing). The third, `test_b_published_batch_exact_product_occurrences_and_export`, counts tool
 calls including job polls against a limit of 30: 32, 36 and 45 on this branch and 37 on `main`
 (`7581988`) on the same machine, so it predates the branch (as in P4).
+
+**Staging (2026-11-01).** Merged into `main` (`2f5bd28`) and `deploy/staging` (`ec974e4`); the new
+build was served, `/health` ok and signed-out API requests were refused with 401. The signed-in
+check was not run: the agent cannot sign in, and the owner deferred it until the next phase ships
+(see the [outstanding-work plan](2026-10-30-outstanding-work.md), execution notes for P4 and
+phase 5).

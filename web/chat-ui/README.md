@@ -44,7 +44,7 @@ account links are printed in its console.
 - Since P4 (2026-11-01) the chat is a renderer of the agent core: it calls
   `/v2/agent` and follows the session's events as server-sent events, so tool
   steps appear as they run (see the [agent README](../../docs/agent/README.md#web-chat-p4)).
-  Chats saved through the old `/v1/chat` routes are not resumed.
+  The old `/v1/chat` routes were removed in P5 (2026-11-01).
 - The chat floats over the right side of the map as separate message bubbles.
   The header switches between agent and guided mode (agent mode needs a model on
   the server), opens `Your request` (the request summary) and goes `Back` one

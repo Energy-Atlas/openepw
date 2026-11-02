@@ -6,6 +6,7 @@ import re
 import pytest
 
 pytest.importorskip("fastapi")
+pytest.importorskip("mcp")                # the agent chat routes
 from fastapi.testclient import TestClient
 from test_batch import StationProvider
 
@@ -56,7 +57,7 @@ def test_visitors_get_the_landing_page_but_not_the_api(tmp_path):
                                                       "domains": ["cornell.edu"]}
         assert client.get("/docs").status_code == 303 and client.get("/openapi.json").status_code == 303
         assert client.get("/v1/catalog/map").status_code == 401
-        assert client.post("/v1/chat/sessions").status_code == 401
+        assert client.post("/v2/agent/sessions").status_code == 401
         for path in ("/login", "/signup", "/reset", "/password"):
             assert client.get(path).status_code == 200, path
         assert 'type="password"' in client.get("/login").text
@@ -87,7 +88,7 @@ def test_only_cornell_addresses_can_sign_up_and_the_password_is_set_from_the_lin
         client.cookies.clear()
         client.cookies.set(COOKIE, done.cookies[COOKIE])                       # test client is plain http
         assert client.get("/").status_code == 200
-        assert client.post("/v1/chat/sessions").status_code == 201
+        assert client.post("/v2/agent/sessions").status_code == 201
         again = client.post("/password", data={"token": token, "password": GOOD, "confirm": GOOD})
         assert again.status_code == 400                                          # single use
 
@@ -102,7 +103,7 @@ def test_signing_in_and_out(tmp_path):
         right = client.post("/login", data={"email": "ADA@cornell.edu", "password": GOOD, "next": "/?x=1"})
         assert right.status_code == 303 and right.headers["location"] == "/?x=1"
         value = right.cookies[COOKIE]
-        assert client.post("/v1/chat/sessions").status_code == 201
+        assert client.post("/v2/agent/sessions").status_code == 201
         away = client.post("/login", data={"email": "ada@cornell.edu", "password": GOOD,
                                            "next": "//evil.example/x"})
         assert away.headers["location"] == "/"
@@ -111,7 +112,7 @@ def test_signing_in_and_out(tmp_path):
         assert client.get("/logout").status_code == 303
         client.cookies.clear()
         client.cookies.set(COOKIE, value)
-        assert client.post("/v1/chat/sessions").status_code == 401                # ended on the server
+        assert client.post("/v2/agent/sessions").status_code == 401                # ended on the server
 
 
 def test_sign_up_and_reset_do_not_reveal_accounts(tmp_path):
@@ -144,7 +145,7 @@ def test_a_reset_changes_the_password_and_ends_other_sessions(tmp_path):
         assert done.status_code == 303
         client.cookies.clear()
         client.cookies.set(COOKIE, old_session)
-        assert client.post("/v1/chat/sessions").status_code == 401
+        assert client.post("/v2/agent/sessions").status_code == 401
         client.cookies.clear()
         assert client.post("/login", data={"email": "ada@cornell.edu", "password": GOOD}).status_code == 401
         assert client.post("/login", data={"email": "ada@cornell.edu", "password": new}).status_code == 303
@@ -191,8 +192,8 @@ def test_passwords_are_salted_scrypt_hashes():
 
 def test_bearer_scripts_keep_working_and_remote_mode_needs_a_way_in(tmp_path, monkeypatch):
     with _client(tmp_path, Mailbox(), bearer_token="script-token") as client:
-        assert client.post("/v1/chat/sessions").status_code == 401
-        assert client.post("/v1/chat/sessions",
+        assert client.post("/v2/agent/sessions").status_code == 401
+        assert client.post("/v2/agent/sessions",
                            headers={"authorization": "Bearer script-token"}).status_code == 201
     service = WeatherService(RuntimeConfig(data_root=tmp_path / "d2"), providers=[StationProvider()])
     with pytest.raises(ValueError, match="OPENEPW_RESEND_API_KEY"):
@@ -241,11 +242,11 @@ def test_the_landing_window_signs_in_and_out_with_json(tmp_path):
         signed = client.post("/auth/login", json={"email": "Ada@cornell.edu", "password": GOOD})
         assert signed.status_code == 200 and COOKIE in signed.cookies
         assert client.get("/auth/session").json()["email"] == "ada@cornell.edu"
-        assert client.post("/v1/chat/sessions").status_code == 201
+        assert client.post("/v2/agent/sessions").status_code == 201
         assert client.post("/auth/reset", json={"email": "nobody@cornell.edu"}).status_code == 200
         assert client.post("/auth/logout").status_code == 200
         assert client.get("/auth/session").json()["signed_in"] is False
-        assert client.post("/v1/chat/sessions").status_code == 401
+        assert client.post("/v2/agent/sessions").status_code == 401
 
 
 def test_without_the_built_ui_visitors_go_to_the_sign_in_page(tmp_path):

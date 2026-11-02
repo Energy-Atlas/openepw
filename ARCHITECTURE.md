@@ -31,12 +31,10 @@ src/openepw/
   api/app.py             REST adapter
   api/accounts.py        Cornell email accounts for hosted deployments (ADR 0006)
   deploy.py              hosted catalog: install or upgrade from the pinned open-data package
-  chat/coordinator.py     browser-neutral durable conversation facts and events
-  chat/products.py        named product choices and per-location catalog availability
   mcp/server.py          MCP adapter
+  mcp/client.py          stdio MCP client (starts `openepw mcp`; used by the pilot tests)
   agent/                 MCP-client chat core (session, guided and model policies, guards, profiles)
   agent/evals/           eval tasks (YAML), grader registry, trial records, metrics, reports, mutations
-  harness/{agent,chat,chat_cli,graph_chat,graph_model,mcp_client,model,rubric,trace}.py  optional reference MCP agent and console
   cli/main.py            argparse adapter
 ```
 
@@ -48,8 +46,8 @@ service, job runner and in-process MCP server; forms, gates, approvals and Run a
 core's, so the browser enforces nothing itself. The security profile's `limits` bound sessions,
 inputs, running jobs and model spend per person. Browser chart requests reference artifacts of
 the session and call the shared visualization service; chart and map rendering contain no
-weather aggregation. The legacy `/v1/chat/*` routes (`chat/coordinator.py`) remain until P5 but
-the browser no longer uses them. After a run (phase 5), `jobs/outputs.py` reads each job's
+weather aggregation. P5 (2026-11-01) removed the legacy `/v1/chat/*` routes and their
+coordinator. After a run (phase 5), `jobs/outputs.py` reads each job's
 verified manifest into rows (place, year, status, artifact) for REST, MCP and the agent host
 (`agent/outputs.py`), which lists files, offers downloads and runs approved retries in both modes.
 See the
@@ -245,7 +243,7 @@ items to disappear. No Redis/Celery/database server is required.
 server: a pure parser (coordinates, lists, set descriptions, text edits), a
 GeoNames store (checksummed downloads in the data root) and preview builders.
 `WeatherService.interpret_places`, `preview_places` and `place_set` are the
-canonical operations; MCP wraps them and the harness `think`/`gate` nodes use
+canonical operations; MCP wraps them, and the agent chat's location review uses
 them to preview lists and clarify descriptive sets. See the
 [place input plan](docs/plans/2026-09-27-place-list-inputs.md).
 
@@ -317,8 +315,7 @@ OpenAI moderation endpoint with an offline stub. The session applies them and co
 the whole session (`end_session`, `guided` or `warn` at the limit); the model declines or answers
 briefly only through the host tools `out_of_scope` and `knowledge_answer`. Guard codes, the
 profile and its digest go into session events and trace metadata. The web chat (`/v2/agent`)
-applies the profile of `openepw serve`; the legacy `/v1/chat/*` and `openepw-chat` paths do not
-use the profiles.
+applies the profile of `openepw serve`.
 
 Agent evals (2026-10-10, [spec](docs/superpowers/specs/2026-10-10-agent-evals-design.md)) live in
 `openepw.agent.evals`. Tasks are validated YAML files (`schema.py`, `tasks/`, `coverage.yaml`).
@@ -329,24 +326,12 @@ tested, the trace (events and model calls) ending in the outcome, and grades. Gr
 guards off in-process to show the tasks catch them, so the agent code has no test switches.
 Results are written under the ignored data root; nothing is sent to LangSmith yet (planned).
 
-The optional [reference harness](docs/harness/README.md) consumes only these
-MCP tools through a real stdio client. Its small model adapter extracts typed
-intent; the service retains scientific authority. Safe local run state stores
-opaque plan/job/artifact IDs and tool names, while the billable model ledger
-stores token counts and estimated cost. The single-request command has no hosted
-tracing.
-The optional console uses LangGraph with a local SQLite checkpointer for typed
-request drafts, geocoder choices and artifact references across process restarts.
-LangChain extracts all fields and separate requests in one utterance. It parses
-each utterance once, merges explicit fields, and uses the shared agent's
-parsed-intent path. The direct MCP client remains the tool transport. Read-only
-catalog exploration never creates a plan; a complete retrieval request follows
-the existing planning/job path. The console reads the existing ignored `.env`
-only for keys and uses the same MCP planning and job operations. It reads or writes EPW
-bytes directly between MCP and local files, outside model context.
-When a LangSmith key is available, the console emits a turn with child intent
-and MCP steps. Trace inputs are deliberately limited; the local MCP server and
-scientific core have no LangSmith dependency. Tracing can be disabled per run.
+External MCP clients use only the MCP tools and resources. `openepw.mcp.client.StdioMCPPort`
+starts `openepw mcp` over stdio; the pilot tests drive it with a scripted client
+(`tests/pilot/reference_client.py`) that plans, approves, submits, polls and inspects through the
+public contract. The `openepw-agent` reference agent and the LangGraph `openepw-chat` console that
+used it were retired in P5 (2026-11-01, [plan](docs/superpowers/plans/2026-11-01-retire-v1-chat.md));
+`openepw chat` is the console.
 
 MCP availability research tooling lives under `scripts/mcp_research/`, outside the
 installed package. Its bounded collector and offline inventory analysis feed the

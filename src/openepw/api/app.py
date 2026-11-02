@@ -11,7 +11,6 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import BaseModel, ValidationError, model_validator
 
 from ..availability import AvailabilityQuery
-from ..chat.coordinator import ChatActionError, ChatCoordinator, OfflineParser, StaleSession
 from ..epw import read_epw
 from ..jobs.outputs import job_outputs
 from ..jobs.worker import JobRunner
@@ -57,40 +56,6 @@ class GeocodeQuery(BaseModel):
     mode: str = "point"
 
 
-class ChatTurn(BaseModel):
-    text: str
-    revision: int
-    idempotency_key: str
-
-
-class ChatChoice(BaseModel):
-    revision: int
-    choice_id: str
-    idempotency_key: str
-
-
-class ChatAction(BaseModel):
-    revision: int
-    idempotency_key: str
-
-
-class ChatProducts(ChatAction):
-    product_ids: list[str]
-
-
-class ChatGeography(ChatAction):
-    geography: dict | list
-
-
-class ChatUpload(ChatAction):
-    artifact_id: str
-
-
-class ChatView(ChatAction):
-    request: VisualizationRequest
-    prompt: str | None = None
-
-
 def _accounts(config, remote: bool, mailer) -> Accounts | None:
     """Cornell email accounts when a mail route is configured (ADR 0006), else None."""
     if mailer is None and config.resend_api_key and config.mail_from:
@@ -108,8 +73,8 @@ def _accounts(config, remote: bool, mailer) -> Accounts | None:
                     public_ui=public_ui)
 
 
-def create_app(service=None, *, remote=False, chat_parser=None, mailer=None, env_file=".env",
-               security_policy=None, agent_model="auto"):
+def create_app(service=None, *, remote=False, mailer=None, env_file=".env", security_policy=None,
+               agent_model="auto"):
     """The REST server. ``agent_model`` is the web agent chat's model (see agent_routes.build_host):
     "auto" uses OPENAI_API_KEY when set, None means guided mode only, a callable makes one per turn."""
     service = service or WeatherService()
@@ -118,26 +83,6 @@ def create_app(service=None, *, remote=False, chat_parser=None, mailer=None, env
         raise ValueError("Remote mode requires OPENEPW_BEARER_TOKEN, or accounts through "
                          "OPENEPW_RESEND_API_KEY and OPENEPW_MAIL_FROM")
     runner = JobRunner(service)
-    if chat_parser is None:
-        try:
-            from ..agent.tracing import tracing_settings
-            from ..harness.chat import load_model_key
-            from ..harness.graph_model import LangChainTurnParser
-
-            # LangSmith tracing of the chat's model calls follows the env file, not LangChain's
-            # own environment variables.
-            tracing = tracing_settings(env_file, default_project="openepw-web-chat")
-            logger.info("Web chat LangSmith tracing: %s", tracing.reason)
-            chat_parser = LangChainTurnParser(load_model_key(env_file),
-                ledger_path=service.config.data_root / "chat" / "model-usage.json", tracing=tracing)
-        except (ImportError, RuntimeError, ValueError):
-            chat_parser = OfflineParser()
-        except Exception as error:
-            # A missing optional model or credential leaves deterministic parsing usable.
-            if type(error).__name__ != "ModelUnavailable":
-                raise
-            chat_parser = OfflineParser()
-    chat = ChatCoordinator(service, parser=chat_parser)
 
     @asynccontextmanager
     async def lifespan(app):
@@ -153,9 +98,6 @@ def create_app(service=None, *, remote=False, chat_parser=None, mailer=None, env
         if app.state.agent_host is not None:
             app.state.agent_host.close()
         runner.close()
-        close = getattr(chat_parser, "close", None)
-        if close is not None:
-            close()                                   # flush any pending traces
 
     def authenticate(request: Request, authorization: str | None = Header(default=None)):
         # The account gate has already admitted signed-in browsers and bearer scripts; its own
@@ -176,8 +118,7 @@ def create_app(service=None, *, remote=False, chat_parser=None, mailer=None, env
         title="OpenEPW", version="0.1.0", lifespan=lifespan, dependencies=[Depends(authenticate)]
     )
     app.state.service = service
-    # The security profile of the agent chat (/v2/agent); the legacy /v1 chat does not apply it
-    # (owner decision Q9).
+    # The security profile of the agent chat (/v2/agent).
     app.state.security_policy = security_policy
     if accounts is not None:
         accounts.install(app)
@@ -196,7 +137,6 @@ def create_app(service=None, *, remote=False, chat_parser=None, mailer=None, env
                                                        security=security_policy, env_file=env_file,
                                                        model=agent_model)
         agent_routes.install(app, app.state.agent_host)
-    app.state.chat = chat
     diagnostics.install(app, service)
 
     # Compress JSON and the web app's files; archives, images and fonts are already compressed,
@@ -241,21 +181,12 @@ def create_app(service=None, *, remote=False, chat_parser=None, mailer=None, env
     def health():
         return {"status": "ok", "version": "0.1.0"}
 
-    @app.exception_handler(StaleSession)
-    async def stale_chat(request, exc):
-        return JSONResponse({"code": "STALE_SESSION", "message": str(exc),
-                             "snapshot": exc.snapshot}, status_code=409)
-
     @app.exception_handler(KeyError)
-    async def missing_chat(request, exc):
-        return JSONResponse({"code": "NOT_FOUND", "message": "Session not found"}, status_code=404)
-
-    @app.exception_handler(ChatActionError)
-    async def invalid_chat_action(request, exc):
-        return JSONResponse({"code": "INVALID_REQUEST", "message": str(exc)}, status_code=400)
+    async def missing(request, exc):
+        return JSONResponse({"code": "NOT_FOUND", "message": "Not found"}, status_code=404)
 
     @app.exception_handler(ValidationError)
-    async def invalid_chat_geography(request, exc):
+    async def invalid_fields(request, exc):
         return JSONResponse({"code": "INVALID_REQUEST", "message": "Invalid request fields",
                              "fields": [list(item["loc"]) for item in exc.errors()]}, status_code=422)
 
@@ -279,87 +210,6 @@ def create_app(service=None, *, remote=False, chat_parser=None, mailer=None, env
                 point_cache["generation"] = generation
             point_cache[key] = service.point_availability(key[0], key[1], wanted)
         return point_cache[key]
-
-    @app.post("/v1/chat/sessions", status_code=201)
-    def create_chat():
-        return chat.create()
-
-    @app.get("/v1/chat/sessions/{session_id}")
-    def get_chat(session_id: str):
-        return chat.get(session_id)
-
-    @app.get("/v1/chat/sessions/{session_id}/progress")
-    def chat_progress(session_id: str):
-        return chat.progress(session_id)
-
-    @app.get("/v1/chat/sessions/{session_id}/events")
-    def chat_events(session_id: str, after: int = 0):
-        state = chat.get(session_id)
-        return {"events": [event for event in state["events"] if event["id"] > after],
-                "cursor": len(state["events"]), "revision": state["revision"]}
-
-    @app.post("/v1/chat/sessions/{session_id}/turns/queue", status_code=202)
-    def chat_enqueue_turn(session_id: str, payload: ChatTurn):
-        return chat.enqueue_turn(session_id, payload.text, payload.idempotency_key)
-
-    @app.get("/v1/chat/turns/{queue_id}")
-    def chat_queued_turn(queue_id: str):
-        return chat.queued_turn(queue_id)
-
-    @app.delete("/v1/chat/turns/{queue_id}")
-    def chat_withdraw_turn(queue_id: str):
-        return chat.withdraw_turn(queue_id)
-
-    @app.post("/v1/chat/sessions/{session_id}/turns")
-    def chat_turn(session_id: str, payload: ChatTurn):
-        return chat.turn(session_id, payload.text, payload.revision, payload.idempotency_key)
-
-    @app.post("/v1/chat/sessions/{session_id}/choices")
-    def chat_choice(session_id: str, payload: ChatChoice):
-        return chat.answer(session_id, payload.revision, payload.choice_id, payload.idempotency_key)
-
-    @app.post("/v1/chat/sessions/{session_id}/geography")
-    def chat_geography(session_id: str, payload: ChatGeography):
-        return chat.set_geography(session_id, payload.geography, payload.revision,
-                                  payload.idempotency_key)
-
-    @app.post("/v1/chat/sessions/{session_id}/back")
-    def chat_back(session_id: str, payload: ChatAction, to_event: int | None = None):
-        return chat.back(session_id, payload.revision, payload.idempotency_key, to_event)
-
-    @app.post("/v1/chat/sessions/{session_id}/products")
-    def chat_choose_products(session_id: str, payload: ChatProducts):
-        return chat.choose_products(session_id, payload.revision, payload.product_ids, payload.idempotency_key)
-
-    @app.post("/v1/chat/sessions/{session_id}/location/approve")
-    def chat_approve_location(session_id: str, payload: ChatAction):
-        return chat.approve_location(session_id, payload.revision, payload.idempotency_key)
-
-    @app.post("/v1/chat/sessions/{session_id}/prepare")
-    def chat_prepare(session_id: str, payload: ChatAction):
-        return chat.prepare(session_id, payload.revision, payload.idempotency_key)
-
-    @app.post("/v1/chat/sessions/{session_id}/run", status_code=202)
-    def chat_run(session_id: str, payload: ChatAction):
-        return chat.run(session_id, payload.revision, payload.idempotency_key, runner)
-
-    @app.post("/v1/chat/sessions/{session_id}/retry", status_code=202)
-    def chat_retry(session_id: str, payload: ChatAction):
-        return chat.retry(session_id, payload.revision, payload.idempotency_key, runner)
-
-    @app.post("/v1/chat/sessions/{session_id}/export/compact")
-    def chat_compact(session_id: str):
-        return chat.compact(session_id, runner)
-
-    @app.post("/v1/chat/sessions/{session_id}/uploads")
-    def chat_attach_upload(session_id: str, payload: ChatUpload):
-        return chat.attach_upload(session_id, payload.revision, payload.idempotency_key,
-                                  payload.artifact_id)
-
-    @app.post("/v1/chat/sessions/{session_id}/views")
-    def chat_view(session_id: str, payload: ChatView):
-        return chat.view(session_id, payload.revision, payload.idempotency_key,
-                         runner, payload.request, prompt=payload.prompt)
 
     @app.get("/v1/views/capabilities")
     def view_capabilities():

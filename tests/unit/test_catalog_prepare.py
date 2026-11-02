@@ -14,7 +14,6 @@ from openepw.api.app import create_app
 from openepw.availability.catalog_index import StoreCatalogIndex
 from openepw.availability.evaluate import evaluate
 from openepw.availability.store import CatalogStore, CatalogView
-from openepw.chat.coordinator import OfflineParser
 from openepw.config import RuntimeConfig
 from openepw.deploy import prepare_catalog
 from openepw.service import WeatherService
@@ -51,7 +50,7 @@ def test_a_damaged_or_foreign_index_file_is_rebuilt(tmp_path, damage):
 
 def test_the_map_is_served_gzipped_with_an_etag_and_revalidated(tmp_path):
     service, generation = _service(tmp_path)
-    with TestClient(create_app(service, chat_parser=OfflineParser())) as client:
+    with TestClient(create_app(service)) as client:
         assert list(service.catalog_store.derived(generation).glob("map-*.json.gz"))     # warmed at start
         response = client.get("/v1/catalog/map")
         assert response.headers["content-encoding"] == "gzip" and response.headers["cache-control"] == "no-cache"

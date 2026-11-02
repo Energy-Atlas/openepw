@@ -1,10 +1,10 @@
-"""Optional LangSmith tracing for the agent chat and the web chat, switched by the env file.
+"""Optional LangSmith tracing for the agent chat (`openepw chat`), switched by the env file.
 
 ``LANGSMITH_TRACING=true`` and ``LANGSMITH_API_KEY`` in the ignored ``.env`` (or the process
 environment, which wins) turn tracing on; anything else leaves it off, even if LangChain's own
 environment variables say otherwise. Traces carry only redacted text, tool names, argument
 summaries and result summaries: never keys, local paths, EPW bytes or full tool data.
-``langsmith`` (the ``harness`` extra) is imported only when tracing is on.
+``langsmith`` (the ``agent`` extra) is imported only when tracing is on.
 """
 
 from __future__ import annotations
@@ -13,10 +13,9 @@ import importlib.util
 import json
 import logging
 import os
-from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 
 from .text import safe_prompt
 
@@ -61,7 +60,7 @@ def tracing_settings(env_file: str | Path | None = ".env", *, default_project: s
     if not key:
         return TracingSettings(False, project, "LANGSMITH_TRACING is true but LANGSMITH_API_KEY is missing")
     if importlib.util.find_spec("langsmith") is None:
-        return TracingSettings(False, project, "langsmith is not installed (pip install -e \".[harness]\")")
+        return TracingSettings(False, project, "langsmith is not installed (pip install -e \".[agent]\")")
     return TracingSettings(True, project, f"on (project {project})", endpoint, key)
 
 
@@ -71,23 +70,6 @@ def langsmith_client(settings: TracingSettings) -> Any:
 
     return Client(api_key=settings.api_key, api_url=settings.endpoint, auto_batch_tracing=True,
                   timeout_ms=(2000, 5000))
-
-
-@contextmanager
-def langchain_tracing(settings: TracingSettings | None, client: Any = None) -> Iterator[None]:
-    """Turn LangChain tracing on or off for the calls inside, overriding its environment variables."""
-    if settings is None:
-        with nullcontext():
-            yield
-        return
-    from langsmith import tracing_context
-
-    if settings.enabled:
-        with tracing_context(enabled=True, client=client, project_name=settings.project):
-            yield
-    else:
-        with tracing_context(enabled=False):
-            yield
 
 
 def summarize_arguments(arguments: dict[str, Any]) -> dict[str, Any]:

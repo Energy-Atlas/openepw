@@ -29,13 +29,6 @@ def test_future_requests_are_recognised():
     assert not FUTURE.search("AMY 2018 for Denver")
 
 
-def test_coordinator_uses_the_shared_year_reader():
-    from openepw.agent import text
-    from openepw.chat import coordinator
-
-    assert coordinator.explicit_weather_years is text.explicit_weather_years
-
-
 def test_scenario_and_pathway_spellings_are_future_requests():
     for text in ("SSP5-8.5 2050 Denver", "SSP2-4.5", "ssp245", "RCP8.5 for Denver", "RCP 4.5",
                  "rcp85", "CMIP6 projections for Boston"):

@@ -12,7 +12,7 @@ and [limitations](docs/limitations.md) before using generated files in simulatio
 
 ```bash
 python -m pip install .
-python -m pip install ".[api,mcp,climate,cds,harness]"   # optional interfaces and climate access
+python -m pip install ".[api,mcp,agent,climate,cds]"   # optional interfaces and climate access
 ```
 
 Python 3.11+. Core imports do not require FastAPI, MCP or xarray. Development:
@@ -111,17 +111,12 @@ uploads and verified artifact downloads. Remote REST requires `OPENEPW_BEARER_TO
 Use one server process per data root. MCP exposes bounded availability, plan,
 job, EPW input, artifact, export and JSON visualization tools with
 `weather://artifacts/{id}` resources. Future-weather MCP tools are temporarily
-suspended. The optional
-`openepw-agent` runs one request at a time; `openepw-chat` provides an interactive
-terminal conversation, reading the existing `.env` and executing plans by default.
-The chat resumes typed request state from a local LangGraph SQLite checkpoint
-and offers arrow-key location and product choices in interactive terminals.
-When a LangSmith key is available, console turns and tool steps are traced to
-`openepw-local-chat`; `--no-trace` disables this for a session.
-Both harnesses use these same MCP tools. The [Windows local pilot](docs/validation/mcp-stage-6-acceptance.md)
+suspended. `openepw chat` is a terminal chat over the same MCP tools (guided mode, or agent mode
+with a model), and the browser chat renders the same agent sessions through `/v2/agent`; see the
+[agent README](docs/agent/README.md). The [Windows local pilot](docs/validation/mcp-stage-6-acceptance.md)
 used the real MCP Python SDK stdio client, synthetic end-to-end journeys and
 bounded Open-Meteo/OneBuilding retrieval. Streamable MCP is loopback-only in
-v0.1. [MCP setup](docs/mcp/README.md) and [agent setup](docs/harness/README.md).
+v0.1. See the [MCP setup](docs/mcp/README.md).
 
 ## Providers and constraints
 

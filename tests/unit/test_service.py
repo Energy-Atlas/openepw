@@ -74,19 +74,14 @@ def test_leap_local_year_bundle_and_exact_replay(tmp_path):
     assert len(calls) == 1
 
 
-def test_chat_location_produces_local_standard_time_epw(tmp_path):
-    from openepw.chat.coordinator import ChatCoordinator, OfflineParser, location_key
-
+def test_a_located_point_produces_a_local_standard_time_epw(tmp_path):
     config = RuntimeConfig(data_root=tmp_path)
     service = WeatherService(config, http=HttpClient(config, transport=httpx.MockTransport(transport)))
-    chat = ChatCoordinator(service, parser=OfflineParser(), path=tmp_path / "chat.sqlite")
-    state = chat.create()
-    state = chat.turn(state["id"], "42.44,-76.5 historical 2024", 0, "location")
-    facts = state["facts"] | {
-        "location_approved": location_key(state["facts"]["location"]),
-        "selections": [{"provider": "openmeteo", "dataset": "era5"}],
-    }
-    bundle = service.fetch(chat._request(facts))
+    bundle = service.fetch(WeatherRequest.model_validate({
+        # The location review estimates this offset in the chat; Ithaca is UTC-5 in standard time.
+        "locations": {"lat": 42.44, "lon": -76.5, "standard_offset_minutes": -300},
+        "product": "historical", "years": [2024],
+        "dataset_selections": [{"provider": "openmeteo", "dataset": "era5"}]}))
     path = tmp_path / bundle.weather[0].path
     lines = path.read_text().splitlines()
     assert lines[0].split(",")[8] == "-5.0"

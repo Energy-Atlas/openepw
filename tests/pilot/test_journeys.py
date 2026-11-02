@@ -12,6 +12,7 @@ from pathlib import Path
 
 import pytest
 from pydantic import AnyUrl
+from reference_client import AgentIntent, ReferenceAgent
 
 from openepw.artifacts.store import ArtifactStore
 from openepw.availability import (
@@ -25,8 +26,7 @@ from openepw.availability import (
 from openepw.availability.store import CatalogStore
 from openepw.epw import read_epw
 from openepw.epw.writer import epw_bytes
-from openepw.harness.agent import AgentIntent, ReferenceAgent
-from openepw.harness.mcp_client import MCPToolFailure, StdioMCPPort
+from openepw.mcp.client import MCPToolFailure, StdioMCPPort
 
 sys.path.insert(0, str(Path(__file__).parents[1] / "unit"))
 from test_epw import synthetic
@@ -45,13 +45,18 @@ class FixedModel:
 
 
 class PilotPort(StdioMCPPort):
+    """Counts tool calls for the journeys' call budgets. A job_inspect that finds the job still
+    queued or running is a wait, not a step: how many there are depends on the machine's speed."""
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.tool_calls = 0
 
     async def call(self, name, **arguments):
-        self.tool_calls += 1
-        return await super().call(name, **arguments)
+        result = await super().call(name, **arguments)
+        if not (name == "job_inspect" and result.get("state") in ("queued", "running")):
+            self.tool_calls += 1
+        return result
 
 
 def port(root, mode="general"):
