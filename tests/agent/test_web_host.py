@@ -217,3 +217,16 @@ def test_candidates_are_listed_for_a_place_choice(make_host):
     assert snapshot["form"]["gate"] == "choose_location"
     assert [item["id"] for item in snapshot["candidates"]] == [option["id"] for option in snapshot["form"]["options"]]
     assert all("lat" in item for item in snapshot["candidates"])
+
+
+def test_a_model_place_question_lists_its_geocoder_points(make_host):
+    model = ScriptedModel([call("weather_geocode", {"query": "Springfield"}),
+                           call("ask_choice", {"prompt": "Which Springfield?", "options": [
+                               {"id": "1", "label": "Springfield, Illinois"},
+                               {"id": "2", "label": "Springfield, Massachusetts"}]})])
+    host = make_host(model=lambda: model)
+    session_id = host.create(OWNER)
+    idle(host, session_id)
+    snapshot = step(host, session_id, WebInput(type="text", text="AMY 2018 for Springfield"))
+    assert snapshot["form"]["gate"] == "ask_choice"
+    assert [(item["id"], item["lat"]) for item in snapshot["candidates"]] == [("1", 39.80), ("2", 42.10)]

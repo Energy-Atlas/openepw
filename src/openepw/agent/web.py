@@ -419,6 +419,8 @@ class AgentHost:
             snapshot["candidates"] = [{"id": str(item.get("id", index)), "name": item.get("name"),
                                        "lat": item["lat"], "lon": item["lon"]}
                                       for index, item in enumerate(facts.candidates)]
+        elif form is not None and form.gate == "ask_choice" and form.data.get("places"):
+            snapshot["candidates"] = form.data["places"]     # the model's place question (geocoder points)
         if form is not None and form.kind == "product_choice":
             snapshot["offers"] = [{"id": offer["id"], "label": offer["label"], "detail": offer.get("detail"),
                                    "group": "actual" if offer["request"]["product"] == "historical" else "typical",

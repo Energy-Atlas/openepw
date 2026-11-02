@@ -91,12 +91,12 @@ def _readiness_off() -> list[Any]:
 def _years_gate_off() -> list[Any]:
     from .. import gates
 
-    original = gates.check_plan_request
+    original = gates.check_plan_requests
 
-    def any_years(facts: Any, request: dict[str, Any]) -> dict[str, Any]:
+    def any_years(facts: Any, request: dict[str, Any]) -> list[dict[str, Any]]:
         stated = sorted(set(facts.years) | set(request.get("years") or []))
         return original(facts.model_copy(update={"years": stated}), request)
-    return [mock.patch("openepw.agent.policy_model.check_plan_request", any_years)]
+    return [mock.patch("openepw.agent.policy_model.check_plan_requests", any_years)]
 
 
 def _host_tool_gate_off() -> list[Any]:
