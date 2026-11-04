@@ -276,6 +276,8 @@ class ModelPolicy:
         if s.form is not None and s.form.data.get("change") and "call_id" not in s.form.data:
             await self.guided.on_text(s, text)      # a Change form: answered by host rules (design §6.3)
             return
+        if await self.guided.revise(s, text):      # a correction on the plan review: no model call
+            return
         self._note_text(s, text)
         pending = s.state.pending_call
         if pending:

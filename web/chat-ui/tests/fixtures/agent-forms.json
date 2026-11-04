@@ -93,6 +93,7 @@
   "places": [],
   "profile": "local",
   "revision": 2,
+  "stage": "request",
   "strike_limit": 3,
   "strikes": 0,
   "years": []
@@ -189,6 +190,7 @@
   ],
   "profile": "local",
   "revision": 3,
+  "stage": "request",
   "strike_limit": 3,
   "strikes": 0,
   "years": []
@@ -254,6 +256,7 @@
   "places": [],
   "profile": "local",
   "revision": 1,
+  "stage": "request",
   "strike_limit": 3,
   "strikes": 0,
   "years": []
@@ -395,6 +398,7 @@
   ],
   "profile": "local",
   "revision": 6,
+  "stage": "request",
   "strike_limit": 3,
   "strikes": 0,
   "years": [
@@ -566,6 +570,7 @@
   ],
   "profile": "local",
   "revision": 4,
+  "stage": "request",
   "strike_limit": 3,
   "strikes": 0,
   "years": []
@@ -772,6 +777,7 @@
   ],
   "profile": "local",
   "revision": 7,
+  "stage": "request",
   "strike_limit": 3,
   "strikes": 0,
   "years": [
@@ -846,6 +852,7 @@
   ],
   "profile": "local",
   "revision": 5,
+  "stage": "request",
   "strike_limit": 3,
   "strikes": 0,
   "years": []
@@ -918,6 +925,7 @@
   ],
   "profile": "local",
   "revision": 7,
+  "stage": "request",
   "strike_limit": 3,
   "strikes": 0,
   "years": [

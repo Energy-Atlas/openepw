@@ -126,9 +126,13 @@ describe('map canvas overlays', () => {
     const popup2 = screen.getByRole('dialog', { name: 'Selected location' })
     const minimize = within(popup2).getByRole('button', { name: 'Minimize' })
     expect(minimize.textContent).toBe('')
-    fireEvent.click(within(popup2).getByRole('button', { name: 'Confirm' }))
-    expect(confirm).toHaveBeenCalledWith('ma')
     fireEvent.click(minimize)
+    expect(screen.queryByRole('dialog', { name: 'Selected location' })).not.toBeInTheDocument()
+    rerender(<MapCanvas candidates={candidates} pendingCandidate="uk" onConfirmCandidate={confirm} />)
+    const popup3 = await screen.findByRole('dialog', { name: 'Selected location' })
+    fireEvent.click(within(popup3).getByRole('button', { name: 'Confirm' }))
+    expect(confirm).toHaveBeenCalledWith('uk')
+    // Gone on the click, not when the next step arrives (owner, 2026-11-04).
     expect(screen.queryByRole('dialog', { name: 'Selected location' })).not.toBeInTheDocument()
   })
 

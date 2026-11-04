@@ -6,6 +6,8 @@ import type { AgentAnswer, AgentForm, AgentSnapshot } from './types'
 
 export type AnswerFields = Omit<AgentAnswer, 'interaction_id' | 'revision'>
 
+const APPROVE_LABELS: Record<string, string> = { plan_review: 'Run reviewed plan', request_summary: 'Confirm request' }
+
 const STATUS_WORDS: Record<string, string> = { empty: 'not set', proposed: 'to confirm', confirmed: 'confirmed',
   recheck: 'choose again' }
 
@@ -34,7 +36,10 @@ export function FormDock({ snapshot, busy, checked, pendingChoice, onPendingChoi
   useEffect(() => { if (typing) document.getElementById('chat-message')?.focus() }, [typing])
 
   const kind = form?.kind
-  const textReply = !form || typing || kind === 'text' || kind === 'map_input' || kind === 'location_review'
+  // Reviews keep the field open: a correction is typed in words ("2019 instead", "add NSRDB"),
+  // not picked from a Change button per part (owner, 2026-11-04).
+  const reviewing = kind === 'location_review' || kind === 'plan_review' || kind === 'request_summary'
+  const textReply = !form || typing || kind === 'text' || kind === 'map_input' || reviewing
     || kind === 'upload'
   const send = (event: FormEvent) => {
     event.preventDefault()
@@ -43,9 +48,7 @@ export function FormDock({ snapshot, busy, checked, pendingChoice, onPendingChoi
     setMessage('')
     onText(text)
   }
-  const changes = (form?.options ?? []).filter(option => option.id.startsWith('change:'))
-  const backLabel = kind === 'choice' || kind === 'product_choice' ? 'Back to options'
-    : kind === 'plan_review' || kind === 'request_summary' ? 'Back to review' : null
+  const backLabel = kind === 'choice' || kind === 'product_choice' ? 'Back to options' : null
   const places = kind === 'choice' && snapshot.candidates.length > 0
   const offers: ProductOption[] = kind === 'product_choice'
     ? (snapshot.offers.length ? snapshot.offers.map(offer => ({ ...offer, detail: offer.detail ?? undefined,
@@ -88,23 +91,11 @@ export function FormDock({ snapshot, busy, checked, pendingChoice, onPendingChoi
             onClick={() => onAnswer({ choice_ids: picked })}><TickIcon />Confirm</button>}
           {form!.allow_text && <button className="reply-alt" type="button" onClick={() => setTyping(true)}>Other — type an answer</button>}
         </>}
-        {kind === 'plan_review' && <>
-          <button className="reply-primary" type="button" onClick={() => onAnswer({ approve: true })}>
-            <TickIcon />Run reviewed plan</button>
-          <ChangeButtons changes={changes} onAnswer={onAnswer} />
-          <button className="reply-alt" type="button" onClick={() => setTyping(true)}>Type a correction</button>
-        </>}
-        {kind === 'request_summary' && <>
-          <button className="reply-primary" type="button" onClick={() => onAnswer({ approve: true })}>
-            <TickIcon />Confirm request</button>
-          <ChangeButtons changes={changes} onAnswer={onAnswer} />
-          <button className="reply-alt" type="button" onClick={() => setTyping(true)}>Type a correction</button>
-        </>}
       </div>}
       {textReply && <>
-        {kind === 'location_review' && !busy && <button className="reply-primary approve-location" type="button"
+        {reviewing && !busy && <button className="reply-primary approve-location" type="button"
           onClick={() => onAnswer({ approve: true })}>
-          <TickIcon />{form!.data?.several ? 'Approve locations' : 'Approve location'}</button>}
+          <TickIcon />{APPROVE_LABELS[kind!] ?? (form!.data?.several ? 'Approve locations' : 'Approve location')}</button>}
         {kind === 'upload' && !busy && <label className="upload-control">
           <span>Choose an EPW file</span>
           <input type="file" aria-label="EPW file" accept=".epw,text/plain" onChange={event => {
@@ -146,20 +137,13 @@ function RequestParts({ snapshot, form }: { snapshot: AgentSnapshot; form: Agent
   </div>)}</dl>
 }
 
-function ChangeButtons({ changes, onAnswer }: { changes: AgentForm['options']; onAnswer: (fields: AnswerFields) => void }) {
-  if (!changes.length) return null
-  return <span className="change-actions" role="group" aria-label="Change one part">
-    {changes.map(option => <button key={option.id} type="button" className="reply-alt"
-      onClick={() => onAnswer({ choice_ids: [option.id] })}>{option.label}</button>)}
-  </span>
-}
-
 export function placeholderFor(form: AgentForm | null, typing: boolean): string {
   if (!form) return 'Place, years, and weather type'
   const hint = typeof form.data?.hint === 'string' ? form.data.hint : ''
   if (form.kind === 'text' || form.kind === 'map_input') return hint || 'Type your answer'
   if (form.kind === 'location_review') return form.data?.several ? 'Or edit the list, e.g. remove 3' : 'Or describe a correction'
-  if (form.kind === 'plan_review' || form.kind === 'request_summary') return 'Describe what to change'
+  if (form.kind === 'plan_review' || form.kind === 'request_summary')
+    return 'Or describe a change, e.g. "2019 instead" or "add NSRDB"'
   if (typing) return 'Type another answer'
   return 'Type your answer'
 }

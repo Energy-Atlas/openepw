@@ -634,7 +634,10 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
         onClick={() => setPopupMinimized(true)}><MinimizeIcon /></button>
       <code>{pending.lat.toFixed(4)}, {pending.lon.toFixed(4)}</code>
       <button type="button" className="popup-confirm" aria-label="Confirm" title="Confirm"
-        onClick={() => pending.id && onConfirmCandidate?.(pending.id)}><TickIcon /></button>
+        onClick={() => {
+          setPopupMinimized(true)                     // gone at once; the chat shows the next step
+          if (pending.id) onConfirmCandidate?.(pending.id)
+        }}><TickIcon /></button>
     </div>}
     <div className="map-status" role="status">{status}
       {status.includes('unavailable') || status.includes('could not load') ?

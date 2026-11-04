@@ -411,6 +411,7 @@ class AgentHost:
             "strike_limit": self.security.strikes.limit,
             "events": [event.model_dump(mode="json") for event in recent],
             "cursor": recent[-1].seq if recent else 0,
+            "stage": facts.stage,
             "parts": parts(facts, max_chars=max_chars), "places": _places(facts), "years": facts.years,
             "job_ids": facts.job_ids, "finished_job_ids": facts.finished_job_ids,
             "artifact_ids": facts.artifact_ids, "candidates": [], "offers": [],

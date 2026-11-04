@@ -57,6 +57,7 @@ export type AgentSnapshot = {
   strike_limit: number
   events: AgentEvent[]
   cursor: number
+  stage?: 'request' | 'results'    // results: after a run; a new request goes back to 'request'
   parts: RequestPart[]
   places: Array<{ name?: string | null; lat: number; lon: number; standard_offset_minutes?: number }>
   years: number[]
