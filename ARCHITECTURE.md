@@ -299,7 +299,9 @@ its facts. Request parts (2026-10-31, [design](docs/superpowers/specs/2026-10-30
 `openepw.agent.slots` derives each part's status (place, preference, products, years: empty,
 proposed, confirmed, recheck) from the facts; `Facts.change` applies the targeted resets; plans
 use confirmed parts only. The request summary form and per-part Change actions are host paths
-shared by both policies (`openepw.agent.host`), so a Change never calls the model.
+shared by both policies (`openepw.agent.host`), so a Change never calls the model; a correction
+typed on the plan review or request summary is read by the host first (`openepw.agent.revisions`)
+and only text it does not recognise reaches the model.
 `openepw eval` runs packaged scenarios through the same session in guided mode, with
 scripted models or with a live model, against offline stubs by default. Optional LangSmith
 tracing for the agent chat and the web chat is decided by `LANGSMITH_TRACING` in the env file

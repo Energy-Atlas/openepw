@@ -130,6 +130,18 @@ review. Change takes a snapshot, so Back undoes it; both are refused once a job 
 plan (`JOB_STARTED`). Typed text still answers an open form; in agent mode text at a Change form
 is read by the host rules.
 
+**Typed corrections** (owner, 2026-11-04). The browser shows no Change button per part on the plan
+review or the request summary: the person writes the change, and the host reads it first in both
+modes (`openepw.agent.revisions`, no model call). "2019 instead", "2019 instead of 2018" and
+"make it 2018-2020" set the years and replan; "add ERA5-Land on Open-Meteo", "remove CDS" and
+"use NSRDB instead" open the product form with that selection applied for the person to confirm
+(a source matching no offer is said so, and the form opens unchanged); "use Boston instead" and
+"change location to Boston" go to the location review; "use TMYx instead" changes the preference;
+naming only the part ("change the years", "another place", "different products") opens that
+part's form, as Change does. Anything else (a question, a sentence the reader does not
+recognise) goes to the model in agent mode and to the usual guided rules. The `change:<part>`
+options stay on the forms for the CLI and the API.
+
 Sessions saved before these parts existed load unchanged (every year and product confirmed).
 Sessions saved now carry three new fields that older code rejects, so rolling a deployment back
 would make newer sessions unreadable. The web chat shows the same parts, summary and Change

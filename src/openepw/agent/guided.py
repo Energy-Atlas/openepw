@@ -11,6 +11,7 @@ from . import host, outputs
 from .gates import build_requests, needs_years, next_need
 from .guard import clean_external
 from .interactions import Answer, Interaction, Option
+from .revisions import match_offers, read_revision
 from .session import AgentSession
 from .slots import request_form
 from .text import FUTURE, place_part, read_product, reads_as_question, written_years
@@ -33,6 +34,8 @@ RUN = re.compile(r"run|r|yes|go|start|approve", re.I)
 # Asking to see the request summary (the CLI's /request does the same).
 SHOW_REQUEST = re.compile(r"(?:show|see|review)(?: me)? (?:my|the) request|what (?:have i|did i) (?:chosen|choose)"
                           r"|my request", re.I)
+# Forms whose typed corrections the revision reader reads first (owner, 2026-11-04).
+REVISABLE = {"review_plan", "review_request"}
 PLACE_GATES = {None, "where", "choose_location", "review_location", "place_set", "review_plan",
                "next_steps"}
 REFERENCE_LABELS = {"tmy": "TMY", "tmyx": "TMYx", "published": "A published EPW"}
@@ -65,6 +68,8 @@ class GuidedPolicy:
         if gate == "review_plan" and RUN.fullmatch(text):
             await self._run(s)
             return
+        if await self.revise(s, text):
+            return
         if (not_a_place(place_part(text)) and not written_years(text) and not read_product(text)
                 and not describe_place_set(text)):
             s.emit("assistant", UNREAD)                # unrelated text: no geocoding, form kept
@@ -86,6 +91,50 @@ class GuidedPolicy:
             s.emit("assistant", UNREAD)
             return
         await self.advance(s)
+
+    async def revise(self, s: AgentSession, text: str) -> bool:
+        """A correction typed on the plan review or request summary (revisions.py), in either
+        mode. False when the text is not one, so the other rules, or the model, read it."""
+        if s.form is None or s.form.gate not in REVISABLE:
+            return False
+        revision = read_revision(text)
+        if revision is None:
+            return False
+        facts = s.facts
+        part, value = revision.part, revision.value
+        reviewed = facts.review is not None and facts.approved_key == facts.review.get("key")
+        if part in ("products", None) and reviewed and value:
+            if not facts.offers:
+                await host.fetch_offers(s, product=facts.product_type, provider=facts.provider)
+            matched = match_offers(value, facts.offers)
+            if matched is not None:
+                named = [offer["id"] for offer in matched]
+                chosen = [offer["id"] for offer in facts.chosen]
+                selected = (named if revision.action == "set" else
+                            chosen + [item for item in named if item not in chosen] if revision.action == "add"
+                            else [item for item in chosen if item not in named])
+                if host.release(s, "products"):
+                    host.products_with(s, selected)      # the person confirms the changed selection
+                return True
+            if part == "products":
+                shown = clean_external(value, s.security.external_text.max_chars)
+                s.emit("assistant", f"No offered product matches “{shown}”; choose on the form.")
+                await host.change_part(s, "products", self.advance)
+                return True
+            part = "place"                               # "use Boston instead"
+        if part is None:
+            return False
+        if not value:
+            await host.change_part(s, part, self.advance)
+            return True
+        if not host.release(s, part, close=False):
+            return True
+        if part == "place":
+            await self._read_place(s, value, place_part(value) or value)
+        else:
+            self._read_time_and_product(s, value)
+        await self.advance(s)
+        return True
 
     def _read_time_and_product(self, s: AgentSession, text: str) -> bool:
         """A product word changes the preference (chosen products that no longer fit are

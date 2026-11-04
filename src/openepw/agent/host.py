@@ -280,6 +280,39 @@ def next_steps_form(facts: Facts) -> Interaction:
     return Interaction(kind="choice", gate="next_steps", prompt="What next?", options=options)
 
 
+def release(s: AgentSession, part: str, *, close: bool = True) -> bool:
+    """Make room for the person's change to one part: the plan resets, a model question still
+    open is closed as ``person_changed`` and the open form closes. False, with the reason shown,
+    when a job already started from the plan.
+
+    ``close=False`` keeps the open review until the next form replaces it (a replan that fails
+    must not leave nothing to answer); a model's review becomes a host form, answered by the
+    host rules, since its question is closed."""
+    facts = s.facts
+    if any(plan.get("job_id") for plan in facts.plans):
+        s.emit("error", "A weather job already started from this plan; start a new request instead.",
+               code="JOB_STARTED")
+        return False
+    facts.plans = []
+    pending = s.state.pending_call
+    if pending:
+        s.state.turn.append({"type": "tool_result", "call_id": pending["id"], "name": pending["name"],
+                             "output": json.dumps({"status": "person_changed", "part": part})})
+        s.state.pending_call = None
+    if close:
+        s.close_form()
+    elif s.form is not None and "call_id" in s.form.data:
+        s.open_form(s.form.model_copy(update={"data": {key: value for key, value in s.form.data.items()
+                                                        if key != "call_id"}}))
+    return True
+
+
+def products_with(s: AgentSession, selected: list[str]) -> None:
+    """The product form with a typed change applied but not yet chosen: the person confirms it."""
+    form = product_form(s.facts)
+    s.open_form(form.model_copy(update={"data": {**form.data, "selected": selected, "change": "products"}}))
+
+
 async def change_part(s: AgentSession, part: str, advance: Advance) -> None:
     """Change one part of the request (design §6.3): the host's path in both modes, no model call.
 
@@ -291,17 +324,8 @@ async def change_part(s: AgentSession, part: str, advance: Advance) -> None:
     if part not in PARTS:
         s.emit("error", "Choose one of the listed options.", code="UNKNOWN_CHOICE")
         return
-    if any(plan.get("job_id") for plan in facts.plans):
-        s.emit("error", "A weather job already started from this plan; start a new request instead.",
-               code="JOB_STARTED")
+    if not release(s, part):
         return
-    facts.plans = []
-    pending = s.state.pending_call
-    if pending:
-        s.state.turn.append({"type": "tool_result", "call_id": pending["id"], "name": pending["name"],
-                             "output": json.dumps({"status": "person_changed", "part": part})})
-        s.state.pending_call = None
-    s.close_form()
     max_chars = s.security.external_text.max_chars
     if part == "place":
         form = place_form(facts, max_chars)

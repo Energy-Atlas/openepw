@@ -377,3 +377,14 @@ ERA5-Land on Open-Meteo) and reported five problems. Fixed on `fix/agent-chat-st
 
 Still untested signed in on staging after the fix: the rest of the list above (a run, a partial
 result, files, a download link, a retry and a data question in agent mode).
+
+### Owner's follow-up report (2026-11-04)
+
+Four more reports from staging, fixed on `fix/agent-chat-layout-and-revisions`:
+
+| Report | Cause | Fix |
+|---|---|---|
+| "View existing weather" stays after starting a new request | The card showed whenever the session had EPWs, and a new request keeps them | Snapshots carry `stage`; the card shows only with results, and open charts close when a new request starts |
+| The map popup stays after its confirm tick until the next step arrives | The popup lived as long as the selection | The tick hides it at once |
+| Chat flickers as messages and forms come and go | The transcript kept its scroll offset while the dock under it grew and shrank, so the newest message slid behind the dock (measured: up to 132 px) until the next event scrolled it back | The transcript is pinned to the newest message before each paint unless the person scrolled up (measured after: 0 px) |
+| Too many options when revising a plan | One Change button per part plus "Type a correction" | The plan review and request summary show one approve button and the open message field; the host reads corrections in words first in both modes ([agent README](../../agent/README.md), "Typed corrections") |

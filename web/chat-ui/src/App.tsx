@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import './app.css'
 import { ApiError, ChatApi } from './api'
 import { FormDock, type AnswerFields } from './FormDock'
@@ -127,7 +127,17 @@ export function App({ api: suppliedApi, onSignOut }: { api?: ChatApi; onSignOut?
   const setPendingChoice = (id: string | null) => setPending(id === null ? null : { form: formKey, id })
   const checked = picks?.form === formKey ? picks.ids
     : form?.kind === 'product_choice' ? ((form.data?.selected as string[] | undefined) ?? []) : []
-  useEffect(() => { transcript.current?.scrollTo?.(0, transcript.current.scrollHeight) }, [events.length])
+  // The newest message stays in view: before each paint, so a dock that grows or shrinks (a form
+  // opening, "Working…") never shows the transcript jumping. Scrolling up to read stops it.
+  const pinned = useRef(true)
+  useLayoutEffect(() => {
+    const log = transcript.current
+    if (log && pinned.current && log.scrollHeight - log.clientHeight - log.scrollTop > 1)
+      log.scrollTo?.(0, log.scrollHeight)
+  })
+  // A new request leaves the results: their charts and the "View existing weather" card close.
+  const stage = session?.stage
+  useEffect(() => { if (stage === 'request') setOpenViews([]) }, [stage])
 
   const busy = sending || Boolean(session?.busy)
 
@@ -243,7 +253,10 @@ export function App({ api: suppliedApi, onSignOut }: { api?: ChatApi; onSignOut?
         <button type="button" className="reply-alt" disabled={busy || session.ended}
           onClick={() => void send({ type: 'back' })}>Back</button>
       </header>}
-      <div className="chat-transcript" role="log" aria-live="polite" ref={transcript}>
+      <div className="chat-transcript" role="log" aria-live="polite" ref={transcript} onScroll={event => {
+        const log = event.currentTarget
+        pinned.current = log.scrollHeight - log.clientHeight - log.scrollTop < 24
+      }}>
         <article className="chat-event assistant-event welcome">
           <strong>Weather files for building simulation</strong>
           <p>Name a place and actual years, or ask what is available. You review the location, products and
@@ -286,7 +299,7 @@ export function App({ api: suppliedApi, onSignOut }: { api?: ChatApi; onSignOut?
               .then(refs => refs.forEach(ref => download(ref.id))).catch(caught => setError((caught as Error).message))}>
             Download all successful</button>}
         </section>}
-        {availableIds.length > 0 && <section className="view-controls" aria-label="Visualize weather data">
+        {availableIds.length > 0 && stage !== 'request' && <section className="view-controls" aria-label="Visualize weather data">
           <h2>View existing weather</h2>
           <label>View type <select value={viewFamily} onChange={event => setViewFamily(event.target.value)}>
             <option value="time_series">Hourly series</option><option value="annual_series">Annual series</option>
