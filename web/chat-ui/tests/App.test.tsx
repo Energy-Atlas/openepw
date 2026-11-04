@@ -178,16 +178,30 @@ describe('answers', () => {
       answer: expect.objectContaining({ choice_ids: [preselected, base.offers[1].id] }) })))
   })
 
-  it('runs a reviewed plan or changes one part of the request', async () => {
+  it('shows the existing-weather controls only with results, not in a new request', async () => {
+    const results = snapshot(form('choice', 'What next?', { options: [{ id: 'new', label: 'Start a new weather request' }] }),
+      { artifact_ids: ['a1'], stage: 'results' })
+    const { unmount } = render(<App api={fakeApi(results)} />)
+    expect(await screen.findByRole('region', { name: 'Visualize weather data' })).toBeInTheDocument()
+    unmount(); sessionStorage.clear()
+    render(<App api={fakeApi({ ...results, stage: 'request', form: FIXTURES.map_input.form })} />)
+    await messageField()
+    expect(screen.queryByRole('region', { name: 'Visualize weather data' })).not.toBeInTheDocument()
+  })
+
+  it('runs a reviewed plan, or takes a change in words instead of a button per part', async () => {
     const state = FIXTURES.plan_review
     const api = fakeApi(state)
     render(<App api={api} />)
     const card = await screen.findByLabelText('Current question')
     expect(within(card).queryByText('Your request:')).toBeNull()          // the parts list replaces the text copy
     expect(within(card).getAllByText('Years')).toHaveLength(1)
-    fireEvent.click(screen.getByRole('button', { name: 'Change years' }))
-    await waitFor(() => expect(api.input).toHaveBeenCalledWith('session-1', expect.objectContaining({
-      answer: expect.objectContaining({ choice_ids: ['change:years'] }) })))
+    expect(screen.queryByRole('button', { name: 'Change years' })).not.toBeInTheDocument()
+    const message = await messageField()
+    expect(message.getAttribute('placeholder')).toContain('2019 instead')
+    fireEvent.change(message, { target: { value: '2019 instead' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+    await waitFor(() => expect(api.input).toHaveBeenCalledWith('session-1', { type: 'text', text: '2019 instead' }))
     fireEvent.click(screen.getByRole('button', { name: 'Run reviewed plan' }))
     await waitFor(() => expect(api.input).toHaveBeenLastCalledWith('session-1', expect.objectContaining({
       answer: expect.objectContaining({ approve: true }) })))
@@ -199,8 +213,9 @@ describe('answers', () => {
     const card = await screen.findByLabelText('Current question')
     for (const part of state.parts) expect(card).toHaveTextContent(part.label)
     expect(card).toHaveTextContent('confirmed')
-    expect(within(screen.getByRole('group', { name: 'Change one part' })).getAllByRole('button').length)
-      .toBe(state.form!.options.length)
+    expect(screen.getByRole('button', { name: 'Confirm request' })).toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: 'Change one part' })).not.toBeInTheDocument()
+    expect(await messageField()).toBeInTheDocument()
   })
 
   it('sends free text as a message and hints the years form', async () => {

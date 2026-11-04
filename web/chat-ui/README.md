@@ -39,10 +39,14 @@ Node or this UI.
   text is expected. A choice shows its options with `Other — type an answer`;
   a location review shows `Approve location` with the message field open for
   corrections; the product question shows the product dialog; a plan review
-  shows `Run reviewed plan`, one Change button per part (place, product
-  preference, products, years) and `Type a correction`; the request summary
-  lists the parts with their status (confirmed, to confirm, choose again) and
-  offers `Confirm request` and the same Change buttons. Run, approvals and
+  shows `Run reviewed plan` and the request summary `Confirm request` (with the
+  parts and their status: confirmed, to confirm, choose again), each with the
+  message field open for a change in words ("2019 instead", "add NSRDB", "use
+  Boston instead"); there is no Change button per part (owner, 2026-11-04).
+  The transcript stays scrolled to the newest message as the dock below it
+  grows and shrinks, unless the person scrolled up; the "View existing
+  weather" card and open charts belong to results and close when a new request
+  starts; the map popup's confirm tick hides the popup at once. Run, approvals and
   choices are always sent as answers to the open form, and the server checks
   them. Refusals (too many messages, a job limit, a busy session) show under
   the form, which stays open.
