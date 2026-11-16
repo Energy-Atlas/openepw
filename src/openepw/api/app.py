@@ -18,7 +18,14 @@ from ..models import FutureRequest, OpenEPWError, WeatherPlan, WeatherRequest
 from ..service import WeatherService
 from ..visualization.models import VisualizationRequest
 from . import diagnostics
-from .accounts import OPEN_PATHS, Accounts, AccountStore, ConsoleMailer, ResendMailer
+from .accounts import (
+    OPEN_PATHS,
+    Accounts,
+    AccountStore,
+    ConsoleMailer,
+    ResendMailer,
+    tester_settings,
+)
 
 logger = logging.getLogger("openepw.api")
 
@@ -69,8 +76,10 @@ def _accounts(config, remote: bool, mailer) -> Accounts | None:
     domains = [d.strip() for d in config.allowed_email_domains.split(",") if d.strip()]
     bearer = config.bearer_token.get_secret_value() if config.bearer_token else None
     public_ui = config.web_root is not None and (Path(config.web_root) / "index.html").is_file()
+    tester = tester_settings(config.tester_name, config.tester_password_hash.get_secret_value()
+                             if config.tester_password_hash else None, config.debug_log)
     return Accounts(AccountStore(config.data_root / "accounts"), mailer, config.public_url, domains, bearer,
-                    public_ui=public_ui)
+                    public_ui=public_ui, tester=tester)
 
 
 def create_app(service=None, *, remote=False, mailer=None, env_file=".env", security_policy=None,

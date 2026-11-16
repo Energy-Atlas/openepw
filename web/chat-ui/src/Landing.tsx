@@ -70,7 +70,9 @@ export function AuthDialog({ auth, domains, onClose, onSignedIn }: {
         <button type="button" className="auth-close" aria-label="Close" onClick={onClose}>×</button>
       </div>
       <p className="dialog-note">{intro}</p>
-      <label>Email<input type="email" autoComplete={mode === 'login' ? 'username' : 'email'} required autoFocus
+      {/* Sign-in also takes the tester account's name (ADR 0005), so only sign-up and reset ask for an address. */}
+      <label>Email<input type={mode === 'login' ? 'text' : 'email'} inputMode="email"
+        autoComplete={mode === 'login' ? 'username' : 'email'} required autoFocus
         value={email} onChange={event => setEmail(event.target.value)} /></label>
       {mode === 'login' && <label>Password<input type="password" autoComplete="current-password" required
         value={password} onChange={event => setPassword(event.target.value)} /></label>}
