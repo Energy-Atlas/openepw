@@ -6,10 +6,18 @@ import re
 import pytest
 
 pytest.importorskip("fastapi")
+from fastapi import Request
 from fastapi.testclient import TestClient
 from test_batch import StationProvider
 
-from openepw.api.accounts import COOKIE, AccountStore, check_password, hash_password
+from openepw.api.accounts import (
+    COOKIE,
+    AccountStore,
+    check_password,
+    hash_password,
+    new_tester_secret,
+)
+from openepw.api.accounts import tester_settings as read_tester  # not collected as a test
 from openepw.api.app import create_app
 from openepw.config import RuntimeConfig
 from openepw.service import WeatherService
@@ -349,3 +357,85 @@ def test_refused_sends_do_not_use_up_the_hourly_limit(tmp_path):
         mailbox.refuse = False
         assert client.post("/auth/signup", json={"email": "ada@cornell.edu"}).status_code == 200
         assert [m["to"] for m in mailbox.sent] == ["ada@cornell.edu"]
+
+
+# -- the tester account (testing deployments only) ---------------------------------------
+
+TESTER_PASSWORD = "a random tester secret of some length"
+
+
+def _tester_client(tmp_path, mailbox, *, debug_log=True, password=TESTER_PASSWORD, name="tester"):
+    service = WeatherService(RuntimeConfig(data_root=tmp_path / "data", public_url=PUBLIC, debug_log=debug_log,
+                                           tester_name=name, tester_password_hash=hash_password(password)),
+                             providers=[StationProvider()])
+    app = create_app(service, remote=True, mailer=mailbox)
+
+    @app.get("/whoami")
+    def whoami(request: Request):
+        return {"tester": getattr(request.state, "tester_name", None)}
+    return TestClient(app, follow_redirects=False)
+
+
+def test_the_tester_signs_in_by_name_and_is_marked(tmp_path):
+    with _tester_client(tmp_path, Mailbox()) as client:
+        assert client.post("/auth/login", json={"email": "tester", "password": "wrong"}).status_code == 401
+        assert client.post("/auth/login", json={"email": "Tester", "password": TESTER_PASSWORD}).status_code == 200
+        assert client.get("/whoami").json() == {"tester": "tester"}
+        assert client.get("/auth/session").json()["email"] == "tester"
+
+
+def test_a_real_account_is_not_marked_as_the_tester(tmp_path):
+    mailbox = Mailbox()
+    with _tester_client(tmp_path, mailbox) as client:
+        _account(client, mailbox)
+        assert client.get("/whoami").json() == {"tester": None}
+
+
+def test_the_tester_cannot_sign_up_or_reset_by_email(tmp_path):
+    mailbox = Mailbox()
+    with _tester_client(tmp_path, mailbox) as client:
+        assert client.post("/auth/signup", json={"email": "tester"}).status_code == 400
+        assert client.post("/auth/reset", json={"email": "tester"}).status_code == 200
+        assert mailbox.sent == []
+
+
+def test_no_tester_outside_a_testing_deployment(tmp_path):
+    with _tester_client(tmp_path, Mailbox(), debug_log=False) as client:
+        assert client.post("/auth/login", json={"email": "tester", "password": TESTER_PASSWORD}).status_code == 401
+
+
+def test_a_new_secret_ends_the_tester_sessions_and_removing_it_disables_the_tester(tmp_path):
+    with _tester_client(tmp_path, Mailbox()) as client:
+        assert client.post("/auth/login", json={"email": "tester", "password": TESTER_PASSWORD}).status_code == 200
+        cookie = client.cookies.get(COOKIE)
+    with _tester_client(tmp_path, Mailbox(), password="the next tester secret") as client:
+        client.cookies.set(COOKIE, cookie)
+        assert client.get("/whoami").status_code == 303           # the old session ended: sign in again
+        assert client.post("/auth/login", json={"email": "tester",
+                                                "password": "the next tester secret"}).status_code == 200
+    store = AccountStore(tmp_path / "data" / "accounts")
+    assert store.sync_tester(None, None) is None
+    assert [row["disabled"] for row in store.accounts() if row["email"] == "tester"] == [True]
+
+
+def test_tester_settings_are_checked(tmp_path):
+    good = hash_password(TESTER_PASSWORD)
+    assert read_tester(None, None, True) is None
+    assert read_tester("Tester", good, True) == ("tester", good)
+    assert read_tester("tester", good, False) is None
+    for name, digest in (("tester", None), ("a@b.c", good), ("tester", "plain")):
+        with pytest.raises(ValueError):
+            read_tester(name, digest, True)
+
+
+def test_the_tester_secret_goes_to_the_env_file_and_only_its_hash_is_shown(tmp_path):
+    env = tmp_path / ".env"
+    env.write_text("OTHER=1\nOPENEPW_STAGING_TESTER_PASSWORD=old\n", encoding="utf-8")
+    result = new_tester_secret("tester", env)
+    written = dict(line.split("=", 1) for line in env.read_text(encoding="utf-8").splitlines())
+    assert written["OTHER"] == "1" and written["OPENEPW_STAGING_TESTER_NAME"] == "tester"
+    password = written["OPENEPW_STAGING_TESTER_PASSWORD"]
+    assert password != "old" and len(password) >= 40 and password not in json.dumps(result)
+    assert check_password(password, result["set_on_the_testing_server"]["OPENEPW_TESTER_PASSWORD_HASH"])
+    with pytest.raises(ValueError):
+        new_tester_secret("tester", tmp_path / "secrets.txt")

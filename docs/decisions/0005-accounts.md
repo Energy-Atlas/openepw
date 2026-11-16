@@ -60,6 +60,20 @@ verification link. Password reset uses the same link-and-set-password page.
   `/auth/logout`); a JSON body cannot be posted cross-site without a CORS preflight, which
   the app never grants. HTML pages are served with `Cache-Control: no-cache` so a deploy
   reaches returning browsers. Signed in, a sign-out button sits beside Start over.
+- **Tester account (owner, 2026-11-16).** A testing deployment may have one configured
+  tester so the staging tests can sign in without an inbox: `OPENEPW_TESTER_NAME` (a name,
+  never an address, so it cannot sign up or reset by email) and
+  `OPENEPW_TESTER_PASSWORD_HASH`, a scrypt hash. `openepw accounts tester-secret` makes a
+  random password, writes it only to a git-ignored `.env` for the tests
+  (`OPENEPW_STAGING_TESTER_NAME`, `OPENEPW_STAGING_TESTER_PASSWORD`) and prints the hash to
+  set on the server; the password never appears in chat, logs or git. The settings work only
+  when `OPENEPW_DEBUG_LOG` marks a testing deployment, so copying them to production does
+  nothing. The tester signs in through the same pages and cookie as everyone else, with the
+  same failed-sign-in limits. A new hash ends its sessions; removing the settings, or
+  `openepw accounts disable <name>`, disables it. Signed-in requests from the tester carry
+  its name (`request.state.tester_name`) so the agent chat can give it its own limits and
+  test treatment; it never gets other people's sessions or admin
+  actions.
 
 ## Consequences
 

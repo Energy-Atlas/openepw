@@ -25,11 +25,17 @@ class RuntimeConfig(Model):
     public_url: str | None = None                # base of emailed links; Render's URL when unset
     allowed_email_domains: str = "cornell.edu"   # comma-separated, exact domains
     accounts_dev_mail: bool = False              # local only: print account links to the console
+    # Testing deployments only: a configured tester account, its password kept only as a scrypt
+    # hash (`openepw accounts tester-secret`; ADR 0005).
+    tester_name: str | None = None
+    tester_password_hash: SecretStr | None = None
     timeout: float = Field(default=60, gt=0, le=300)
     retries: int = Field(default=2, ge=0, le=5)
     max_response_bytes: int = Field(default=50_000_000, gt=0)
     max_climate_bytes: int = Field(default=3_000_000_000, gt=0)
     workers: int = Field(default=2, ge=1, le=8)
+    # Testing deployments only: the web UI's "Copy log" button and GET /v1/diagnostics.
+    debug_log: bool = False
 
     @classmethod
     def load(

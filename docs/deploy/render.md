@@ -101,6 +101,12 @@ revoked alone.
   locks one out and ends its sessions (`enable` undoes it). Ten failed sign-ins per
   address or client in 10 minutes are refused; at most three account emails per address
   and 100 overall are sent per hour (counting only emails Resend accepted).
+- **Tester account (staging only).** On your machine, run `openepw accounts tester-secret`:
+  it writes a random password to your git-ignored `.env` and prints
+  `OPENEPW_TESTER_NAME` and `OPENEPW_TESTER_PASSWORD_HASH`. Set those two on the staging
+  service (it has `OPENEPW_DEBUG_LOG`) and redeploy; the staging tests then sign in as the
+  tester. Never set them on production, where they are ignored anyway. Running the command
+  again rotates the password; deleting the two variables disables the tester.
 - **Scripts** call `/v1` with `Authorization: Bearer <OPENEPW_BEARER_TOKEN>`.
 - **The catalog installs only when none is active.** To move to a new package version,
   update the two variables, delete `/var/data/openepw/catalog` from the Render shell and

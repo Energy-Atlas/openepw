@@ -47,6 +47,8 @@ if not _log.handlers:                          # visible in the server log (Rend
     _log.setLevel(logging.INFO)
     _log.propagate = False
 _EMAIL = re.compile(r"^[^@\s]+@([^@\s]+)$")
+# The tester's name (ADR 0005, tester account): never an address, so it cannot sign up or reset.
+TESTER_NAME = re.compile(r"^[a-z][a-z0-9._-]{2,31}$")
 
 
 # -- passwords ---------------------------------------------------------------------------
@@ -72,6 +74,49 @@ def check_password(password: str, stored: str) -> bool:
 
 
 _DUMMY_HASH = hash_password(secrets.token_urlsafe(16))      # keeps unknown-address timing alike
+
+
+def tester_settings(name: str | None, password_hash: str | None, testing: bool) -> tuple[str, str] | None:
+    """The tester account's (name, hash) when it may exist here, else None.
+
+    Only a testing deployment (OPENEPW_DEBUG_LOG) has one, so settings copied to production by
+    mistake do nothing. A malformed name or hash is refused at start-up rather than ignored.
+    """
+    if not name and not password_hash:
+        return None
+    if not (name and password_hash):
+        raise ValueError("Set both OPENEPW_TESTER_NAME and OPENEPW_TESTER_PASSWORD_HASH, or neither")
+    name = name.strip().lower()
+    if not TESTER_NAME.fullmatch(name):
+        raise ValueError("OPENEPW_TESTER_NAME must be 3-32 characters: a letter, then letters, digits, . _ -")
+    parts = password_hash.split("$")
+    if len(parts) != 6 or parts[0] != "scrypt":
+        raise ValueError("OPENEPW_TESTER_PASSWORD_HASH must come from `openepw accounts tester-secret`")
+    if not testing:
+        _log.warning("tester account settings ignored: this is not a testing deployment (OPENEPW_DEBUG_LOG)")
+        return None
+    return name, password_hash
+
+
+def new_tester_secret(name: str, env_file: Path) -> dict:
+    """A new random tester password, written to ``env_file`` for the staging tests; returns the
+    settings for the testing server. The password itself is never printed or returned."""
+    name = name.strip().lower()
+    if not TESTER_NAME.fullmatch(name):
+        raise ValueError("The tester name must be 3-32 characters: a letter, then letters, digits, . _ -")
+    env_file = Path(env_file)
+    if not env_file.name.startswith(".env") or env_file.name == ".env.example":
+        raise ValueError("Write the password to a git-ignored .env file, never to a tracked one")
+    password = secrets.token_urlsafe(32)
+    values = {"OPENEPW_STAGING_TESTER_NAME": name, "OPENEPW_STAGING_TESTER_PASSWORD": password}
+    lines = env_file.read_text(encoding="utf-8").splitlines() if env_file.is_file() else []
+    lines = [line for line in lines if line.split("=", 1)[0].strip() not in values]
+    env_file.write_text("\n".join([*lines, *(f"{key}={value}" for key, value in values.items())]) + "\n",
+                        encoding="utf-8")
+    return {"written_to": str(env_file), "set_on_the_testing_server": {
+        "OPENEPW_TESTER_NAME": name, "OPENEPW_TESTER_PASSWORD_HASH": hash_password(password)},
+        "note": "The password is only in the env file; the server keeps the hash. A new secret ends "
+                "the tester's sessions once the server has the new hash."}
 
 
 def _digest(token: str) -> str:
@@ -202,6 +247,33 @@ class AccountStore:
         return [{"email": email, "verified": verified is not None, "disabled": bool(disabled),
                  "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(created))}
                 for email, verified, disabled, created in rows]
+
+    def sync_tester(self, name: str | None, password_hash: str | None) -> int | None:
+        """Make the configured tester account match the server's settings; returns its id.
+
+        The tester is a row whose name has no "@" (an address always has one), with the
+        configured scrypt hash as its password. A new hash ends its sessions; a tester whose
+        settings are gone, or renamed, is disabled. Disabling it with `accounts disable` lasts:
+        a restart does not enable it again.
+        """
+        with self._db() as db, db:
+            others = db.execute("SELECT id, email FROM users WHERE email NOT LIKE '%@%'").fetchall()
+            for user_id, email in others:
+                if email != name:
+                    db.execute("UPDATE users SET disabled = 1 WHERE id = ?", (user_id,))
+                    db.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))
+            if not name or not password_hash:
+                return None
+            row = db.execute("SELECT id, password_hash FROM users WHERE email = ?", (name,)).fetchone()
+            if row is None:
+                now = time.time()
+                db.execute("INSERT INTO users (email, password_hash, verified_at, created_at) VALUES (?, ?, ?, ?)",
+                           (name, password_hash, now, now))
+                return db.execute("SELECT id FROM users WHERE email = ?", (name,)).fetchone()[0]
+            if row[1] != password_hash:
+                db.execute("UPDATE users SET password_hash = ? WHERE id = ?", (password_hash, row[0]))
+                db.execute("DELETE FROM sessions WHERE user_id = ?", (row[0],))
+            return row[0]
 
     def set_disabled(self, email: str, disabled: bool) -> bool:
         row = self.user(email)
@@ -335,8 +407,12 @@ def _sent_page() -> HTMLResponse:
 
 class Accounts:
     def __init__(self, store: AccountStore, mailer: Mailer, public_url: str | None, domains: list[str],
-                 bearer_token: str | None = None, public_ui: bool = False):
+                 bearer_token: str | None = None, public_ui: bool = False,
+                 tester: tuple[str, str] | None = None):
         self.store, self.mailer, self.domains = store, mailer, [d.lower() for d in domains]
+        # The configured tester (name, scrypt hash) on a testing deployment, else None.
+        self.tester_name = tester[0] if tester else None
+        self.tester_id = store.sync_tester(*(tester or (None, None)))
         self.bearer_token = bearer_token
         self.public_ui = public_ui                  # the built UI is served to visitors as a landing page
         self.public_url = (public_url or "").rstrip("/")
@@ -457,6 +533,8 @@ class Accounts:
             if user is not None:
                 request.state.signed_in = True
                 request.state.user_id = user
+                if user == self.tester_id:
+                    request.state.tester_name = self.tester_name   # its own limits and treatment
                 return await call_next(request)
             if self.bearer_token and hmac.compare_digest(request.headers.get("authorization", ""),
                                                          "Bearer " + self.bearer_token):

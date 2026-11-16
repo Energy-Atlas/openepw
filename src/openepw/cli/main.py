@@ -64,6 +64,11 @@ def main(argv=None):
         accounts_sub.add_parser(action).add_argument("email")
     accounts_sub.add_parser("test-mail", help="send a test email with this server's Resend settings"
                             ).add_argument("email")
+    tester = accounts_sub.add_parser("tester-secret", help="a new tester password, written only to a local "
+                                     "env file; prints its hash for the testing server")
+    tester.add_argument("--name", default="tester")
+    tester.add_argument("--write", type=Path, default=Path(".env"),
+                        help="git-ignored env file that receives the password (default .env)")
     args = parser.parse_args(argv)
     try:
         config = RuntimeConfig.load(
@@ -105,6 +110,10 @@ def main(argv=None):
             store = AccountStore(config.data_root / "accounts")
             if args.accounts_command == "list":
                 result = {"accounts": store.accounts()}
+            elif args.accounts_command == "tester-secret":
+                from ..api.accounts import new_tester_secret
+
+                result = new_tester_secret(args.name, args.write)
             elif args.accounts_command == "test-mail":
                 from ..api.accounts import MailError, ResendMailer
 
