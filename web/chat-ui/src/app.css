@@ -143,6 +143,7 @@ button { cursor: var(--oe-cursor-pointer); }
 .candidate-popup::after { content: ''; position: absolute; left: 50%; bottom: -6px; width: 12px; height: 12px; background: var(--oe-paper); transform: translateX(-50%) rotate(45deg); }
 .candidate-popup code { grid-column: 2; grid-row: 2; color: var(--oe-muted); font: .72rem 'IBM Plex Mono', monospace; }
 .candidate-popup .popup-confirm { grid-column: 3; grid-row: 2; display: grid; place-items: center; width: 2rem; height: 2rem; padding: 0; border: 0; border-radius: 50%; background: var(--oe-ink); color: var(--oe-paper); }
+.candidate-popup .popup-confirm:disabled { opacity: .45; }
 /* The minimize control has its own grid column so it never covers the place name. */
 .candidate-popup .popup-minimize { grid-column: 3; grid-row: 1; justify-self: end; display: grid; place-items: center; width: 1.5rem; height: 1.5rem; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--oe-muted); }
 .candidate-popup .popup-minimize:hover { background: var(--oe-l1); color: var(--oe-ink); }

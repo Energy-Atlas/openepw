@@ -237,7 +237,7 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
       candidates={candidates} catalogMap={catalogMap} years={session?.years ?? []}
       pendingCandidate={locationChoice ? pendingChoice : null}
       onPickCandidate={id => { if (locationChoice) setPendingChoice(id) }}
-      onConfirmCandidate={id => { if (locationChoice) answer({ choice_ids: [id] }) }}
+      onConfirmCandidate={id => { if (locationChoice) answer({ choice_ids: [id] }) }} confirmBusy={busy}
       productAvailability={productAvailability ?? null} selectedProducts={productChoice ? checked : []}
       onToggleProduct={productChoice && !busy ? toggleProduct : undefined}
       pointAvailability={(lat, lon) => api.pointAvailability(lat, lon, session?.years ?? [])} />
