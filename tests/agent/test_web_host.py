@@ -230,3 +230,21 @@ def test_a_model_place_question_lists_its_geocoder_points(make_host):
     snapshot = step(host, session_id, WebInput(type="text", text="AMY 2018 for Springfield"))
     assert snapshot["form"]["gate"] == "ask_choice"
     assert [(item["id"], item["lat"]) for item in snapshot["candidates"]] == [("1", 39.80), ("2", 42.10)]
+
+
+def test_a_turn_ending_during_a_snapshot_never_shows_idle_with_the_earlier_state(make_host):
+    # Staging tests, 2026-11-16: the state was read before "busy", so a turn ending in between
+    # showed the earlier form as idle and a client answered a stale form.
+    host = make_host()
+    session_id = host.create(OWNER)
+    idle(host, session_id)
+    host._busy.add(session_id)                       # a turn is running...
+    load = host.store.load
+
+    def load_as_the_turn_ends(sid):
+        state = load(sid)
+        host._busy.discard(sid)                      # ...and ends while the snapshot reads
+        return state
+
+    host.store.load = load_as_the_turn_ends
+    assert host.snapshot(session_id)["busy"] is True

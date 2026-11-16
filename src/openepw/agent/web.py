@@ -535,6 +535,9 @@ class AgentHost:
 
     # Snapshot -----------------------------------------------------------------------------
     def snapshot(self, session_id: str, *, events: int = RECENT_EVENTS) -> dict[str, Any]:
+        # Busy is read before the state: a turn ending in between then shows as busy with the
+        # earlier state, never as idle with it (staging tests, 2026-11-16).
+        busy = self.busy(session_id)
         state = self.store.load(session_id)
         facts, form = state.facts, state.form
         recent = self.store.events(session_id, max(self.store.last_seq(session_id) - events, 0))
@@ -542,7 +545,7 @@ class AgentHost:
         snapshot: dict[str, Any] = {
             "id": state.id, "mode": state.mode, "revision": state.revision,
             "form": form.model_dump(mode="json") if form else None,
-            "busy": self.busy(session_id), "ended": state.ended is not None,
+            "busy": busy, "ended": state.ended is not None,
             "downgraded": state.downgraded, "model_available": self.model_available,
             "profile": self.security.profile, "strikes": state.strikes,
             "strike_limit": self.security.strikes.limit,
