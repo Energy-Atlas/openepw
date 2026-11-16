@@ -132,8 +132,9 @@ def test_the_map_asks_nothing_next_to_the_chat(page, staging):
 def test_a_new_request_closes_the_results_card(page, staging):
     _open_guided(page, staging)
     _say(page, "AMY 2018 for Ithaca, NY")
+    page.locator(".numbered-option, .approve-location").first.wait_for(timeout=TIMEOUT)
     numbered = page.locator(".numbered-option")
-    if numbered.count():
+    if numbered.count():                                      # the geocoder found several places
         numbered.first.click()
         page.locator(".option-tick").click()
     page.get_by_role("button", name=re.compile("Approve location")).click(timeout=TIMEOUT)
