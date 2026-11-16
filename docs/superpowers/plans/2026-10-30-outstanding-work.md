@@ -388,3 +388,28 @@ Four more reports from staging, fixed on `fix/agent-chat-layout-and-revisions`:
 | The map popup stays after its confirm tick until the next step arrives | The popup lived as long as the selection | The tick hides it at once |
 | Chat flickers as messages and forms come and go | The transcript kept its scroll offset while the dock under it grew and shrank, so the newest message slid behind the dock (measured: up to 132 px) until the next event scrolled it back | The transcript is pinned to the newest message before each paint unless the person scrolled up (measured after: 0 px) |
 | Too many options when revising a plan | One Change button per part plus "Type a correction" | The plan review and request summary show one approve button and the open message field; the host reads corrections in words first in both modes ([agent README](../../agent/README.md), "Typed corrections") |
+
+### Tester account and staging tests (owner, 2026-11-16)
+
+The owner asked for a tester account so the signed-in checks can be automated: "We can touch
+account login to add that feature and then merge to staging"; all four treatments; a spend cap
+of about $1 per run; Playwright.
+
+- `feature/account-login`: the configured tester (`OPENEPW_TESTER_NAME`, a scrypt
+  `OPENEPW_TESTER_PASSWORD_HASH`, testing deployments only), `openepw accounts tester-secret`,
+  and a sign-in field that takes a name (ADR 0006 amendment).
+- `feature/tester-treatment` (from `main`): the security profile's `tester` section (own limits,
+  $1 per session and $3 per day, spend left out of the site total, sessions removed after 24 h,
+  opt-in stub sessions per eval task), and `tests/staging` over HTTP and in Chromium
+  ([guide](../../deploy/staging-tests.md)).
+- Running the suite against a local staging preview (staging + both branches, accounts on, the
+  tester configured) found four bugs, each fixed with a test that fails without the fix:
+  stub sessions sharing one stub runner (a task's planned failure happened once); a session
+  snapshot reading the state before "busy" (an idle snapshot with the earlier form); the map
+  popup's tick dropping a click while the chat was busy; and the browser applying an older reply
+  to an input after a newer streamed state (the chat stayed busy for good after a fast turn).
+  The last two can also happen to people.
+- After the fixes the default suite passed four runs in a row on the preview (9 passed, 3
+  opt-in skipped), and the opt-in real-retrieval tests passed once each.
+- Still to do by the owner: run `openepw accounts tester-secret`, set the two variables on the
+  staging service, and add `OPENEPW_STAGING_URL` to `.env`.

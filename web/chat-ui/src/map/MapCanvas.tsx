@@ -40,7 +40,8 @@ export function nearChat(x: number, y: number, margin = 16): boolean {
 
 export function MapCanvas({ location, candidates = [], geography, resolvedPoints = [], availability, catalogMap, years = [],
   pickMode = false, onExitPickMode, onPickPoint, onPickCandidate, onPickGeometry,
-  pendingCandidate = null, onConfirmCandidate, productAvailability = null, selectedProducts = [], onToggleProduct,
+  pendingCandidate = null, onConfirmCandidate, confirmBusy = false, productAvailability = null, selectedProducts = [],
+  onToggleProduct,
   pointAvailability }: {
   location?: MapPoint | null
   candidates?: MapPoint[]
@@ -56,6 +57,8 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
   onPickGeometry?: (geography: WeatherGeography) => void
   pendingCandidate?: string | null
   onConfirmCandidate?: (id: string) => void
+  // While the chat is busy an answer would be dropped, so the tick waits, like the chat's own.
+  confirmBusy?: boolean
   /** Where each weather product is available, shown while a product is chosen. */
   productAvailability?: ProductAvailability | null
   /** Products ticked for download; clicking a tag toggles its product. */
@@ -633,7 +636,7 @@ export function MapCanvas({ location, candidates = [], geography, resolvedPoints
       <button type="button" className="popup-minimize" aria-label="Minimize" title="Minimize"
         onClick={() => setPopupMinimized(true)}><MinimizeIcon /></button>
       <code>{pending.lat.toFixed(4)}, {pending.lon.toFixed(4)}</code>
-      <button type="button" className="popup-confirm" aria-label="Confirm" title="Confirm"
+      <button type="button" className="popup-confirm" aria-label="Confirm" title="Confirm" disabled={confirmBusy}
         onClick={() => {
           setPopupMinimized(true)                     // gone at once; the chat shows the next step
           if (pending.id) onConfirmCandidate?.(pending.id)
