@@ -8,12 +8,20 @@ from typing import Any, AsyncIterator, Callable
 
 from fastapi import FastAPI, File, Header, Query, Request, UploadFile
 from fastapi.responses import JSONResponse, StreamingResponse
+from pydantic import BaseModel
 
 from ..agent.model_port import DEFAULT_MODEL, ModelPort, OpenAIModel, load_openai_key
 from ..agent.moderation import ModerationPort, OpenAIModeration
 from ..agent.policy_config import SecurityPolicy, default_policy, requires_moderation_key
 from ..agent.session import MAX_UPLOAD
-from ..agent.web import AgentHost, WebInput, WebRefusal
+from ..agent.web import TESTER, AgentHost, StubChoice, WebInput, WebRefusal
+
+
+class CreateSession(BaseModel):
+    """Optional: ``stub`` asks for a tester stub session (testing deployments, ADR 0006)."""
+
+    stub: StubChoice | None = None
+
 
 HEARTBEAT_SECONDS = 15.0
 STREAM_SECONDS = 600.0            # the browser's EventSource reconnects with Last-Event-ID
@@ -21,7 +29,11 @@ STREAM_SECONDS = 600.0            # the browser's EventSource reconnects with La
 
 def owner_of(request: Request) -> str:
     """The person a session belongs to: the signed-in account, else the client address (the first
-    X-Forwarded-For entry behind a proxy, as the account gate reads it)."""
+    X-Forwarded-For entry behind a proxy, as the account gate reads it). The configured tester
+    account of a testing deployment is "tester:<name>", with its own limits (ADR 0006)."""
+    tester = getattr(request.state, "tester_name", None)
+    if tester:
+        return TESTER + str(tester)
     user = getattr(request.state, "user_id", None)
     if user:
         return f"user:{user}"
@@ -53,7 +65,44 @@ def build_host(service: Any, runner: Any, mcp_server: Any, *, security: Security
             raise ValueError(f"The {security.profile} profile moderates every message and refuses input when "
                              "moderation cannot run, but OPENAI_API_KEY is not set.")
     return AgentHost(service.config.data_root, runner, mcp_server, security=security,
-                     model_factory=model_factory, moderation_factory=moderation_factory)
+                     model_factory=model_factory, moderation_factory=moderation_factory,
+                     stub_backend=lambda task: stub_backend(service.config.data_root, task),
+                     scripted_model=task_script)
+
+
+def _task(task_id: str) -> Any:
+    from ..agent.evals.schema import load_tasks
+
+    return next((task for task in load_tasks() if task.id == task_id), None)
+
+
+def task_script(task_id: str) -> ModelPort | None:
+    """An eval task's scripted model, for a tester stub session in agent mode (ADR 0006)."""
+    from ..agent.evals.runner import scripted_model
+
+    task = _task(task_id)
+    return scripted_model(task) if task is not None else None
+
+
+def stub_backend(data_root: Any, task_id: str | None) -> tuple[Any, Any]:
+    """A job runner and MCP server on the eval stub providers, with an eval task's setup (planned
+    provider failures, unlisted offers), in its own folder: tester stub sessions never touch the
+    real providers, catalog jobs or files."""
+    from pathlib import Path
+
+    from ..agent.evals.stubs import stub_service
+    from ..jobs.worker import JobRunner
+    from ..mcp.server import create_server
+
+    task = _task(task_id) if task_id else None
+    setup = task.setup if task is not None else None
+    service = stub_service(Path(data_root) / "tester-stub" / (task_id or "default"),
+                           fail_near=setup.fail_near if setup else (),
+                           unlisted=setup.unlisted if setup else None,
+                           fail_once_near=setup.fail_once_near if setup else ())
+    runner = JobRunner(service)
+    runner.recover()
+    return runner, create_server(service, runner=runner)
 
 
 def install(app: FastAPI, host: AgentHost) -> None:
@@ -62,8 +111,8 @@ def install(app: FastAPI, host: AgentHost) -> None:
         return JSONResponse({"code": exc.code, "message": exc.message}, status_code=exc.status)
 
     @app.post("/v2/agent/sessions", status_code=201)
-    def create_session(request: Request) -> dict[str, Any]:
-        return host.snapshot(host.create(owner_of(request)))
+    def create_session(request: Request, body: CreateSession | None = None) -> dict[str, Any]:
+        return host.snapshot(host.create(owner_of(request), stub=body.stub if body else None))
 
     @app.get("/v2/agent/sessions/{session_id}")
     def get_session(session_id: str, request: Request) -> dict[str, Any]:

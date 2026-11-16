@@ -91,6 +91,12 @@ class SessionStore:
                               (session_id, limit)).fetchall()
         return [SessionState.model_validate(json.loads(row[0])) for row in rows]
 
+    def delete(self, session_id: str) -> None:
+        """Remove a session with its events and snapshots."""
+        with self._connect() as db:
+            for table, column in (("events", "session_id"), ("snapshots", "session_id"), ("sessions", "id")):
+                db.execute(f"DELETE FROM {table} WHERE {column}=?", (session_id,))
+
     def drop_snapshot(self, session_id: str) -> None:
         with self._connect() as db:
             db.execute("DELETE FROM snapshots WHERE session_id=? AND seq="

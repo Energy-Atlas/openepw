@@ -47,3 +47,12 @@ limits:                            # web sessions (P4); per person = account, el
   session_usd: 0.25                # model spend per session; then guided mode
   person_usd_per_day: 1.00         # model spend per person per UTC day; then guided mode
   total_usd_per_day: 10.00         # model spend of all web sessions per UTC day; then guided mode
+
+tester:                            # the configured tester account (testing deployments only, ADR 0006)
+  sessions_per_hour: 30            # staging tests start many short sessions
+  inputs_per_minute: 60
+  running_jobs: 2
+  session_usd: 1.00                # owner, 2026-11-16: about $1 per test run in agent mode
+  person_usd_per_day: 3.00         # its own daily cap; left out of total_usd_per_day
+  keep_hours: 24                   # its sessions are removed after a day
+  stub_mode: true                  # a session may ask for the eval stub providers
