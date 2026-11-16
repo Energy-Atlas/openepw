@@ -42,6 +42,10 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
   const [debugLog, setDebugLog] = useState(false)
   const [logStatus, setLogStatus] = useState('')
   const cursor = useRef(0)
+  // Counts session states from the event stream: a reply to an input that arrives after a newer
+  // streamed state is older than it and is dropped (staging tests, 2026-11-16: a fast turn's
+  // final "idle" state came first and the late reply left the chat busy for good).
+  const streamed = useRef(0)
   const transcript = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -75,7 +79,10 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
         const view = event.type === 'view' ? String(event.data?.view_id ?? '') : ''
         if (view) setOpenViews(current => [...new Set([...current, view])].slice(-4))
       },
-      state: state => setSession(current => current && current.id === state.id ? { ...state, events: [] } : current),
+      state: state => {
+        streamed.current += 1
+        setSession(current => current && current.id === state.id ? { ...state, events: [] } : current)
+      },
     })
   }, [session?.id])
 
@@ -144,9 +151,10 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
   async function send(input: AgentInput) {
     if (!session || busy) return
     setSending(true); setError('')
+    const before = streamed.current
     try {
       const state = await api.input(session.id, input)
-      setSession(current => current ? { ...state, events: [] } : current)
+      if (streamed.current === before) setSession(current => current ? { ...state, events: [] } : current)
     } catch (caught) {
       const refusal = caught as ApiError
       setError(REFUSALS[refusal.code] ?? refusal.message ?? 'That could not be sent.')
@@ -160,7 +168,11 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
   async function upload(file: File) {
     if (!session || busy) return
     setSending(true); setError('')
-    try { setSession(await api.uploadEpw(session.id, file).then(state => ({ ...state, events: [] }))) }
+    const before = streamed.current
+    try {
+      const state = await api.uploadEpw(session.id, file)
+      if (streamed.current === before) setSession({ ...state, events: [] })
+    }
     catch (caught) { setError((caught as Error).message) }
     finally { setSending(false) }
   }

@@ -53,14 +53,21 @@ def _open_guided(page, staging):
     expect(page.get_by_role("textbox", name="Message")).to_be_enabled(timeout=TIMEOUT)
     toggle = page.locator(".mode-toggle")
     if toggle.get_attribute("aria-pressed") == "true":
+        expect(toggle).to_be_enabled(timeout=TIMEOUT)
         toggle.click()
         expect(toggle).to_have_text("Guided mode", timeout=TIMEOUT)
+        expect(toggle).to_be_enabled(timeout=TIMEOUT)            # the switch has finished
 
 
 def _say(page, text):
+    """Type a message once the chat can take it (Enter does nothing while it is busy)."""
+    expect(page.get_by_role("status", name="Working")).to_have_count(0, timeout=TIMEOUT)
+    send = page.get_by_role("button", name=re.compile("^(Send|Confirm)$"))
+    expect(send).to_be_enabled(timeout=TIMEOUT)
     field = page.get_by_role("textbox", name="Message")
     field.fill(text)
     field.press("Enter")
+    expect(field).to_have_value("", timeout=TIMEOUT)          # sent
 
 
 def _watch_transcript(page):
