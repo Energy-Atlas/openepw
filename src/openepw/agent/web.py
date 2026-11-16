@@ -9,9 +9,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import shutil
 import sqlite3
 import threading
 import time
+from collections import OrderedDict
 from concurrent.futures import Future, ThreadPoolExecutor
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -38,6 +40,7 @@ RECENT_EVENTS = 300
 # Owners of the configured tester account's sessions (ADR 0006): "tester:<name>".
 TESTER = "tester:"
 PURGE_SECONDS = 600.0
+STUB_BACKENDS = 4                  # live stub runners at once; older ones close and reopen on use
 
 
 def is_tester(owner: str) -> bool:
@@ -249,7 +252,7 @@ class AgentHost:
                  security: SecurityPolicy | None = None,
                  model_factory: Callable[[], ModelPort | None] | None = None,
                  moderation_factory: Callable[[], ModerationPort | None] | None = None,
-                 stub_backend: Callable[[str | None], tuple[Any, Any]] | None = None,
+                 stub_backend: Callable[[Path, str | None], tuple[Any, Any]] | None = None,
                  scripted_model: Callable[[str], ModelPort | None] | None = None,
                  workers: int = 4, poll_seconds: float = 2.0, clock: Callable[[], float] = time.time):
         root = Path(data_root) / "agent"
@@ -262,11 +265,13 @@ class AgentHost:
         self.moderation_factory = moderation_factory
         self.poll_seconds = poll_seconds
         self.clock = clock
-        # Tester stub sessions (ADR 0006): (runner, MCP server) per eval task on the stub
-        # providers, built on first use; a task's scripted model lives as long as its session.
+        # Tester stub sessions (ADR 0006): each has its own (runner, MCP server) on the stub
+        # providers in its own folder, so a task's planned failures happen in every session;
+        # a task's scripted model lives as long as its session.
         self.stub_backend = stub_backend
         self.scripted_model = scripted_model
-        self._stubs: dict[str | None, tuple[Any, Any]] = {}
+        self.stub_root = Path(data_root) / "tester-stub"
+        self._stubs: OrderedDict[str, tuple[Any, Any]] = OrderedDict()
         self._scripts: dict[str, ModelPort | None] = {}
         self._purged = 0.0
         self.approvals = ApprovalBook()            # one-shot plan approvals, answered in-process
@@ -377,10 +382,17 @@ class AgentHost:
         if stub is None or self.stub_backend is None:
             return self.runner, self.mcp_server, None
         with self._mutex:
-            if stub.task not in self._stubs:
-                self._stubs[stub.task] = self.stub_backend(stub.task)
-            runner, server = self._stubs[stub.task]
+            if session_id not in self._stubs:
+                self._stubs[session_id] = self.stub_backend(self._stub_folder(session_id), stub.task)
+                while len(self._stubs) > STUB_BACKENDS:     # its jobs resume when it reopens
+                    self._stubs.popitem(last=False)[1][0].close()
+            self._stubs.move_to_end(session_id)
+            runner, server = self._stubs[session_id]
         return runner, server, stub
+
+    def _stub_folder(self, session_id: str) -> Path:
+        # Short, so job paths below it stay within Windows' path limit (session ids are 32 hex).
+        return self.stub_root / session_id[:12]
 
     def _check_running_jobs(self, owner: str, starting: int) -> None:
         limit = self.limits_for(owner).running_jobs
@@ -489,6 +501,10 @@ class AgentHost:
                     continue
                 self._following.pop(session_id, None)
                 self._scripts.pop(session_id, None)
+                backend = self._stubs.pop(session_id, None)
+            if backend is not None:
+                backend[0].close()
+            shutil.rmtree(self._stub_folder(session_id), ignore_errors=True)   # stub data is test-only
             self.store.delete(session_id)
             self.web.forget(session_id)
             removed.append(session_id)

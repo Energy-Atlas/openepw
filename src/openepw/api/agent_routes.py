@@ -66,7 +66,7 @@ def build_host(service: Any, runner: Any, mcp_server: Any, *, security: Security
                              "moderation cannot run, but OPENAI_API_KEY is not set.")
     return AgentHost(service.config.data_root, runner, mcp_server, security=security,
                      model_factory=model_factory, moderation_factory=moderation_factory,
-                     stub_backend=lambda task: stub_backend(service.config.data_root, task),
+                     stub_backend=stub_backend,
                      scripted_model=task_script)
 
 
@@ -84,19 +84,17 @@ def task_script(task_id: str) -> ModelPort | None:
     return scripted_model(task) if task is not None else None
 
 
-def stub_backend(data_root: Any, task_id: str | None) -> tuple[Any, Any]:
+def stub_backend(folder: Any, task_id: str | None) -> tuple[Any, Any]:
     """A job runner and MCP server on the eval stub providers, with an eval task's setup (planned
-    provider failures, unlisted offers), in its own folder: tester stub sessions never touch the
-    real providers, catalog jobs or files."""
-    from pathlib import Path
-
+    provider failures, unlisted offers), in a stub session's own folder: tester stub sessions
+    never touch the real providers, catalog jobs or files."""
     from ..agent.evals.stubs import stub_service
     from ..jobs.worker import JobRunner
     from ..mcp.server import create_server
 
     task = _task(task_id) if task_id else None
     setup = task.setup if task is not None else None
-    service = stub_service(Path(data_root) / "tester-stub" / (task_id or "default"),
+    service = stub_service(folder,
                            fail_near=setup.fail_near if setup else (),
                            unlisted=setup.unlisted if setup else None,
                            fail_once_near=setup.fail_once_near if setup else ())

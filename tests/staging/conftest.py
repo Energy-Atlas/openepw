@@ -139,10 +139,13 @@ class Chat:
                                params={"poll": 1, "after": 0}).json()["events"]
 
     def wait_jobs(self, timeout: float = 600.0) -> dict:
+        """Until every job finished and the host has opened the next form ("What next?")."""
         deadline = time.monotonic() + timeout
         while True:
             state = self.idle()
-            if state["job_ids"] and set(state["job_ids"]) <= set(state["finished_job_ids"]):
+            if (state["job_ids"] and set(state["job_ids"]) <= set(state["finished_job_ids"])
+                    and state["form"] is not None):
+                self.state = state
                 return state
             assert time.monotonic() < deadline, "the jobs did not finish"
             time.sleep(2)

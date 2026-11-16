@@ -47,7 +47,7 @@ def tester_host(tmp_path):
             "limits": LimitSettings(**(limits or {})), "tester": TesterSettings(**(tester or {}))})
         host = AgentHost(service.config.data_root, runner, create_server(service, runner=runner),
                          security=security, model_factory=model, poll_seconds=0.05, clock=clock,
-                         stub_backend=lambda task: stub_backend(service.config.data_root, task),
+                         stub_backend=stub_backend,
                          scripted_model=task_script)
         hosts.append((host, runner))
         return host
@@ -120,8 +120,8 @@ def test_a_guided_stub_session_runs_on_the_stub_providers(tester_host, tmp_path)
     assert snapshot["form"]["gate"] == "review_plan"
     snapshot = step(host, session_id, answer(snapshot, approve=True))
     assert snapshot["job_ids"]
-    # The job is the stub runner's, in its own folder; the real runner never saw it.
-    assert (tmp_path / "data" / "tester-stub" / "default").is_dir()
+    # The job is the stub runner's, in the session's own folder; the real runner never saw it.
+    assert (tmp_path / "data" / "tester-stub" / session_id[:12]).is_dir()
     with pytest.raises(Exception):
         host.runner.store.get(snapshot["job_ids"][0])
 
@@ -154,3 +154,43 @@ def test_tester_sessions_are_removed_after_keep_hours(tester_host):
         host.check_owner(old, TESTER)
     host.check_owner(recent, TESTER)
     host.check_owner(person, PERSON)                        # other people's sessions are untouched
+
+
+def _run_s65(host):
+    session_id = host.create(TESTER, stub=StubChoice(task="S65", mode="guided"))
+    snapshot = idle(host, session_id)
+    snapshot = step(host, session_id, WebInput(type="text", text="Boston, Denver 2016"))
+    snapshot = step(host, session_id, answer(snapshot, approve=True))
+    snapshot = step(host, session_id, answer(snapshot, choice_ids=["era5-openmeteo"]))
+    step(host, session_id, answer(snapshot, approve=True))
+    deadline = time.monotonic() + 60
+    while True:
+        snapshot = idle(host, session_id)
+        finished = snapshot["job_ids"] and set(snapshot["job_ids"]) <= set(snapshot["finished_job_ids"])
+        if finished and snapshot["form"] is not None:              # the summary and "What next?"
+            return session_id
+        assert time.monotonic() < deadline, "the stub job did not finish"
+        host.follow_once()
+        time.sleep(0.05)
+
+
+def test_each_stub_session_gets_its_task_setup_afresh(tester_host, tmp_path):
+    # Staging preview, 2026-11-16: a shared stub backend failed Boston only in the first session.
+    host = tester_host()
+    for _ in range(2):
+        session_id = _run_s65(host)
+        events = host.store.events(session_id)
+        said = [event.text[:90] for event in events if event.type in ("assistant", "error")]
+        assert any("1 failed" in text for text in said), said
+
+
+def test_removing_a_stub_session_removes_its_stub_folder(tester_host, tmp_path):
+    clock = Clock()
+    host = tester_host(tester={"keep_hours": 1}, clock=clock)
+    session_id = host.create(TESTER, stub=StubChoice())
+    idle(host, session_id)
+    step(host, session_id, WebInput(type="text", text="AMY 2018 for Ithaca, NY"))
+    folder = tmp_path / "data" / "tester-stub" / session_id[:12]
+    assert folder.is_dir()
+    clock.now += 7200
+    assert host.purge_testers() == [session_id] and not folder.exists()
