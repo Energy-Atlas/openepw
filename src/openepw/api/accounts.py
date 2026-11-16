@@ -364,7 +364,7 @@ def _safe_next(target: str | None) -> str:
 def _login_page(next_path: str, error: str = "", status: int = 200) -> HTMLResponse:
     return _page("Sign in", f"""<form method="post" action="/login">
 <h1>OpenEPW</h1><p>Sign in with your Cornell email.</p>{_error(error)}
-<input type="email" name="email" aria-label="Email" autocomplete="username" required autofocus>
+<input type="text" inputmode="email" name="email" aria-label="Email" autocomplete="username" required autofocus>
 <input type="password" name="password" aria-label="Password" autocomplete="current-password" required>
 <input type="hidden" name="next" value="{html.escape(next_path)}">
 <button type="submit">Sign in</button>

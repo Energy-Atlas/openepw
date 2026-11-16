@@ -80,6 +80,8 @@ describe('landing page', () => {
     })
     render(<Root auth={auth} />)
     fireEvent.click(await screen.findByRole('button', { name: /Sign in or create an account/ }))
+    // Sign-in takes a plain name too (the tester account); sign-up and reset ask for an address.
+    expect(screen.getByLabelText('Email')).toHaveAttribute('type', 'text')
     fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'ada@cornell.edu' } })
     fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'wrong' } })
     fireEvent.click(screen.getByRole('button', { name: 'Sign in' }))
@@ -88,6 +90,7 @@ describe('landing page', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Create an account' }))
     expect(screen.getByRole('dialog', { name: 'Create an account' })).toBeInTheDocument()
     expect(screen.queryByLabelText('Password')).not.toBeInTheDocument()     // the password comes from the link
+    expect(screen.getByLabelText('Email')).toHaveAttribute('type', 'email')
     fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'ada@gmail.com' } })
     fireEvent.click(screen.getByRole('button', { name: 'Send the link' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('Only @cornell.edu addresses')
