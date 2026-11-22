@@ -1,0 +1,41 @@
+id: S69
+title: Solar left missing in words on the data-gaps form is reported after the run
+purpose: 'On the data-gaps form the person writes "leave solar missing". The host reads it without a model
+  call, keeps the recommended pressure choice, and the plan review shows solar left missing. After the run
+  the host reports the missing values (DATA_GAPS_AFTER) and offers to fill solar by planning again.'
+covers: [gaps.decide, gaps.after]
+tags: [workflow]
+user:
+  say: AMY 2018 for Ithaca NY from the NOAA station
+  answers:
+    location_review: approve
+    product_choice: [noaa-isd]
+    data_gaps: 'say:leave solar missing'
+    plan_review: run
+    choice: first
+    text: '2018'
+    map_input: Ithaca, NY
+graders:
+- grader: forms_in_order
+  value: [location_review, product_choice, data_gaps, plan_review]
+- grader: codes_present
+  value: [GAPS_DECIDED, DATA_GAPS_AFTER]
+- {grader: submitted, value: true}
+script:
+- call: weather_geocode
+  args: {query: 'Ithaca, NY'}
+- call: review_location
+  args:
+    locations: {lat: 42.44, lon: -76.5, name: 'Ithaca, New York, United States'}
+- call: choose_products
+  args: {provider: noaa}
+- call: weather_plan
+  args:
+    request:
+      product: historical
+      years: [2018]
+      dataset_selections:
+      - {provider: noaa, dataset: ISD global-hourly}
+- call: review_plan
+  args: {}
+- {say: 'One EPW completed without solar radiation, as you chose. It is not certified simulation-ready (simulation_ready=false).'}

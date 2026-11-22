@@ -8,10 +8,10 @@ from typing import Any
 from ..models import OpenEPWError
 from ..places.parse import apply_edit, describe_place_set
 from . import host, outputs
-from .gates import build_requests, needs_years, next_need
+from .gates import needs_years, next_need
 from .guard import clean_external
 from .interactions import Answer, Interaction, Option
-from .revisions import match_offers, read_revision
+from .revisions import match_offers, read_fill, read_revision
 from .session import AgentSession
 from .slots import request_form
 from .text import FUTURE, place_part, read_product, reads_as_question, written_years
@@ -20,6 +20,8 @@ SUSPENDED = ("Future-weather planning is temporarily unavailable; ask for actual
              "or typical-year weather instead.")
 UNREAD = ("Guided mode reads places, coordinates, years and product names for weather files and "
           "cannot answer other questions. Use the form.")
+GAPS_UNREAD = ("Choose on the form, or write for example 'fill solar from Open-Meteo', 'leave pressure "
+               "missing' or 'ok' for the recommended choices.")
 # Text that cannot be a place name: formula characters, or a question or instruction verb first.
 _NOT_A_PLACE = re.compile(r"[=^*{}<>|\\]|^(?:how|why|who|when|explain|solve|write|tell|define|calculate|"
                           r"compute|translate|summari[sz]e|can you|could you|please)\b", re.I)
@@ -68,6 +70,10 @@ class GuidedPolicy:
         if gate == "review_plan" and RUN.fullmatch(text):
             await self._run(s)
             return
+        if gate == "fill_gaps":
+            if not await self.gaps_text(s, text):
+                s.emit("assistant", GAPS_UNREAD)
+            return
         if await self.revise(s, text):
             return
         if (not_a_place(place_part(text)) and not written_years(text) and not read_product(text)
@@ -97,6 +103,11 @@ class GuidedPolicy:
         mode. False when the text is not one, so the other rules, or the model, read it."""
         if s.form is None or s.form.gate not in REVISABLE:
             return False
+        if s.form.gate == "review_plan" and host.gap_rows(s.facts) and read_fill(text, need_group=True):
+            call = {"call_id": s.form.data["call_id"]} if "call_id" in s.form.data else {}
+            form = host.gaps_form(s.facts, change=True, max_chars=s.security.external_text.max_chars)
+            return await self.gaps_text(s, text, form.model_copy(update={"data": {**form.data, **call}}),
+                                        need_group=True)
         revision = read_revision(text)
         if revision is None:
             return False
@@ -134,6 +145,36 @@ class GuidedPolicy:
         else:
             self._read_time_and_product(s, value)
         await self.advance(s)
+        return True
+
+    async def gaps_text(self, s: AgentSession, text: str, form: Interaction | None = None, *,
+                        need_group: bool = False) -> bool:
+        """Gap choices typed on the data-gaps form (or, naming a group, on the plan review), in
+        either mode. False when the text says no choice, so other rules or the model read it."""
+        form = form or s.form
+        if form is None:
+            return False
+        read = read_fill(text, need_group=need_group)
+        if read is None:
+            return False
+        rows = form.data.get("rows") or []
+        choices: dict[str, str] = {}
+        for group, choice in read:
+            matched = [row for row in rows if group is None or row["group"] == group]
+            if not matched:
+                s.emit("assistant", f"There is no {group} gap to decide here; choose on the form.")
+                return True
+            for row in matched:
+                ids = {option["id"]: option for option in row.get("options") or []}
+                picked = (next((oid for oid, option in ids.items() if option.get("recommended")), None)
+                          if choice == "recommended" else choice)
+                if picked is None or picked not in ids:
+                    s.emit("assistant", f"That is not offered for {row['label'][:1].lower()}{row['label'][1:]} "
+                                        f"from {row['source']}; "
+                                        "choose on the form.")
+                    return True
+                choices[row["id"]] = picked
+        await host.decide_gaps(s, form, choices)
         return True
 
     def _read_time_and_product(self, s: AgentSession, text: str) -> bool:
@@ -276,6 +317,10 @@ class GuidedPolicy:
         if gate == "review_request" and answer.approve:
             await host.answer_summary(s, form, answer, self.advance)
             return
+        if gate == "fill_gaps" and (answer.approve or isinstance(answer.value, dict)):
+            choices = (answer.value or {}).get("choices") if isinstance(answer.value, dict) else None
+            await host.decide_gaps(s, form, dict(choices or {}))
+            return
         if gate == "where" and answer.value is not None:
             s.facts.reset_place()
             s.facts.change("place", answer.value, by="form", seq=s.seq)
@@ -341,6 +386,10 @@ class GuidedPolicy:
             if form is not None:
                 s.open_form(form)
                 return
+        elif choice.startswith("fill:"):
+            index = choice.split(":", 1)[1]
+            if not (index.isdigit() and host.refill(s, int(index))):
+                return
         await self.advance(s)
 
     # Forms ------------------------------------------------------------------------------
@@ -373,6 +422,11 @@ class GuidedPolicy:
             s.open_form(request_form(facts, max_chars=s.security.external_text.max_chars))
         elif need == "plan":
             await self._plan(s)
+        elif need == "fill_gaps":
+            form = host.gaps_form(facts, max_chars=s.security.external_text.max_chars)
+            # The open gaps form must list exactly the gaps still undecided (a replan can change them).
+            if not (s.form and s.form.gate == "fill_gaps" and s.form.data.get("rows") == form.data["rows"]):
+                s.open_form(form)
         elif need == "review_plan":
             # The open review must show exactly the plans that "run" submits.
             if not (s.form and s.form.gate == "review_plan" and s.form.data.get("plans") == facts.plans):
@@ -388,12 +442,5 @@ class GuidedPolicy:
         if facts.recheck:
             await self.advance(s)                        # the product form, still-offered ones selected
             return
-        plans = []
-        for request in build_requests(facts):
-            result = await s.tool("weather_plan", request=request)
-            plans.append(host.plan_entry(request, result.data, result.text))
-        facts.plans = plans                              # all or nothing: never a half-built plan set
-        if not any(plan["output_count"] for plan in facts.plans):
-            s.emit("assistant", "The plan has no executable output for these choices; choose other products.")
-            facts.chosen, facts.plans = [], []
+        await host.make_plans(s)                         # all or nothing: never a half-built plan set
         await self.advance(s)

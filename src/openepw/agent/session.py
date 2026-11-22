@@ -605,3 +605,7 @@ class AgentSession:
         message += (" These EPWs are not certified simulation-ready (simulation_ready=false); "
                     "review QC before simulation." if weather else " No EPW was produced.")
         self.emit("assistant", message, job_id=job_id, artifact_ids=weather)
+        if weather:
+            from .outputs import report_gaps  # outputs imports this module
+
+            await report_gaps(self, job_id)

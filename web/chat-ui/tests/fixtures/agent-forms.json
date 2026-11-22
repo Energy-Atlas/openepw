@@ -98,6 +98,203 @@
   "strikes": 0,
   "years": []
  },
+ "data_gaps": {
+  "artifact_ids": [],
+  "busy": false,
+  "candidates": [],
+  "cursor": 0,
+  "downgraded": false,
+  "ended": false,
+  "events": [],
+  "finished_job_ids": [],
+  "form": {
+   "allow_text": true,
+   "data": {
+    "mode": "add",
+    "rows": [
+     {
+      "chosen": null,
+      "dataset": "ISD global-hourly",
+      "group": "solar",
+      "id": "noaa|ISD global-hourly|solar",
+      "label": "Solar radiation (GHI, DNI, DHI)",
+      "notes": [],
+      "number": 1,
+      "options": [
+       {
+        "detail": "Whole variables; 25 km reanalysis grid; no key",
+        "fill": {
+         "dataset": "era5",
+         "for_dataset": "ISD global-hourly",
+         "for_provider": "noaa",
+         "group": "solar",
+         "method": "source",
+         "provider": "openmeteo"
+        },
+        "id": "source:openmeteo:era5",
+        "label": "Fill from Open-Meteo ERA5",
+        "places": 1,
+        "recommended": true,
+        "requires_credentials": []
+       },
+       {
+        "detail": "The EPW marks these values missing (9999); solar gains and daylighting cannot be simulated from this file",
+        "fill": {
+         "for_dataset": "ISD global-hourly",
+         "for_provider": "noaa",
+         "group": "solar",
+         "method": "leave_missing"
+        },
+        "id": "leave_missing",
+        "label": "Leave missing",
+        "places": 1,
+        "recommended": false,
+        "requires_credentials": []
+       }
+      ],
+      "places": 1,
+      "provider": "noaa",
+      "selected": "source:openmeteo:era5",
+      "source": "NOAA ISD station observations",
+      "statuses": {
+       "unresolved": 1
+      },
+      "unresolved": 1,
+      "variables": [
+       "ghi",
+       "dni",
+       "dhi"
+      ]
+     },
+     {
+      "chosen": null,
+      "dataset": "ISD global-hourly",
+      "group": "pressure",
+      "id": "noaa|ISD global-hourly|pressure",
+      "label": "Station pressure",
+      "notes": [],
+      "number": 2,
+      "options": [
+       {
+        "detail": "Measured station pressure, else worked out from the altimeter setting or sea-level pressure with the station elevation (20 m); hours without a usable report stay missing",
+        "fill": {
+         "for_dataset": "ISD global-hourly",
+         "for_provider": "noaa",
+         "group": "pressure",
+         "method": "station_reports"
+        },
+        "id": "station_reports",
+        "label": "Use the station's own pressure reports",
+        "places": 1,
+        "recommended": true,
+        "requires_credentials": []
+       },
+       {
+        "detail": "Whole variable; 25 km reanalysis grid; no key",
+        "fill": {
+         "dataset": "era5",
+         "for_dataset": "ISD global-hourly",
+         "for_provider": "noaa",
+         "group": "pressure",
+         "method": "source",
+         "provider": "openmeteo"
+        },
+        "id": "source:openmeteo:era5",
+        "label": "Fill from Open-Meteo ERA5",
+        "places": 1,
+        "recommended": false,
+        "requires_credentials": []
+       },
+       {
+        "detail": "The EPW marks these values missing (9999); simulation tools use their own default pressure or stop",
+        "fill": {
+         "for_dataset": "ISD global-hourly",
+         "for_provider": "noaa",
+         "group": "pressure",
+         "method": "leave_missing"
+        },
+        "id": "leave_missing",
+        "label": "Leave missing",
+        "places": 1,
+        "recommended": false,
+        "requires_credentials": []
+       }
+      ],
+      "places": 1,
+      "provider": "noaa",
+      "selected": "station_reports",
+      "source": "NOAA ISD station observations",
+      "statuses": {
+       "unresolved": 1
+      },
+      "unresolved": 1,
+      "variables": [
+       "pressure"
+      ]
+     }
+    ]
+   },
+   "gate": "fill_gaps",
+   "id": "form-data_gaps",
+   "kind": "data_gaps",
+   "multi": false,
+   "options": [],
+   "prompt": "Some weather you asked for is missing from the chosen source. How should it be covered?",
+   "revision": 4,
+   "summary": "1. NOAA ISD station observations has no solar radiation (GHI, DNI, DHI) (1 place): not decided at 1 of 1 place(s)\n2. NOAA ISD station observations has no station pressure (1 place): not decided at 1 of 1 place(s)\nA fill takes whole variables from the other source for the same hours, unchanged (not adjusted toward the station). Solar radiation always comes from one source."
+  },
+  "id": "session-2",
+  "job_ids": [],
+  "mode": "guided",
+  "model_available": false,
+  "offers": [],
+  "parts": [
+   {
+    "label": "Place",
+    "origin": "on a form",
+    "part": "place",
+    "status": "confirmed",
+    "value": "Ithaca, New York, United States"
+   },
+   {
+    "label": "Product preference",
+    "origin": "from your message",
+    "part": "preference",
+    "status": "confirmed",
+    "value": "actual year (AMY)"
+   },
+   {
+    "label": "Products",
+    "origin": "on a form",
+    "part": "products",
+    "status": "confirmed",
+    "value": "NOAA ISD station observations"
+   },
+   {
+    "label": "Years",
+    "origin": "from your message",
+    "part": "years",
+    "status": "confirmed",
+    "value": "2018"
+   }
+  ],
+  "places": [
+   {
+    "lat": 42.44,
+    "lon": -76.5,
+    "name": "Ithaca, New York, United States",
+    "standard_offset_minutes": -300
+   }
+  ],
+  "profile": "local",
+  "revision": 4,
+  "stage": "request",
+  "strike_limit": 3,
+  "strikes": 0,
+  "years": [
+   2018
+  ]
+ },
  "location_review": {
   "artifact_ids": [],
   "busy": false,
@@ -312,6 +509,7 @@
         "provider": "openmeteo"
        }
       ],
+      "gap_rows": [],
       "output_count": 1,
       "plan_hash": "dfb010f1b63c5e4f94e2aeb6d2b86abfcacb3f7f42a37734a8679ca57cd9de58",
       "product": "historical",
@@ -449,6 +647,12 @@
          "option": "era5land-cds",
          "status": "unknown",
          "tag": "ERA5-Land \u00b7 CDS"
+        },
+        {
+         "layer": "noaa",
+         "option": "noaa-isd",
+         "status": "unknown",
+         "tag": "NOAA ISD"
         }
        ]
       }
@@ -486,11 +690,16 @@
      "detail": "Land grid from Copernicus; needs CDS terms; no DNI or DHI; requests queue at Copernicus one month at a time, so several years can take hours \u00b7 not verified in the catalog; checked when planning",
      "id": "era5land-cds",
      "label": "ERA5-Land actual year \u00b7 Copernicus CDS"
+    },
+    {
+     "detail": "Nearest reporting station; no solar radiation \u00b7 not verified in the catalog; checked when planning",
+     "id": "noaa-isd",
+     "label": "NOAA ISD station observations"
     }
    ],
    "prompt": "Which weather products?",
    "revision": 4,
-   "summary": "For 2025. Listed: ERA5 actual year \u00b7 Open-Meteo; ERA5 actual year \u00b7 Copernicus CDS. Not verified: ERA5-Land actual year \u00b7 Open-Meteo; ERA5-Land actual year \u00b7 Copernicus CDS. Products not shown are not offered for these places and years. Listed means eligible to try retrieval, not quality assured. The local availability catalog is not loaded (openepw catalog import), so most products are not verified here; planning checks each one."
+   "summary": "For 2025. Listed: ERA5 actual year \u00b7 Open-Meteo; ERA5 actual year \u00b7 Copernicus CDS. Not verified: ERA5-Land actual year \u00b7 Open-Meteo; ERA5-Land actual year \u00b7 Copernicus CDS; NOAA ISD station observations. Products not shown are not offered for these places and years. Listed means eligible to try retrieval, not quality assured. The local availability catalog is not loaded (openepw catalog import), so most products are not verified here; planning checks each one."
   },
   "id": "session-1",
   "job_ids": [],
@@ -527,6 +736,14 @@
     "group": "actual",
     "id": "era5land-cds",
     "label": "ERA5-Land actual year \u00b7 Copernicus CDS",
+    "sites": 1
+   },
+   {
+    "available": 0,
+    "detail": "Nearest reporting station; no solar radiation \u00b7 not verified in the catalog; checked when planning",
+    "group": "actual",
+    "id": "noaa-isd",
+    "label": "NOAA ISD station observations",
     "sites": 1
    }
   ],
@@ -660,6 +877,7 @@
           "provider": "openmeteo"
          }
         ],
+        "gap_rows": [],
         "output_count": 1,
         "plan_hash": "dfb010f1b63c5e4f94e2aeb6d2b86abfcacb3f7f42a37734a8679ca57cd9de58",
         "product": "historical",

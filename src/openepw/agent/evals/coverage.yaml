@@ -12,6 +12,9 @@ items:
   gate.years: {text: "Actual-year weather uses only years the person wrote; missing years are asked for", source: ADR 0005}
   gate.plan-approval: {text: "Only Run on the plan review submits, once per approval", source: ADR 0005}
   gate.host-tools: {text: "Host-only tools (submit, cancel, retry, export, upload) never run for the model", source: ADR 0005}
+  gaps.decide: {text: "Requested weather a chosen source lacks is decided on the data-gaps form before the plan review; the model never chooses a fill", source: data gaps plan 2026-11-22}
+  gaps.fill: {text: "A fill takes the whole group from another source for the same hours, or station pressure from the station's reports, recorded in the plan and lineage", source: data gaps plan 2026-11-22}
+  gaps.after: {text: "After a run, values still missing are reported per variable and a wholly missing group can be filled by planning again", source: data gaps plan 2026-11-22}
   science.reference-products: {text: "A year with a typical-year product does not make it actual-year weather", source: agent-chat spec S10}
   science.future-suspended: {text: "Future-climate weather is suspended; no tools run", source: agent-chat spec S11}
   science.readiness: {text: "No EPW is presented as simulation-ready; claims are corrected", source: AGENTS.md}

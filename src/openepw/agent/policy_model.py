@@ -18,7 +18,7 @@ from typing import Any
 
 from ..mcp.access import HOST_TOOLS, LEGACY_TOOLS, MODEL_TOOLS
 from . import host, outputs
-from .gates import GateRequired, check_plan_requests, needs_years, next_need
+from .gates import GateRequired, check_plan_requests, needs_years, next_need, open_gaps
 from .guard import clean_external, clean_tool_data, off_topic
 from .guided import SUSPENDED, GuidedPolicy
 from .interactions import Answer, Interaction, Option
@@ -96,7 +96,9 @@ the same thing: actual-year weather (product "historical"). It needs years the p
 years; if none were given, ask with ask_text (purpose "years"). Typical-year products (TMY, \
 TMYx, published) take no years.
 4. Plan: call weather_plan with request {product, years, dataset_selections} for the chosen \
-offers (locations are replaced by the approved ones). Then call review_plan. Only the person \
+offers (locations are replaced by the approved ones). Then call review_plan; when a chosen \
+source lacks requested variables it first asks the person how to cover them (data gaps), and \
+you never choose a fill for them. Only the person \
 can run a plan; you cannot submit, cancel, export or upload, and a retry goes through \
 review_retry. Plans use confirmed parts \
 only: a proposed part (such as years the person wrote in a question) must first be confirmed \
@@ -276,6 +278,8 @@ class ModelPolicy:
         if s.form is not None and s.form.data.get("change") and "call_id" not in s.form.data:
             await self.guided.on_text(s, text)      # a Change form: answered by host rules (design §6.3)
             return
+        if s.form is not None and s.form.gate == "fill_gaps" and await self.guided.gaps_text(s, text):
+            return                                  # a gap choice in words: no model call
         if await self.guided.revise(s, text):      # a correction on the plan review: no model call
             return
         self._note_text(s, text)
@@ -300,6 +304,8 @@ class ModelPolicy:
         if s.state.mode == "guided" or not pending or "call_id" not in form.data:
             await self.guided.on_answer(s, form, answer)      # a form the host or guided rules opened
             return
+        if answer.text and form.gate == "fill_gaps" and await self.guided.gaps_text(s, answer.text, form):
+            return                                            # a gap choice in words: no model call
         if answer.text:
             s.close_form()
             self._note_text(s, answer.text)
@@ -797,6 +803,8 @@ class ModelPolicy:
                 return "refused", {"code": "NOTHING_TO_RUN", "message": (
                     "These plans already ran or have no outputs; for a new request review the "
                     "location and make a new plan.")}
+            if open_gaps(facts):                      # the person decides the gaps first
+                return self._asked(s, call, host.gaps_form(facts, max_chars=s.security.external_text.max_chars))
             return self._asked(s, call, host.plan_form(facts, s.security.external_text.max_chars))
         if name == "ask_text":
             if arguments.get("purpose") == "years":
@@ -981,6 +989,13 @@ class ModelPolicy:
                     "point_count": facts.review["point_count"],
                     "next": ("weather_plan" if facts.chosen and not facts.recheck else
                              "choose_products (its form shows the years; choosing there confirms them)")}
+        if name == "review_plan" and form.gate == "fill_gaps":
+            choices = answer.value.get("choices") if isinstance(answer.value, dict) else None
+            if answer.approve or choices is not None:
+                await host.decide_gaps(s, form, dict(choices or {}))   # the next form, same question
+            else:
+                s.emit("error", "Choose an option for each listed gap.", code="UNKNOWN_CHOICE")
+            return None
         if name == "review_plan" and answer.approve:
             started = await host.run_plans(s, self._reopen_plan_review)
             if started or s.form is None:        # nothing new to run also answers the question

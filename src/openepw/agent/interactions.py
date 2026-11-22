@@ -10,7 +10,7 @@ from pydantic import Field
 from ..models import Model
 
 FormKind = Literal["text", "choice", "location_review", "product_choice", "map_input", "upload",
-                   "plan_review", "request_summary"]
+                   "plan_review", "request_summary", "data_gaps"]
 EventType = Literal["user", "assistant", "tool", "form", "job", "view", "download", "notice", "error"]
 
 
