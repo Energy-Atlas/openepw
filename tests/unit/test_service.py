@@ -245,7 +245,7 @@ def test_dataset_choices_resolve_local_station_per_point(tmp_path):
     station_outputs = [o for o in plan.outputs if o.dataset_selection.provider == "station"]
     assert "station-1" in station_outputs[0].name
     assert "station-2" in station_outputs[1].name
-    # The synthetic sources lack DNI, DHI and more: data gaps (ADR 0006), nothing else.
+    # The synthetic sources lack DNI, DHI and more: data gaps (ADR 0007), nothing else.
     assert {issue.code for issue in plan.issues} == {"DATA_GAP"}
 
 

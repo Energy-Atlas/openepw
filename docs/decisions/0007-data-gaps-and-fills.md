@@ -1,4 +1,4 @@
-# ADR 0006 — Data gaps: warn, then fill from a second source
+# ADR 0007 — Data gaps: warn, then fill from a second source
 
 Date: 2026-11-22. Status: owner approved the plan and its recommendations on 2026-11-22;
 implemented on `feature/data-gaps-and-fills` (not yet merged).

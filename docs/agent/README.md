@@ -94,7 +94,7 @@ exception text is not shown. Credentials and local paths in what the person type
 ## Data gaps
 
 When a chosen source lacks requested weather, the plan lists it per variable group, for example
-NOAA ISD's solar radiation and station pressure ([ADR 0006](../decisions/0006-data-gaps-and-fills.md)).
+NOAA ISD's solar radiation and station pressure ([ADR 0007](../decisions/0007-data-gaps-and-fills.md)).
 The data-gaps form then opens before the plan review:
 
 - **Rows.** One row per chosen source and group. The options are filling from another source,

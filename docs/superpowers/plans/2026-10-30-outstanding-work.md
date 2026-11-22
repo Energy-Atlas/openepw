@@ -405,7 +405,7 @@ The owner approved the plan and every recommendation:
 | Order | Detection, the data-gaps form and "leave missing" first; whole-variable fill on the same branch; hour patching and the other cases later |
 
 Built on `feature/data-gaps-and-fills`, recorded in
-[ADR 0006](../../decisions/0006-data-gaps-and-fills.md):
+[ADR 0007](../../decisions/0007-data-gaps-and-fills.md):
 
 - Plans list gaps per place, chosen source and variable group, with options and a recommendation.
 - Fill rules ride on the request.
