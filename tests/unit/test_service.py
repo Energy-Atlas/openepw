@@ -245,7 +245,8 @@ def test_dataset_choices_resolve_local_station_per_point(tmp_path):
     station_outputs = [o for o in plan.outputs if o.dataset_selection.provider == "station"]
     assert "station-1" in station_outputs[0].name
     assert "station-2" in station_outputs[1].name
-    assert not plan.issues
+    # The synthetic sources lack DNI, DHI and more: data gaps (ADR 0006), nothing else.
+    assert {issue.code for issue in plan.issues} == {"DATA_GAP"}
 
 
 def test_unavailable_dataset_is_reported_per_point_without_substitution(tmp_path):
@@ -263,11 +264,12 @@ def test_unavailable_dataset_is_reported_per_point_without_substitution(tmp_path
     )
     plan = service.plan(request)
     assert len(plan.outputs) == 2
-    assert len(plan.issues) == 2
-    assert {issue.location_id for issue in plan.issues} == {p.key for p in request.locations}
+    unavailable = [issue for issue in plan.issues if issue.code != "DATA_GAP"]   # gaps: the synthetic source
+    assert len(unavailable) == 2
+    assert {issue.location_id for issue in unavailable} == {p.key for p in request.locations}
     assert all(
         issue.dataset_selection == {"provider": "missing", "dataset": "unknown", "product_id": None}
-        for issue in plan.issues
+        for issue in unavailable
     )
 
 
@@ -402,7 +404,7 @@ def test_a_selection_variant_picks_that_published_file_at_each_point(tmp_path):
                              dataset_selections=[{"provider": "station", "dataset": "synthetic",
                                                   "variant": "TMYx.2009-2023"}])
     plan = service.plan(request)
-    assert len(plan.outputs) == 2 and not plan.issues
+    assert len(plan.outputs) == 2 and {issue.code for issue in plan.issues} == {"DATA_GAP"}
     assert [task.parameters["product_id"] for task in plan.tasks] == ["USA_X_Site.1_TMYx.2009-2023.zip"] * 2
     missing = service.plan(request.model_copy(update={"dataset_selections": [
         DatasetSelection(provider="station", dataset="synthetic", variant="TMY2")]}))
@@ -422,7 +424,7 @@ def test_two_variants_of_one_published_dataset_plan_side_by_side(tmp_path):
         locations=[Location(lat=1, lon=0), Location(lat=2, lon=0)], start="2024-01-01", end="2024-01-01",
         dataset_selections=[{"provider": "station", "dataset": "synthetic", "variant": "TMY3"},
                             {"provider": "station", "dataset": "synthetic", "variant": "TMYx.2009-2023"}]))
-    assert len(plan.batch_rows) == 4 and not plan.issues
+    assert len(plan.batch_rows) == 4 and {issue.code for issue in plan.issues} == {"DATA_GAP"}
     assert sorted(task.parameters["product_id"] for task in plan.tasks) == [
         "USA_X_Site.1_TMY3.zip", "USA_X_Site.1_TMY3.zip",
         "USA_X_Site.1_TMYx.2009-2023.zip", "USA_X_Site.1_TMYx.2009-2023.zip"]

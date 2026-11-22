@@ -22,6 +22,7 @@ from ..jobs.outputs import job_outputs as list_job_outputs
 from ..jobs.worker import JobRunner
 from ..models import OpenEPWError, WeatherPlan, WeatherRequest
 from ..places.models import MAX_PLACES, PlacePreview, PlaceSetQuery
+from ..planning.gaps import gap_rows
 from ..qc import validate
 from ..service import WeatherService
 from ..visualization import VisualizationRequest
@@ -80,6 +81,8 @@ def _plan_summary(plan: WeatherPlan) -> dict[str, Any]:
         "batch_row_count": len(plan.batch_rows),
         "issues": [issue.model_dump(mode="json") for issue in plan.issues[:50]],
         "warnings": plan.warnings[:50],
+        # Gaps grouped as the person decides them (planning/gaps.py); bounded by source and group.
+        **({"gap_rows": gap_rows(plan.gaps)[:20]} if plan.kind == "weather" and plan.gaps else {}),
         "estimated_calls": plan.estimated_calls,
         "estimated_bytes": plan.estimated_bytes,
         "truncated": len(plan.outputs) > 50 or len(plan.batch_rows) > 50,

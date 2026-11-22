@@ -42,7 +42,9 @@ from .models import (
     Issue,
     Location,
     OpenEPWError,
+    OutputFill,
     OutputSpec,
+    PlanGap,
     SourceRef,
     WeatherPlan,
     WeatherRequest,
@@ -52,6 +54,7 @@ from .models import (
 from .places import preview as places_preview
 from .places.geonames import GeoNamesStore
 from .places.models import PlacePreview, PlaceSetQuery
+from .planning import gaps as gap_rules
 from .planning.batch import (
     exact_published_source,
     exact_published_url,
@@ -513,7 +516,9 @@ class WeatherService:
                 variables=product.adapter_variables,
                 missing_fields=[v for v in request.required_variables if v not in
                                 product.adapter_variables],
-                warnings=["Catalog listing does not establish hourly completeness or variable coverage"],
+                warnings=["Catalog listing does not establish hourly completeness or variable coverage",
+                          "No solar radiation; station pressure only when worked out from the station's own "
+                          "pressure reports (a data-gap choice), never sea-level pressure as is"],
             )
         if product.provider == "onebuilding" and product.native_product_id:
             parsed = urlparse(product.native_product_id)
@@ -646,7 +651,7 @@ class WeatherService:
         discovery = discovery or self.discover(request)
         if [p.key for p in discovery.locations] != [p.key for p in self.locations(request)]:
             raise OpenEPWError("PLAN_STALE", "Discovery locations differ from this request")
-        tasks = {}
+        tasks: dict[str, FetchTask] = {}
         outputs = []
         batch_rows: list[BatchRow] = []
         selected: list[Candidate] = []
@@ -656,6 +661,8 @@ class WeatherService:
 
             warnings.extend(year_offset_warnings(locations, request.years))
         issues = list(discovery.issues)
+        plan_gaps: list[PlanGap] = []
+        filler_cache: dict[tuple, Candidate | None] = {}
         for occurrence, loc in enumerate(discovery.locations):
             candidate_ids = (discovery.candidate_ids_by_occurrence[occurrence]
                              if len(discovery.candidate_ids_by_occurrence) == len(discovery.locations)
@@ -740,8 +747,13 @@ class WeatherService:
             if not chosen:
                 continue
             selected.extend(c for c, _ in chosen if c.id not in [v.id for v in selected])
+            # Requested variables each chosen source lacks here, and the fills covering them.
+            coverage = {candidate.id: self._cover_gaps(request, loc, occurrence, candidate, selection,
+                                                        filler_cache, plan_gaps, issues)
+                        for candidate, selection in chosen}
             for start, end in periods:
                 ids = []
+                fills_by_candidate: dict[str, list[OutputFill]] = {}
                 for candidate, _selection in chosen:
                     warnings.extend(candidate.warnings)
                     if (
@@ -761,7 +773,7 @@ class WeatherService:
                         query_location.update(
                             lat=candidate.source.location.lat, lon=candidate.source.location.lon
                         )
-                    params = {
+                    params: dict[str, Any] = {
                         "start": start,
                         "end": end,
                         "product": request.product,
@@ -769,19 +781,27 @@ class WeatherService:
                     }
                     if not exact_published_url(candidate):
                         params["location"] = query_location
-                    key = fetch_task_key(candidate.source, params)
-                    task_id = key[:20]
-                    if key not in tasks:
-                        tasks[key] = FetchTask(
-                            id=task_id,
-                            source=candidate.source,
-                            parameters=params,
-                            cache_key=key,
-                            dependents=[loc.key],
-                        )
-                    elif loc.key not in tasks[key].dependents:
-                        tasks[key].dependents.append(loc.key)
+                    fills, derived = coverage[candidate.id]
+                    if "pressure" in derived:          # station pressure from the station's reports
+                        params["derived"] = ["pressure"]
+                    task_id = self._add_task(tasks, candidate.source, params, loc.key)
                     ids.append(task_id)
+                    output_fills = [OutputFill(group="pressure", variables=["pressure"],
+                                               method="station_reports", provider=candidate.source.provider,
+                                               dataset=candidate.source.dataset)
+                                    for group in derived if group == "pressure"]
+                    for group, rule, filler in fills:
+                        fill_location = {**query_location}
+                        station = candidate.source.location
+                        if station is not None and station.elevation is not None:
+                            fill_location["elevation"] = station.elevation
+                        fill_params = {"start": start, "end": end, "product": request.product,
+                                       "product_id": None, "location": fill_location}
+                        output_fills.append(OutputFill(
+                            group=group, variables=gap_rules.wanted(group, request.required_variables),
+                            method="source", provider=filler.source.provider, dataset=filler.source.dataset,
+                            task_id=self._add_task(tasks, filler.source, fill_params, loc.key)))
+                    fills_by_candidate[candidate.id] = output_fills
                 groups: list[tuple[list[str], list[Candidate], DatasetSelection | None]] = (
                     [
                         ([task_id], [pair[0]], pair[1])
@@ -791,6 +811,10 @@ class WeatherService:
                     else [(ids, [pair[0] for pair in chosen], None)]
                 )
                 for output_task_ids, output_candidates, output_selection in groups:
+                    output_fills = [fill for c in output_candidates for fill in fills_by_candidate.get(c.id, [])]
+                    output_task_ids = output_task_ids + list(dict.fromkeys(
+                        fill.task_id for fill in output_fills
+                        if fill.task_id and fill.task_id not in output_task_ids))
                     identity = output_id(
                         {
                             "kind": "weather",
@@ -813,6 +837,9 @@ class WeatherService:
                             "skip_feb_29": request.skip_feb_29,
                             "hybrid_assignments": request.hybrid_policy.assignments,
                             "missing_policy": request.missing_policy,
+                            # Only when filled, so outputs without fills keep their identities.
+                            **({"fills": [fill.model_dump(mode="json") for fill in output_fills]}
+                               if output_fills else {}),
                         }
                     )
                     first = output_candidates[0]
@@ -822,6 +849,7 @@ class WeatherService:
                             requested_location_id=loc.key,
                             task_ids=output_task_ids,
                             dataset_selection=output_selection,
+                            fills=output_fills,
                             name=filename(
                                 [
                                     location_label(loc),
@@ -855,10 +883,102 @@ class WeatherService:
             batch_rows=batch_rows,
             warnings=list(dict.fromkeys(warnings)),
             issues=issues,
+            gaps=plan_gaps,
             estimated_calls=len(tasks),
         )
         self.plan_store.put(plan)
         return plan
+
+    @staticmethod
+    def _add_task(tasks: dict[str, FetchTask], source: SourceRef, params: dict[str, Any],
+                  dependent: str) -> str:
+        key = fetch_task_key(source, params)
+        if key not in tasks:
+            tasks[key] = FetchTask(id=key[:20], source=source, parameters=params, cache_key=key,
+                                   dependents=[dependent])
+        elif dependent not in tasks[key].dependents:
+            tasks[key].dependents.append(dependent)
+        return key[:20]
+
+    def _fill_candidate(self, request: WeatherRequest, provider: str, dataset: str,
+                        location: Location) -> Candidate | None:
+        """A fill source's candidate at a place, or None (not registered, nothing here, failed)."""
+        adapter = self.providers.get(provider)
+        if adapter is None:
+            return None
+        query = request.model_copy(update={"dataset": dataset, "dataset_selections": [], "fills": [],
+                                           "providers": [provider], "product_id": None})
+        try:
+            found = adapter.discover(query, location, _DiscoveryHttp(self.http))
+        except OpenEPWError:
+            return None
+        candidate = next((item for item in found
+                          if (item.source.provider, item.source.dataset) == (provider, dataset)), None)
+        # A source whose key this server lacks would only fail, so it is not offered as a fill.
+        if candidate is not None and not self._credentials_ready(candidate.requires_credentials):
+            return None
+        return candidate
+
+    def _credentials_ready(self, names: list[str]) -> bool:
+        """True when every OPENEPW_* credential a source needs is configured (values never read)."""
+        for name in names:
+            if not name.startswith("OPENEPW_"):
+                continue                                 # e.g. accepted terms: not a server setting
+            field = name.removeprefix("OPENEPW_").lower()
+            if hasattr(self.config, field) and getattr(self.config, field) is None:
+                return False
+        return True
+
+    def _cover_gaps(self, request: WeatherRequest, loc: Location, occurrence: int,
+                    candidate: Candidate, selection: DatasetSelection | None,
+                    cache: dict[tuple, Candidate | None], plan_gaps: list[PlanGap],
+                    issues: list[Issue]) -> tuple[list[tuple[str, Any, Candidate]], list[str]]:
+        """Record the gaps of one chosen source at one place (planning/gaps.py) and return the
+        source fills (group, rule, filling candidate) and groups taken from station reports."""
+        if request.product not in ("historical", "amy") or request.hybrid_policy.enabled:
+            return [], []
+        if not candidate.variables:                     # not stated by the source: unknown, not none
+            return [], []
+        lacking = gap_rules.missing_groups(candidate.variables, request.required_variables)
+        if not lacking:
+            return [], []
+        query = loc.model_copy()
+        if candidate.source.identity and not candidate.source.provisional and candidate.source.location:
+            station = candidate.source.location
+            query = loc.model_copy(update={"lat": station.lat, "lon": station.lon,
+                                           "elevation": station.elevation if station.elevation is not None
+                                           else loc.elevation})
+        fillers: dict[tuple[str, str], Candidate | None] = {}
+        for provider, dataset in gap_rules.FILL_SOURCES:
+            key = (provider, dataset, query.lat, query.lon, query.elevation, query.standard_offset_minutes)
+            if key not in cache:
+                cache[key] = self._fill_candidate(request, provider, dataset, query)
+            fillers[(provider, dataset)] = cache[key]
+        row_selection = (selection or DatasetSelection(
+            provider=candidate.source.provider, dataset=candidate.source.dataset,
+            product_id=candidate.product_id or request.product_id)).model_dump(mode="json")
+        fills: list[tuple[str, Any, Candidate]] = []
+        derived: list[str] = []
+        for group, variables in lacking:
+            status, rule, note = gap_rules.resolve(group, candidate, request.fills, fillers,
+                                                   request.required_variables)
+            gap = PlanGap(occurrence_index=occurrence, requested_location_id=loc.key,
+                          provider=candidate.source.provider, dataset=candidate.source.dataset,
+                          group=group, variables=variables, status=status, fill=rule,  # type: ignore[arg-type]
+                          options=gap_rules.gap_options(group, candidate, fillers, request.required_variables),
+                          note=note)
+            plan_gaps.append(gap)
+            if status == "filled" and rule is not None:
+                filler = fillers[(rule.provider, rule.dataset)]  # type: ignore[index]
+                assert filler is not None
+                fills.append((group, rule, filler))
+            elif status == "station_reports":
+                derived.append(group)
+            if status in ("unresolved", "left_missing"):
+                issues.append(Issue(code="DATA_GAP", message=gap_rules.describe(gap), field=group,
+                                    location_id=loc.key, occurrence_index=occurrence,
+                                    dataset_selection=row_selection))
+        return fills, derived
 
     def execute(self, plan: WeatherPlan, *, cancelled=lambda: False, progress=lambda *_: None,
                 task_results: dict[str, ProviderResult] | None = None,
@@ -922,10 +1042,13 @@ class WeatherService:
             if output_key in written:
                 continue
             written.add(output_key)
-            if not all(t in results for t in output.task_ids):
+            fill_ids = {fill.task_id for fill in output.fills if fill.task_id}
+            needed = [t for t in output.task_ids if t not in fill_ids]
+            if not all(t in results for t in needed):
                 continue
             try:
-                parts = [results[t] for t in output.task_ids]
+                parts = [results[t] for t in needed]
+                filling = [results[t] for t in output.task_ids if t in fill_ids and t in results]
                 if plan.request.hybrid_policy.enabled:
                     from .planning.hybrid import combine
 
@@ -935,6 +1058,7 @@ class WeatherService:
                     )
                 else:
                     dataset = copy.deepcopy(parts[0].dataset)
+                dataset = self._apply_fills(plan, output, dataset, results)
                 if plan.request.skip_feb_29:
                     source_checks = validate(dataset, "annual")
                     if any(i.severity == "error" for i in source_checks):
@@ -963,7 +1087,7 @@ class WeatherService:
                     "application/vnd.energyplus.epw",
                 )
                 weather.append(ref)
-                for task_id, part in zip(output.task_ids, parts):
+                for task_id, part in zip(needed, parts):
                     if part.native_epw:
                         additional.append(
                             self.artifacts.write(
@@ -985,7 +1109,8 @@ class WeatherService:
                             k: v.model_dump(mode="json") for k, v in dataset.lineage.items()
                         },
                         "metadata": dataset.metadata,
-                        "raw_sha256": [hashlib.sha256(p.raw).hexdigest() for p in parts],
+                        "raw_sha256": [hashlib.sha256(p.raw).hexdigest() for p in [*parts, *filling]],
+                        **self._gap_record(plan, output, dataset),
                     }
                 )
                 qc_records.append(
@@ -999,6 +1124,49 @@ class WeatherService:
         return self._bundle(
             plan, bundle_id, weather, additional, issues, manifest_outputs, qc_records
         )
+
+    @staticmethod
+    def _apply_fills(plan: WeatherPlan, output: OutputSpec, dataset: Any,
+                     results: dict[str, ProviderResult]) -> Any:
+        """Fill the output's groups from their filling sources (planning/gaps.py). A filling
+        source that failed leaves its group missing, with a FILL_FAILED warning."""
+        from .planning.hybrid import fill_group
+
+        assert isinstance(plan.request, WeatherRequest)
+        for fill in output.fills:
+            if fill.method != "source" or fill.task_id is None:
+                continue
+            label = gap_rules.source_label(fill.provider, fill.dataset)
+            variables = gap_rules.wanted(fill.group, plan.request.required_variables)
+            filler = results.get(fill.task_id)
+            if filler is None:
+                dataset.issues.append(Issue(
+                    code="FILL_FAILED", field=fill.group,
+                    message=f"{label} could not be retrieved, so {gap_rules.GROUP_LABELS[fill.group]} stays missing"))
+                continue
+            dataset = fill_group(dataset, filler.dataset, variables, group=fill.group,
+                                 provider=fill.provider, dataset=fill.dataset)
+        return dataset
+
+    @staticmethod
+    def _gap_record(plan: WeatherPlan, output: OutputSpec, dataset: Any) -> dict[str, Any]:
+        """The manifest's record of one output's gaps, fills and missing hours per variable."""
+        if not isinstance(plan.request, WeatherRequest):
+            return {}
+        rows = len(dataset.data)
+        missing = {variable: int(dataset.data[variable].isna().sum()) if variable in dataset.data else rows
+                   for variable in plan.request.required_variables}
+        selection = output.dataset_selection
+        gaps = [gap.model_dump(mode="json", exclude={"options"}, exclude_none=True) for gap in plan.gaps
+                if gap.occurrence_index == (output.occurrence_index or 0)
+                and gap.requested_location_id == output.requested_location_id
+                and (selection is None or (gap.provider, gap.dataset) == (selection.provider, selection.dataset))]
+        record: dict[str, Any] = {"missing_hours": missing, "hours": rows}
+        if gaps:
+            record["gaps"] = gaps
+        if output.fills:
+            record["fills"] = [fill.model_dump(mode="json", exclude_none=True) for fill in output.fills]
+        return record
 
     def _bundle(self, plan, bundle_id, weather, additional, issues, manifest_outputs, qc_records):
         request_ref = self.artifacts.json(
