@@ -131,8 +131,22 @@ ten temporal years. The late-century RCP4.5 source warning is retained.
   name. Automatic worldwide nearest-site discovery is not included. Redistribution
   remains unverified; no source weather is committed as a fixture.
 - NOAA ISD supports the surviving historical endpoint, not its GHCNh successor.
-  Inventory dates are not completeness guarantees. Missing solar and station
-  pressure remain missing. A hybrid can explicitly supply other variables.
+  Inventory dates are not completeness guarantees.
+  - Solar is a data gap: filled from another source or left missing by the person's choice
+    ([ADR 0006](decisions/0006-data-gaps-and-fills.md)).
+  - Station pressure comes from the station's own reports only when that is chosen: measured
+    MA1, else the altimeter setting, else sea-level pressure up to 500 m.
+  - Cloud cover, visibility, ceiling, present weather and precipitation in the same reports
+    are not read yet.
+- Data-gap fills replace whole variables with another source's values for the same hours.
+  - A station file filled from ERA5 mixes a point measurement with a 25 km grid cell. The
+    distance is recorded; values are not adjusted toward the station.
+  - Hours missing inside a variable are reported after a run, not filled. Interpolating short
+    gaps is the next planned step.
+  - NSRDB is not offered as a fill source yet. Copernicus CDS fills appear only when the server
+    has a CDS key.
+  - Typical-year products get no plan-time gaps. Missing values in a published EPW show in QC
+    and in the after-run report.
 - Discovery of a station is not proof that every requested hour is complete. A
   dataset selection resolves the locally ranked station independently at each
   point; failed/unsupported point-dataset outputs are reported rather than silently

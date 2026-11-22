@@ -52,5 +52,33 @@ Preserve NOAA attribution and supplied source/QC metadata; use synthetic fixture
 unless dataset-specific redistribution has been confirmed. No token or rate ceiling
 was needed/verified for these endpoints; default one concurrent request and cache.
 
-Status: historical data validated; hourly normalization, solar hybrid, successor
-access and full-year completeness remain implementation work.
+Status: historical data validated. Solar now comes from a fill and station pressure from the
+station's own reports (below); successor access and full-year completeness remain
+implementation work.
+
+## Solar and station pressure (ADR 0006, 2026-11-22)
+
+ISD has no solar radiation outside a few specialist stations. Raw records checked on
+2026-11-21 for 1–3 June 2023:
+
+- Paya Lebar (48694099999) and Changi (48698099999): no solar field (GH1, GM1, ...).
+- Seletar and Tengah: no records for those days.
+
+A plan therefore records solar as a data gap. The person fills it from another source (Open-Meteo
+ERA5 is recommended) or leaves it missing on the data-gaps form; see
+[ADR 0006](../decisions/0006-data-gaps-and-fills.md).
+
+Station pressure is asked for (`dataTypes` adds `SLP,MA1`) only when the plan chooses "the
+station's own pressure reports". Each report gives station pressure in this order:
+
+1. MA1 station pressure (measured).
+2. The MA1 altimeter setting, converted with the ICAO standard-atmosphere definition and the
+   station elevation.
+3. SLP, inverted with the hypsometric equation, for stations up to 500 m.
+
+Paya Lebar reports only the altimeter setting. Its 2023 file took 8,623 hours that way, with 137
+hours missing like its other variables. Changi's synoptic reports carry both SLP and a measured
+station pressure. Lineage counts the hours from each route.
+
+The same reports also carry cloud cover (GA/GF), visibility, ceiling, present weather and
+precipitation. The adapter does not read them yet.
