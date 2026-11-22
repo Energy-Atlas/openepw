@@ -40,7 +40,10 @@ unchanged.
 - Stub sessions (`POST /v2/agent/sessions` with `{"stub": {"task": "S65", "mode": "guided"}}`)
   run on the eval stub providers with that task's setup; `"mode": "agent"` needs a task and
   uses its script as the model. Nobody else may ask for one (403). Stub files live in their own
-  folder and cannot be downloaded through `/v1/artifacts`.
+  folder and cannot be downloaded through `/v1/artifacts`. Stub sessions use the offline stub
+  moderation, as the evals do: their fixed texts never go to OpenAI, and the hosted profile's
+  "block when moderation cannot run" rule does not refuse them (found by the first staging run,
+  2026-11-22).
 - Forms, gates and guard-rails are the same as for everyone; it never sees other people's
   sessions and has no admin actions.
 
