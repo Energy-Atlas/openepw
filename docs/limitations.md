@@ -133,7 +133,7 @@ ten temporal years. The late-century RCP4.5 source warning is retained.
 - NOAA ISD supports the surviving historical endpoint, not its GHCNh successor.
   Inventory dates are not completeness guarantees.
   - Solar is a data gap: filled from another source or left missing by the person's choice
-    ([ADR 0006](decisions/0006-data-gaps-and-fills.md)).
+    ([ADR 0007](decisions/0007-data-gaps-and-fills.md)).
   - Station pressure comes from the station's own reports only when that is chosen: measured
     MA1, else the altimeter setting, else sea-level pressure up to 500 m.
   - Cloud cover, visibility, ceiling, present weather and precipitation in the same reports

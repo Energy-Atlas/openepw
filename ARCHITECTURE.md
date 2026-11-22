@@ -189,7 +189,7 @@ must match. Subhourly states aggregate only with all required observations; inte
 solar sums preserve energy and missingness; wind direction uses a circular mean.
 There is no implicit secondary-source fill.
 
-Data gaps ([ADR 0006](docs/decisions/0006-data-gaps-and-fills.md)): planning records, per
+Data gaps ([ADR 0007](docs/decisions/0007-data-gaps-and-fills.md)): planning records, per
 place, chosen source and variable group, what the source lacks (`WeatherPlan.gaps`).
 `WeatherRequest.fills` covers a gap in one of three ways:
 - another source's whole group, as an extra fetch task on the output;

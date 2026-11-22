@@ -56,7 +56,7 @@ Status: historical data validated. Solar now comes from a fill and station press
 station's own reports (below); successor access and full-year completeness remain
 implementation work.
 
-## Solar and station pressure (ADR 0006, 2026-11-22)
+## Solar and station pressure (ADR 0007, 2026-11-22)
 
 ISD has no solar radiation outside a few specialist stations. Raw records checked on
 2026-11-21 for 1–3 June 2023:
@@ -66,7 +66,7 @@ ISD has no solar radiation outside a few specialist stations. Raw records checke
 
 A plan therefore records solar as a data gap. The person fills it from another source (Open-Meteo
 ERA5 is recommended) or leaves it missing on the data-gaps form; see
-[ADR 0006](../decisions/0006-data-gaps-and-fills.md).
+[ADR 0007](../decisions/0007-data-gaps-and-fills.md).
 
 Station pressure is asked for (`dataTypes` adds `SLP,MA1`) only when the plan chooses "the
 station's own pressure reports". Each report gives station pressure in this order:
