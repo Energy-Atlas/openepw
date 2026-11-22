@@ -11,7 +11,7 @@ export type AgentEvent = {
 }
 
 export type FormKind = 'text' | 'choice' | 'location_review' | 'product_choice' | 'map_input' | 'upload'
-  | 'plan_review' | 'request_summary'
+  | 'plan_review' | 'request_summary' | 'data_gaps'
 
 /** The open form (`Interaction`); `gate` names the step it answers. */
 export type AgentForm = {

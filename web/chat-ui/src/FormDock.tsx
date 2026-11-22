@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useState, type FormEvent } from 'react'
 import { ModelText } from './ModelText'
+import { GapsDialog, type GapRow } from './GapsDialog'
 import { ProductDialog, type ProductOption } from './ProductDialog'
 import { EnterIcon, TickIcon } from './icons'
 import type { AgentAnswer, AgentForm, AgentSnapshot } from './types'
@@ -48,7 +49,8 @@ export function FormDock({ snapshot, busy, checked, pendingChoice, onPendingChoi
     setMessage('')
     onText(text)
   }
-  const backLabel = kind === 'choice' || kind === 'product_choice' ? 'Back to options' : null
+  const backLabel = kind === 'choice' || kind === 'product_choice' || kind === 'data_gaps' ? 'Back to options' : null
+  const gapRows = kind === 'data_gaps' && Array.isArray(form?.data?.rows) ? form!.data.rows as GapRow[] : []
   const places = kind === 'choice' && snapshot.candidates.length > 0
   const offers: ProductOption[] = kind === 'product_choice'
     ? (snapshot.offers.length ? snapshot.offers.map(offer => ({ ...offer, detail: offer.detail ?? undefined,
@@ -69,7 +71,10 @@ export function FormDock({ snapshot, busy, checked, pendingChoice, onPendingChoi
       {/* The product dialog is its own panel: reply-options pill styles would reach its info buttons. */}
       {!textReply && !busy && kind === 'product_choice' && <ProductDialog options={offers} selected={checked} busy={busy}
         onToggle={onToggleProduct} onType={() => setTyping(true)} onConfirm={() => onAnswer({ choice_ids: checked })} />}
-      {!textReply && !busy && kind !== 'product_choice' && <div className="reply-options" role="group" aria-label="Reply options">
+      {!textReply && !busy && kind === 'data_gaps' && <GapsDialog key={`${form!.id}:${form!.revision}`}
+        rows={gapRows} busy={busy} onType={() => setTyping(true)}
+        onConfirm={choices => onAnswer({ approve: true, value: { choices } })} />}
+      {!textReply && !busy && kind !== 'product_choice' && kind !== 'data_gaps' && <div className="reply-options" role="group" aria-label="Reply options">
         {kind === 'choice' && <>
           {form!.options.map((option, index) => places
             ? <span className="option-row" key={option.id}>
@@ -107,7 +112,7 @@ export function FormDock({ snapshot, busy, checked, pendingChoice, onPendingChoi
         <div className="composer-row">
           <input id="chat-message" name="message" placeholder={placeholderFor(form, typing)}
             value={message} onChange={event => setMessage(event.target.value)} />
-          {typing && (kind === 'choice' || kind === 'product_choice')
+          {typing && (kind === 'choice' || kind === 'product_choice' || kind === 'data_gaps')
             ? <button type="submit" className="icon-submit" aria-label="Confirm" title="Confirm" disabled={busy}><TickIcon /></button>
             : <button type="submit" className="icon-submit" aria-label="Send" title="Send" disabled={busy}><EnterIcon /></button>}
         </div>
@@ -123,6 +128,8 @@ function FormSummary({ form }: { form: AgentForm }) {
   let lines = form.summary.split('\n')
   const request = lines.indexOf('Your request:')
   if (form.kind === 'plan_review' && Array.isArray(form.data?.parts) && request >= 0) lines = lines.slice(0, request)
+  // The gaps dialog lists the numbered rows; only the notes under them stay here.
+  if (form.kind === 'data_gaps' && Array.isArray(form.data?.rows)) lines = lines.filter(line => !/^\d+\. /.test(line))
   return <div className="form-summary">{lines.map((line, index) =>
     <Fragment key={index}>{line.startsWith('Warning:') ? <p className="warning">{line}</p>
       : <ModelText text={line} />}</Fragment>)}</div>
@@ -144,6 +151,7 @@ export function placeholderFor(form: AgentForm | null, typing: boolean): string 
   if (form.kind === 'location_review') return form.data?.several ? 'Or edit the list, e.g. remove 3' : 'Or describe a correction'
   if (form.kind === 'plan_review' || form.kind === 'request_summary')
     return 'Or describe a change, e.g. "2019 instead" or "add NSRDB"'
+  if (form.kind === 'data_gaps') return 'e.g. "fill solar from Open-Meteo" or "leave pressure missing"'
   if (typing) return 'Type another answer'
   return 'Type your answer'
 }
