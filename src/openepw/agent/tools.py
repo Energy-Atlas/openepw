@@ -67,7 +67,8 @@ ASK_TOOLS: dict[str, dict[str, Any]] = {
     "review_plan": {
         "description": (
             "Show the plans made with weather_plan to the person. Only the person can run them; "
-            "you cannot submit. Call it after weather_plan succeeds."),
+            "you cannot submit. Call it after weather_plan succeeds. When a chosen source lacks "
+            "requested variables (data gaps), it first asks the person how to cover them."),
         "parameters": {"type": "object", "properties": {}}},
     "review_retry": {
         "description": (
@@ -78,7 +79,7 @@ ASK_TOOLS: dict[str, dict[str, Any]] = {
 # The step each gate needs, named as the ask-tool or MCP tool the model should call.
 NEED_TOOL = {"review_location": "review_location", "choose_products": "choose_products",
              "years": "ask_text", "confirm_request": "review_request", "plan": "weather_plan",
-             "review_plan": "review_plan"}
+             "review_plan": "review_plan", "fill_gaps": "review_plan"}
 RESULT_LIMIT = 4000
 # MCP model tools the host calls inside an ask-tool. Calling them directly would let a model
 # "review" locations or offers without a form the person can answer, so agent mode hides them.

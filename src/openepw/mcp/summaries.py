@@ -105,6 +105,10 @@ def _plan(data: dict) -> str:
     text = (f"plan_hash {data.get('plan_hash')} ({data.get('kind')}): {data.get('output_count')} outputs, "
             f"{data.get('batch_row_count')} batch rows, {data.get('estimated_calls')} estimated source calls, "
             f"{len(data.get('warnings', []))} warnings, issue codes {_codes(data.get('issues', []))}.")
+    open_gaps = [row for row in data.get("gap_rows") or [] if row.get("unresolved")]
+    if open_gaps:
+        text += " Data gaps to decide: " + "; ".join(
+            f"{row['source']} lacks {row['label']} at {row['unresolved']} place(s)" for row in open_gaps[:5]) + "."
     if data.get("truncated"):
         text += " Rows are truncated; page them with plan_inspect."
     return text

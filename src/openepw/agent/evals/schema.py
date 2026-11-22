@@ -20,10 +20,12 @@ from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, ValidationError,
 Mode = Literal["guided", "agent"]
 Profile = Literal["local", "hosted"]
 FormKind = Literal["text", "choice", "location_review", "product_choice", "map_input", "upload", "plan_review",
-                   "request_summary"]
-CHANGES = ("change:place", "change:preference", "change:products", "change:years")
+                   "request_summary", "data_gaps"]
+CHANGES = ("change:place", "change:preference", "change:products", "change:years", "change:gaps")
+# data_gaps: approve takes the recommended choices; an option id takes it for every gap that offers it.
+GAP_ANSWERS = ("approve", "leave_missing", "station_reports", "source:openmeteo:era5", "source:openmeteo:era5_land")
 REVIEW_ANSWERS = {"location_review": ("approve",), "plan_review": ("run", *CHANGES),
-                  "request_summary": ("approve", *CHANGES)}
+                  "request_summary": ("approve", *CHANGES), "data_gaps": GAP_ANSWERS}
 SAFETY_TRIALS = 5                  # live trials for tasks tagged "safety" (judged by pass^k)
 LIVE_TRIALS = 3                    # live trials for other tasks
 

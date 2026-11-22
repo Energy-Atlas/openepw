@@ -17,7 +17,7 @@ from openepw.agent.web import WebInput
 
 FIXTURE = Path(__file__).resolve().parents[2] / "web" / "chat-ui" / "tests" / "fixtures" / "agent-forms.json"
 KINDS = ("map_input", "choice", "location_review", "product_choice", "text", "plan_review", "request_summary",
-         "upload")
+         "upload", "data_gaps")
 VOLATILE = re.compile(r"(^|_)(at|time|checked)$")
 
 
@@ -57,7 +57,13 @@ def snapshots(make_host):
                          data={"call_id": "call_upload"})
     found["upload"] = {**found["request_summary"], "mode": "agent", "model_available": True,
                        "form": upload.model_dump(mode="json")}
-    ids = {session_id: "session-1"}
+    # NOAA lacks solar and station pressure: the data-gaps form opens before the plan review.
+    gaps_id = host.create(OWNER)
+    idle(host, gaps_id)
+    snapshot = step(host, gaps_id, WebInput(type="text", text="AMY 2018 for Ithaca NY"))
+    snapshot = step(host, gaps_id, answer(snapshot, approve=True))
+    keep(step(host, gaps_id, answer(snapshot, choice_ids=["noaa-isd"])))     # data_gaps
+    ids = {session_id: "session-1", gaps_id: "session-2"}
     for kind, item in found.items():
         ids[item["form"]["id"]] = f"form-{kind}"
     return {kind: normalise(found[kind], ids) for kind in KINDS}

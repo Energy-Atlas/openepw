@@ -85,3 +85,43 @@ def combine(datasets: dict[str, WeatherDataset], assignments: dict[str, str]) ->
         )
     )
     return result
+
+
+def fill_group(primary: WeatherDataset, filler: WeatherDataset, variables: list[str], *,
+               group: str, provider: str, dataset: str) -> WeatherDataset:
+    """Replace whole variables of ``primary`` with ``filler``'s for the same UTC hours.
+
+    The filling source covers the group the chosen source lacks (planning/gaps.py): every
+    requested variable of the group comes from it, values unchanged (no adjustment toward the
+    primary source). Lineage says which source filled what, and how far apart the two sources'
+    locations are; the dataset gains an info issue VARIABLE_FILLED.
+    """
+    from .gaps import GROUP_LABELS, distance_km, source_label
+
+    primary, filler = hourly(primary), hourly(filler)
+    if filler.calendar != primary.calendar or not filler.data.index.equals(primary.data.index):
+        raise OpenEPWError("INVALID_ALIGNMENT",
+                           "A filling source must cover exactly the same UTC hours and calendar")
+    if any(variable not in filler.data for variable in variables):
+        raise OpenEPWError("MISSING_CRITICAL_VARIABLE", "The filling source lacks a variable it should fill")
+    if any(filler.units.get(variable) != primary.units.get(variable) for variable in variables):
+        raise OpenEPWError("INVALID_ALIGNMENT", "Filling source units disagree")
+    result = deepcopy(primary)
+    distance = distance_km(primary.location, filler.location)
+    label = source_label(provider, dataset)
+    apart = f", {distance:g} km from the chosen source's location" if distance is not None else ""
+    for variable in variables:
+        result.data[variable] = filler.data[variable].to_numpy()
+        lineage = deepcopy(filler.lineage[variable]) if variable in filler.lineage else None
+        if lineage is None:
+            raise OpenEPWError("MISSING_CRITICAL_VARIABLE", "The filling source has no lineage for a variable")
+        lineage.transforms.append(f"whole-variable fill for {group} from {label}{apart}")
+        lineage.filled = True
+        result.lineage[variable] = lineage
+    result.metadata = {**result.metadata, "fills": [*result.metadata.get("fills", []), {
+        "group": group, "variables": list(variables), "provider": provider, "dataset": dataset,
+        "location": filler.location.model_dump(mode="json"), "distance_km": distance}]}
+    result.issues.append(Issue(
+        code="VARIABLE_FILLED", severity="info", field=group,
+        message=f"{GROUP_LABELS.get(group, group)} filled from {label} (whole variables{apart})"))
+    return result

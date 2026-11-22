@@ -130,7 +130,7 @@ def test_job_manifest_accounts_for_mixed_fetch_outcomes(tmp_path):
     assert [row["status"] for row in manifest["batch_rows"]] == [
         "succeeded", "failed", "unsupported", "unresolved"]
     assert manifest["batch_rows"][0]["source"]["location"]["lat"] == 1
-    assert manifest["batch_rows"][1]["issue_codes"] == ["FETCH_FAILED"]
+    assert manifest["batch_rows"][1]["issue_codes"] == ["DATA_GAP", "FETCH_FAILED"]   # gap: the synthetic source
     assert all("artifact_id" not in row for row in manifest["batch_rows"][1:])
     assert manifest["counts"] == {
         "requested_occurrences": 4, "output_intents": 2, "native_tasks": 2,

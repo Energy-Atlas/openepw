@@ -96,5 +96,5 @@ def test_failed_row_has_no_compact_member(tmp_path):
         mapping = list(csv.DictReader(io.StringIO(archive.read("mapping.csv").decode())))
     failed = next(row for row in mapping if row["status"] == "failed")
     assert failed["artifact_id"] == failed["compact_member"] == ""
-    assert failed["issue_codes"] == "FETCH_FAILED"
+    assert failed["issue_codes"] == "DATA_GAP;FETCH_FAILED"      # the synthetic source lacks solar
     runner.close()

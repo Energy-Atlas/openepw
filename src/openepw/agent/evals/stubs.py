@@ -1,4 +1,5 @@
-"""Offline stand-ins for evals: a small geocoder table and a constant ERA5-like provider.
+"""Offline stand-ins for evals: a small geocoder table, a constant ERA5-like provider and a
+NOAA-like station provider without solar radiation.
 
 They keep eval runs deterministic and free; ``openepw eval --live-providers`` uses the real
 geocoder and providers instead. The weather they return is synthetic and is not for analysis.
@@ -14,7 +15,7 @@ import pandas as pd
 
 from ...config import RuntimeConfig
 from ...dataset import WeatherDataset
-from ...models import Candidate, OpenEPWError, SourceRef, VariableLineage
+from ...models import Candidate, Location, OpenEPWError, SourceRef, VariableLineage
 from ...providers.base import ProviderResult
 from ...providers.openmeteo import interval_bounds
 from ...service import WeatherService
@@ -113,6 +114,39 @@ class StubERA5:
                               task.source, b"stub-era5")
 
 
+STATION_VARIABLES = ("dry_bulb", "dew_point", "relative_humidity", "wind_speed", "wind_direction")
+
+
+class StubNOAA:
+    """A NOAA-ISD-like station 2 km north of each point (elevation 20 m): constant temperature,
+    humidity and wind, no solar radiation, and station pressure only when a plan asks for it
+    from the station's reports (``derived``), as the real adapter does."""
+
+    name = "noaa"
+
+    def discover(self, request: Any, location: Any, http: Any) -> list[Candidate]:
+        if request.product not in ("historical", "amy") or request.dataset not in (None, "ISD global-hourly"):
+            return []
+        station = Location(lat=round(location.lat + 0.018, 4), lon=location.lon, elevation=20.0,
+                           name="Stub airport station", standard_offset_minutes=location.standard_offset_minutes)
+        identity = "STUB" + hashlib.sha256(f"{location.lat:.3f},{location.lon:.3f}".encode()).hexdigest()[:7]
+        source = SourceRef(provider=self.name, dataset="ISD global-hourly", identity=identity,
+                           location=station, provisional=False)
+        return [Candidate(id=f"noaa:{identity}:{location.key}", location_id=location.key, product_id=identity,
+                          source=source, weather_types=["historical", "amy"], variables=list(STATION_VARIABLES))]
+
+    def fetch(self, task: Any, http: Any) -> ProviderResult:
+        start, end = interval_bounds(task.parameters)
+        index = pd.date_range(start + pd.Timedelta(hours=1), end, freq="h")
+        names = [*STATION_VARIABLES, *(["pressure"] if "pressure" in (task.parameters.get("derived") or []) else [])]
+        frame = pd.DataFrame({name: [VALUES[name]] * len(index) for name in names}, index=index)
+        lineage = {name: VariableLineage(variable=name, source=task.source, derived=name == "pressure",
+                                         raw_sha256=hashlib.sha256(b"stub-noaa").hexdigest())
+                   for name in names}
+        return ProviderResult(WeatherDataset(data=frame, location=task.source.location, lineage=lineage),
+                              task.source, b"stub-noaa")
+
+
 def synthetic_epw(city: str = "Ithaca", year: int = 2023) -> bytes:
     """A constant-weather annual EPW whose header names ``city`` (evals plant text there)."""
     from ...epw.writer import epw_bytes
@@ -143,5 +177,5 @@ def stub_service(data_root: str | Path, fail_near: Iterable[tuple[float, float]]
                  unlisted: dict[str, list[int]] | None = None,
                  fail_once_near: Iterable[tuple[float, float]] = ()) -> WeatherService:
     config = RuntimeConfig(data_root=Path(data_root))
-    return StubService(config, http=StubHttp(config), providers=[StubERA5(fail_near, fail_once_near)],
-                       unlisted=unlisted)
+    return StubService(config, http=StubHttp(config),
+                       providers=[StubERA5(fail_near, fail_once_near), StubNOAA()], unlisted=unlisted)

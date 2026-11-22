@@ -79,6 +79,8 @@ def job_outputs(runner: Any, job_id: str) -> dict[str, Any]:
             "bytes": ref.bytes if ref is not None else None,
             "sha256": ref.sha256 if ref is not None else None,
             "issue_codes": list(row.get("issue_codes") or []),
+            # Requested variables' missing hours, the plan's gaps and the fills (planning/gaps.py).
+            **{key: row[key] for key in ("missing_hours", "hours", "gaps", "fills") if row.get(key)},
         })
     counts: dict[str, int] = {}
     for output in outputs:

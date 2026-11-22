@@ -100,7 +100,7 @@ class RecordingModel:
         return reply
 
 
-REVIEWS = ("location_review", "plan_review", "request_summary")
+REVIEWS = ("location_review", "plan_review", "request_summary", "data_gaps")
 
 
 def _answer(form: Interaction, answers: Mapping[Any, Any], seen: int = 0) -> Answer | str | None:
@@ -116,6 +116,13 @@ def _answer(form: Interaction, answers: Mapping[Any, Any], seen: int = 0) -> Ans
         return None
     if isinstance(policy, str) and policy.startswith("say:"):
         return policy[4:].strip()                         # the person types this instead
+    if form.kind == "data_gaps":
+        if policy == "approve":
+            return Answer(**base, approve=True)
+        rows = form.data.get("rows") or []
+        choices = {row["id"]: policy for row in rows
+                   if policy in {option["id"] for option in row.get("options") or []}}
+        return Answer(**base, approve=True, value={"choices": choices})
     if form.kind in REVIEWS:
         if policy.startswith("change:"):
             return Answer(**base, choice_ids=[policy]) if policy in {option.id for option in form.options} else None

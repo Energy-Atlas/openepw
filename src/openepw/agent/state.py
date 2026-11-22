@@ -62,6 +62,10 @@ class Facts(Model):
     recheck: bool = False                            # the chosen products must be chosen again
     failed_jobs: list[str] = Field(default_factory=list)     # finished jobs with failed outputs
     retry_of: dict[str, str] = Field(default_factory=dict)   # retry job id -> the job it retried
+    # How the person chose to cover data gaps (VariableFill dumps, planning/gaps.py), and the
+    # groups a finished job left wholly missing that another source could fill (a rerun offer).
+    fills: list[dict[str, Any]] = Field(default_factory=list)
+    after_gaps: list[dict[str, Any]] = Field(default_factory=list)
 
     @property
     def running_jobs(self) -> list[str]:
@@ -88,6 +92,7 @@ class Facts(Model):
         self.offer_availability = None
         self.recheck = bool(self.chosen)
         self.plans = []
+        self.fills = []                              # gaps differ by place (stations, elevations)
 
     def change(self, part: Part, value: Any, *, by: By, seq: int = 0, proposed: Any = ()) -> None:
         """Set one part and reset only what depends on it (design §4). The plan always resets.
@@ -105,6 +110,10 @@ class Facts(Model):
                 self.recheck = True
         elif part == "products":
             self.chosen, self.recheck = list(value), False
+            kept = {(item.get("provider"), item.get("dataset")) for offer in self.chosen
+                    for item in offer["request"]["dataset_selections"]}
+            self.fills = [fill for fill in self.fills
+                          if (fill.get("for_provider"), fill.get("for_dataset")) in kept]
         else:
             years = sorted(set(value))
             if years != self.years:
@@ -139,6 +148,7 @@ class Facts(Model):
         self.years, self.proposed_years = [], []
         self.origins = {}
         self.job_ids = []
+        self.fills, self.after_gaps = [], []
 
 
 class SessionState(Model):

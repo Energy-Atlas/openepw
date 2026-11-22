@@ -283,3 +283,62 @@ async def follow_up(s: AgentSession, asked: FollowUp) -> None:
         picked = pick_outputs(rows, years=asked.years, place=place)
         show_outputs(s, picked if picked or not rows else rows,
                      heading="Your files:" if picked or not rows else "No file matches that; your files:")
+
+
+def _gap_offer(row: dict[str, Any], group: str, gap_row: dict[str, Any] | None) -> dict[str, Any] | None:
+    """The fill to offer for a group a finished output left wholly missing: the first source
+    with no key, other than one that already filled it, from the plan's gap options."""
+    used = {f"source:{fill['provider']}:{fill['dataset']}" for fill in row.get("fills") or []
+            if fill.get("group") == group and fill.get("method") == "source"}
+    options = [option for option in (gap_row or {}).get("options") or []
+               if option["id"].startswith("source:") and option["id"] not in used]
+    return next((option for option in options if not option.get("requires_credentials")), None) or (
+        options[0] if options else None)
+
+
+async def report_gaps(s: AgentSession, job_id: str) -> None:
+    """After a job: requested variables still missing in its files, in the host's words, and an
+    offer (``facts.after_gaps``, shown under What next) to fill a wholly missing group from
+    another source. Hours missing inside a variable are only reported (not filled yet)."""
+    from ..planning.gaps import GROUPS, VARIABLE_LABELS, row_id
+
+    try:
+        data = (await s.port.call("job_outputs", job_id=job_id)).data
+    except ToolFailure:
+        return
+    plan = next((plan for plan in s.facts.plans if plan.get("job_id") == job_id), None)
+    gap_rows = {row["id"]: row for row in (plan or {}).get("gap_rows") or []}
+    limit = s.security.external_text.max_chars
+    lines: list[str] = []
+    offered = {entry["row"] for entry in s.facts.after_gaps}
+    rows = [row for row in data.get("outputs") or [] if row.get("status") == "succeeded" and row.get("missing_hours")]
+    for number, row in enumerate(rows, start=1):
+        hours = row.get("hours") or 0
+        missing = {name: count for name, count in row["missing_hours"].items() if count}
+        if not missing or not hours:
+            continue
+        if len(lines) < 10:
+            shown = ", ".join(f"{VARIABLE_LABELS.get(name, name)} " + (f"all {hours} h" if count >= hours
+                                                                       else f"{count} of {hours} h")
+                              for name, count in missing.items())
+            lines.append(f"- {output_label({**row, 'number': number}, limit)}: {shown}")
+        for group, variables in GROUPS.items():
+            asked = [name for name in variables if name in row["missing_hours"]]
+            if not asked or not all(row["missing_hours"][name] >= hours for name in asked):
+                continue
+            key = row_id(str(row.get("provider")), str(row.get("dataset")), group)
+            option = _gap_offer(row, group, gap_rows.get(key))
+            if option is not None and key not in offered:
+                offered.add(key)
+                s.facts.after_gaps.append({"row": key, "group": group, "label": gap_rows[key]["label"],
+                                           "source": gap_rows[key]["source"], "option": option})
+    if not lines:
+        return
+    more = len(rows) - 10 if len(rows) > 10 else 0
+    text = ["Missing values after retrieval (the EPW marks them 9999):", *lines]
+    if more:
+        text.append(f"... and up to {more} more files")
+    text.append("\nHours missing inside a variable are not filled; review them before simulation.")
+    if s.facts.after_gaps:
+        text.append("What next offers to fill a wholly missing group from another source.")
+    s.emit("assistant", "\n".join(text), code="DATA_GAPS_AFTER", job_id=job_id)
