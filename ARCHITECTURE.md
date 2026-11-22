@@ -22,7 +22,8 @@ src/openepw/
   providers/{base,http,openmeteo,pvgis,onebuilding,noaa_isd,nsrdb,era5}.py
   availability/{models,store,stage1,bootstrap,freshness,refresh,evaluate,recommend,package}.py
   availability/importers/{contracts,climate}.py
-  planning/{spatial,hybrid,future,output_identity,batch,store}.py
+  planning/{spatial,hybrid,gaps,future,output_identity,batch,store}.py
+  pressure.py            station pressure from altimeter setting or sea-level pressure
   service.py             discovery, planning, execution and bundles
   generation/{cmip6,morph,hourly_archive,climate_profile}.py
   artifacts/{store,export}.py  atomic files, checksums, compact export
@@ -187,6 +188,17 @@ Hybrid plans explicitly assign each variable to a provider. Timelines/calendars/
 must match. Subhourly states aggregate only with all required observations; interval
 solar sums preserve energy and missingness; wind direction uses a circular mean.
 There is no implicit secondary-source fill.
+
+Data gaps ([ADR 0007](docs/decisions/0007-data-gaps-and-fills.md)): planning records, per
+place, chosen source and variable group, what the source lacks (`WeatherPlan.gaps`).
+`WeatherRequest.fills` covers a gap in one of three ways:
+- another source's whole group, as an extra fetch task on the output;
+- station pressure from the station's own reports, as a `derived` parameter on the station task;
+- a recorded choice to leave it missing.
+
+Execution fills after the chosen source is read (`planning/hybrid.fill_group`). A failed filling
+source leaves its group missing with `FILL_FAILED`. Manifests record each output's
+`missing_hours`, `gaps` and `fills`.
 
 HTTP has bounded retries/timeouts/response sizes, certificate verification, redacted
 errors/logs and a narrow NSRDB object-store redirect allowlist. Raw response caches

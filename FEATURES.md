@@ -10,7 +10,7 @@ are recorded separately. Installed source package version: 0.1.0.
 | Open-Meteo ERA5 | Live full leap-year accepted | Noncommercial free hosting; ERA5-Land variables may be unavailable |
 | PVGIS native TMY | Live 8,760 rows accepted | Original EPW and selected-month/source metadata retained |
 | OneBuilding published files | Live 8,760 rows accepted | Explicit product ID or country catalog + name; no global nearest-site index |
-| NOAA ISD | Live 48-hour station result accepted | QC flags, nearest report within 30 minutes; gaps, no solar or station pressure |
+| NOAA ISD | Live 48-hour station result accepted; Paya Lebar 2023 with fills accepted locally (2026-11-22) | QC flags, nearest report within 30 minutes; no solar (a data gap); station pressure from the station's MA1/SLP reports when chosen |
 | NSRDB/NLR | Live actual 8,784 and native TMY 8,760 rows accepted | Aggregate v4 actual years; native TMY/TDY/TGY IDs from catalog; key/email required |
 | Direct CDS ERA5/Land | Both products live one-day outputs accepted | GHI only; bounded polling; terms/token and optional dependencies |
 | Spatial/batch | Tested | Point lists, bbox/dateline, polygons/holes, grid offsets, preallocation cap |
@@ -19,6 +19,7 @@ are recorded separately. Installed source package version: 0.1.0.
 | Semantic EPW names | Implemented, offline tested | Location/source/period or future method/scenario/window/member with digest suffix |
 | Multi-dataset planning | Implemented, offline tested | Provider/dataset selection resolves local candidate at each point; an optional `variant` (e.g. `TMYx.2009-2023`) picks that published file family at each point; unavailable combinations are explicit issues |
 | Explicit hybrids | Tested | Named source per variable; exact matching timelines; no missing-data fill |
+| Data gaps and fills | Implemented, offline tested; Paya Lebar live check | Plans list requested variables a source lacks; a data-gaps form (both modes) fills a whole group from another source, uses a station's pressure reports or leaves it missing; lineage marks fills; missing hours reported after a run ([ADR 0007](docs/decisions/0007-data-gaps-and-fills.md)) |
 | CMIP6 monthly morph | Live full output accepted | Seven-variable coherent signals; default ACCESS-CM2 SSP245 verified |
 | Hourly climate profiles | Live typical, shock, persistence and ten-year ensemble accepted | U.S. PUMA sites, CCSM4/WRF, RCP4.5/8.5 and two exact windows |
 | Future ensembles | Implemented | Model/member outputs for morph; temporal years for hourly archive |

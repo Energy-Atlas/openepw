@@ -72,10 +72,11 @@ requested trace cannot start. The web chat (`/v2/agent`) is not traced.
 ## Forms and gates
 
 Every step is a typed form (`text`, `choice`, `location_review`, `product_choice`, `map_input`,
-`upload`, `plan_review`, `request_summary`). Guided mode asks them in the gate order: place →
-location review (with fixed standard-time offsets) → products → years (actual-year only) →
-request summary (only when years are just asked about) → plan review → run → job progress →
-next steps (charts, compact ZIP, new request). Plans are built by the host from the approved
+`upload`, `plan_review`, `request_summary`, `data_gaps`). Guided mode asks them in the gate order:
+place → location review (with fixed standard-time offsets) → products → years (actual-year only)
+→ request summary (only when years are just asked about) → data gaps (only when a chosen source
+lacks requested weather) → plan review → run → job progress → next steps (charts, compact ZIP,
+new request). Plans are built by the host from the approved
 review, chosen offers and the person's confirmed years; a model-supplied plan request is
 rewritten the same way. "Run" submits only the plans the open review shows: any change
 (years, products, place) replans and reopens the review first. Each plan approval answers
@@ -89,6 +90,27 @@ crosses a started job, and keeps uploaded or retrieved EPW artifacts. An unexpec
 the open form and shows `INTERNAL_ERROR` with a correlation id that is logged locally; the
 exception text is not shown. Credentials and local paths in what the person types are replaced
 (`[redacted]`, `[local path]`) before anything is logged or sent to a model.
+
+## Data gaps
+
+When a chosen source lacks requested weather, the plan lists it per variable group, for example
+NOAA ISD's solar radiation and station pressure ([ADR 0007](../decisions/0007-data-gaps-and-fills.md)).
+The data-gaps form then opens before the plan review:
+
+- **Rows.** One row per chosen source and group. The options are filling from another source,
+  using the station's own pressure reports, or leaving the group missing. The recommended option
+  is selected: the station's reports for pressure where possible, else the first source with no
+  key.
+- **Answering.** Confirming applies the choices and plans again. Typed answers work too
+  ("leave pressure missing", "fill solar from ERA5-Land", "ok"); the plan review reads the same
+  phrases when they name a group.
+- **The plan review.** It lists each gap's resolution and offers "Change data gaps". Run is
+  refused while a gap is undecided.
+- **Agent mode.** `review_plan` shows the form under the model's question, and the plan review
+  follows under the same question. The model never chooses a fill, and typed answers are read
+  without a model call.
+- **After a run.** The host lists the values still missing in each file (`DATA_GAPS_AFTER`). For
+  a group left wholly missing, What next offers the plan's fill source and plans again.
 
 ## Request parts, the summary and Change
 

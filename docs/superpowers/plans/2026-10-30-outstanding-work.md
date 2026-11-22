@@ -413,3 +413,52 @@ of about $1 per run; Playwright.
   opt-in skipped), and the opt-in real-retrieval tests passed once each.
 - Still to do by the owner: run `openepw accounts tester-secret`, set the two variables on the
   staging service, and add `OPENEPW_STAGING_URL` to `.env`.
+
+### Data gaps: warn and fill (owner, 2026-11-22)
+
+The owner tested NOAA ISD at Paya Lebar and found no DNI or DHI in the EPW. The raw ISD records
+have no solar fields at all, so the gap is in the source data, not a download bug. What was
+missing was a warning before the run and a way to fill the gap.
+
+The owner approved the plan and every recommendation:
+
+| Decision | Choice |
+|---|---|
+| Solar fill | Whole variables; GHI, DNI and DHI from one source; no adjustment toward the station |
+| Station pressure | From the station's own reports, labelled derived; Open-Meteo where that is not possible |
+| Short gaps inside a variable | (a) leave missing and warn first, then (b) interpolate up to about 3 hours (not solar) |
+| Order | Detection, the data-gaps form and "leave missing" first; whole-variable fill on the same branch; hour patching and the other cases later |
+
+Built on `feature/data-gaps-and-fills`, recorded in
+[ADR 0007](../../decisions/0007-data-gaps-and-fills.md):
+
+- Plans list gaps per place, chosen source and variable group, with options and a recommendation.
+- Fill rules ride on the request.
+- The data-gaps form runs in both modes, from the CLI and in the browser, and answers can be typed.
+- The plan review shows each gap's resolution, with "Change data gaps".
+- After a run the host reports the hours still missing and offers to fill a wholly missing group
+  and plan again.
+
+Station pressure differs from what was approved, which was sea-level pressure: Paya Lebar reports
+only the altimeter setting. So the "station's own reports" option takes, in order, the measured
+station pressure (MA1), the altimeter setting (ICAO definition) and sea-level pressure (up to
+500 m).
+
+Local check against the real services (2026-11-22, Paya Lebar 2023, NOAA chosen, recommended
+choices):
+
+- Solar came from Open-Meteo ERA5 (cell 18.5 km away), with no hours missing.
+- Pressure came from the altimeter setting for 8,623 hours.
+- 137 to 139 hours of each station variable stay missing and are reported after the run.
+
+Still to do:
+
+1. Interpolate short gaps (decision 3b).
+2. NSRDB as a solar fill source (better than ERA5 in its coverage, needs a key).
+3. Read NOAA's cloud cover, visibility, ceiling, present weather and precipitation.
+4. Fill missing months when a source's years end early (warn only for now).
+5. Warn about station distance and elevation.
+6. Check the base file's solar before future morphing.
+7. QC solar closure after fills.
+
+Merging into main or staging needs the owner's go-ahead (code).

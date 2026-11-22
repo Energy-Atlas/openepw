@@ -48,6 +48,9 @@ def missing_selection_status(
     return "unresolved"
 
 
+GAP_CODES = frozenset({"DATA_GAP", "VARIABLE_FILLED"})
+
+
 def finalize_batch_rows(
     plan: WeatherPlan, manifest_outputs: list[dict[str, Any]],
     issues: list[Issue], cancelled: bool,
@@ -70,10 +73,13 @@ def finalize_batch_rows(
         result["issue_codes"] = list(dict.fromkeys(
             [*row.issue_codes, *(issue.code for issue in related)]))
         if row.status == "planned":
+            # A data gap (planning/gaps.py) is a warning about the plan, not why an output failed.
+            failures = [issue for issue in related if issue.code not in GAP_CODES]
             result["status"] = "succeeded" if entry else (
-                "cancelled" if cancelled and not related else "failed")
+                "cancelled" if cancelled and not failures else "failed")
             if entry:
-                for key in ("artifact_id", "source", "lineage", "metadata", "raw_sha256"):
+                for key in ("artifact_id", "source", "lineage", "metadata", "raw_sha256",
+                            "missing_hours", "hours", "gaps", "fills"):
                     if key in entry:
                         result[key] = entry[key]
         finalized.append(result)

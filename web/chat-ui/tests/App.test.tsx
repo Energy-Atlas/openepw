@@ -102,6 +102,7 @@ describe('every form kind from the server fixture', () => {
     plan_review: () => screen.getByRole('button', { name: 'Run reviewed plan' }),
     request_summary: () => screen.getByRole('button', { name: 'Confirm request' }),
     upload: () => screen.getByLabelText('EPW file'),
+    data_gaps: () => screen.getByRole('region', { name: 'Cover data gaps' }),
   }
   for (const kind of Object.keys(controls) as FormKind[]) {
     it(`renders ${kind}`, async () => {

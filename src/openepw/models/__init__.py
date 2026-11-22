@@ -112,6 +112,44 @@ class HybridPolicy(Model):
         return self
 
 
+# Variables that are filled or left missing together (planning/gaps.py). Solar is one group:
+# GHI, DNI and DHI from one source stay consistent with each other (owner, 2026-11-22).
+FillGroup = Literal["solar", "pressure", "humidity", "temperature", "wind"]
+FillMethod = Literal["source", "station_reports", "leave_missing"]
+
+
+class VariableFill(Model):
+    """How to cover a group of requested variables the chosen source does not supply.
+
+    ``source`` takes the whole group from another dataset at the same place and hours;
+    ``station_reports`` works station pressure out from a NOAA station's own pressure reports;
+    ``leave_missing`` records that the person chose to leave the group missing (EPW 9999).
+    ``for_provider``/``for_dataset`` limit the rule to outputs of one chosen source. Rules are
+    tried in order for each output; the first one possible there applies.
+    """
+
+    group: FillGroup
+    method: FillMethod
+    provider: str | None = Field(default=None, min_length=1)
+    dataset: str | None = Field(default=None, min_length=1)
+    for_provider: str | None = Field(default=None, min_length=1)
+    for_dataset: str | None = Field(default=None, min_length=1)
+
+    @model_validator(mode="after")
+    def valid(self):
+        if (self.method == "source") != bool(self.provider and self.dataset):
+            raise ValueError("A source fill names its provider and dataset; other fills name none")
+        if self.method == "station_reports" and self.group != "pressure":
+            raise ValueError("Station reports can only supply station pressure")
+        if self.for_dataset and not self.for_provider:
+            raise ValueError("for_dataset needs for_provider")
+        return self
+
+    def applies_to(self, provider: str, dataset: str) -> bool:
+        return ((self.for_provider is None or self.for_provider == provider)
+                and (self.for_dataset is None or self.for_dataset == dataset))
+
+
 class DatasetSelection(Model):
     provider: str = Field(min_length=1)
     dataset: str = Field(min_length=1)
@@ -181,6 +219,8 @@ class WeatherRequest(Model):
         ]
     )
     hybrid_policy: HybridPolicy = Field(default_factory=HybridPolicy)
+    # Unset fills stay out of dumps so existing plan hashes and identities do not change.
+    fills: list[VariableFill] = Field(default_factory=list, exclude_if=lambda value: not value)
     missing_policy: Literal["warn", "error"] = "warn"
     skip_feb_29: bool = Field(default=False, exclude_if=lambda value: not value)
     formats: list[Literal["epw"]] = Field(default_factory=lambda: ["epw"])
@@ -231,6 +271,13 @@ class WeatherRequest(Model):
             raise ValueError("Duplicate dataset selection")
         if self.dataset_selections and self.hybrid_policy.enabled:
             raise ValueError("Dataset selections cannot be combined with hybrid assignment")
+        if self.fills:
+            if self.product not in ("historical", "amy"):
+                raise ValueError("Fills need actual dated series (historical or AMY)")
+            if self.hybrid_policy.enabled:
+                raise ValueError("Fills cannot be combined with hybrid assignment")
+            if len(self.fills) > 50:
+                raise ValueError("At most 50 fill rules")
         return self
 
 
@@ -341,6 +388,17 @@ class TransformStep(Model):
     parameters: dict[str, Any] = Field(default_factory=dict)
 
 
+class OutputFill(Model):
+    """A fill applied to one output: ``task_id`` is the filling source's fetch task."""
+
+    group: FillGroup
+    variables: list[str]
+    method: Literal["source", "station_reports"]
+    provider: str
+    dataset: str
+    task_id: str | None = None
+
+
 class OutputSpec(Model):
     id: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
     index: int | None = Field(default=None, ge=0)
@@ -352,6 +410,36 @@ class OutputSpec(Model):
     dataset_selection: DatasetSelection | None = Field(
         default=None, exclude_if=lambda value: value is None
     )
+    fills: list[OutputFill] = Field(default_factory=list, exclude_if=lambda value: not value)
+
+
+class GapOption(Model):
+    """One way to cover a gap, offered to the person (the rule it would add is ``fill``)."""
+
+    fill: VariableFill
+    label: str
+    detail: str = ""
+    requires_credentials: list[str] = Field(default_factory=list)
+    recommended: bool = False
+
+
+class PlanGap(Model):
+    """Requested variables the chosen source does not supply at one place, and how they are covered.
+
+    ``status`` is ``unresolved`` until a fill rule covers the group: ``filled`` (another
+    source), ``station_reports`` (derived from the station's own reports) or ``left_missing``.
+    """
+
+    occurrence_index: int = Field(ge=0)
+    requested_location_id: str
+    provider: str
+    dataset: str
+    group: FillGroup
+    variables: list[str]
+    status: Literal["unresolved", "filled", "station_reports", "left_missing"]
+    fill: VariableFill | None = None
+    options: list[GapOption] = Field(default_factory=list)
+    note: str | None = None
 
 
 class BatchRow(Model):
@@ -404,6 +492,8 @@ class WeatherPlan(Model):
                                              exclude_if=lambda value: value is None)
     warnings: list[str] = Field(default_factory=list)
     issues: list[Issue] = Field(default_factory=list, exclude_if=lambda value: not value)
+    # Requested variables a chosen source lacks, per place, source and group (planning/gaps.py).
+    gaps: list[PlanGap] = Field(default_factory=list, exclude_if=lambda value: not value)
     estimated_calls: int = 0
     estimated_bytes: int | None = None
     capability_version: Literal["0.1"] = "0.1"

@@ -30,7 +30,10 @@ HELP = ("Type a weather request, or answer the current form.\n"
         "'change years' (or place, products, preference) changes one part.\n"
         "EPW bytes stay out of the conversation; review QC before simulation.")
 _NUMBERS = re.compile(r"\d+(?:\s*,\s*\d+)*")
-_CHANGE = re.compile(r"change\s+(?:the\s+|my\s+)?(place|preference|product preference|products|years?)", re.I)
+_CHANGE = re.compile(r"change\s+(?:the\s+|my\s+)?(place|preference|product preference|products|years?"
+                     r"|data gaps|gaps)", re.I)
+# Data-gaps replies: a row number and an option letter each ("1a 2b").
+_GAP_PICKS = re.compile(r"(?:\d+\s*[a-z]\s*,?\s*)+", re.I)
 _OK = ("a", "approve", "yes", "y", "ok", "okay")
 
 
@@ -224,10 +227,20 @@ def render_form(form: Interaction) -> str:
         lines.append(("Reply with numbers separated by commas" + (", or 'ok' to keep the selected ones."
                                                                   if selected else "."))
                      if form.multi else "Reply with a number.")
+    elif form.kind == "data_gaps":
+        for row in form.data.get("rows") or []:
+            lines.append(f"  {row['number']}. {row['label']} from {row['source']}:")
+            for letter, option in zip("abcdefghij", row.get("options") or []):
+                mark = " [selected]" if option["id"] == row.get("selected") else ""
+                detail = f" — {option['detail']}" if option.get("detail") else ""
+                lines.append(f"     {letter}. {option['label']}{detail}{mark}")
+        lines.append("Type 'ok' for the selected choices, pick per gap (e.g. '1a 2c'), or write it "
+                     "(e.g. 'leave pressure missing').")
     elif form.kind == "location_review":
         lines.append("Type 'a' to approve, or describe a change (e.g. 'remove 2' or another place).")
     elif form.kind == "plan_review":
-        lines.append("Type 'run' to start retrieval, or 'change years' (or place, products, preference).")
+        lines.append("Type 'run' to start retrieval, or 'change years' (or place, products, preference"
+                     + (", data gaps" if any(option.id == "change:gaps" for option in form.options) else "") + ").")
     elif form.kind == "request_summary":
         lines.append("Type 'ok' to confirm, or 'change years' (or place, products, preference).")
     elif form.kind == "upload":
@@ -266,10 +279,23 @@ def parse_reply(form: Interaction, line: str) -> Answer | None:
         return Answer(**base, approve=True)
     if form.kind == "plan_review" and reply.casefold() in ("run", "r", "yes", "go"):
         return Answer(**base, approve=True)
+    if form.kind == "data_gaps" and reply.casefold() in _OK:
+        return Answer(**base, approve=True)
+    if form.kind == "data_gaps" and _GAP_PICKS.fullmatch(reply):
+        rows = {str(row["number"]): row for row in form.data.get("rows") or []}
+        choices = {}
+        for number, letter in re.findall(r"(\d+)\s*([a-z])", reply, re.I):
+            row = rows.get(number)
+            options = (row or {}).get("options") or []
+            index = "abcdefghij".find(letter.lower())
+            if row is None or not 0 <= index < len(options):
+                return None
+            choices[row["id"]] = options[index]["id"]
+        return Answer(**base, approve=True, value={"choices": choices})
     change = _CHANGE.fullmatch(reply.rstrip(" .!"))
     if change and form.kind in ("plan_review", "request_summary"):
         word = change.group(1).casefold()
-        part = {"year": "years", "product preference": "preference"}.get(word, word)
+        part = {"year": "years", "product preference": "preference", "data gaps": "gaps"}.get(word, word)
         if f"change:{part}" in {option.id for option in form.options}:
             return Answer(**base, choice_ids=[f"change:{part}"])
     return None

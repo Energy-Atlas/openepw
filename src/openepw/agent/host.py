@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from typing import Any, Awaitable, Callable
 
+from ..models import VariableFill
+from .gates import build_requests, open_gaps
 from .guard import clean_external
 from .interactions import Answer, Interaction, Option
 from .mcp_port import ToolFailure
@@ -42,7 +44,7 @@ def plan_entry(request: dict[str, Any], data: dict[str, Any], summary: str) -> d
             "dataset_selections": request.get("dataset_selections", []),
             "years": list(request.get("years") or []),
             "output_count": data.get("output_count", 0), "summary": summary,
-            "warnings": data.get("warnings", [])}
+            "warnings": data.get("warnings", []), "gap_rows": data.get("gap_rows", [])}
 
 
 def place_set_form(place_set: dict[str, Any]) -> Interaction:
@@ -248,6 +250,124 @@ def place_form(facts: Facts | None = None, max_chars: int = 120) -> Interaction:
                        data={"hint": "e.g. Ithaca, NY · Boston; Denver · 42.44, -76.50"})
 
 
+GAPS_PROMPT = "Some weather you asked for is missing from the chosen source. How should it be covered?"
+GAPS_NOTE = ("A fill takes whole variables from the other source for the same hours, unchanged (not "
+             "adjusted toward the station). Solar radiation always comes from one source.")
+
+
+def gap_rows(facts: Facts) -> list[dict[str, Any]]:
+    """Gap rows of the plans not yet started, once each (planning/gaps.py)."""
+    rows: dict[str, dict[str, Any]] = {}
+    for plan in facts.plans:
+        if plan.get("job_id"):
+            continue
+        for row in plan.get("gap_rows") or []:
+            rows.setdefault(row["id"], row)
+    return list(rows.values())
+
+
+def _chosen_label(row: dict[str, Any]) -> str:
+    labels = {option["id"]: option["label"] for option in row.get("options") or []}
+    if row.get("unresolved"):
+        return f"not decided at {row['unresolved']} of {row['places']} place(s)"
+    if row.get("chosen"):
+        return labels.get(row["chosen"], row["chosen"])
+    return "decided per place: " + ", ".join(f"{count} {status.replace('_', ' ')}"
+                                             for status, count in sorted(row.get("statuses", {}).items()))
+
+
+def gap_line(row: dict[str, Any], max_chars: int = 120) -> str:
+    places = f"{row['places']} place{'s' if row['places'] != 1 else ''}"
+    label = row["label"][:1].lower() + row["label"][1:]          # keeps GHI, DNI and DHI
+    return f"{clean_external(str(row['source']), max_chars)} has no {label} ({places}): {_chosen_label(row)}"
+
+
+def gaps_form(facts: Facts, *, change: bool = False, max_chars: int = 120) -> Interaction:
+    """The data-gaps form: one row per chosen source and variable group, each with its options
+    and the recommended one selected. ``change`` (from the plan review) shows every row and
+    replaces earlier choices; otherwise only rows still undecided, added to earlier choices."""
+    rows = [row for row in gap_rows(facts) if change or row.get("unresolved")]
+    shown = []
+    for index, row in enumerate(rows, start=1):
+        options = row.get("options") or []
+        selected = row.get("chosen") if change and row.get("chosen") else next(
+            (option["id"] for option in options if option.get("recommended")), options[0]["id"] if options else None)
+        shown.append({**row, "selected": selected, "number": index,
+                      "source": clean_external(str(row["source"]), max_chars)})
+    lines = [f"{row['number']}. {gap_line(row, max_chars)}" for row in shown]
+    notes = [note for row in shown for note in row.get("notes") or []]
+    summary = "\n".join([*lines, *(f"Note: {note}" for note in notes[:3]), GAPS_NOTE])
+    return Interaction(kind="data_gaps", gate="fill_gaps", prompt=GAPS_PROMPT, summary=summary,
+                       data={"rows": shown, "mode": "replace" if change else "add"})
+
+
+def _rule_key(fill: dict[str, Any]) -> tuple[Any, ...]:
+    return (fill.get("group"), fill.get("for_provider"), fill.get("for_dataset"))
+
+
+def apply_gap_choices(s: AgentSession, form: Interaction, choices: dict[str, str]) -> bool:
+    """Turn the person's choice per row (option id; the selected one where none is given) into
+    fill rules in ``facts.fills``. False, with the reason shown, for an unknown row or option."""
+    facts = s.facts
+    rows = form.data.get("rows") or []
+    known = {row["id"] for row in rows}
+    if not set(choices) <= known:
+        s.emit("error", "Choose an option for each listed gap.", code="UNKNOWN_CHOICE")
+        return False
+    rules = [dict(fill) for fill in facts.fills]
+    said = []
+    for row in rows:
+        chosen = choices.get(row["id"]) or row.get("selected")
+        option = next((item for item in row.get("options") or [] if item["id"] == chosen), None)
+        if option is None:
+            s.emit("error", "Choose one of the listed options for each gap.", code="UNKNOWN_CHOICE")
+            return False
+        fill = VariableFill.model_validate(option["fill"]).model_dump(mode="json", exclude_none=True)
+        if form.data.get("mode") == "replace":
+            rules = [rule for rule in rules if _rule_key(rule) != _rule_key(fill)]
+        rules = [rule for rule in rules if rule != fill] + [fill]
+        said.append(f"{row['label']} for {row['source']}: {option['label']}")
+    facts.fills = rules
+    s.emit("assistant", "Data gaps: " + "; ".join(said) + ".", code="GAPS_DECIDED")
+    return True
+
+
+async def make_plans(s: AgentSession) -> None:
+    """Plan every request group from the approved facts (all or nothing)."""
+    facts = s.facts
+    plans = []
+    for request in build_requests(facts):
+        result = await s.tool("weather_plan", request=request)
+        plans.append(plan_entry(request, result.data, result.text))
+    facts.plans = plans
+    if not any(plan["output_count"] for plan in facts.plans):
+        s.emit("assistant", "The plan has no executable output for these choices; choose other products.")
+        facts.chosen, facts.plans = [], []
+
+
+async def decide_gaps(s: AgentSession, form: Interaction, choices: dict[str, str]) -> bool:
+    """Apply the person's gap choices, plan again with them, and show the next form under the
+    same question (a model's review_plan call stays open): the gaps form again if some places
+    are still undecided, else the plan review. False when nothing changed."""
+    facts = s.facts
+    if any(plan.get("job_id") for plan in facts.plans):
+        s.emit("error", "A weather job already started from this plan; start a new request instead.",
+               code="JOB_STARTED")
+        return False
+    if not apply_gap_choices(s, form, choices):
+        return False
+    facts.plans = []
+    await make_plans(s)
+    if not facts.plans:
+        s.close_form()
+        return True
+    call = {"call_id": form.data["call_id"]} if "call_id" in form.data else {}
+    max_chars = s.security.external_text.max_chars
+    following = gaps_form(facts, max_chars=max_chars) if open_gaps(facts) else plan_form(facts, max_chars)
+    s.open_form(following.model_copy(update={"data": {**following.data, **call}}))
+    return True
+
+
 def plan_form(facts: Facts, max_chars: int = 120) -> Interaction:
     """The plan review: Run approves exactly these plans; each part has a Change action."""
     shown = []
@@ -256,13 +376,20 @@ def plan_form(facts: Facts, max_chars: int = 120) -> Interaction:
         started = f" (already started as job {plan['job_id'][:8]})" if plan.get("job_id") else ""
         shown.append(f"{heading}{started}: {plan['summary']}")
         shown.extend(f"Warning: {warning}" for warning in plan.get("warnings", [])[:5])
+    rows = gap_rows(facts)
+    if rows:
+        shown.append("Data gaps:")
+        shown.extend(f"- {gap_line(row, max_chars)}" for row in rows)
     if any(plan["product"] == "historical" for plan in facts.plans) and facts.review:
         shown.append(facts.review["standard_time"])
     shown.append("Listed sources are eligible to try; retrieved weather is checked by QC afterwards.")
     shown.extend(["Your request:", *lines(facts, max_chars=max_chars)])
+    options = change_options(facts)
+    if rows:
+        options.append(Option(id="change:gaps", label="Change data gaps"))
     return Interaction(kind="plan_review", gate="review_plan",
                        prompt="Review the plan, then run it to start retrieval.",
-                       summary="\n".join(shown), options=change_options(facts),
+                       summary="\n".join(shown), options=options,
                        # A copy: the run guard compares what was shown with the current plans.
                        data={"plans": [dict(plan) for plan in facts.plans],
                              "parts": parts(facts, max_chars=max_chars)})
@@ -270,6 +397,10 @@ def plan_form(facts: Facts, max_chars: int = 120) -> Interaction:
 
 def next_steps_form(facts: Facts) -> Interaction:
     options = [Option(id=choice, label=label) for choice, label in VIEWS] if facts.artifact_ids else []
+    # Groups a finished job left wholly missing that another source could fill (session._finished).
+    options += [Option(id=f"fill:{index}", label=f"{entry['option']['label']} for {entry['label'][:1].lower()}"
+                       f"{entry['label'][1:]} ({entry['source']}) and plan again")
+                for index, entry in enumerate(facts.after_gaps[:3])]
     if facts.finished_job_ids or facts.artifact_ids:
         options += [Option(id=choice, label=label) for choice, label in AFTER]
     if facts.retryable_jobs:
@@ -321,6 +452,11 @@ async def change_part(s: AgentSession, part: str, advance: Advance) -> None:
     preselected. Opening it takes a snapshot, so Back undoes the Change.
     """
     facts = s.facts
+    if part == "gaps" and gap_rows(facts):
+        form = gaps_form(facts, change=True, max_chars=s.security.external_text.max_chars)
+        if release(s, "gaps"):
+            s.open_form(form)
+        return
     if part not in PARTS:
         s.emit("error", "Choose one of the listed options.", code="UNKNOWN_CHOICE")
         return
@@ -379,6 +515,11 @@ async def run_plans(s: AgentSession, advance: Advance) -> list[str]:
     if not plans:
         s.emit("error", "There is no reviewed plan to run.", code="GATE_REQUIRED")
         return []
+    if open_gaps(s.facts):
+        s.emit("error", "Decide how to cover the data gaps before running.", code="GATE_REQUIRED",
+               need="fill_gaps")
+        await advance(s)
+        return []
     started = []
     for plan in plans:
         if plan.get("job_id"):                       # started by an earlier, partly failed run
@@ -407,6 +548,22 @@ async def run_plans(s: AgentSession, advance: Advance) -> list[str]:
         s.emit("job", f"Weather job {job['id'][:8]} started", job_id=job["id"], state=job.get("state"))
     s.close_form()
     return started
+
+
+def refill(s: AgentSession, index: int) -> bool:
+    """Plan the request again with a fill a finished job's results suggested (next steps):
+    the group's earlier rule is replaced. Earlier files stay available."""
+    facts = s.facts
+    if not 0 <= index < len(facts.after_gaps):
+        s.emit("error", "Choose one of the listed options.", code="UNKNOWN_CHOICE")
+        return False
+    entry = facts.after_gaps[index]
+    fill = VariableFill.model_validate(entry["option"]["fill"]).model_dump(mode="json", exclude_none=True)
+    facts.fills = [rule for rule in facts.fills if _rule_key(rule) != _rule_key(fill)] + [fill]
+    facts.stage, facts.job_ids, facts.plans, facts.after_gaps = "request", [], [], []
+    s.emit("assistant", f"Planning again: {entry['label']} for {entry['source']}: {entry['option']['label']}. "
+                        "Review the plan, then run it.", code="GAPS_DECIDED")
+    return True
 
 
 async def visualize(s: AgentSession, family: str, *, by: str = "host") -> None:

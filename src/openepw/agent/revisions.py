@@ -115,3 +115,53 @@ def match_offers(value: str, offers: list[dict[str, Any]]) -> list[dict[str, Any
             return None
         found += [offer for offer in matches if offer not in found]
     return found or None
+
+
+# Data gaps (planning/gaps.py): "fill solar from Open-Meteo", "leave pressure missing", "ok".
+_GAP_GROUPS = (
+    ("solar", r"solar|radiation|irradiance|irradiation|insolation|ghi|dni|dhi|sun(?:light|shine)?"),
+    ("pressure", r"(?:station |air |atmospheric |barometric )?pressure"),
+    ("humidity", r"humidity|dew[\s-]?point|moisture"),
+    ("temperature", r"(?:dry[\s-]?bulb\s+)?temperature"),
+    ("wind", r"wind"),
+)
+_GAP_OK = re.compile(r"(?:ok|okay|yes|y|approve[d]?|accept|fine|go|sounds good|looks good|"
+                     r"(?:use |take |go with )?(?:the )?recommended(?: ones?| options?| choices?)?)", re.I)
+_GAP_LEAVE = re.compile(r"\b(?:leave|keep|skip|ignore|without|no fill|don'?t fill|do not fill)\b|\bmissing\b", re.I)
+_GAP_STATION = re.compile(r"\bstation'?s?\b.*\b(?:reports?|pressure|own)\b|\bown (?:pressure )?reports?\b"
+                          r"|\baltimeter\b", re.I)
+_GAP_CDS = re.compile(r"\b(?:cds|copernicus)\b", re.I)
+_GAP_OPENMETEO = re.compile(r"open[\s-]?meteo|\bera\s?5|\breanalysis\b", re.I)
+_GAP_LAND = re.compile(r"era\s?5[\s-]?land|\bland\b", re.I)
+_GAP_SPLIT = re.compile(r"\s*[;,]\s*|\s+and\s+(?=(?:then\s+)?(?:fill|use|leave|take|get|keep|skip|from)\b)", re.I)
+
+
+def read_fill(text: str, *, need_group: bool = False) -> list[tuple[str | None, str]] | None:
+    """Gap choices in the person's words: (group or None for every gap, option id), where the
+    id is ``recommended``, ``leave_missing``, ``station_reports`` or ``source:provider:dataset``.
+    None when the text says no such choice. ``need_group`` (on the plan review) requires a group
+    word, so "use ERA5 instead" stays a product change."""
+    text = _POLITE.sub("", text.strip().strip(" .!")).strip()
+    if not text or reads_as_question(text):
+        return None
+    if _GAP_OK.fullmatch(text):
+        return None if need_group else [(None, "recommended")]
+    found: list[tuple[str | None, str]] = []
+    for clause in _GAP_SPLIT.split(text):
+        groups = [group for group, pattern in _GAP_GROUPS if re.search(rf"\b(?:{pattern})\b", clause, re.I)]
+        if _GAP_STATION.search(clause):
+            choice = "station_reports"
+            groups = groups or ["pressure"]
+        elif _GAP_CDS.search(clause):
+            choice = "source:cds:" + ("reanalysis-era5-land" if _GAP_LAND.search(clause)
+                                      else "reanalysis-era5-single-levels")
+        elif _GAP_OPENMETEO.search(clause):
+            choice = "source:openmeteo:" + ("era5_land" if _GAP_LAND.search(clause) else "era5")
+        elif _GAP_LEAVE.search(clause):
+            choice = "leave_missing"
+        else:
+            continue
+        if need_group and not groups:
+            continue
+        found += [(group, choice) for group in groups] if groups else [(None, choice)]
+    return found or None

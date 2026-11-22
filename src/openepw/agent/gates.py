@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from ..models import DatasetSelection
+from ..models import DatasetSelection, VariableFill
 from .state import Facts
 
 # Copernicus CDS requests wait in Copernicus's queue, so they run as their own job.
@@ -45,10 +45,18 @@ def next_need(facts: Facts) -> str:
         return "confirm_request" if facts.proposed_years else "years"
     if not facts.plans:
         return "plan"
+    if open_gaps(facts):
+        return "fill_gaps"                   # the data-gaps form, before the plan review
     if not facts.job_ids or any(plan.get("output_count") and not plan.get("job_id")
                                 for plan in facts.plans):
         return "review_plan"                 # including plans a partly failed run did not start
     return "jobs"
+
+
+def open_gaps(facts: Facts) -> list[dict[str, Any]]:
+    """Gap rows (planning/gaps.py) of plans not yet started that no fill choice covers."""
+    return [row for plan in facts.plans if not plan.get("job_id")
+            for row in plan.get("gap_rows") or [] if row.get("unresolved")]
 
 
 def _selection(value: dict[str, Any]) -> dict[str, Any]:
@@ -79,8 +87,11 @@ def build_requests(facts: Facts) -> list[dict[str, Any]]:
     queued = [offer for offer in actual if any(item["provider"] in QUEUED_PROVIDERS
                                                for item in offer["request"]["dataset_selections"])]
     direct = [offer for offer in actual if offer not in queued]
+    # The person's fill choices; only when there are some, so other plans keep their hashes.
+    fills = {"fills": [VariableFill.model_validate(fill).model_dump(mode="json", exclude_none=True)
+                       for fill in facts.fills]} if facts.fills else {}
     requests = [{**base, "product": "historical", "years": facts.confirmed_years,
-                 "dataset_selections": selections(group)} for group in (direct, queued) if group]
+                 "dataset_selections": selections(group), **fills} for group in (direct, queued) if group]
     if typical:
         kinds = {offer["request"]["product"] for offer in typical}
         requests.append({**base, "product": kinds.pop() if len(kinds) == 1 else "tmy", "years": [],
