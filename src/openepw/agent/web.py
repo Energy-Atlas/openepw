@@ -27,7 +27,7 @@ from .guided import GuidedPolicy
 from .interactions import Answer
 from .mcp_port import ApprovalBook, InProcessMCP
 from .model_port import ModelPort, ModelReply, ModelUnavailable
-from .moderation import ModerationPort
+from .moderation import ModerationPort, StubModeration
 from .policy_config import LimitSettings, SecurityPolicy, default_policy
 from .policy_model import ModelPolicy
 from .session import TERMINAL, AgentSession, Policy
@@ -448,7 +448,11 @@ class AgentHost:
             model = None
         policy: Policy = (ModelPolicy(SpendGuard(model, self.web, self.security, owner, session_id))
                           if model is not None else GuidedPolicy())
-        moderation = self.moderation_factory() if self.moderation_factory and stub is None else None
+        # Stub sessions use the offline stub moderation (as the evals do): their fixed test texts
+        # never go to OpenAI, and a profile that blocks unmoderated input still lets them run.
+        moderation: ModerationPort | None = (
+            StubModeration() if stub is not None
+            else self.moderation_factory() if self.moderation_factory else None)
         try:
             async with InProcessMCP(mcp_server, self.approvals) as port:
                 session = AgentSession.resume(self.store, port, self.approvals, policy, session_id,

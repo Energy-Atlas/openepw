@@ -8,6 +8,7 @@ from types import SimpleNamespace
 import pytest
 from test_web_host import answer, idle
 
+from openepw.agent.moderation import FLAG_MARKER
 from openepw.agent.policy_config import LimitSettings, TesterSettings, default_policy, load_policy
 from openepw.agent.web import AgentHost, SpendGuard, StubChoice, WebInput, WebRefusal
 from openepw.api.agent_routes import owner_of, stub_backend, task_script
@@ -36,14 +37,14 @@ class Clock:
 def tester_host(tmp_path):
     hosts = []
 
-    def build(*, limits=None, tester=None, model=None, clock=time.time):
+    def build(*, limits=None, tester=None, model=None, clock=time.time, policy=None):
         from openepw.agent.evals.stubs import stub_service
         from openepw.jobs.worker import JobRunner
         from openepw.mcp.server import create_server
 
         service = stub_service(tmp_path / "data")
         runner = JobRunner(service)
-        security = default_policy().model_copy(update={
+        security = (policy or default_policy()).model_copy(update={
             "limits": LimitSettings(**(limits or {})), "tester": TesterSettings(**(tester or {}))})
         host = AgentHost(service.config.data_root, runner, create_server(service, runner=runner),
                          security=security, model_factory=model, poll_seconds=0.05, clock=clock,
@@ -124,6 +125,25 @@ def test_a_guided_stub_session_runs_on_the_stub_providers(tester_host, tmp_path)
     assert (tmp_path / "data" / "tester-stub" / session_id[:12]).is_dir()
     with pytest.raises(Exception):
         host.runner.store.get(snapshot["job_ids"][0])
+
+
+def test_stub_sessions_run_under_a_profile_that_blocks_unmoderated_input(tester_host):
+    """Staging (hosted profile, moderation.on_error: block) refused every typed text of a stub
+    session, which had no moderation at all (staging tests, 2026-11-22). Stub sessions use the
+    offline stub moderation: nothing goes to OpenAI and the stub's flag marker is still caught."""
+    hosted = load_policy("hosted")
+    assert hosted.moderation.enabled and hosted.moderation.on_error == "block"
+    host = tester_host(policy=hosted)                     # no moderation_factory: no OpenAI key
+    session_id = host.create(TESTER, stub=StubChoice())
+    idle(host, session_id)
+    snapshot = step(host, session_id, WebInput(type="text", text="AMY 2018 for Ithaca, NY"))
+    assert snapshot["form"]["gate"] == "review_location"
+    assert not any("could not be checked by moderation" in event["text"] for event in snapshot["events"])
+    flagged = host.create(TESTER, stub=StubChoice())
+    idle(host, flagged)
+    snapshot = step(host, flagged, WebInput(type="text", text=f"AMY 2018 for Ithaca {FLAG_MARKER}"))
+    assert snapshot["strikes"] == 1
+    assert any("withheld by moderation" in event["text"] for event in snapshot["events"])
 
 
 def test_an_agent_stub_session_follows_its_task_script_across_turns(tester_host):
