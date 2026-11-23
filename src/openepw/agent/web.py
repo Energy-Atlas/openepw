@@ -9,9 +9,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import shutil
 import sqlite3
 import threading
 import time
+from collections import OrderedDict
 from concurrent.futures import Future, ThreadPoolExecutor
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -25,8 +27,8 @@ from .guided import GuidedPolicy
 from .interactions import Answer
 from .mcp_port import ApprovalBook, InProcessMCP
 from .model_port import ModelPort, ModelReply, ModelUnavailable
-from .moderation import ModerationPort
-from .policy_config import SecurityPolicy, default_policy
+from .moderation import ModerationPort, StubModeration
+from .policy_config import LimitSettings, SecurityPolicy, default_policy
 from .policy_model import ModelPolicy
 from .session import TERMINAL, AgentSession, Policy
 from .slots import parts
@@ -35,6 +37,28 @@ from .store import SessionStore
 logger = logging.getLogger("openepw.agent.web")
 Action = Callable[[AgentSession], Awaitable[Any]]
 RECENT_EVENTS = 300
+# Owners of the configured tester account's sessions (ADR 0006): "tester:<name>".
+TESTER = "tester:"
+PURGE_SECONDS = 600.0
+STUB_BACKENDS = 4                  # live stub runners at once; older ones close and reopen on use
+
+
+def is_tester(owner: str) -> bool:
+    return owner.startswith(TESTER)
+
+
+class StubChoice(Model):
+    """A tester session on the eval stub providers: ``task`` picks an eval task's setup (and, in
+    agent mode, its scripted model); without one the session is guided on the default stubs."""
+
+    task: str | None = None
+    mode: Literal["agent", "guided"] = "guided"
+
+    @model_validator(mode="after")
+    def scripted(self) -> StubChoice:
+        if self.mode == "agent" and not self.task:
+            raise ValueError("A stub session in agent mode needs an eval task, whose script is the model")
+        return self
 
 
 class WebRefusal(Exception):
@@ -76,6 +100,7 @@ class WebStore:
         usd REAL NOT NULL);
     CREATE INDEX IF NOT EXISTS spend_day ON spend (day, owner);
     CREATE TABLE IF NOT EXISTS jobs (job_id TEXT PRIMARY KEY, owner TEXT NOT NULL, session_id TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS stubs (session_id TEXT PRIMARY KEY, choice TEXT NOT NULL);
     """
 
     def __init__(self, path: str | Path, clock: Callable[[], float] = time.time):
@@ -123,12 +148,16 @@ class WebStore:
                 db.execute("INSERT INTO spend VALUES (?, ?, ?, ?)", (owner, session_id, today(), usd))
 
     def spent(self, *, session_id: str | None = None, owner: str | None = None,
-              day: str | None = None) -> float:
+              day: str | None = None, testers: bool = True) -> float:
+        """Model spend in USD; ``testers=False`` leaves the tester account's spend out."""
         clauses, values = [], []
         for column, value in (("session_id", session_id), ("owner", owner), ("day", day)):
             if value is not None:
                 clauses.append(f"{column}=?")
                 values.append(value)
+        if not testers:
+            clauses.append("owner NOT LIKE ?")
+            values.append(TESTER + "%")
         where = " WHERE " + " AND ".join(clauses) if clauses else ""
         with self._connect() as db:
             return float(db.execute(f"SELECT COALESCE(SUM(usd), 0) FROM spend{where}", values).fetchone()[0])
@@ -142,12 +171,33 @@ class WebStore:
         with self._connect() as db:
             return [row[0] for row in db.execute("SELECT job_id FROM jobs WHERE owner=?", (owner,))]
 
+    def set_stub(self, session_id: str, choice: StubChoice) -> None:
+        with self._connect() as db:
+            db.execute("INSERT INTO stubs VALUES (?, ?)", (session_id, choice.model_dump_json()))
+
+    def stub_of(self, session_id: str) -> StubChoice | None:
+        with self._connect() as db:
+            row = db.execute("SELECT choice FROM stubs WHERE session_id=?", (session_id,)).fetchone()
+        return StubChoice.model_validate_json(row[0]) if row else None
+
+    def tester_sessions_before(self, created: float) -> list[str]:
+        with self._connect() as db:
+            return [row[0] for row in db.execute("SELECT session_id FROM owners WHERE owner LIKE ? AND created < ?",
+                                                 (TESTER + "%", created))]
+
+    def forget(self, session_id: str) -> None:
+        """Drop a session's ownership, stub choice and job links; its spend stays counted."""
+        with self._connect() as db:
+            for table in ("owners", "stubs", "jobs"):
+                db.execute(f"DELETE FROM {table} WHERE session_id=?", (session_id,))
+
 
 class SpendGuard:
     """A model port that stops at the profile's spend caps and records every call's cost."""
 
     def __init__(self, model: ModelPort, store: WebStore, security: SecurityPolicy, owner: str, session_id: str):
-        self.model, self.store, self.limits = model, store, security.limits
+        self.model, self.store = model, store
+        self.limits: LimitSettings = security.tester if is_tester(owner) else security.limits
         self.owner, self.session_id = owner, session_id
         self.name = model.name
 
@@ -159,7 +209,8 @@ class SpendGuard:
         if (limits.person_usd_per_day is not None
                 and self.store.spent(owner=self.owner, day=day) >= limits.person_usd_per_day):
             return "your model budget for today is used up"
-        if limits.total_usd_per_day is not None and self.store.spent(day=day) >= limits.total_usd_per_day:
+        if (limits.total_usd_per_day is not None
+                and self.store.spent(day=day, testers=False) >= limits.total_usd_per_day):
             return "the site's model budget for today is used up"
         return None
 
@@ -201,6 +252,8 @@ class AgentHost:
                  security: SecurityPolicy | None = None,
                  model_factory: Callable[[], ModelPort | None] | None = None,
                  moderation_factory: Callable[[], ModerationPort | None] | None = None,
+                 stub_backend: Callable[[Path, str | None], tuple[Any, Any]] | None = None,
+                 scripted_model: Callable[[str], ModelPort | None] | None = None,
                  workers: int = 4, poll_seconds: float = 2.0, clock: Callable[[], float] = time.time):
         root = Path(data_root) / "agent"
         self.store = SessionStore(root / "sessions.sqlite")
@@ -211,6 +264,16 @@ class AgentHost:
         self.model_factory = model_factory
         self.moderation_factory = moderation_factory
         self.poll_seconds = poll_seconds
+        self.clock = clock
+        # Tester stub sessions (ADR 0006): each has its own (runner, MCP server) on the stub
+        # providers in its own folder, so a task's planned failures happen in every session;
+        # a task's scripted model lives as long as its session.
+        self.stub_backend = stub_backend
+        self.scripted_model = scripted_model
+        self.stub_root = Path(data_root) / "tester-stub"
+        self._stubs: OrderedDict[str, tuple[Any, Any]] = OrderedDict()
+        self._scripts: dict[str, ModelPort | None] = {}
+        self._purged = 0.0
         self.approvals = ApprovalBook()            # one-shot plan approvals, answered in-process
         self._pool = ThreadPoolExecutor(workers, thread_name_prefix="agent-turn")
         self._mutex = threading.Lock()
@@ -236,16 +299,26 @@ class AgentHost:
         if self._follower is not None:
             self._follower.join(timeout=5)
         self._pool.shutdown(wait=True, cancel_futures=True)
+        for runner, _ in self._stubs.values():
+            runner.close()
+
+    def limits_for(self, owner: str) -> LimitSettings:
+        """The tester account has its own limits (ADR 0006); everyone else the profile's."""
+        return self.security.tester if is_tester(owner) else self.security.limits
 
     # Sessions -----------------------------------------------------------------------------
-    def create(self, owner: str) -> str:
-        if not self.web.hit(owner, "session", 3600, self.security.limits.sessions_per_hour):
+    def create(self, owner: str, stub: StubChoice | None = None) -> str:
+        if stub is not None:
+            self._check_stub(owner, stub)
+        if not self.web.hit(owner, "session", 3600, self.limits_for(owner).sessions_per_hour):
             raise WebRefusal("SESSION_LIMIT", "You have started the most chat sessions allowed in an hour; "
                                               "continue an open one or try again later.")
         state = self.store.create()
-        state.mode = "agent" if self.model_available else "guided"
+        state.mode = stub.mode if stub is not None else "agent" if self.model_available else "guided"
         self.store.save(state)
         self.web.claim(state.id, owner)
+        if stub is not None:
+            self.web.set_stub(state.id, stub)
         self._submit(state.id, owner, lambda s: s.begin())
         return state.id
 
@@ -261,7 +334,7 @@ class AgentHost:
     def submit(self, session_id: str, owner: str, item: WebInput) -> Future:
         """Start one input in the background; the caller follows the session's events."""
         self.check_owner(session_id, owner)
-        if not self.web.hit(owner, "input", 60, self.security.limits.inputs_per_minute):
+        if not self.web.hit(owner, "input", 60, self.limits_for(owner).inputs_per_minute):
             raise WebRefusal("RATE_LIMIT", "Too many messages in a minute; wait a moment and try again.")
         state = self.store.load(session_id)
         answer, form = item.answer if item.type == "answer" else None, state.form
@@ -275,7 +348,7 @@ class AgentHost:
 
     def upload(self, session_id: str, owner: str, content: bytes, filename: str | None) -> Future:
         self.check_owner(session_id, owner)
-        if not self.web.hit(owner, "input", 60, self.security.limits.inputs_per_minute):
+        if not self.web.hit(owner, "input", 60, self.limits_for(owner).inputs_per_minute):
             raise WebRefusal("RATE_LIMIT", "Too many messages in a minute; wait a moment and try again.")
         return self._submit(session_id, owner, lambda s: s.upload_epw(content, filename))
 
@@ -295,8 +368,34 @@ class AgentHost:
             return lambda s: s.set_mode(item.mode or "guided")
         return lambda s: s.show_request()
 
+    def _check_stub(self, owner: str, stub: StubChoice) -> None:
+        if not is_tester(owner) or not self.security.tester.stub_mode or self.stub_backend is None:
+            raise WebRefusal("STUB_NOT_ALLOWED", "Stub sessions are for the tester account of a testing "
+                                                 "deployment.", status=403)
+        if stub.task is not None and self.scripted_model is not None and stub.mode == "agent" \
+                and self.scripted_model(stub.task) is None:
+            raise WebRefusal("UNKNOWN_TASK", f"No eval task {stub.task} with a script.", status=404)
+
+    def _backend(self, session_id: str) -> tuple[Any, Any, StubChoice | None]:
+        """The runner and MCP server a session uses: the stubs for a tester stub session."""
+        stub = self.web.stub_of(session_id)
+        if stub is None or self.stub_backend is None:
+            return self.runner, self.mcp_server, None
+        with self._mutex:
+            if session_id not in self._stubs:
+                self._stubs[session_id] = self.stub_backend(self._stub_folder(session_id), stub.task)
+                while len(self._stubs) > STUB_BACKENDS:     # its jobs resume when it reopens
+                    self._stubs.popitem(last=False)[1][0].close()
+            self._stubs.move_to_end(session_id)
+            runner, server = self._stubs[session_id]
+        return runner, server, stub
+
+    def _stub_folder(self, session_id: str) -> Path:
+        # Short, so job paths below it stay within Windows' path limit (session ids are 32 hex).
+        return self.stub_root / session_id[:12]
+
     def _check_running_jobs(self, owner: str, starting: int) -> None:
-        limit = self.security.limits.running_jobs
+        limit = self.limits_for(owner).running_jobs
         if limit is None:
             return
         running = 0
@@ -336,12 +435,26 @@ class AgentHost:
                 self._busy.discard(session_id)
 
     async def _run(self, session_id: str, owner: str, action: Action) -> AgentSession:
-        model = self.model_factory() if self.model_factory else None
+        _, mcp_server, stub = self._backend(session_id)
+        model: ModelPort | None
+        if stub is None:
+            model = self.model_factory() if self.model_factory else None
+        elif stub.mode == "agent" and stub.task and self.scripted_model is not None:
+            with self._mutex:                        # one script per session, across its turns
+                if session_id not in self._scripts:
+                    self._scripts[session_id] = self.scripted_model(stub.task)
+                model = self._scripts[session_id]
+        else:
+            model = None
         policy: Policy = (ModelPolicy(SpendGuard(model, self.web, self.security, owner, session_id))
                           if model is not None else GuidedPolicy())
-        moderation = self.moderation_factory() if self.moderation_factory else None
+        # Stub sessions use the offline stub moderation (as the evals do): their fixed test texts
+        # never go to OpenAI, and a profile that blocks unmoderated input still lets them run.
+        moderation: ModerationPort | None = (
+            StubModeration() if stub is not None
+            else self.moderation_factory() if self.moderation_factory else None)
         try:
-            async with InProcessMCP(self.mcp_server, self.approvals) as port:
+            async with InProcessMCP(mcp_server, self.approvals) as port:
                 session = AgentSession.resume(self.store, port, self.approvals, policy, session_id,
                                               security=self.security, moderation=moderation)
                 if model is None and session.state.mode == "agent":
@@ -372,6 +485,34 @@ class AgentHost:
     def _follow_loop(self) -> None:
         while not self._stop.wait(self.poll_seconds):
             self.follow_once()
+            if self.clock() - self._purged > PURGE_SECONDS:
+                self.purge_testers()
+
+    def purge_testers(self) -> list[str]:
+        """Remove the tester account's sessions older than ``tester.keep_hours`` (ADR 0006).
+
+        Their chat state, events and ownership go; their jobs and files stay, like everyone's,
+        until a retention policy exists. Busy sessions wait for the next pass.
+        """
+        self._purged = self.clock()
+        hours = self.security.tester.keep_hours
+        if hours is None:
+            return []
+        removed = []
+        for session_id in self.web.tester_sessions_before(self.clock() - hours * 3600):
+            with self._mutex:
+                if session_id in self._busy:
+                    continue
+                self._following.pop(session_id, None)
+                self._scripts.pop(session_id, None)
+                backend = self._stubs.pop(session_id, None)
+            if backend is not None:
+                backend[0].close()
+            shutil.rmtree(self._stub_folder(session_id), ignore_errors=True)   # stub data is test-only
+            self.store.delete(session_id)
+            self.web.forget(session_id)
+            removed.append(session_id)
+        return removed
 
     def follow_once(self) -> None:
         """One pass over followed sessions that are idle and show no form."""
@@ -398,6 +539,9 @@ class AgentHost:
 
     # Snapshot -----------------------------------------------------------------------------
     def snapshot(self, session_id: str, *, events: int = RECENT_EVENTS) -> dict[str, Any]:
+        # Busy is read before the state: a turn ending in between then shows as busy with the
+        # earlier state, never as idle with it (staging tests, 2026-11-16).
+        busy = self.busy(session_id)
         state = self.store.load(session_id)
         facts, form = state.facts, state.form
         recent = self.store.events(session_id, max(self.store.last_seq(session_id) - events, 0))
@@ -405,7 +549,7 @@ class AgentHost:
         snapshot: dict[str, Any] = {
             "id": state.id, "mode": state.mode, "revision": state.revision,
             "form": form.model_dump(mode="json") if form else None,
-            "busy": self.busy(session_id), "ended": state.ended is not None,
+            "busy": busy, "ended": state.ended is not None,
             "downgraded": state.downgraded, "model_available": self.model_available,
             "profile": self.security.profile, "strikes": state.strikes,
             "strike_limit": self.security.strikes.limit,

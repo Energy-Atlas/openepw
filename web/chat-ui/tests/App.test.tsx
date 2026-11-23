@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { App } from '../src/App'
 import type { FormKind } from '../src/types'
@@ -228,5 +228,28 @@ describe('answers', () => {
     fireEvent.change(message, { target: { value: '2019' } })
     fireEvent.click(screen.getByRole('button', { name: 'Send' }))
     await waitFor(() => expect(api.input).toHaveBeenCalledWith('session-1', { type: 'text', text: '2019' }))
+  })
+})
+
+describe('stream and replies', () => {
+  it('keeps a streamed idle state when the reply to the input arrives later', async () => {
+    // Staging tests, 2026-11-16: a fast turn's final state came first; the late, busy reply
+    // then left the chat busy for good.
+    const start = snapshot(form('text', 'Where do you need weather?'))
+    let handlers!: { state: (state: ReturnType<typeof snapshot>) => void }
+    let reply!: (state: ReturnType<typeof snapshot>) => void
+    const api = fakeApi(start, {
+      subscribe: vi.fn((_id: string, _cursor: number, given: typeof handlers) => { handlers = given; return () => undefined }),
+      input: vi.fn(() => new Promise(resolve => { reply = resolve })),
+    })
+    render(<App api={api} />)
+    const field = await messageField()
+    fireEvent.change(field, { target: { value: 'Ithaca, NY' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+    await waitFor(() => expect(api.input).toHaveBeenCalled())
+    const done = snapshot(form('location_review', 'Is this the right location?'), { revision: 2 })
+    act(() => handlers.state(done))                          // the turn's final state, streamed first
+    await act(async () => reply({ ...start, busy: true }))   // then the reply from when it started
+    expect(await screen.findByRole('button', { name: /Approve location/ })).toBeEnabled()
   })
 })

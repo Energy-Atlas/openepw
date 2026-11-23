@@ -30,7 +30,9 @@ def test_the_packaged_profiles_differ_only_where_the_plan_says():
     assert hosted.strikes.counting == "session"
     assert "nrel.gov" in hosted.links.allowlist and hosted.links.policy == "allowlist"
     differences = {key for key in hosted.settings() if hosted.settings()[key] != local.settings()[key]}
-    assert differences == {"profile", "strikes", "moderation", "limits"}
+    assert differences == {"profile", "strikes", "moderation", "limits", "tester"}
+    # The tester account (ADR 0006): hosted caps it; local leaves its limits off.
+    assert hosted.tester.session_usd == 1.0 and local.tester.session_usd is None
     # Web limits (P4): hosted sets every one; local turns them all off.
     assert None not in hosted.limits.model_dump().values()
     assert set(local.limits.model_dump().values()) == {None}

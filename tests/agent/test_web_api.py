@@ -206,3 +206,11 @@ def test_cli_and_web_give_the_same_forms_and_tools(tmp_path, task_id, mode):
     web = run_web(tmp_path / "web", task, models[1])
     assert cli == web
     assert cli[0], "the scenario showed no form"
+
+
+def test_a_stub_session_is_refused_for_anyone_but_the_tester(tmp_path):
+    with client_for(tmp_path) as client:
+        refused = client.post("/v2/agent/sessions", json={"stub": {"mode": "guided"}})
+        assert refused.status_code == 403 and refused.json()["code"] == "STUB_NOT_ALLOWED"
+        assert client.post("/v2/agent/sessions", json={"stub": {"mode": "agent"}}).status_code == 422
+        assert client.post("/v2/agent/sessions").status_code == 201

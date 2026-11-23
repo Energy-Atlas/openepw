@@ -84,6 +84,16 @@ class LimitSettings(_Section):
     total_usd_per_day: float | None = Field(None, ge=0, le=10_000)
 
 
+class TesterSettings(LimitSettings):
+    """The configured tester account of a testing deployment (ADR 0006): these limits replace
+    ``limits`` for it, its model spend is left out of the site's daily total, its sessions are
+    removed after ``keep_hours``, and with ``stub_mode`` a session may ask for the eval stub
+    providers (and a task's scripted model). Forms, gates and guard-rails stay the same."""
+
+    keep_hours: float | None = Field(24, ge=1, le=720)
+    stub_mode: bool = True
+
+
 class SecurityPolicy(_Section):
     version: Literal[1] = 1
     profile: str = Field(min_length=1, max_length=40)
@@ -93,6 +103,7 @@ class SecurityPolicy(_Section):
     external_text: ExternalTextSettings = ExternalTextSettings()
     links: LinkSettings = LinkSettings()
     limits: LimitSettings = LimitSettings()
+    tester: TesterSettings = TesterSettings()
     # Where the policy came from and a short hash of its effective settings (not settings).
     source: str = Field("", exclude=True)
     digest: str = Field("", exclude=True)
