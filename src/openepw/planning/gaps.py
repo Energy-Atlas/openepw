@@ -8,8 +8,9 @@ rule the gap stays ``unresolved`` and the EPW marks those values missing (9999),
 
 Owner decisions (2026-11-22): whole variables only; GHI, DNI and DHI always come from one
 source; no adjustment of a filling source toward the station; station pressure from the
-station's own reports where it can be worked out. Hours missing inside a variable are not
-filled here (they are reported after retrieval).
+station's own reports where it can be worked out. Hours missing inside a station's records are
+one more row, ``short_gaps``: interpolate gaps of up to 3 hours (never solar; decision 3b,
+planning/short_gaps.py) or leave them missing. Longer gaps are reported after retrieval.
 """
 
 from __future__ import annotations
@@ -27,12 +28,16 @@ GROUPS: dict[str, tuple[str, ...]] = {
     "temperature": ("dry_bulb",),
     "wind": ("wind_speed", "wind_direction"),
 }
+SHORT_GAPS = "short_gaps"
+# The variables whose short gaps can be interpolated: everything requested except solar.
+SHORT_GAP_VARIABLES = ("dry_bulb", "dew_point", "relative_humidity", "pressure", "wind_speed", "wind_direction")
 GROUP_LABELS = {
     "solar": "Solar radiation (GHI, DNI, DHI)",
     "pressure": "Station pressure",
     "humidity": "Humidity (dew point, relative humidity)",
     "temperature": "Dry-bulb temperature",
     "wind": "Wind (speed, direction)",
+    SHORT_GAPS: "Hours missing inside the station's records",
 }
 VARIABLE_LABELS = {"ghi": "GHI", "dni": "DNI", "dhi": "DHI", "pressure": "station pressure",
                    "dew_point": "dew point", "relative_humidity": "relative humidity",
@@ -50,6 +55,9 @@ FILL_SOURCES: dict[tuple[str, str], tuple[str, str]] = {
 SOURCE_NAMES = {"noaa": "NOAA ISD", "openmeteo": "Open-Meteo", "cds": "Copernicus CDS", "nsrdb": "NSRDB"}
 # Providers whose adapter can work station pressure out from the station's own reports.
 STATION_REPORT_PROVIDERS = frozenset({"noaa"})
+# Station observations, whose records usually miss some hours (reanalysis and satellite grids
+# do not), so the person decides how short gaps are handled.
+STATION_OBSERVATION_PROVIDERS = frozenset({"noaa"})
 MISSING_NOTES = {
     "solar": "solar gains and daylighting cannot be simulated from this file",
     "pressure": "simulation tools use their own default pressure or stop",
@@ -73,7 +81,8 @@ def source_label(provider: str, dataset: str) -> str:
 def wanted(group: str, required: Iterable[str]) -> list[str]:
     """The requested variables of a group, in group order (what a fill replaces)."""
     required = set(required)
-    return [variable for variable in GROUPS[group] if variable in required]
+    variables = SHORT_GAP_VARIABLES if group == SHORT_GAPS else GROUPS[group]
+    return [variable for variable in variables if variable in required]
 
 
 def missing_groups(variables: Iterable[str], required: Iterable[str]) -> list[tuple[str, list[str]]]:
@@ -92,6 +101,28 @@ def station_reports_possible(candidate: Candidate) -> bool:
     location = candidate.source.location
     return (candidate.source.provider in STATION_REPORT_PROVIDERS and location is not None
             and location.elevation is not None)
+
+
+def short_gaps_possible(candidate: Candidate, required: Iterable[str]) -> bool:
+    """Station records with requested non-solar variables: the short-gaps row applies."""
+    return (candidate.source.provider in STATION_OBSERVATION_PROVIDERS
+            and bool(set(wanted(SHORT_GAPS, required)) & set(candidate.variables)))
+
+
+def short_gap_options(candidate: Candidate) -> list[GapOption]:
+    """Interpolate gaps of up to 3 hours (recommended) or leave them missing."""
+    from .short_gaps import MAX_GAP_HOURS
+
+    target = {"for_provider": candidate.source.provider, "for_dataset": candidate.source.dataset}
+    return [
+        GapOption(fill=VariableFill(group=SHORT_GAPS, method="interpolate", **target),
+                  label=f"Interpolate gaps of up to {MAX_GAP_HOURS} hours",
+                  detail=("Linear in time between the hours either side; never solar; longer gaps stay "
+                          "missing; every interpolated hour is recorded"),
+                  recommended=True),
+        GapOption(fill=VariableFill(group=SHORT_GAPS, method="leave_missing", **target),
+                  label="Leave missing", detail="The EPW marks every missing hour 9999"),
+    ]
 
 
 def gap_options(group: str, candidate: Candidate, fillers: dict[tuple[str, str], Candidate | None],
@@ -145,6 +176,8 @@ def resolve(group: str, candidate: Candidate, rules: list[VariableFill],
             continue
         if rule.method == "leave_missing":
             return "left_missing", rule, None
+        if rule.method == "interpolate":
+            return "interpolated", rule, None
         if rule.method == "station_reports":
             if station_reports_possible(candidate):
                 return "station_reports", rule, None
@@ -162,6 +195,10 @@ def describe(gap: PlanGap) -> str:
     """One line for warnings and summaries."""
     lacking = ", ".join(VARIABLE_LABELS.get(variable, variable) for variable in gap.variables)
     source = source_label(gap.provider, gap.dataset)
+    if gap.group == SHORT_GAPS:
+        return f"{source}: hours missing inside the station's records " + {
+            "interpolated": "are interpolated where a gap is at most 3 hours",
+            "left_missing": "stay missing by choice (EPW 9999)"}.get(gap.status, "are not decided yet (EPW 9999)")
     if gap.status == "filled" and gap.fill and gap.fill.provider and gap.fill.dataset:
         return f"{source} has no {lacking}: filled from {source_label(gap.fill.provider, gap.fill.dataset)}"
     if gap.status == "station_reports":

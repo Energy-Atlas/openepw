@@ -48,7 +48,7 @@ def missing_selection_status(
     return "unresolved"
 
 
-GAP_CODES = frozenset({"DATA_GAP", "VARIABLE_FILLED"})
+GAP_CODES = frozenset({"DATA_GAP", "VARIABLE_FILLED", "GAPS_INTERPOLATED"})
 
 
 def finalize_batch_rows(
@@ -79,7 +79,7 @@ def finalize_batch_rows(
                 "cancelled" if cancelled and not failures else "failed")
             if entry:
                 for key in ("artifact_id", "source", "lineage", "metadata", "raw_sha256",
-                            "missing_hours", "hours", "gaps", "fills"):
+                            "missing_hours", "hours", "interpolated_hours", "gaps", "fills"):
                     if key in entry:
                         result[key] = entry[key]
         finalized.append(result)

@@ -790,6 +790,11 @@ class WeatherService:
                                                method="station_reports", provider=candidate.source.provider,
                                                dataset=candidate.source.dataset)
                                     for group in derived if group == "pressure"]
+                    if gap_rules.SHORT_GAPS in derived:   # applied after any source fill
+                        output_fills.append(OutputFill(
+                            group=gap_rules.SHORT_GAPS, method="interpolate",
+                            variables=gap_rules.wanted(gap_rules.SHORT_GAPS, request.required_variables),
+                            provider=candidate.source.provider, dataset=candidate.source.dataset))
                     for group, rule, filler in fills:
                         fill_location = {**query_location}
                         station = candidate.source.location
@@ -934,13 +939,15 @@ class WeatherService:
                     cache: dict[tuple, Candidate | None], plan_gaps: list[PlanGap],
                     issues: list[Issue]) -> tuple[list[tuple[str, Any, Candidate]], list[str]]:
         """Record the gaps of one chosen source at one place (planning/gaps.py) and return the
-        source fills (group, rule, filling candidate) and groups taken from station reports."""
+        source fills (group, rule, filling candidate) and the groups covered from the source's own
+        records: station pressure from its reports, short gaps by interpolation."""
         if request.product not in ("historical", "amy") or request.hybrid_policy.enabled:
             return [], []
         if not candidate.variables:                     # not stated by the source: unknown, not none
             return [], []
         lacking = gap_rules.missing_groups(candidate.variables, request.required_variables)
-        if not lacking:
+        short = gap_rules.short_gaps_possible(candidate, request.required_variables)
+        if not lacking and not short:
             return [], []
         query = loc.model_copy()
         if candidate.source.identity and not candidate.source.provisional and candidate.source.location:
@@ -949,7 +956,7 @@ class WeatherService:
                                            "elevation": station.elevation if station.elevation is not None
                                            else loc.elevation})
         fillers: dict[tuple[str, str], Candidate | None] = {}
-        for provider, dataset in gap_rules.FILL_SOURCES:
+        for provider, dataset in gap_rules.FILL_SOURCES if lacking else ():   # none for short gaps alone
             key = (provider, dataset, query.lat, query.lon, query.elevation, query.standard_offset_minutes)
             if key not in cache:
                 cache[key] = self._fill_candidate(request, provider, dataset, query)
@@ -978,6 +985,19 @@ class WeatherService:
                 issues.append(Issue(code="DATA_GAP", message=gap_rules.describe(gap), field=group,
                                     location_id=loc.key, occurrence_index=occurrence,
                                     dataset_selection=row_selection))
+        if short:
+            # Whether the records miss hours is known only after retrieval, so no DATA_GAP here.
+            status, rule, note = gap_rules.resolve(gap_rules.SHORT_GAPS, candidate, request.fills, fillers,
+                                                   request.required_variables)
+            plan_gaps.append(PlanGap(
+                occurrence_index=occurrence, requested_location_id=loc.key,
+                provider=candidate.source.provider, dataset=candidate.source.dataset,
+                group=gap_rules.SHORT_GAPS, status=status, fill=rule,  # type: ignore[arg-type]
+                variables=[variable for variable in gap_rules.wanted(gap_rules.SHORT_GAPS, request.required_variables)
+                           if variable in candidate.variables],
+                options=gap_rules.short_gap_options(candidate), note=note))
+            if status == "interpolated":
+                derived.append(gap_rules.SHORT_GAPS)
         return fills, derived
 
     def execute(self, plan: WeatherPlan, *, cancelled=lambda: False, progress=lambda *_: None,
@@ -1059,6 +1079,7 @@ class WeatherService:
                 else:
                     dataset = copy.deepcopy(parts[0].dataset)
                 dataset = self._apply_fills(plan, output, dataset, results)
+                dataset = self._interpolate(output, dataset)
                 if plan.request.skip_feb_29:
                     source_checks = validate(dataset, "annual")
                     if any(i.severity == "error" for i in source_checks):
@@ -1149,6 +1170,17 @@ class WeatherService:
         return dataset
 
     @staticmethod
+    def _interpolate(output: OutputSpec, dataset: Any) -> Any:
+        """Fill short gaps inside the output's records where the person chose interpolation
+        (planning/short_gaps.py), after whole-variable fills."""
+        from .planning.short_gaps import interpolate_short_gaps
+
+        for fill in output.fills:
+            if fill.method == "interpolate":
+                dataset = interpolate_short_gaps(dataset, fill.variables)
+        return dataset
+
+    @staticmethod
     def _gap_record(plan: WeatherPlan, output: OutputSpec, dataset: Any) -> dict[str, Any]:
         """The manifest's record of one output's gaps, fills and missing hours per variable."""
         if not isinstance(plan.request, WeatherRequest):
@@ -1162,6 +1194,9 @@ class WeatherService:
                 and gap.requested_location_id == output.requested_location_id
                 and (selection is None or (gap.provider, gap.dataset) == (selection.provider, selection.dataset))]
         record: dict[str, Any] = {"missing_hours": missing, "hours": rows}
+        interpolated = {name: entry["hours"] for name, entry in dataset.metadata.get("interpolated", {}).items()}
+        if interpolated:
+            record["interpolated_hours"] = interpolated
         if gaps:
             record["gaps"] = gaps
         if output.fills:

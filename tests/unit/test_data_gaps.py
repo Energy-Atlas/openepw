@@ -73,6 +73,11 @@ def test_fill_rules_are_validated():
     with pytest.raises(ValidationError):
         VariableFill(group="pressure", method="leave_missing", provider="openmeteo", dataset="era5")
     with pytest.raises(ValidationError):
+        VariableFill(group="solar", method="interpolate")                  # interpolation is for short gaps only
+    with pytest.raises(ValidationError):
+        VariableFill(group="short_gaps", method="source", provider="openmeteo", dataset="era5")
+    VariableFill(group="short_gaps", method="leave_missing")
+    with pytest.raises(ValidationError):
         WeatherRequest(locations=Location(lat=1, lon=1), product="tmy", fills=[SOLAR])
     assert "fills" not in WeatherRequest(locations=Location(lat=1, lon=1), years=[2020]).model_dump()
 
@@ -124,8 +129,9 @@ def _manifest(tmp_path, bundle):
 def test_unresolved_gaps_warn_and_keep_the_output_unchanged(tmp_path):
     service = _service(tmp_path, ROWS)
     plan = _plan(service)
-    assert [(gap.group, gap.status) for gap in plan.gaps] == [("solar", "unresolved"), ("pressure", "unresolved")]
-    assert [issue.code for issue in plan.issues] == ["DATA_GAP", "DATA_GAP"]
+    assert [(gap.group, gap.status) for gap in plan.gaps] == [
+        ("solar", "unresolved"), ("pressure", "unresolved"), ("short_gaps", "unresolved")]
+    assert [issue.code for issue in plan.issues] == ["DATA_GAP", "DATA_GAP"]     # short gaps: known after retrieval
     assert len(plan.tasks) == 1 and "derived" not in plan.tasks[0].parameters
     assert not plan.outputs[0].fills
     pressure_options = next(gap for gap in plan.gaps if gap.group == "pressure").options
@@ -141,7 +147,8 @@ def test_unresolved_gaps_warn_and_keep_the_output_unchanged(tmp_path):
 def test_fills_take_solar_from_a_second_source_and_pressure_from_the_station(tmp_path):
     service = _service(tmp_path, ROWS)
     plan = _plan(service, [SOLAR, STATION_PRESSURE])
-    assert {gap.group: gap.status for gap in plan.gaps} == {"solar": "filled", "pressure": "station_reports"}
+    assert {gap.group: gap.status for gap in plan.gaps} == {
+        "solar": "filled", "pressure": "station_reports", "short_gaps": "unresolved"}
     assert not plan.issues
     station_task, fill_task = plan.tasks
     assert station_task.parameters["derived"] == ["pressure"]
@@ -189,7 +196,8 @@ def test_station_reports_need_a_known_elevation_and_later_rules_apply(tmp_path):
 def test_left_missing_is_recorded_as_a_choice(tmp_path):
     service = _service(tmp_path, ROWS)
     plan = _plan(service, [VariableFill(group="solar", method="leave_missing"), STATION_PRESSURE])
-    assert {gap.group: gap.status for gap in plan.gaps} == {"solar": "left_missing", "pressure": "station_reports"}
+    assert {gap.group: gap.status for gap in plan.gaps} == {
+        "solar": "left_missing", "pressure": "station_reports", "short_gaps": "unresolved"}
     assert [issue.message for issue in plan.issues] == [
         "NOAA ISD station observations has no GHI, DNI, DHI: left missing by choice (EPW 9999)"]
 

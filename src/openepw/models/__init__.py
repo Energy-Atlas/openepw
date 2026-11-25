@@ -114,8 +114,10 @@ class HybridPolicy(Model):
 
 # Variables that are filled or left missing together (planning/gaps.py). Solar is one group:
 # GHI, DNI and DHI from one source stay consistent with each other (owner, 2026-11-22).
-FillGroup = Literal["solar", "pressure", "humidity", "temperature", "wind"]
-FillMethod = Literal["source", "station_reports", "leave_missing"]
+# ``short_gaps`` is not a variable group: it covers hours missing inside a station's records,
+# which can be interpolated (up to 3 hours, never solar; owner decision 3b) or left missing.
+FillGroup = Literal["solar", "pressure", "humidity", "temperature", "wind", "short_gaps"]
+FillMethod = Literal["source", "station_reports", "interpolate", "leave_missing"]
 
 
 class VariableFill(Model):
@@ -123,8 +125,9 @@ class VariableFill(Model):
 
     ``source`` takes the whole group from another dataset at the same place and hours;
     ``station_reports`` works station pressure out from a NOAA station's own pressure reports;
-    ``leave_missing`` records that the person chose to leave the group missing (EPW 9999).
-    ``for_provider``/``for_dataset`` limit the rule to outputs of one chosen source. Rules are
+    ``interpolate`` (group ``short_gaps`` only) fills gaps of up to 3 hours inside the
+    non-solar variables linearly in time; ``leave_missing`` records that the person chose to
+    leave the group missing (EPW 9999). ``for_provider``/``for_dataset`` limit the rule to outputs of one chosen source. Rules are
     tried in order for each output; the first one possible there applies.
     """
 
@@ -141,6 +144,8 @@ class VariableFill(Model):
             raise ValueError("A source fill names its provider and dataset; other fills name none")
         if self.method == "station_reports" and self.group != "pressure":
             raise ValueError("Station reports can only supply station pressure")
+        if (self.method == "interpolate") != (self.group == "short_gaps") and self.method != "leave_missing":
+            raise ValueError("Interpolation covers short gaps only, and short gaps are interpolated or left missing")
         if self.for_dataset and not self.for_provider:
             raise ValueError("for_dataset needs for_provider")
         return self
@@ -393,7 +398,7 @@ class OutputFill(Model):
 
     group: FillGroup
     variables: list[str]
-    method: Literal["source", "station_reports"]
+    method: Literal["source", "station_reports", "interpolate"]
     provider: str
     dataset: str
     task_id: str | None = None
@@ -427,7 +432,8 @@ class PlanGap(Model):
     """Requested variables the chosen source does not supply at one place, and how they are covered.
 
     ``status`` is ``unresolved`` until a fill rule covers the group: ``filled`` (another
-    source), ``station_reports`` (derived from the station's own reports) or ``left_missing``.
+    source), ``station_reports`` (derived from the station's own reports), ``interpolated``
+    (short gaps inside a station's records) or ``left_missing``.
     """
 
     occurrence_index: int = Field(ge=0)
@@ -436,7 +442,7 @@ class PlanGap(Model):
     dataset: str
     group: FillGroup
     variables: list[str]
-    status: Literal["unresolved", "filled", "station_reports", "left_missing"]
+    status: Literal["unresolved", "filled", "station_reports", "interpolated", "left_missing"]
     fill: VariableFill | None = None
     options: list[GapOption] = Field(default_factory=list)
     note: str | None = None
