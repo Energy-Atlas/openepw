@@ -55,14 +55,37 @@ told before the run:
    - Lineage counts the hours from each route and marks the variable derived.
    - It needs a NOAA station with a known elevation; elsewhere the next rule (for example
      Open-Meteo surface pressure) applies.
-6. **Hours missing inside a variable are reported, not filled** (owner decision 3a).
-   - After a job the host lists the missing hours per variable in each file (`DATA_GAPS_AFTER`).
+6. **Hours missing inside a variable are reported** (owner decision 3a).
+   - After a job the host lists the missing hours per variable in each file (`DATA_GAPS_AFTER`),
+     and the hours interpolated (item 8).
    - Where a group is wholly missing and the plan offered a source for it, What next offers to
-     fill it and plan again.
-   - Interpolating short gaps (decision 3b) is the next step and needs its own change.
+     fill it and plan again. Where short gaps were left missing, it offers to interpolate them.
 7. **Fill sources**: Open-Meteo ERA5 (all variables, no key), Open-Meteo ERA5-Land
    (temperature, humidity, pressure), and Copernicus CDS ERA5/ERA5-Land (no DNI or DHI; offered
    only when the server has a CDS key). NSRDB is not a fill source yet.
+8. **Short gaps inside station records are interpolated by choice** (owner decision 3b, built
+   2026-11-25; `planning/short_gaps.py`).
+   - Plans for station observations (NOAA ISD) get one more gap row, `short_gaps`, whatever
+     else is missing: interpolate gaps of up to 3 hours (recommended) or leave them missing. It
+     is a `VariableFill` with group `short_gaps` and method `interpolate` or `leave_missing`.
+     Reanalysis and satellite grids get no such row; they do not routinely miss hours.
+   - Whether a record misses hours is known only after retrieval, so the row adds no `DATA_GAP`
+     warning to the plan.
+   - A short gap is at most 3 consecutive missing hours with a value on both sides, exactly that
+     many hours apart. Gaps at the start or end and longer gaps stay missing. Solar is never
+     interpolated.
+   - Dry bulb, dew point, station pressure and wind speed: linear in time. Relative humidity:
+     worked out again from the interpolated dry bulb and dew point (Magnus) where the source
+     derived it that way, else linear. Wind direction: along the shorter arc, only where the
+     wind blows at both ends and through the gap (a calm hour has no direction).
+   - It runs after whole-variable fills and before leap-day removal and QC. The retrieval is
+     the same (the fetch task's cache key does not change); the output identity includes the
+     rule.
+   - Records: lineage notes the hours and gaps per variable; `metadata.interpolated` lists each
+     gap's UTC start and length; the manifest and job outputs carry `interpolated_hours`; the
+     dataset gets a `GAPS_INTERPOLATED` info issue. The EPW's per-hour source flags are left as
+     they were, because the flag codes for interpolated values were not confirmed against the
+     EPW specification.
 
 ## Consequences
 

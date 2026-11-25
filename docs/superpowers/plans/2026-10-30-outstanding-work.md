@@ -455,7 +455,8 @@ choices):
 
 Still to do:
 
-1. Interpolate short gaps (decision 3b).
+1. ~~Interpolate short gaps (decision 3b).~~ Built 2026-11-25 on `feature/short-gap-fill`
+   (ADR 0007 item 8): a short-gaps row on the data-gaps form for station records.
 2. NSRDB as a solar fill source (better than ERA5 in its coverage, needs a key).
 3. Read NOAA's cloud cover, visibility, ceiling, present weather and precipitation.
 4. Fill missing months when a source's years end early (warn only for now).

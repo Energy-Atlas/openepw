@@ -68,6 +68,10 @@ A plan therefore records solar as a data gap. The person fills it from another s
 ERA5 is recommended) or leaves it missing on the data-gaps form; see
 [ADR 0007](../decisions/0007-data-gaps-and-fills.md).
 
+Station records also miss single hours (Paya Lebar 2023: about 1.6% of each station variable).
+The same form has a row for them: interpolate gaps of up to 3 hours (recommended) or leave them
+missing. Longer gaps stay missing and are listed after the run.
+
 Station pressure is asked for (`dataTypes` adds `SLP,MA1`) only when the plan chooses "the
 station's own pressure reports". Each report gives station pressure in this order:
 

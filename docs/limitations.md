@@ -98,7 +98,8 @@ download a new EPW after changing it. Older saved browser chats require the
 location to be re-entered and reviewed before an actual-year plan can run.
 Historical retrieval currently requires output offsets aligned to
 whole provider hours; use UTC for fractional-hour zones pending explicit temporal
-interpolation support. No DST shifts, gap interpolation or implicit hybrid fill.
+interpolation support. No DST shifts or implicit hybrid fill. Gap interpolation is only the
+data-gap choice for short gaps in station records (up to 3 hours, never solar; ADR 0007).
 Actual-year requests preserve leap days unless `skip_feb_29=True` is explicitly
 set. That compatibility option is available only with `years`, removes February 29
 in local standard time, and does not make other 8,760-row truncations valid.
@@ -141,8 +142,12 @@ ten temporal years. The late-century RCP4.5 source warning is retained.
 - Data-gap fills replace whole variables with another source's values for the same hours.
   - A station file filled from ERA5 mixes a point measurement with a 25 km grid cell. The
     distance is recorded; values are not adjusted toward the station.
-  - Hours missing inside a variable are reported after a run, not filled. Interpolating short
-    gaps is the next planned step.
+  - Hours missing inside a station's records are interpolated only where the person chose it,
+    and only in gaps of up to 3 hours (never solar). Longer gaps stay missing and are reported
+    after a run. Interpolated hours are recorded in lineage and the manifest, not in the EPW's
+    per-hour source flags.
+  - Reanalysis and satellite sources get no short-gaps choice; a rare missing hour there is
+    reported after the run only.
   - NSRDB is not offered as a fill source yet. Copernicus CDS fills appear only when the server
     has a CDS key.
   - Typical-year products get no plan-time gaps. Missing values in a published EPW show in QC

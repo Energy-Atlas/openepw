@@ -109,8 +109,12 @@ The data-gaps form then opens before the plan review:
 - **Agent mode.** `review_plan` shows the form under the model's question, and the plan review
   follows under the same question. The model never chooses a fill, and typed answers are read
   without a model call.
-- **After a run.** The host lists the values still missing in each file (`DATA_GAPS_AFTER`). For
-  a group left wholly missing, What next offers the plan's fill source and plans again.
+- **Short gaps.** For station observations (NOAA ISD) one more row covers hours missing inside
+  the station's records: interpolate gaps of up to 3 hours (recommended) or leave them missing.
+  Typed: "interpolate", "leave short gaps missing".
+- **After a run.** The host lists the values still missing in each file and the hours
+  interpolated (`DATA_GAPS_AFTER`). For a group left wholly missing, What next offers the plan's
+  fill source and plans again; for short gaps left missing, it offers to interpolate them.
 
 ## Request parts, the summary and Change
 

@@ -22,7 +22,7 @@ src/openepw/
   providers/{base,http,openmeteo,pvgis,onebuilding,noaa_isd,nsrdb,era5}.py
   availability/{models,store,stage1,bootstrap,freshness,refresh,evaluate,recommend,package}.py
   availability/importers/{contracts,climate}.py
-  planning/{spatial,hybrid,gaps,future,output_identity,batch,store}.py
+  planning/{spatial,hybrid,gaps,short_gaps,future,output_identity,batch,store}.py
   pressure.py            station pressure from altimeter setting or sea-level pressure
   service.py             discovery, planning, execution and bundles
   generation/{cmip6,morph,hourly_archive,climate_profile}.py
