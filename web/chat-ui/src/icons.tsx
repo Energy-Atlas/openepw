@@ -21,6 +21,11 @@ export function BackIcon() {
   return <svg {...iconProps}><path d="M9 14 4 9l5-5" /><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" /></svg>
 }
 
+/** Door with an outward arrow: sign out of the hosted service. */
+export function SignOutIcon() {
+  return <svg {...iconProps}><path d="M14 4H6v16h8" /><path d="M10 12h10" /><path d="m17 8.5 3.5 3.5-3.5 3.5" /></svg>
+}
+
 /** Clipboard glyph for copying the debug log of a testing deployment. */
 export function CopyLogIcon() {
   return <svg {...iconProps}><rect x="6" y="5" width="12" height="15" rx="2" /><path d="M9 5V4h6v1" /><path d="M9 10h6" /><path d="M9 14h6" /></svg>

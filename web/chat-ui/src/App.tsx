@@ -8,7 +8,7 @@ import { ModelText } from './ModelText'
 import { mergeJobManifests } from './jobs'
 import { ViewPanel } from './views/ViewPanel'
 import { transcriptItems } from './transcript'
-import { CopyLogIcon, DownloadIcon, RestartIcon, ToolIcon } from './icons'
+import { CopyLogIcon, DownloadIcon, RestartIcon, SignOutIcon, ToolIcon } from './icons'
 import { copyOrSave, debugLogText } from './debugLog'
 import type { AgentEvent, AgentInput, AgentSnapshot, CatalogMap, JobManifest, JobSnapshot, OfferedFile } from './types'
 
@@ -20,7 +20,7 @@ const REFUSALS: Record<string, string> = {
   SESSION_BUSY: 'The previous step is still being handled.',
 }
 
-export function App({ api: suppliedApi }: { api?: ChatApi }) {
+export function App({ api: suppliedApi, onSignOut }: { api?: ChatApi; onSignOut?: () => void }) {
   const api = useRef(suppliedApi ?? new ChatApi()).current
   const [session, setSession] = useState<AgentSnapshot | null>(null)
   const [events, setEvents] = useState<AgentEvent[]>([])
@@ -346,6 +346,8 @@ export function App({ api: suppliedApi }: { api?: ChatApi }) {
         {!session && error && <button type="button" onClick={() => setSessionAttempt(value => value + 1)}>
           Reconnect to local service</button>}
         <div className="dock-reset">
+          {onSignOut && <button type="button" className="icon-button" aria-label="Sign out" title="Sign out"
+            onClick={() => { sessionStorage.removeItem(sessionKey); onSignOut() }}><SignOutIcon /></button>}
           {debugLog && <button type="button" className="icon-button" aria-label="Copy log"
             title={logStatus || 'Copy log for a bug report'} onClick={() => void copyLog()}><CopyLogIcon /></button>}
           <button type="button" className="icon-button" aria-label="Start over" title="Start over"

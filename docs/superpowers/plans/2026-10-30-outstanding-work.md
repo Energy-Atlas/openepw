@@ -220,11 +220,11 @@ Branch: `feature/platform-backlog` (7.1–7.2) and `feature/science-backlog` (7.
 | The 4 owner-reviewed TMY files with new coordinates; near-shore sea behaviour | Owner review list of 2026-10-27 |
 | OneBuilding redistribution terms; the ISHRAE, CSWD and RMY terms; MetEireann | Licensing |
 | Telling OneBuilding that the CTZ and LuxTMY published paths return 404 | An external message |
-| Production promotion (`feature/render-deploy`) and accounts | Owner said no promotion for now |
-| `feature/webui` (49 unique UI commits) and `feature/account-login` | Owner's branches |
-| Deleting merged branches | Deletion needs explicit approval; the three merged branches were approved on 2026-10-30 (phase 1.4), and `docs/outstanding-work-plan` after phase 1 the same day |
+| Production promotion (`feature/render-deploy`) | Owner said no promotion for now; accounts are on main since 2026-11-25, so promoting main brings Cornell email sign-in and needs production's own Resend key and sender |
+| `feature/webui` (49 unique UI commits) | Owner's branch; `feature/account-login` was merged into main on 2026-11-25 |
+| Deleting merged branches | Deletion needs explicit approval; the three merged branches were approved on 2026-10-30 (phase 1.4), `docs/outstanding-work-plan` after phase 1 the same day, and the eight merged feature, fix and docs branches on 2026-11-23 |
 | Merging, deploying, open-data pushes and Render pins after each phase | Release go-ahead |
-| The signed-in staging check of P4 and phase 5 | Deferred by the owner on 2026-11-01 until the next phase ships (see the execution notes) |
+| The signed-in staging check | Automated since 2026-11-22: `pytest tests/staging -m staging` signs in as the tester account; judging how the UI feels stays the owner's |
 
 ## Order and total
 

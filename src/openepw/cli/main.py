@@ -149,6 +149,18 @@ def main(argv=None):
     catalog_export.add_argument("--name", default="weather-availability-catalog")
     catalog_export.add_argument("--package-version", required=True)
     catalog_export.add_argument("--metadata", type=Path, help="JSON merged into datapackage.json (title, licenses...)")
+    accounts = sub.add_parser("accounts", help="hosted accounts on this data root (ADR 0006)")
+    accounts_sub = accounts.add_subparsers(dest="accounts_command", required=True)
+    accounts_sub.add_parser("list")
+    for action in ("disable", "enable"):
+        accounts_sub.add_parser(action).add_argument("email")
+    accounts_sub.add_parser("test-mail", help="send a test email with this server's Resend settings"
+                            ).add_argument("email")
+    tester = accounts_sub.add_parser("tester-secret", help="a new tester password, written only to a local "
+                                     "env file; prints its hash for the testing server")
+    tester.add_argument("--name", default="tester")
+    tester.add_argument("--write", type=Path, default=Path(".env"),
+                        help="git-ignored env file that receives the password (default .env)")
     args = parser.parse_args(_default_eval_run(list(sys.argv[1:] if argv is None else argv)))
     try:
         config = RuntimeConfig.load(
@@ -247,6 +259,35 @@ def main(argv=None):
             result = service.visualize_weather(request)
         elif args.command == "view-page":
             result = service.page_weather_data(args.input, args.offset, args.limit)
+        elif args.command == "accounts":
+            from ..api.accounts import AccountStore
+
+            store = AccountStore(config.data_root / "accounts")
+            if args.accounts_command == "list":
+                result = {"accounts": store.accounts()}
+            elif args.accounts_command == "tester-secret":
+                from ..api.accounts import new_tester_secret
+
+                result = new_tester_secret(args.name, args.write)
+            elif args.accounts_command == "test-mail":
+                from ..api.accounts import MailError, ResendMailer
+
+                if not (config.resend_api_key and config.mail_from):
+                    raise OpenEPWError("MAIL_NOT_CONFIGURED",
+                                       "Set OPENEPW_RESEND_API_KEY and OPENEPW_MAIL_FROM on this server")
+                settings = {"mail_from": config.mail_from, "public_url": config.public_url,
+                            "allowed_email_domains": config.allowed_email_domains}
+                try:
+                    message_id = ResendMailer(config.resend_api_key.get_secret_value(), config.mail_from).send(
+                        args.email.strip(), "OpenEPW test email",
+                        "This is a test from the OpenEPW server's account email settings.")
+                except MailError as refusal:
+                    raise OpenEPWError("MAIL_REFUSED", f"{refusal} (settings: {json.dumps(settings)})") from None
+                result = {"sent": True, "id": message_id, **settings}
+            else:
+                if not store.set_disabled(args.email, args.accounts_command == "disable"):
+                    raise OpenEPWError("UNKNOWN_ACCOUNT", f"No account for {args.email}")
+                result = {"email": args.email.strip().lower(), "disabled": args.accounts_command == "disable"}
         elif args.command == "catalog":
             if args.catalog_command == "status":
                 view = service.catalog_store.active()

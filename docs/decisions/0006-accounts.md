@@ -1,0 +1,89 @@
+# 0006 — Cornell email accounts replace the shared site password
+
+> Renumbered from 0005 on 2026-10-12 when `main` (which already had ADR 0005, MCP agent chat) was merged into `deploy/staging`; the decision is unchanged.
+
+
+**Date:** 2026-09-30
+
+**Status:** Implemented on `feature/account-login`, tested on `deploy/staging` before
+production.
+
+## Context
+
+The hosted Render deployment ([guide](../deploy/render.md)) sat behind
+one shared site password. Everyone who knew it used the owner's provider and model
+credentials, and nobody could be signed out alone. The owner decided on 2026-09-30:
+
+- replace the shared site password with personal accounts;
+- email and password sign-up, no Google or other identity provider;
+- only `@cornell.edu` addresses;
+- send account email through Resend;
+- keep the bearer token for scripts and agents that call `/v1` without a browser.
+
+## Decision
+
+**Ownership of the address is proved before a password exists.** Sign-up asks only for
+an email address. OpenEPW emails a one-time link, and the password is chosen on the page
+that link opens. Accepting a password at sign-up would let anyone register someone
+else's address with a password they know, then wait for the owner to click the
+verification link. Password reset uses the same link-and-set-password page.
+
+- **Domain rule.** The address must end in exactly `@cornell.edu` (configurable list,
+  `OPENEPW_ALLOWED_EMAIL_DOMAINS`); subdomains are not included. Because the link
+  proves the inbox, the rule does limit who gets in.
+- **No account enumeration.** Sign-up and reset give the same answer whether or not the
+  address has an account. A sign-up for an existing account emails a reset link instead.
+- **Links.** Tokens are 32 random bytes, stored only as SHA-256, single use, 24 hours for
+  set-up and 1 hour for reset. They travel in the URL fragment (`/password#t=…`), which
+  browsers never send to the server, so they do not appear in access logs or referrers;
+  a small script on the page moves the token into the form.
+- **Passwords.** 12 to 256 characters, hashed with scrypt (Python standard library,
+  N=2^14, r=8, p=1, 16-byte salt); a failed sign-in for an unknown address still runs a
+  hash so timing does not reveal accounts. Setting a password signs out every other
+  session of that account.
+- **Sessions.** A random token in an HttpOnly, SameSite=Lax cookie (Secure over https),
+  stored as SHA-256 in SQLite, valid 30 days; sign-out deletes it on the server.
+- **Throttling.** Ten failed sign-ins per address and per client in 10 minutes are
+  refused. At most three account emails per address per hour and 100 per hour overall,
+  which also protects the Resend quota; only emails Resend accepted count, so refused
+  attempts (for example before the sender was fixed) do not lock an address out.
+- **Storage.** `accounts/accounts.sqlite3` in the data root, next to the chat sessions.
+- **Mail.** Resend's HTTPS API with `OPENEPW_RESEND_API_KEY` from an address on a domain
+  verified in Resend (`OPENEPW_MAIL_FROM`). Links use `OPENEPW_PUBLIC_URL`, or Render's
+  `RENDER_EXTERNAL_URL`, never the request's Host header. For local work,
+  `OPENEPW_ACCOUNTS_DEV_MAIL=1` prints links to the console instead of sending; it is
+  refused when the server listens beyond the local machine.
+- **Scripts.** `OPENEPW_BEARER_TOKEN`, if set, still authorises `/v1` calls with an
+  `Authorization: Bearer` header.
+- **Administration.** `openepw accounts list|disable|enable` on the server's data root.
+- **Landing page (owner request, 2026-09-30).** With the built UI, visitors get the UI's
+  landing page: the globe alone, and a sign-in window on any click. The static UI is
+  public; `/v1`, `/docs` and `/openapi.json` stay behind sign-in. The window uses JSON
+  endpoints (`/auth/session`, `/auth/login`, `/auth/signup`, `/auth/reset`,
+  `/auth/logout`); a JSON body cannot be posted cross-site without a CORS preflight, which
+  the app never grants. HTML pages are served with `Cache-Control: no-cache` so a deploy
+  reaches returning browsers. Signed in, a sign-out button sits beside Start over.
+- **Tester account (owner, 2026-11-16).** A testing deployment may have one configured
+  tester so the staging tests can sign in without an inbox: `OPENEPW_TESTER_NAME` (a name,
+  never an address, so it cannot sign up or reset by email) and
+  `OPENEPW_TESTER_PASSWORD_HASH`, a scrypt hash. `openepw accounts tester-secret` makes a
+  random password, writes it only to a git-ignored `.env` for the tests
+  (`OPENEPW_STAGING_TESTER_NAME`, `OPENEPW_STAGING_TESTER_PASSWORD`) and prints the hash to
+  set on the server; the password never appears in chat, logs or git. The settings work only
+  when `OPENEPW_DEBUG_LOG` marks a testing deployment, so copying them to production does
+  nothing. The tester signs in through the same pages and cookie as everyone else, with the
+  same failed-sign-in limits. A new hash ends its sessions; removing the settings, or
+  `openepw accounts disable <name>`, disables it. Signed-in requests from the tester carry
+  its name (`request.state.tester_name`) so the agent chat can give it its own limits and
+  test treatment; it never gets other people's sessions or admin
+  actions.
+
+## Consequences
+
+- The Resend account needs a domain the owner controls, verified with DNS records;
+  `cornell.edu` cannot be used as the sender. Until then accounts can be exercised only
+  with the development mailer.
+- Everyone signed in still shares the owner's NLR, Copernicus and OpenAI credentials and
+  the model spending stop. Chat sessions are not yet separated per user.
+- `OPENEPW_SITE_PASSWORD` and `api/site_gate.py` are removed; a deployment that still
+  sets only that variable no longer starts in remote mode.

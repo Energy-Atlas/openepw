@@ -30,7 +30,7 @@ src/openepw/
   visualization/{catalog,models,engine,store}.py  weather view semantics and immutable JSON
   jobs/{store,worker}.py  SQLite item records and bounded worker threads
   api/app.py             REST adapter
-  api/site_gate.py       site password for hosted deployments (signed 30-day cookie)
+  api/accounts.py        Cornell email accounts for hosted deployments (ADR 0006)
   deploy.py              hosted catalog: install or upgrade from the pinned open-data package
   mcp/server.py          MCP adapter
   mcp/client.py          stdio MCP client (starts `openepw mcp`; used by the pilot tests)
