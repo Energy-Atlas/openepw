@@ -119,8 +119,9 @@ STATION_VARIABLES = ("dry_bulb", "dew_point", "relative_humidity", "wind_speed",
 
 class StubNOAA:
     """A NOAA-ISD-like station 2 km north of each point (elevation 20 m): constant temperature,
-    humidity and wind, no solar radiation, and station pressure only when a plan asks for it
-    from the station's reports (``derived``), as the real adapter does."""
+    humidity and wind with two missing hours every 1000 hours (as station records miss hours),
+    no solar radiation, and station pressure only when a plan asks for it from the station's
+    reports (``derived``), as the real adapter does."""
 
     name = "noaa"
 
@@ -140,6 +141,8 @@ class StubNOAA:
         index = pd.date_range(start + pd.Timedelta(hours=1), end, freq="h")
         names = [*STATION_VARIABLES, *(["pressure"] if "pressure" in (task.parameters.get("derived") or []) else [])]
         frame = pd.DataFrame({name: [VALUES[name]] * len(index) for name in names}, index=index)
+        for first in range(500, len(index) - 2, 1000):
+            frame.loc[frame.index[first:first + 2], list(STATION_VARIABLES)] = float("nan")
         lineage = {name: VariableLineage(variable=name, source=task.source, derived=name == "pressure",
                                          raw_sha256=hashlib.sha256(b"stub-noaa").hexdigest())
                    for name in names}

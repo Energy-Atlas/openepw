@@ -250,9 +250,11 @@ def place_form(facts: Facts | None = None, max_chars: int = 120) -> Interaction:
                        data={"hint": "e.g. Ithaca, NY · Boston; Denver · 42.44, -76.50"})
 
 
-GAPS_PROMPT = "Some weather you asked for is missing from the chosen source. How should it be covered?"
+GAPS_PROMPT = "Some weather you asked for is missing from the chosen source, or may be. How should it be covered?"
 GAPS_NOTE = ("A fill takes whole variables from the other source for the same hours, unchanged (not "
              "adjusted toward the station). Solar radiation always comes from one source.")
+SHORT_GAPS_NOTE = ("Station records usually miss some hours; interpolation fills only gaps of up to 3 hours, "
+                   "never solar, and records every hour it fills.")
 
 
 def gap_rows(facts: Facts) -> list[dict[str, Any]]:
@@ -279,7 +281,10 @@ def _chosen_label(row: dict[str, Any]) -> str:
 def gap_line(row: dict[str, Any], max_chars: int = 120) -> str:
     places = f"{row['places']} place{'s' if row['places'] != 1 else ''}"
     label = row["label"][:1].lower() + row["label"][1:]          # keeps GHI, DNI and DHI
-    return f"{clean_external(str(row['source']), max_chars)} has no {label} ({places}): {_chosen_label(row)}"
+    source = clean_external(str(row["source"]), max_chars)
+    if row.get("group") == "short_gaps":
+        return f"{source}: {label} ({places}): {_chosen_label(row)}"
+    return f"{source} has no {label} ({places}): {_chosen_label(row)}"
 
 
 def gaps_form(facts: Facts, *, change: bool = False, max_chars: int = 120) -> Interaction:
@@ -296,7 +301,10 @@ def gaps_form(facts: Facts, *, change: bool = False, max_chars: int = 120) -> In
                       "source": clean_external(str(row["source"]), max_chars)})
     lines = [f"{row['number']}. {gap_line(row, max_chars)}" for row in shown]
     notes = [note for row in shown for note in row.get("notes") or []]
-    summary = "\n".join([*lines, *(f"Note: {note}" for note in notes[:3]), GAPS_NOTE])
+    explained = [GAPS_NOTE] if any(row.get("group") != "short_gaps" for row in shown) else []
+    if any(row.get("group") == "short_gaps" for row in shown):
+        explained.append(SHORT_GAPS_NOTE)
+    summary = "\n".join([*lines, *(f"Note: {note}" for note in notes[:3]), *explained])
     return Interaction(kind="data_gaps", gate="fill_gaps", prompt=GAPS_PROMPT, summary=summary,
                        data={"rows": shown, "mode": "replace" if change else "add"})
 

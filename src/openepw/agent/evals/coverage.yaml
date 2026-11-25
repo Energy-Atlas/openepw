@@ -15,6 +15,7 @@ items:
   gaps.decide: {text: "Requested weather a chosen source lacks is decided on the data-gaps form before the plan review; the model never chooses a fill", source: data gaps plan 2026-11-22}
   gaps.fill: {text: "A fill takes the whole group from another source for the same hours, or station pressure from the station's reports, recorded in the plan and lineage", source: data gaps plan 2026-11-22}
   gaps.after: {text: "After a run, values still missing are reported per variable and a wholly missing group can be filled by planning again", source: data gaps plan 2026-11-22}
+  gaps.short: {text: "Hours missing inside station records are interpolated only where the person chose it (gaps of up to 3 hours, never solar); left gaps are reported after the run with an offer to interpolate", source: owner decision 3b 2026-11-22}
   science.reference-products: {text: "A year with a typical-year product does not make it actual-year weather", source: agent-chat spec S10}
   science.future-suspended: {text: "Future-climate weather is suspended; no tools run", source: agent-chat spec S11}
   science.readiness: {text: "No EPW is presented as simulation-ready; claims are corrected", source: AGENTS.md}

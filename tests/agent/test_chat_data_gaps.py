@@ -33,9 +33,11 @@ def test_noaa_gaps_are_decided_before_the_plan_review(make_host):
     form = snapshot["form"]
     assert form["kind"] == "data_gaps" and form["gate"] == "fill_gaps"
     rows = _rows(snapshot)
-    assert set(rows) == {"solar", "pressure"}
+    assert set(rows) == {"solar", "pressure", "short_gaps"}
     assert rows["solar"]["selected"] == "source:openmeteo:era5"         # recommended: no key
     assert rows["pressure"]["selected"] == "station_reports"           # the station's own reports
+    assert rows["short_gaps"]["selected"] == "interpolate"             # gaps of up to 3 hours
+    assert "interpolation fills only gaps of up to 3 hours" in form["summary"]
     assert {option["id"] for option in rows["solar"]["options"]} == {"source:openmeteo:era5", "leave_missing"}
 
     snapshot = step(host, session_id, answer(snapshot, approve=True))   # the recommended choices
@@ -43,6 +45,7 @@ def test_noaa_gaps_are_decided_before_the_plan_review(make_host):
     summary = snapshot["form"]["summary"]
     assert "Data gaps:" in summary and "Fill from Open-Meteo ERA5" in summary
     assert "Use the station's own pressure reports" in summary
+    assert "hours missing inside the station's records (1 place): Interpolate gaps of up to 3 hours" in summary
     assert "change:gaps" in {option["id"] for option in snapshot["form"]["options"]}
 
     snapshot = step(host, session_id, answer(snapshot, approve=True))   # Run
@@ -93,8 +96,8 @@ def test_the_plan_carries_the_fills_and_the_manifest_records_them(make_host):
     snapshot = step(host, session_id, answer(snapshot, approve=True))
     plan_hash = snapshot["form"]["data"]["plans"][0]["plan_hash"]
     plan = host.runner.service.plan_store.get(plan_hash)
-    assert sorted(fill.method for fill in plan.request.fills) == ["source", "station_reports"]
-    assert {gap.status for gap in plan.gaps} == {"filled", "station_reports"}
+    assert sorted(fill.method for fill in plan.request.fills) == ["interpolate", "source", "station_reports"]
+    assert {gap.status for gap in plan.gaps} == {"filled", "station_reports", "interpolated"}
     assert plan.tasks[0].parameters["derived"] == ["pressure"]           # the station task reads pressure
     snapshot = step(host, session_id, answer(snapshot, approve=True))
     finish_jobs(host, session_id)
@@ -102,8 +105,10 @@ def test_the_plan_carries_the_fills_and_the_manifest_records_them(make_host):
     path = host.runner.service.artifacts.resolve(job.bundle.manifest.id)[1]
     manifest = json.loads(path.read_text(encoding="utf-8"))
     output = manifest["outputs"][0]
-    assert {fill["group"] for fill in output["fills"]} == {"solar", "pressure"}
+    assert {fill["group"] for fill in output["fills"]} == {"solar", "pressure", "short_gaps"}
     assert output["missing_hours"]["ghi"] == 0 and output["missing_hours"]["pressure"] == 0
+    assert output["missing_hours"]["dry_bulb"] == 0                      # the stub's 2-hour gaps
+    assert output["interpolated_hours"]["dry_bulb"] == 18
     assert output["lineage"]["ghi"]["filled"] is True
 
 
@@ -118,6 +123,10 @@ def test_typed_gap_choices_are_read():
     assert read_fill("what is DNI?") is None
     assert read_fill("use ERA5 instead", need_group=True) is None          # a product change on the plan review
     assert read_fill("ok", need_group=True) is None
+    assert read_fill("interpolate the missing hours") == [("short_gaps", "interpolate")]
+    assert read_fill("leave short gaps missing") == [("short_gaps", "leave_missing")]
+    assert read_fill("fill solar from Open-Meteo and interpolate") == [
+        ("solar", "source:openmeteo:era5"), ("short_gaps", "interpolate")]
 
 
 def test_the_cli_renders_and_reads_the_gaps_form():
@@ -162,3 +171,27 @@ def test_in_agent_mode_review_plan_asks_about_the_gaps_first(make_host):
     assert snapshot["form"]["data"]["call_id"] == call_id                 # the same question stays open
     snapshot = step(host, session_id, answer(snapshot, approve=True))
     assert len(snapshot["job_ids"]) == 1
+
+
+def test_short_gaps_left_missing_are_reported_and_interpolation_offered(make_host):
+    host = make_host()
+    session_id, snapshot = _to_gaps(host)
+    snapshot = step(host, session_id, WebInput(type="text", text="leave short gaps missing"))
+    assert snapshot["form"]["kind"] == "plan_review"
+    snapshot = step(host, session_id, answer(snapshot, approve=True))
+    snapshot = finish_jobs(host, session_id)
+    events = host.snapshot(session_id)["events"]
+    report = next(event for event in events if event["data"].get("code") == "DATA_GAPS_AFTER")
+    assert "dry-bulb temperature 18 of 8760 h" in report["text"]
+    assert "What next offers to fill them: interpolate gaps of up to 3 hours." in report["text"]
+    offer = next(option for option in snapshot["form"]["options"] if option["id"].startswith("fill:"))
+    assert offer["label"].startswith("Interpolate gaps of up to 3 hours for hours missing inside the station's records")
+
+    snapshot = step(host, session_id, answer(snapshot, choice_ids=[offer["id"]]))   # plan again with it
+    assert snapshot["form"]["kind"] == "plan_review"
+    assert "Interpolate gaps of up to 3 hours" in snapshot["form"]["summary"]
+    snapshot = step(host, session_id, answer(snapshot, approve=True))
+    finish_jobs(host, session_id)
+    reports = [event for event in host.snapshot(session_id)["events"]
+               if event["data"].get("code") == "DATA_GAPS_AFTER"]
+    assert len(reports) == 1                     # the second run left nothing missing

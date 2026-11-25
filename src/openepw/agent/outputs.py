@@ -297,10 +297,10 @@ def _gap_offer(row: dict[str, Any], group: str, gap_row: dict[str, Any] | None) 
 
 
 async def report_gaps(s: AgentSession, job_id: str) -> None:
-    """After a job: requested variables still missing in its files, in the host's words, and an
-    offer (``facts.after_gaps``, shown under What next) to fill a wholly missing group from
-    another source. Hours missing inside a variable are only reported (not filled yet)."""
-    from ..planning.gaps import GROUPS, VARIABLE_LABELS, row_id
+    """After a job: requested variables still missing in its files, in the host's words, the
+    hours interpolated, and offers (``facts.after_gaps``, shown under What next) to fill a wholly
+    missing group from another source or, where short gaps were left, to interpolate them."""
+    from ..planning.gaps import GROUPS, SHORT_GAP_VARIABLES, SHORT_GAPS, VARIABLE_LABELS, row_id
 
     try:
         data = (await s.port.call("job_outputs", job_id=job_id)).data
@@ -310,6 +310,7 @@ async def report_gaps(s: AgentSession, job_id: str) -> None:
     gap_rows = {row["id"]: row for row in (plan or {}).get("gap_rows") or []}
     limit = s.security.external_text.max_chars
     lines: list[str] = []
+    interpolated_any = False
     offered = {entry["row"] for entry in s.facts.after_gaps}
     rows = [row for row in data.get("outputs") or [] if row.get("status") == "succeeded" and row.get("missing_hours")]
     for number, row in enumerate(rows, start=1):
@@ -317,11 +318,26 @@ async def report_gaps(s: AgentSession, job_id: str) -> None:
         missing = {name: count for name, count in row["missing_hours"].items() if count}
         if not missing or not hours:
             continue
+        interpolated = {name: count for name, count in (row.get("interpolated_hours") or {}).items() if count}
+        interpolated_any = interpolated_any or bool(interpolated)
         if len(lines) < 10:
             shown = ", ".join(f"{VARIABLE_LABELS.get(name, name)} " + (f"all {hours} h" if count >= hours
                                                                        else f"{count} of {hours} h")
                               for name, count in missing.items())
+            if interpolated:
+                shown += "; interpolated: " + ", ".join(f"{VARIABLE_LABELS.get(name, name)} {count} h"
+                                                        for name, count in interpolated.items())
             lines.append(f"- {output_label({**row, 'number': number}, limit)}: {shown}")
+        short_key = row_id(str(row.get("provider")), str(row.get("dataset")), SHORT_GAPS)
+        short_row = gap_rows.get(short_key)
+        partial = any(0 < missing.get(name, 0) < hours for name in SHORT_GAP_VARIABLES)
+        applied = any(fill.get("method") == "interpolate" for fill in row.get("fills") or [])
+        option = next((option for option in (short_row or {}).get("options") or []
+                       if option["id"] == "interpolate"), None)
+        if short_row and partial and not applied and option is not None and short_key not in offered:
+            offered.add(short_key)
+            s.facts.after_gaps.append({"row": short_key, "group": SHORT_GAPS, "label": short_row["label"],
+                                       "source": short_row["source"], "option": option})
         for group, variables in GROUPS.items():
             asked = [name for name in variables if name in row["missing_hours"]]
             if not asked or not all(row["missing_hours"][name] >= hours for name in asked):
@@ -338,7 +354,12 @@ async def report_gaps(s: AgentSession, job_id: str) -> None:
     text = ["Missing values after retrieval (the EPW marks them 9999):", *lines]
     if more:
         text.append(f"... and up to {more} more files")
-    text.append("\nHours missing inside a variable are not filled; review them before simulation.")
+    text.append("\nGaps longer than 3 hours, and any left missing by choice, are not filled; review them "
+                "before simulation." if interpolated_any else
+                "\nHours missing inside a variable are not filled; review them before simulation.")
     if s.facts.after_gaps:
-        text.append("What next offers to fill a wholly missing group from another source.")
+        text.append("What next offers to fill them: " + "; ".join(
+            entry["option"]["label"].lower() if entry["group"] == SHORT_GAPS
+            else f"{entry['label'][:1].lower()}{entry['label'][1:]} from another source"
+            for entry in s.facts.after_gaps[:3]) + ".")
     s.emit("assistant", "\n".join(text), code="DATA_GAPS_AFTER", job_id=job_id)

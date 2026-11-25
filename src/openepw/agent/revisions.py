@@ -124,6 +124,7 @@ _GAP_GROUPS = (
     ("humidity", r"humidity|dew[\s-]?point|moisture"),
     ("temperature", r"(?:dry[\s-]?bulb\s+)?temperature"),
     ("wind", r"wind"),
+    ("short_gaps", r"short gaps?|(?:missing|gap) hours?|hour(?:ly)? gaps?|gaps? (?:inside|in) the (?:station'?s? )?records?"),
 )
 _GAP_OK = re.compile(r"(?:ok|okay|yes|y|approve[d]?|accept|fine|go|sounds good|looks good|"
                      r"(?:use |take |go with )?(?:the )?recommended(?: ones?| options?| choices?)?)", re.I)
@@ -131,14 +132,16 @@ _GAP_LEAVE = re.compile(r"\b(?:leave|keep|skip|ignore|without|no fill|don'?t fil
 _GAP_STATION = re.compile(r"\bstation'?s?\b.*\b(?:reports?|pressure|own)\b|\bown (?:pressure )?reports?\b"
                           r"|\baltimeter\b", re.I)
 _GAP_CDS = re.compile(r"\b(?:cds|copernicus)\b", re.I)
+_GAP_INTERPOLATE = re.compile(r"\binterpolat\w*\b", re.I)
 _GAP_OPENMETEO = re.compile(r"open[\s-]?meteo|\bera\s?5|\breanalysis\b", re.I)
 _GAP_LAND = re.compile(r"era\s?5[\s-]?land|\bland\b", re.I)
-_GAP_SPLIT = re.compile(r"\s*[;,]\s*|\s+and\s+(?=(?:then\s+)?(?:fill|use|leave|take|get|keep|skip|from)\b)", re.I)
+_GAP_SPLIT = re.compile(r"\s*[;,]\s*|\s+and\s+(?=(?:then\s+)?(?:fill|use|leave|take|get|keep|skip|from|interpolat\w*)\b)", re.I)
 
 
 def read_fill(text: str, *, need_group: bool = False) -> list[tuple[str | None, str]] | None:
     """Gap choices in the person's words: (group or None for every gap, option id), where the
-    id is ``recommended``, ``leave_missing``, ``station_reports`` or ``source:provider:dataset``.
+    id is ``recommended``, ``leave_missing``, ``station_reports``, ``interpolate`` (short gaps
+    only) or ``source:provider:dataset``.
     None when the text says no such choice. ``need_group`` (on the plan review) requires a group
     word, so "use ERA5 instead" stays a product change."""
     text = _POLITE.sub("", text.strip().strip(" .!")).strip()
@@ -149,7 +152,10 @@ def read_fill(text: str, *, need_group: bool = False) -> list[tuple[str | None, 
     found: list[tuple[str | None, str]] = []
     for clause in _GAP_SPLIT.split(text):
         groups = [group for group, pattern in _GAP_GROUPS if re.search(rf"\b(?:{pattern})\b", clause, re.I)]
-        if _GAP_STATION.search(clause):
+        if _GAP_INTERPOLATE.search(clause):          # before "missing": "interpolate the missing hours"
+            choice = "interpolate"
+            groups = ["short_gaps"]                     # one row covers every non-solar variable
+        elif _GAP_STATION.search(clause):
             choice = "station_reports"
             groups = groups or ["pressure"]
         elif _GAP_CDS.search(clause):
