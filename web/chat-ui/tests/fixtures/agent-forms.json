@@ -231,6 +231,60 @@
       "variables": [
        "pressure"
       ]
+     },
+     {
+      "chosen": null,
+      "dataset": "ISD global-hourly",
+      "group": "short_gaps",
+      "id": "noaa|ISD global-hourly|short_gaps",
+      "label": "Hours missing inside the station's records",
+      "notes": [],
+      "number": 3,
+      "options": [
+       {
+        "detail": "Linear in time between the hours either side; never solar; longer gaps stay missing; every interpolated hour is recorded",
+        "fill": {
+         "for_dataset": "ISD global-hourly",
+         "for_provider": "noaa",
+         "group": "short_gaps",
+         "method": "interpolate"
+        },
+        "id": "interpolate",
+        "label": "Interpolate gaps of up to 3 hours",
+        "places": 1,
+        "recommended": true,
+        "requires_credentials": []
+       },
+       {
+        "detail": "The EPW marks every missing hour 9999",
+        "fill": {
+         "for_dataset": "ISD global-hourly",
+         "for_provider": "noaa",
+         "group": "short_gaps",
+         "method": "leave_missing"
+        },
+        "id": "leave_missing",
+        "label": "Leave missing",
+        "places": 1,
+        "recommended": false,
+        "requires_credentials": []
+       }
+      ],
+      "places": 1,
+      "provider": "noaa",
+      "selected": "interpolate",
+      "source": "NOAA ISD station observations",
+      "statuses": {
+       "unresolved": 1
+      },
+      "unresolved": 1,
+      "variables": [
+       "dry_bulb",
+       "dew_point",
+       "relative_humidity",
+       "wind_speed",
+       "wind_direction"
+      ]
      }
     ]
    },
@@ -239,9 +293,9 @@
    "kind": "data_gaps",
    "multi": false,
    "options": [],
-   "prompt": "Some weather you asked for is missing from the chosen source. How should it be covered?",
+   "prompt": "Some weather you asked for is missing from the chosen source, or may be. How should it be covered?",
    "revision": 4,
-   "summary": "1. NOAA ISD station observations has no solar radiation (GHI, DNI, DHI) (1 place): not decided at 1 of 1 place(s)\n2. NOAA ISD station observations has no station pressure (1 place): not decided at 1 of 1 place(s)\nA fill takes whole variables from the other source for the same hours, unchanged (not adjusted toward the station). Solar radiation always comes from one source."
+   "summary": "1. NOAA ISD station observations has no solar radiation (GHI, DNI, DHI) (1 place): not decided at 1 of 1 place(s)\n2. NOAA ISD station observations has no station pressure (1 place): not decided at 1 of 1 place(s)\n3. NOAA ISD station observations: hours missing inside the station's records (1 place): not decided at 1 of 1 place(s)\nA fill takes whole variables from the other source for the same hours, unchanged (not adjusted toward the station). Solar radiation always comes from one source.\nStation records usually miss some hours; interpolation fills only gaps of up to 3 hours, never solar, and records every hour it fills."
   },
   "id": "session-2",
   "job_ids": [],

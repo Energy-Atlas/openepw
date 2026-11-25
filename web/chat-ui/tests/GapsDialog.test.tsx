@@ -35,15 +35,20 @@ describe('data gaps dialog', () => {
     const dialog = await screen.findByRole('region', { name: 'Cover data gaps' })
     expect(within(dialog).getByText(/^Solar radiation/)).toBeInTheDocument()
     expect(within(dialog).getByText(/^Station pressure/)).toBeInTheDocument()
-    // The question keeps its note, not the numbered rows the dialog already lists.
+    expect(within(dialog).getByText(/^Hours missing inside the station's records/)).toBeInTheDocument()
+    expect(within(dialog).getByRole('radio', { name: /Interpolate gaps of up to 3 hours/ })).toBeChecked()
+    // The question keeps its notes, not the numbered rows the dialog already lists.
     const question = screen.getByLabelText('Current question')
     expect(question).toHaveTextContent('takes whole variables')
+    expect(question).toHaveTextContent('interpolation fills only gaps of up to 3 hours')
     expect(question).not.toHaveTextContent('1. NOAA ISD')
+    expect(question).not.toHaveTextContent('3. NOAA ISD')
     fireEvent.click(within(dialog).getByRole('button', { name: 'Confirm' }))
     await waitFor(() => expect(api.input).toHaveBeenLastCalledWith('session-2', expect.objectContaining({
       type: 'answer', answer: expect.objectContaining({ approve: true, value: { choices: {
         'noaa|ISD global-hourly|solar': 'source:openmeteo:era5',
-        'noaa|ISD global-hourly|pressure': 'station_reports' } } }) })))
+        'noaa|ISD global-hourly|pressure': 'station_reports',
+        'noaa|ISD global-hourly|short_gaps': 'interpolate' } } }) })))
   })
 
   it('takes the choice in words instead', async () => {
